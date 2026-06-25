@@ -25,6 +25,9 @@ enum class MenuAction {
     CALENDAR_TOMORROW, // Holnapi program
     CALENDAR_WEEK,  // Heti program áttekintése
     CALENDAR_ADD,   // Új program beállítása
+    NOTE_LIST,      // Saját jegyzetek listája
+    NOTE_CREATE,    // Új jegyzet diktálással
+    NOTE_DELETE,    // Jegyzet törlése
     MUSIC,          // Zene a telefonon
     YOUTUBE,        // YouTube keresés + lejátszás
     NEWS_READ,      // Hírek felolvasása (RSS)
@@ -203,6 +206,9 @@ object MenuTree {
             MenuItem("calendar_tomorrow", "Holnapi program felolvasása", MenuAction.CALENDAR_TOMORROW),
             MenuItem("calendar_week", "Heti program áttekintése", MenuAction.CALENDAR_WEEK),
             MenuItem("calendar_add", "Új program beállítása", MenuAction.CALENDAR_ADD),
+            MenuItem("note_list", "Saját jegyzetek", MenuAction.NOTE_LIST),
+            MenuItem("note_create", "Új jegyzet", MenuAction.NOTE_CREATE),
+            MenuItem("note_delete", "Jegyzet törlése", MenuAction.NOTE_DELETE),
             MenuItem("timer_create", "Új időzítő mentése", MenuAction.TIMER_CREATE),
             MenuItem("timer_list", "Időzítők listája", MenuAction.TIMER_LIST),
             MenuItem("timer_start", "Időzítő indítása", MenuAction.TIMER_START),

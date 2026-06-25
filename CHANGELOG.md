@@ -1,5 +1,14 @@
 # Változások
 
+## 1.37.0 (versionCode 63) — 2026-06-25
+
+### Új funkciók
+
+- **Naptár – tiszta diktálás** – program dátuma és kezdési ideje közvetlen hanggal (nem számbillentyűzet-átmenet); offline bevitel swipe lefelével
+- **Saját jegyzetek** – listázás, diktálással létrehozás, törlés, felolvasás; menü: Idő és Szervezés
+- **Internet kereső → jegyzet** – találatnál swipe lefelé mentés; cikk olvasás közben is menthető jegyzetként
+- **Hangos asszisztens** – „saját jegyzetek”, „új jegyzet”, „jegyzet törlése” parancsok
+
 ## 1.36.9 (versionCode 62) — 2026-06-25
 
 ### Stabilitás – rendbetétel 3. kör

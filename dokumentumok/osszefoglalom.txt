@@ -2,7 +2,7 @@ SUPER DL – Android alkalmazás
 Fejlesztési összefoglaló
 
 Dátum: 2026-06-25
-Verzió a telefonon: 1.36.9
+Verzió a telefonon: 1.37.0
 Projekt mappa: C:\Users\msn\Documents\SuperDL-Android
 Fejlesztő: Kőrösmezey Dávid
 
@@ -122,15 +122,33 @@ MIT CSINÁLTAM ÖSSZESEN
    - A projekt mostantól git-tel követhető (változások nyomon követése).
 
 
-7. Telepítés a telefonra
+7. verzió – 1.37.0 (új funkciók)
+
+   Naptár – tiszta diktálás
+   - Program neve, dátuma és kezdési ideje közvetlenül diktálható (nem számbillentyűzet-átmenet).
+   - Swipe lefelé: offline dátum/idő bevitel, ha a diktálás nem sikerül.
+
+   Saját jegyzetek (új modul)
+   - Menü: Idő és Szervezés → Saját jegyzetek / Új jegyzet / Jegyzet törlése.
+   - Diktálással cím + szöveg mentése, listázás, felolvasás, törlés.
+   - Maximum 200 jegyzet, JSON tárolás a telefonon.
+
+   Internet kereső → jegyzet
+   - Találatnál swipe lefelé: cikk mentése jegyzetként (teljes szöveg, ha elérhető).
+   - Cikk olvasás közben is menthető jegyzetként.
+
+   Hangos asszisztens
+   - „saját jegyzetek”, „új jegyzet”, „jegyzet törlése” parancsok.
+
+
+8. Telepítés a telefonra
 
    - A telefon csatlakoztatva volt (Ulefone Armor 24).
-   - A debug verzió nem telepíthető volt a már meglévő alkalmazás mellé (engedély ütközés).
    - Release verziót építettem és azt telepítettem.
-   - Telepítés sikeres: 1.36.9 verzió fut a telefonon.
+   - Telepítés sikeres: 1.37.0 verzió fut a telefonon.
 
 
-8. Dokumentáció
+9. Dokumentáció
 
    - CHANGELOG.md frissítve
    - README.md frissítve (verzió, APK elérési út, tesztelési lista)
@@ -168,11 +186,14 @@ MÓDOSÍTOTT FÁJLOK
 APK HELYE A GÉPEN
 
   Release (ez van a telefonon):
-          app\build\outputs\apk\release\SuperDL-1.36.9-release.apk
+          app\build\outputs\apk\release\SuperDL-1.37.0-release.apk
 
 
 MIT ÉRDEMES KIPRÓBÁLNI A TELEFONON
 
+  - Új program: diktáld a nevet, dátumot (ma/holnap), kezdési időt – swipe le = offline bevitel
+  - Saját jegyzetek: új jegyzet diktálás, lista, felolvasás, törlés
+  - Internet kereső: találatnál lefelé húzás = mentés jegyzetként
   - Kamera és szelfi: induljon el összeomlás nélkül, fel/le húzás működjön
   - Szövegolvasó, QR, szín/fény detektor: ne lassuljon/beessen hosszú használat után
   - Könyvtár: nagy könyv betöltése közben gyors kilépés – ne crasheljen

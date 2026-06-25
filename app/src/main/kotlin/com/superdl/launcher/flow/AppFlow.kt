@@ -78,6 +78,29 @@ sealed class AppFlow {
         val editEventId: Long? = null
     ) : AppFlow()
 
+    data class NoteListBrowse(
+        val notes: List<com.superdl.launcher.notes.NoteEntry>,
+        val index: Int,
+        val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    object NoteAwaitTitle : AppFlow()
+    data class NoteAwaitBody(val title: String) : AppFlow()
+    data class NoteReading(
+        val note: com.superdl.launcher.notes.NoteEntry,
+        val chunkIndex: Int,
+        val totalChunks: Int,
+        val percent: Int,
+        val notes: List<com.superdl.launcher.notes.NoteEntry>,
+        val noteIndex: Int
+    ) : AppFlow()
+
+    data class NoteDeleteConfirm(
+        val note: com.superdl.launcher.notes.NoteEntry,
+        val notes: List<com.superdl.launcher.notes.NoteEntry>,
+        val index: Int
+    ) : AppFlow()
+
     data class CalendarContextMenu(
         val events: List<com.superdl.launcher.calendar.CalendarEvent>,
         val eventIndex: Int,
@@ -168,7 +191,8 @@ sealed class AppFlow {
         val results: List<com.superdl.launcher.search.SearchResult>,
         val resultIndex: Int,
         val query: String,
-        val sourceLabel: String = ""
+        val sourceLabel: String = "",
+        val articleBody: String = ""
     ) : AppFlow()
 
     object EmailInboxLoading : AppFlow()

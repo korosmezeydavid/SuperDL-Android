@@ -96,7 +96,7 @@ object VoiceAssistantHelper {
             "ébresztő beállítása és listázása, időzítő, gyógyszer emlékeztető, " +
             "üzenet küldés és olvasás, e-mail küldés és beállítás, hívás név szerint, hívásnapló, szám tárcsázás, " +
             "új névjegy, kedvenc hívás és törlés, " +
-            "naptár mai és holnapi program, új program, " +
+            "naptár mai és holnapi program, új program, saját jegyzetek, új jegyzet, " +
             "hol vagyok, hely keresése, gyalogos útvonal, közlekedési útvonal, közeli megállók, " +
             "zene, YouTube keresés, könyvtár, könyvjelzők, könyvmappa, könyv keresése, " +
             "napi összefoglaló, bevásárlólista, e-mailek olvasása, " +
@@ -356,6 +356,15 @@ object VoiceAssistantHelper {
 
         containsAny(text, "uj program", "naptar bejegyzes", "program beallit", "esemeny") ->
             MenuAction.CALENDAR_ADD
+
+        containsAny(text, "jegyzet torles", "jegyzetek torlese", "torold a jegyzetet") ->
+            MenuAction.NOTE_DELETE
+
+        containsAny(text, "uj jegyzet", "jegyzet iras", "jegyzet rogzit", "jegyzet keszit") ->
+            MenuAction.NOTE_CREATE
+
+        containsAny(text, "sajat jegyzetek", "jegyzetek", "jegyzet lista", "jegyzeteim") ->
+            MenuAction.NOTE_LIST
 
         containsAny(text, "holnapi program", "holnapi naptar") ->
             MenuAction.CALENDAR_TOMORROW

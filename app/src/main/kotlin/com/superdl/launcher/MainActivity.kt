@@ -105,6 +105,8 @@ import com.superdl.launcher.calendar.CalendarReminderScheduler
 import com.superdl.launcher.calendar.CalendarReminderStore
 import com.superdl.launcher.calllog.CallLogHelper
 import com.superdl.launcher.calculator.CalculatorHelper
+import com.superdl.launcher.notes.NoteEntry
+import com.superdl.launcher.notes.NoteStore
 import com.superdl.launcher.music.MusicHelper
 import com.superdl.launcher.music.MusicPlayerActivity
 import com.superdl.launcher.music.MusicTrack
@@ -261,8 +263,10 @@ class MainActivity : AppCompatActivity() {
     }
     private lateinit var bookReader: BookReader
     private lateinit var articleReader: BookReader
+    private lateinit var noteReader: BookReader
     private var mediaButtonHandler: AssistantMediaButtonHandler? = null
     private val searchArticleBook = BookEntry("__search_article__", "Cikk", "txt", 0)
+    private val noteReadingBook = BookEntry("__note_reading__", "Jegyzet", "txt", 0)
 
     private var smtpDraftUsername = ""
     private var smtpDraftPassword = ""
@@ -478,6 +482,21 @@ class MainActivity : AppCompatActivity() {
             onFinished = { finishSearchArticleReading("Cikk vége.") },
             onError = { message -> exitSearchArticleReading(message) }
         )
+        noteReader = BookReader(
+            context = this,
+            tts = tts,
+            onProgress = { chunkIndex, totalChunks, _ ->
+                val flow = activeFlow as? AppFlow.NoteReading ?: return@BookReader
+                activeFlow = flow.copy(
+                    chunkIndex = chunkIndex,
+                    totalChunks = totalChunks,
+                    percent = noteReader.progressPercent()
+                )
+                updateFlowDisplay()
+            },
+            onFinished = { finishNoteReading("Jegyzet vége.") },
+            onError = { message -> exitNoteReading(message) }
+        )
 
         gestureListener = SwipeGestureListener(
             context = this,
@@ -641,8 +660,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NotificationBrowse -> navigateNotificationList(flow, -1)
             is AppFlow.NewsFeedBrowse -> navigateNewsFeedList(flow, -1)
             is AppFlow.NewsBrowse -> navigateNewsList(flow, -1)
-            is AppFlow.SearchResultBrowse -> navigateSearchResults(flow, -1)
+            is AppFlow.SearchResultBrowse -> navigateSearchResults(flow, +1)
             is AppFlow.SearchArticleReading -> articleReader.repeatChunk()
+            is AppFlow.NoteListBrowse -> navigateNoteList(flow, -1)
+            is AppFlow.NoteReading -> noteReader.repeatChunk()
             is AppFlow.EmailInboxBrowse -> navigateEmailInbox(flow, -1)
             is AppFlow.EmailReadBody -> speakEmailBody(flow)
             is AppFlow.ShoppingListPick -> navigateShoppingListPick(flow, -1)
@@ -767,8 +788,15 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NotificationBrowse -> navigateNotificationList(flow, +1)
             is AppFlow.NewsFeedBrowse -> navigateNewsFeedList(flow, +1)
             is AppFlow.NewsBrowse -> navigateNewsList(flow, +1)
-            is AppFlow.SearchResultBrowse -> navigateSearchResults(flow, +1)
-            is AppFlow.SearchArticleReading -> articleReader.nextChunk()
+            is AppFlow.SearchResultBrowse -> saveSearchResultAsNote(flow)
+            is AppFlow.SearchArticleReading -> saveSearchArticleAsNote(flow)
+            is AppFlow.NoteListBrowse -> navigateNoteList(flow, +1)
+            is AppFlow.NoteReading -> noteReader.nextChunk()
+            is AppFlow.CalendarAwaitDate -> openCalendarDatePad(flow.title)
+            is AppFlow.CalendarAwaitStartTime -> openCalendarStartTimePad(flow.title, flow.dayStartMs)
+            is AppFlow.CalendarAwaitEndTime -> openCalendarEndTimePad(
+                flow.title, flow.dayStartMs, flow.startHour, flow.startMinute
+            )
             is AppFlow.EmailInboxBrowse -> navigateEmailInbox(flow, +1)
             is AppFlow.EmailReadBody -> speakEmailBody(flow)
             is AppFlow.ShoppingListPick -> enterShoppingListContextMenu(flow)
@@ -889,6 +917,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NewsBrowse -> tts.speak(flow.items[flow.index].speakFull())
             is AppFlow.SearchResultBrowse -> openSearchArticle(flow)
             is AppFlow.SearchArticleReading -> articleReader.repeatChunk()
+            is AppFlow.NoteListBrowse -> onNoteListActivate(flow)
+            is AppFlow.NoteDeleteConfirm -> deleteNote(flow)
+            is AppFlow.CalendarAwaitDate -> listenForCalendarDate(flow.title)
+            is AppFlow.CalendarAwaitStartTime -> listenForCalendarStartTime(flow.title, flow.dayStartMs)
+            is AppFlow.CalendarAwaitEndTime -> listenForCalendarEndTime(
+                flow.title, flow.dayStartMs, flow.startHour, flow.startMinute
+            )
             is AppFlow.EmailInboxBrowse -> openEmailBody(flow)
             is AppFlow.ShoppingListPick -> onShoppingListPickActivate(flow)
             is AppFlow.ShoppingListBrowse -> enterShoppingItemContextMenu(flow)
@@ -1168,6 +1203,20 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarAwaitStartTime,
             is AppFlow.CalendarAwaitEndTime,
             is AppFlow.CalendarConfirm -> exitFlow("Program beállítás megszakítva.")
+            is AppFlow.NoteListBrowse -> exitFlow("Jegyzetek bezárva.")
+            is AppFlow.NoteDeleteConfirm -> {
+                activeFlow = AppFlow.NoteListBrowse(flow.notes, flow.index, deleteMode = true)
+                updateFlowDisplay()
+                tts.speak("Törlés megszakítva.")
+            }
+            is AppFlow.NoteReading -> {
+                noteReader.stop()
+                activeFlow = AppFlow.NoteListBrowse(flow.notes, flow.noteIndex)
+                updateFlowDisplay()
+                speakNoteListItem(flow.notes[flow.noteIndex], flow.noteIndex + 1, flow.notes.size)
+            }
+            AppFlow.NoteAwaitTitle,
+            is AppFlow.NoteAwaitBody -> exitFlow("Jegyzet létrehozás megszakítva.")
             is AppFlow.CalendarBrowse -> exitFlow("Naptár bezárva.")
             is AppFlow.CalendarWeekBrowse -> exitFlow("Heti program bezárva.")
             AppFlow.PatrolNightAwaitStart,
@@ -1315,6 +1364,7 @@ class MainActivity : AppCompatActivity() {
         calendarEditEventId = null
         if (bookReader.isActive) bookReader.stop()
         if (::articleReader.isInitialized && articleReader.isActive) articleReader.stop()
+        if (::noteReader.isInitialized && noteReader.isActive) noteReader.stop()
         tts.stop()
         if (voiceAssistantReturnPending) {
             activeFlow = AppFlow.VoiceAssistantChat
@@ -1372,6 +1422,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.CALENDAR_TOMORROW -> startCalendarTomorrowFlow()
             MenuAction.CALENDAR_WEEK -> startCalendarWeekFlow()
             MenuAction.CALENDAR_ADD -> startCalendarAddFlow()
+            MenuAction.NOTE_LIST -> startNoteListFlow(deleteMode = false)
+            MenuAction.NOTE_CREATE -> startNoteCreateFlow()
+            MenuAction.NOTE_DELETE -> startNoteListFlow(deleteMode = true)
             MenuAction.TIMER_CREATE -> startTimerCreateFlow()
             MenuAction.TIMER_LIST -> startTimerListFlow(TimerListMode.VIEW)
             MenuAction.TIMER_START -> startTimerListFlow(TimerListMode.START)
@@ -2881,22 +2934,106 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listenForCalendarDate(title: String) {
-        enterNumericDictationAwait(
-            AppFlow.NumericDictationAwait(
-                purpose = NumberPadPurpose.DATE,
-                calendarTitle = title
+        ensureMicAndRun {
+            activeFlow = AppFlow.CalendarAwaitDate(title)
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a dátumot. Például: ma, holnap, péntek, március tizenöt.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val dayStart = VoiceDateParser.parseDayStartMs(spoken)
+                    if (dayStart == null) {
+                        tts.speakThen(
+                            "Nem értettem a dátumot. Próbáld újra, vagy swipe le az offline bevitelhez."
+                        ) { listenForCalendarDate(title) }
+                        return@listen
+                    }
+                    activeFlow = AppFlow.CalendarAwaitStartTime(title, dayStart)
+                    updateFlowDisplay()
+                    listenForCalendarStartTime(title, dayStart)
+                },
+                onError = {
+                    tts.speakThen("Nem értettem a dátumot. Próbáld újra.") { listenForCalendarDate(title) }
+                }
             )
-        )
+        }
     }
 
     private fun listenForCalendarStartTime(title: String, dayStartMs: Long) {
-        enterNumericDictationAwait(
-            AppFlow.NumericDictationAwait(
-                purpose = NumberPadPurpose.TIME,
-                calendarTitle = title,
-                calendarDayStartMs = dayStartMs
+        ensureMicAndRun {
+            activeFlow = AppFlow.CalendarAwaitStartTime(title, dayStartMs)
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a kezdési időt. Például: nyolc óra harminc, délután három.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val time = VoiceTimeParser.parse(spoken)
+                    if (time == null) {
+                        tts.speakThen(
+                            "Nem értettem az időt. Próbáld újra, vagy swipe le az offline bevitelhez."
+                        ) { listenForCalendarStartTime(title, dayStartMs) }
+                        return@listen
+                    }
+                    activeFlow = AppFlow.CalendarAwaitEndTime(title, dayStartMs, time.first, time.second)
+                    updateFlowDisplay()
+                    listenForCalendarEndTime(title, dayStartMs, time.first, time.second)
+                },
+                onError = {
+                    tts.speakThen("Nem értettem az időt. Próbáld újra.") {
+                        listenForCalendarStartTime(title, dayStartMs)
+                    }
+                }
             )
+        }
+    }
+
+    private fun openCalendarDatePad(title: String) {
+        voiceInput.cancel()
+        activeFlow = AppFlow.NumberPadInput(
+            purpose = NumberPadPurpose.DATE,
+            items = NumberPadHelper.itemsFor(NumberPadPurpose.DATE),
+            index = 0,
+            buffer = "",
+            calendarTitle = title
         )
+        updateFlowDisplay()
+        tts.speak("Dátum bevitele. Nyolc számjegy: év, hónap, nap.")
+    }
+
+    private fun openCalendarStartTimePad(title: String, dayStartMs: Long) {
+        voiceInput.cancel()
+        activeFlow = AppFlow.NumberPadInput(
+            purpose = NumberPadPurpose.TIME,
+            items = NumberPadHelper.itemsFor(NumberPadPurpose.TIME),
+            index = 0,
+            buffer = "",
+            calendarTitle = title,
+            calendarDayStartMs = dayStartMs
+        )
+        updateFlowDisplay()
+        tts.speak("Kezdési idő bevitele. Négy számjegy: óra, óra, perc, perc.")
+    }
+
+    private fun openCalendarEndTimePad(
+        title: String,
+        dayStartMs: Long,
+        startHour: Int,
+        startMinute: Int
+    ) {
+        voiceInput.cancel()
+        activeFlow = AppFlow.NumberPadInput(
+            purpose = NumberPadPurpose.TIME,
+            items = NumberPadHelper.itemsFor(NumberPadPurpose.TIME),
+            index = 0,
+            buffer = "",
+            calendarTitle = title,
+            calendarDayStartMs = dayStartMs,
+            calendarAwaitEnd = true,
+            calendarStartHour = startHour,
+            calendarStartMinute = startMinute
+        )
+        updateFlowDisplay()
+        tts.speak("Befejezési idő bevitele. Négy számjegy: óra, óra, perc, perc. Balra üresen hagyva egy órás program lesz.")
     }
 
     private fun listenForCalendarEndTime(
@@ -2905,6 +3042,8 @@ class MainActivity : AppCompatActivity() {
         startHour: Int,
         startMinute: Int
     ) {
+        activeFlow = AppFlow.CalendarAwaitEndTime(title, dayStartMs, startHour, startMinute)
+        updateFlowDisplay()
         voiceInput.listen(
             prompt = "Mondd a befejezési időt, vagy mondd: egy óra. Ha nem mondod, egy órás program lesz.",
             speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
@@ -3048,6 +3187,158 @@ class MainActivity : AppCompatActivity() {
             success = ok,
             error = !ok
         )
+    }
+
+    // ==================== SAJÁT JEGYZETEK ====================
+
+    private fun startNoteListFlow(deleteMode: Boolean = false) {
+        val notes = NoteStore.getAll(this)
+        if (notes.isEmpty()) {
+            tts.speak("Nincs mentett jegyzet.")
+            return
+        }
+        activeFlow = AppFlow.NoteListBrowse(notes, 0, deleteMode)
+        updateFlowDisplay()
+        val intro = if (deleteMode) {
+            "${notes.size} jegyzet. Törlés mód. Swipe fel-le választás, jobbra törlés megerősítése."
+        } else {
+            "${notes.size} jegyzet. Swipe fel-le választás, jobbra megnyitás."
+        }
+        tts.speak(intro)
+        speakNoteListItem(notes.first(), 1, notes.size)
+    }
+
+    private fun speakNoteListItem(note: NoteEntry, index: Int, total: Int) {
+        tts.speak(note.speakListItem(index, total))
+    }
+
+    private fun navigateNoteList(flow: AppFlow.NoteListBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.notes.size) % flow.notes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakNoteListItem(flow.notes[next], next + 1, flow.notes.size)
+    }
+
+    private fun onNoteListActivate(flow: AppFlow.NoteListBrowse) {
+        val note = flow.notes[flow.index]
+        if (flow.deleteMode) {
+            enterNoteDeleteConfirm(note, flow.notes, flow.index)
+        } else {
+            openNoteReading(note, flow.notes, flow.index)
+        }
+    }
+
+    private fun enterNoteDeleteConfirm(note: NoteEntry, notes: List<NoteEntry>, index: Int) {
+        activeFlow = AppFlow.NoteDeleteConfirm(note, notes, index)
+        updateFlowDisplay()
+        repeatNoteDeleteConfirm(note)
+    }
+
+    private fun repeatNoteDeleteConfirm(note: NoteEntry) {
+        tts.speak(
+            "Törlöd ezt a jegyzetet? ${note.title}. Swipe jobbra a törléshez, swipe balra a mégsehez."
+        )
+    }
+
+    private fun deleteNote(flow: AppFlow.NoteDeleteConfirm) {
+        val removed = NoteStore.delete(this, flow.note.id)
+        if (removed == null) {
+            tts.speak("A jegyzet törlése sikertelen.")
+            return
+        }
+        val remaining = NoteStore.getAll(this)
+        if (remaining.isEmpty()) {
+            exitFlow("Jegyzet törölve: ${removed.title}. Nincs több jegyzet.")
+            return
+        }
+        val nextIndex = flow.index.coerceAtMost(remaining.lastIndex)
+        activeFlow = AppFlow.NoteListBrowse(remaining, nextIndex, deleteMode = true)
+        updateFlowDisplay()
+        tts.speak("Jegyzet törölve: ${removed.title}.")
+        speakNoteListItem(remaining[nextIndex], nextIndex + 1, remaining.size)
+    }
+
+    private fun startNoteCreateFlow() {
+        ensureMicAndRun {
+            activeFlow = AppFlow.NoteAwaitTitle
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a jegyzet címét. Például: bevásárló ötletek, recept, fontos telefonszám.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val title = spoken.trim()
+                    if (title.isBlank()) {
+                        tts.speakThen("A cím üres. Próbáld újra.") { startNoteCreateFlow() }
+                        return@listen
+                    }
+                    listenForNoteBody(title)
+                },
+                onError = { exitFlow("Jegyzet létrehozás megszakítva.") }
+            )
+        }
+    }
+
+    private fun listenForNoteBody(title: String) {
+        ensureMicAndRun {
+            activeFlow = AppFlow.NoteAwaitBody(title)
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a jegyzet szövegét. Bármilyen hosszúságú lehet.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val body = spoken.trim()
+                    if (body.isBlank()) {
+                        tts.speakThen("A jegyzet szövege üres. Próbáld újra.") { listenForNoteBody(title) }
+                        return@listen
+                    }
+                    saveNoteFromDictation(title, body)
+                },
+                onError = { exitFlow("Jegyzet létrehozás megszakítva.") }
+            )
+        }
+    }
+
+    private fun saveNoteFromDictation(title: String, body: String, sourceUrl: String? = null) {
+        val entry = NoteStore.add(this, title, body, sourceUrl)
+        if (entry == null) {
+            exitFlow("Nem sikerült menteni a jegyzetet. Lehet, hogy üres, vagy elérted a ${NoteStore.MAX_NOTES} jegyzet limitet.")
+            return
+        }
+        exitFlow("Jegyzet mentve: ${entry.title}.")
+    }
+
+    private fun openNoteReading(note: NoteEntry, notes: List<NoteEntry>, noteIndex: Int) {
+        if (::noteReader.isInitialized && noteReader.isActive) noteReader.stop()
+        noteReader.startWithText(noteReadingBook, note.title, note.body, 0)
+        activeFlow = AppFlow.NoteReading(
+            note = note,
+            chunkIndex = 0,
+            totalChunks = 1,
+            percent = 0,
+            notes = notes,
+            noteIndex = noteIndex
+        )
+        updateFlowDisplay()
+        tts.speak(
+            "Jegyzet: ${note.title}. Swipe lefelé: következő rész, felfelé: ismétlés, balra: vissza a listához."
+        )
+    }
+
+    private fun finishNoteReading(message: String) {
+        noteReader.stop()
+        val flow = activeFlow as? AppFlow.NoteReading
+        if (flow != null) {
+            activeFlow = AppFlow.NoteListBrowse(flow.notes, flow.noteIndex)
+            updateFlowDisplay()
+            tts.speak("$message Vissza a jegyzeteknél.")
+            return
+        }
+        exitFlow(message)
+    }
+
+    private fun exitNoteReading(message: String) {
+        if (::noteReader.isInitialized && noteReader.isActive) noteReader.stop()
+        exitFlow(message)
     }
 
     private fun enterCalendarContextMenu(flow: AppFlow.CalendarBrowse) {
@@ -3777,7 +4068,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     enterCalendarRecurrenceBrowse(await.calendarTitle, times.first, times.second)
                 } else {
-                    listenForCalendarEndTimePad(
+                    listenForCalendarEndTime(
                         await.calendarTitle,
                         await.calendarDayStartMs,
                         hour,
@@ -4269,30 +4560,11 @@ class MainActivity : AppCompatActivity() {
                     )
                     enterCalendarRecurrenceBrowse(flow.calendarTitle, times.first, times.second)
                 } else {
-                    listenForCalendarEndTimePad(flow.calendarTitle, flow.calendarDayStartMs, time.first, time.second)
+                    listenForCalendarEndTime(flow.calendarTitle, flow.calendarDayStartMs, time.first, time.second)
                 }
             }
             else -> onMedicationTimeEntered(time.first, time.second)
         }
-    }
-
-    private fun listenForCalendarEndTimePad(
-        title: String,
-        dayStartMs: Long,
-        startHour: Int,
-        startMinute: Int
-    ) {
-        enterNumericDictationAwait(
-            AppFlow.NumericDictationAwait(
-                purpose = NumberPadPurpose.TIME,
-                calendarTitle = title,
-                calendarDayStartMs = dayStartMs,
-                calendarAwaitEnd = true,
-                calendarStartHour = startHour,
-                calendarStartMinute = startMinute
-            )
-        )
-        tts.speakAdd("Balra üresen hagyva egy órás program lesz.")
     }
 
     private fun saveSosNumberFromPad(slot: Int, number: String) {
@@ -4544,7 +4816,7 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.SearchResultBrowse(results, 0, query)
         updateFlowDisplay()
         tts.speak(
-            "${results.size} találat. Swipe fel-le választás, jobbra részletes felolvasás, balra vissza."
+            "${results.size} találat. Swipe felfelé: következő találat, lefelé: mentés jegyzetként, jobbra: cikk felolvasása, balra: vissza."
         )
         speakSearchResult(results.first(), 1, results.size)
     }
@@ -4604,13 +4876,64 @@ class MainActivity : AppCompatActivity() {
             results = results,
             resultIndex = resultIndex,
             query = query,
-            sourceLabel = sourceLabel
+            sourceLabel = sourceLabel,
+            articleBody = body
         )
         updateFlowDisplay()
         val prefix = if (sourceLabel.isNotBlank()) "$sourceLabel: " else "Cikk: "
         tts.speak(
-            "${prefix}${result.title}. Swipe lefelé: következő rész, felfelé: ismétlés, balra: vissza."
+            "${prefix}${result.title}. Swipe lefelé: következő rész vagy mentés jegyzetként, felfelé: ismétlés, balra: vissza."
         )
+    }
+
+    private fun saveSearchResultAsNote(flow: AppFlow.SearchResultBrowse) {
+        val result = flow.results[flow.index]
+        val query = flow.query
+        val results = flow.results
+        val index = flow.index
+        activeFlow = AppFlow.SearchLoading
+        updateFlowDisplay()
+        tts.speak("Jegyzet mentése: ${result.title}. Várj.")
+        Thread {
+            val text = ArticleTextExtractor.fetchText(result.url)
+            postWhenAlive {
+                val body = when {
+                    !text.isNullOrBlank() -> text
+                    result.snippet.isNotBlank() -> result.snippet
+                    else -> null
+                }
+                if (body == null) {
+                    activeFlow = AppFlow.SearchResultBrowse(results, index, query)
+                    updateFlowDisplay()
+                    tts.speak("Nem sikerült menteni. Nincs elérhető szöveg.")
+                    speakSearchResult(results[index], index + 1, results.size)
+                    return@postWhenAlive
+                }
+                val entry = NoteStore.add(this, result.title, body, result.url)
+                activeFlow = AppFlow.SearchResultBrowse(results, index, query)
+                updateFlowDisplay()
+                if (entry == null) {
+                    tts.speak("Nem sikerült menteni a jegyzetet.")
+                } else {
+                    tts.speak("Jegyzet mentve: ${entry.title}.")
+                }
+                speakSearchResult(results[index], index + 1, results.size)
+            }
+        }.start()
+    }
+
+    private fun saveSearchArticleAsNote(flow: AppFlow.SearchArticleReading) {
+        val body = flow.articleBody.ifBlank { flow.result.snippet }
+        if (body.isBlank()) {
+            tts.speak("Nincs menthető szöveg.")
+            return
+        }
+        val entry = NoteStore.add(this, flow.result.title, body, flow.result.url)
+        if (entry == null) {
+            tts.speak("Nem sikerült menteni a jegyzetet.")
+            return
+        }
+        tts.speak("Jegyzet mentve: ${entry.title}.")
     }
 
     private fun finishSearchArticleReading(message: String) {
@@ -7283,6 +7606,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.CALENDAR_TOMORROW -> startSubFlowFromAssistant { startCalendarTomorrowFlow() }
             MenuAction.CALENDAR_WEEK -> startSubFlowFromAssistant { startCalendarWeekFlow() }
             MenuAction.CALENDAR_ADD -> startSubFlowFromAssistant { startCalendarAddFlow() }
+            MenuAction.NOTE_LIST -> startSubFlowFromAssistant { startNoteListFlow(deleteMode = false) }
+            MenuAction.NOTE_CREATE -> startSubFlowFromAssistant { startNoteCreateFlow() }
+            MenuAction.NOTE_DELETE -> startSubFlowFromAssistant { startNoteListFlow(deleteMode = true) }
             MenuAction.NOTIFICATIONS_READ -> startSubFlowFromAssistant { startNotificationReadFlow() }
             MenuAction.YOUTUBE -> startSubFlowFromAssistant { startYoutubeFlow() }
             MenuAction.MUSIC -> startSubFlowFromAssistant { startMusicLibraryFlow() }
@@ -9110,17 +9436,17 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarAwaitDate -> {
                 tvItem.text = flow.title
                 tvPosition.text = "2 / 6  •  Dátum diktálása"
-                tvHint.text = "Mondd: ma, holnap, péntek  •  ⬅ mégse"
+                tvHint.text = "Mondd: ma, holnap, péntek  •  ➡ diktálás  •  ⬇ offline  •  ⬅ mégse"
             }
             is AppFlow.CalendarAwaitStartTime -> {
                 tvItem.text = flow.title
                 tvPosition.text = "3 / 6  •  Kezdés diktálása"
-                tvHint.text = "Mondd a kezdési időt  •  ⬅ mégse"
+                tvHint.text = "Mondd a kezdési időt  •  ➡ diktálás  •  ⬇ offline  •  ⬅ mégse"
             }
             is AppFlow.CalendarAwaitEndTime -> {
                 tvItem.text = "${flow.startHour.toString().padStart(2, '0')}:${flow.startMinute.toString().padStart(2, '0')}"
                 tvPosition.text = "4 / 6  •  Befejezés diktálása"
-                tvHint.text = "Mondd a végét vagy: egy óra  •  ⬅ mégse"
+                tvHint.text = "Mondd a végét vagy: egy óra  •  ➡ diktálás  •  ⬇ offline  •  ⬅ mégse"
             }
             is AppFlow.CalendarConfirm -> {
                 tvItem.text = flow.title
@@ -9295,12 +9621,46 @@ class MainActivity : AppCompatActivity() {
                 val result = flow.results[flow.index]
                 tvItem.text = result.title
                 tvPosition.text = "Keresés  •  ${flow.index + 1} / ${flow.results.size}"
-                tvHint.text = "⬆⬇ választás  •  ➡ cikk felolvas  •  ⬅ vissza"
+                tvHint.text = "⬆ következő  •  ⬇ mentés jegyzetként  •  ➡ felolvas  •  ⬅ vissza"
             }
             is AppFlow.SearchArticleReading -> {
                 tvItem.text = flow.result.title
                 tvPosition.text = "Cikk  •  ${flow.chunkIndex + 1} / ${flow.totalChunks.coerceAtLeast(1)}  •  ${flow.percent}%"
-                tvHint.text = "⬆ ismétlés  •  ⬇ következő  •  ➡ ismétlés  •  ⬅ találatok"
+                tvHint.text = "⬆ ismétlés  •  ⬇ mentés jegyzetként  •  ➡ ismétlés  •  ⬅ találatok"
+            }
+            is AppFlow.NoteListBrowse -> {
+                val note = flow.notes[flow.index]
+                tvItem.text = note.title
+                tvPosition.text = if (flow.deleteMode) {
+                    "Jegyzet törlése  •  ${flow.index + 1} / ${flow.notes.size}"
+                } else {
+                    "Saját jegyzetek  •  ${flow.index + 1} / ${flow.notes.size}"
+                }
+                tvHint.text = if (flow.deleteMode) {
+                    "⬆⬇ választás  •  ➡ törlés  •  ⬅ vissza"
+                } else {
+                    "⬆⬇ választás  •  ➡ megnyitás  •  ⬅ vissza"
+                }
+            }
+            is AppFlow.NoteDeleteConfirm -> {
+                tvItem.text = flow.note.title
+                tvPosition.text = "Jegyzet törlése"
+                tvHint.text = "➡ törlés  •  ⬅ mégse"
+            }
+            AppFlow.NoteAwaitTitle -> {
+                tvItem.text = "Új jegyzet"
+                tvPosition.text = "1 / 2  •  Cím diktálása"
+                tvHint.text = "Mondd a jegyzet címét  •  ⬅ mégse"
+            }
+            is AppFlow.NoteAwaitBody -> {
+                tvItem.text = flow.title
+                tvPosition.text = "2 / 2  •  Szöveg diktálása"
+                tvHint.text = "Mondd a jegyzet szövegét  •  ⬅ mégse"
+            }
+            is AppFlow.NoteReading -> {
+                tvItem.text = flow.note.title
+                tvPosition.text = "Jegyzet  •  ${flow.chunkIndex + 1} / ${flow.totalChunks.coerceAtLeast(1)}  •  ${flow.percent}%"
+                tvHint.text = "⬆ ismétlés  •  ⬇ következő  •  ⬅ lista"
             }
             AppFlow.EmailInboxLoading -> {
                 tvItem.text = "E-mailek"
@@ -9711,6 +10071,7 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         if (::bookReader.isInitialized && bookReader.isActive) bookReader.stop()
         if (::articleReader.isInitialized && articleReader.isActive) articleReader.stop()
+        if (::noteReader.isInitialized && noteReader.isActive) noteReader.stop()
         mediaButtonHandler?.stop()
         voiceInput.destroy()
         tts.shutdown()
