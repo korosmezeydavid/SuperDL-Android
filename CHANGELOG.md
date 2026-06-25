@@ -1,5 +1,14 @@
 # Változások
 
+## 1.37.2 (versionCode 65) — 2026-06-25
+
+### Sürgős javítás – csengőhangok visszaállítva
+
+- **Gyökérok**: a rendszer csengő MediaPlayere „sikeresen” elindult, de néma maradt, és a tartalék hang nem kapcsolt be
+- **Megoldás**: minden emlékeztető most **beépített ébresztő sípolást** használ (ToneGenerator, STREAM_ALARM) – nem függ a telefon csengőhangjától
+- **Ébresztő hangerő 0** esetén automatikus emelés (MODIFY_AUDIO_SETTINGS engedély)
+- Minden hangpreset kapott beépített sípolás mintát (ALARM, NOTIFICATION, RINGTONE is)
+
 ## 1.37.1 (versionCode 64) — 2026-06-25
 
 ### Sürgős javítás – csengőhangok
