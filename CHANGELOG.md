@@ -1,5 +1,14 @@
 # Változások
 
+## 1.37.1 (versionCode 64) — 2026-06-25
+
+### Sürgős javítás – csengőhangok
+
+- **Néma hiba javítva** – ha a rendszer csengő nem indult el, az ALARM/NOTIFICATION/RINGTONE presetek teljesen némaak maradtak (nincs fallback); most mindig van tartalék hang
+- **Ébresztő stream** – csengőhangok `STREAM_ALARM` / `USAGE_ALARM` csatornán, audio focus kéréssel
+- **Csengőhang hangerő** – Beállítások → Hangok → 25/50/75/100% léptetés + előnézet
+- **Néma mód** – Beállítások → Hangok → ki-be kapcsoló (emlékeztető hangok némítása)
+
 ## 1.37.0 (versionCode 63) — 2026-06-25
 
 ### Új funkciók

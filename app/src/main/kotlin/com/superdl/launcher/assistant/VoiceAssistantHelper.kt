@@ -101,7 +101,7 @@ object VoiceAssistantHelper {
             "zene, YouTube keresés, könyvtár, könyvjelzők, könyvmappa, könyv keresése, " +
             "napi összefoglaló, bevásárlólista, e-mailek olvasása, " +
             "zseblámpa, számológép, Q R olvasó, pénzfelismerő, gyógyszerdoboz olvasó, címke olvasó, szöveg olvasó, folyamatos szövegolvasó, diktafon és diktafon beállítás, tanuló mód, G P S kitekintő, környezeti kitekintő, egyéni helyek, helyszín felismerő, arc kamera, G P S útvonal rögzítés, internet kereső, " +
-            "értesítések, WiFi, Bluetooth, hangerő, őrség beállítások, P I N zárolás, rejtett számok tiltása, " +
+            "értesítések, WiFi, Bluetooth, hangerő, csengőhang hangerő, néma mód, őrség beállítások, P I N zárolás, rejtett számok tiltása, " +
             "S O S és S O S számok, T T S motor, külső alkalmazások, névjegy és jogi információk. " +
             "Példák: hány óra van, hívd fel Anyát, útvonal a Deák térre, " +
             "ébresztő hét óra, üzenet küldés, pin zárolás, e-mail küldő beállítás, zene, könyvtár, " +
@@ -568,6 +568,12 @@ object VoiceAssistantHelper {
 
         containsAny(text, "asszisztens allapot", "asszisztens statusz", "ki az asszisztens") ->
             MenuAction.ASSISTANT_DEFAULT_STATUS
+
+        containsAny(text, "csengohang hangerő", "csengohang hangero", "emlekezteto hangerő", "emlekezteto hangero") ->
+            MenuAction.ALERT_SOUND_VOLUME_CYCLE
+
+        containsAny(text, "nema mod", "néma mód", "csendes mod", "csendes mód", "hangok nemitasa") ->
+            MenuAction.ALERT_SILENT_MODE_TOGGLE
 
         containsAny(text, "hangok", "program hangjai", "hangok betanitasa") ->
             MenuAction.SOUND_TRAINING

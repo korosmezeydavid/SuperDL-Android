@@ -143,6 +143,7 @@ import com.superdl.launcher.callfilter.CallFilterStore
 import com.superdl.launcher.feedback.AlertSoundCategory
 import com.superdl.launcher.feedback.AlertSoundPlayer
 import com.superdl.launcher.feedback.AlertSoundPreset
+import com.superdl.launcher.feedback.AlertSoundSettingsStore
 import com.superdl.launcher.feedback.AlertSoundStore
 import com.superdl.launcher.feedback.DeviceStateSoundManager
 import com.superdl.launcher.feedback.SoundFeedback
@@ -1506,6 +1507,8 @@ class MainActivity : AppCompatActivity() {
                 startActivity(textReaderIntent(TextReaderMode.CONTINUOUS))
             }
             MenuAction.SOUND_TRAINING -> startSoundTrainingFlow()
+            MenuAction.ALERT_SOUND_VOLUME_CYCLE -> cycleAlertSoundVolume()
+            MenuAction.ALERT_SILENT_MODE_TOGGLE -> toggleAlertSilentMode()
             MenuAction.ALERT_SOUND_CALENDAR -> startAlertSoundPresetFlow(AlertSoundCategory.CALENDAR)
             MenuAction.ALERT_SOUND_MEDICATION -> startAlertSoundPresetFlow(AlertSoundCategory.MEDICATION)
             MenuAction.ALERT_SOUND_ALARM -> startAlertSoundPresetFlow(AlertSoundCategory.ALARM_CLOCK)
@@ -8648,6 +8651,28 @@ class MainActivity : AppCompatActivity() {
     private fun playSoundTrainingItem(type: SoundType) {
         sounds.play(type)
         tts.speak("${type.label}. ${type.description}")
+    }
+
+    private fun cycleAlertSoundVolume() {
+        AlertSoundSettingsStore.cycleVolumePercent(this)
+        tts.speak(AlertSoundSettingsStore.speakVolume(this))
+        AlertSoundPlayer.preview(this, AlertSoundPreset.DOUBLE_BEEP)
+    }
+
+    private fun toggleAlertSilentMode() {
+        val label = "Néma mód"
+        val wasEnabled = AlertSoundSettingsStore.isSilentMode(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
+        val next = AlertSoundSettingsStore.toggleSilentMode(this)
+        val extra = if (next) {
+            "Bekapcsolva. A csengőhangok és emlékeztető hangok némaak."
+        } else {
+            "Kikapcsolva."
+        }
+        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+        if (!next) {
+            AlertSoundPlayer.preview(this, AlertSoundPreset.SOFT_CHIME)
+        }
     }
 
     private fun startAlertSoundPresetFlow(category: AlertSoundCategory) {

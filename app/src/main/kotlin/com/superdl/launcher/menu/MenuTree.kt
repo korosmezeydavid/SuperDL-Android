@@ -141,6 +141,8 @@ enum class MenuAction {
     ALERT_SOUND_SMS,           // SMS hang
     ALERT_SOUND_EMAIL,         // E-mail hang
     ALERT_SOUND_NOTIFICATION,  // Egyéb értesítés hang
+    ALERT_SOUND_VOLUME_CYCLE,  // Csengőhang hangerő
+    ALERT_SILENT_MODE_TOGGLE,  // Néma mód ki-be
     LOCATION_TRAIN,            // Helyszín profil tanítása
     LOCATION_WATCH_START,      // Helyszín figyelő – mentett profilok
     LOCATION_WATCH_TEXT,       // Helyszín figyelő – szabad szöveg
@@ -347,6 +349,8 @@ object MenuTree {
                 MenuItem("security_back", "Vissza a beállításokhoz", MenuAction.SUBMENU)
             )),
             MenuItem("sound_settings", "Hangok", MenuAction.SUBMENU, listOf(
+                MenuItem("sound_volume", "Csengőhang hangerő", MenuAction.ALERT_SOUND_VOLUME_CYCLE),
+                MenuItem("sound_silent", "Néma mód ki-be", MenuAction.ALERT_SILENT_MODE_TOGGLE),
                 MenuItem("sound_calendar", "Program emlékeztető hang", MenuAction.ALERT_SOUND_CALENDAR),
                 MenuItem("sound_medication", "Gyógyszer emlékeztető hang", MenuAction.ALERT_SOUND_MEDICATION),
                 MenuItem("sound_alarm", "Ébresztő hang", MenuAction.ALERT_SOUND_ALARM),
