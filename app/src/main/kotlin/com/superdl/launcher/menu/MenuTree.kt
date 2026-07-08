@@ -4,9 +4,12 @@ package com.superdl.launcher.menu
 enum class MenuAction {
     SUBMENU,        // Almenübe lép
     CALL_LOG,       // Hívásnapló felolvasása
-    CONTACTS,       // Névjegyek
+    CONTACTS,       // Névjegyből hívás diktálással
+    CONTACT_BOOK,   // Névjegyzék böngészése
+    CONTACT_SYNC,   // Névjegyek szinkronizálása
     DIAL,           // Számtárcsázás
     SMS_READ,       // SMS olvasás
+    SMS_SENT_READ,  // Kimenő SMS olvasás
     SMS_WRITE,      // SMS írás diktálással
     EMAIL_WRITE,    // E-mail diktálása és küldése
     EMAIL_IMPORT,   // E-mail címek importálása
@@ -34,11 +37,13 @@ enum class MenuAction {
     WEB_SEARCH,     // Internet kereső – felolvasott találatok
     DAY_GREETING,   // Napi üdvözlés (dátum, névnap, időjárás)
     DAY_SUMMARY,    // Napi összefoglaló
+    STATUS_REPORT,  // Gyors helyzetjelentés (offline: idő, akku, térerő, hívások, üzenetek, ébresztő, naptár)
     SHOPPING_LIST,  // Bevásárlólista
     EMAIL_IMAP_READ, // Bejövő e-mailek olvasása
     BT_ASSISTANT_TOGGLE, // Bluetooth gomb → asszisztens
     TRANSIT,        // Közeli megállók felolvasása
     TRANSIT_STOP,   // Megálló keresése felolvasással
+    TRANSIT_FAVORITES, // Kedvenc megállók (Holabusz-szerű)
     TRANSIT_ROUTE,  // Útvonal tömegközlekedéssel felolvasással
     NAV_WHERE,      // Hol vagyok?
     NAV_WALK,       // Gyalogos útvonal diktálással
@@ -64,8 +69,14 @@ enum class MenuAction {
     PATROL_NIGHT_END_SET, // Éjszakai csend vége
     PATROL_POWER_BUTTON_TIME_TOGGLE, // Bekapcsoló gomb idő bemondás
     WIFI_TOGGLE,    // WiFi kapcsoló
+    HOTSPOT_TOGGLE, // Hotspot kapcsoló
     BT_TOGGLE,      // Bluetooth kapcsoló
-    VOICE_ASSISTANT, // Hangos asszisztens (helyi parancsok)
+    VOICE_ASSISTANT, // Elena – hangos asszisztens (helyi parancsok)
+    ELENA_WAKE_LISTEN_TOGGLE, // Elena figyelő ki-be
+    ELENA_WAKE_LISTEN_ON, // Elena figyelő bekapcsolása
+    ELENA_WAKE_LISTEN_OFF, // Elena figyelő kikapcsolása
+    ELENA_WAKE_TRAIN, // Saját felébresztő mondat tanítása
+    ELENA_WAKE_CUSTOM_LIST, // Mentett felébresztő mondatok felolvasása
     ASSISTANT_DEFAULT_SETUP, // Alapértelmezett digitális asszisztens beállítása
     ASSISTANT_DEFAULT_STATUS, // Alapértelmezett asszisztens állapota
     DIALER_DEFAULT_SETUP, // Alapértelmezett telefon alkalmazás beállítása
@@ -116,6 +127,9 @@ enum class MenuAction {
     LOCK_PIN_TOGGLE, // PIN zárolás ki-be
     LOCK_PIN_SET,    // PIN kód beállítása / módosítása
     LOCK_PIN_STATUS, // PIN zárolás állapota
+    KEYGUARD_PIN_ASSIST_TOGGLE, // Rendszer PIN segéd ki-be
+    KEYGUARD_PIN_ASSIST_SETUP,  // Rendszer PIN segéd engedélyezése
+    KEYGUARD_PIN_ASSIST_STATUS, // Rendszer PIN segéd állapota
     TIMER_CREATE,    // Új időzítő mentése
     TIMER_LIST,      // Időzítők listája
     TIMER_START,     // Időzítő indítása
@@ -131,7 +145,9 @@ enum class MenuAction {
     SMS_DEFAULT_SETUP,   // Alapértelmezett üzenet app beállítása
     SMS_DEFAULT_STATUS,  // Alapértelmezett üzenet app állapota
     CONTACT_CREATE,      // Új névjegy létrehozása
-    CALL_FILTER_BLOCK_PRIVATE_TOGGLE, // Rejtett számok tiltása
+    CALL_FILTER_BLOCK_PRIVATE_TOGGLE, // Régi – kompatibilitás
+    CALL_FILTER_MODE_CYCLE,          // Hívás szűrő mód váltása (4 szint)
+    CALL_FILTER_MODE_STATUS,         // Hívás szűrő állapota
     MEDICATION_READ,     // Patika Őrangyal – emlékeztetők felolvasása
     MEDICATION_ADD,      // Patika Őrangyal – új gyógyszer rögzítése
     MEDICATION_DELETE,   // Patika Őrangyal – emlékeztető törlése
@@ -143,6 +159,7 @@ enum class MenuAction {
     ALERT_SOUND_NOTIFICATION,  // Egyéb értesítés hang
     ALERT_SOUND_VOLUME_CYCLE,  // Csengőhang hangerő
     ALERT_SILENT_MODE_TOGGLE,  // Néma mód ki-be
+    SOUND_THEME_SELECT,        // Swipe hangtéma választás
     LOCATION_TRAIN,            // Helyszín profil tanítása
     LOCATION_WATCH_START,      // Helyszín figyelő – mentett profilok
     LOCATION_WATCH_TEXT,       // Helyszín figyelő – szabad szöveg
@@ -156,6 +173,18 @@ enum class MenuAction {
     GPS_ROUTE_LIST,            // Mentett GPS útvonalak listája
     GPS_ROUTE_GUIDE,           // GPS útvonal útmutatás
     GPS_ROUTE_DELETE,          // GPS útvonal törlése
+    CARD_TRAIN,                // Kártya hozzáadása (eleje + hátulja)
+    CARD_RECOGNIZE,            // Kártya felismerése kamerával
+    CARD_LIST,                 // Mentett kártyák listája
+    CARD_DELETE,               // Kártya törlése
+    NEWS_FEED_MANAGE,          // Hírforrások kezelése
+    NEWS_FEED_IMPORT_OPML,     // Hírforrások OPML import
+    HEARING_AID,               // Hallás erősítő – valós idejű hang
+    GAME_UNO,                  // UNO kártyajáték
+    GAME_BLACKJACK,            // Blackjack
+    GAME_POKER,                // Póker – ötlapos húzás
+    GAME_SLOT,                 // Félkarú rabló – nyerőgép
+    GAME_MILLE_BORNES,         // Mille Bornes – ezer mérföld
 }
 
 data class MenuItem(
@@ -171,6 +200,8 @@ object MenuTree {
 
         MenuItem("calls", "Telefon és Hívások", MenuAction.SUBMENU, listOf(
             MenuItem("call_contacts", "Névjegyből hívás", MenuAction.CONTACTS),
+            MenuItem("contact_book", "Névjegyzék", MenuAction.CONTACT_BOOK),
+            MenuItem("contact_sync", "Névjegyek szinkronizálása", MenuAction.CONTACT_SYNC),
             MenuItem("call_log", "Hívásnapló felolvasása", MenuAction.CALL_LOG),
             MenuItem("call_dial", "Szám tárcsázása", MenuAction.DIAL),
             MenuItem("fav_add", "Kedvenc hozzáadása", MenuAction.FAVORITES_ADD),
@@ -181,7 +212,8 @@ object MenuTree {
         )),
 
         MenuItem("sms", "Üzenetek és E-mail", MenuAction.SUBMENU, listOf(
-            MenuItem("sms_read", "Üzenetek olvasása", MenuAction.SMS_READ),
+            MenuItem("sms_read", "Bejövő üzenetek olvasása", MenuAction.SMS_READ),
+            MenuItem("sms_sent_read", "Kimenő üzenetek", MenuAction.SMS_SENT_READ),
             MenuItem("sms_write", "Üzenet diktálása és küldése", MenuAction.SMS_WRITE),
             MenuItem("sms_default_setup", "Alapértelmezett üzenet app beállítása", MenuAction.SMS_DEFAULT_SETUP),
             MenuItem("sms_default_status", "Üzenet app állapota", MenuAction.SMS_DEFAULT_STATUS),
@@ -226,6 +258,15 @@ object MenuTree {
             MenuItem("media_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
+        MenuItem("games", "Játékok", MenuAction.SUBMENU, listOf(
+            MenuItem("game_uno", "UNO kártyajáték", MenuAction.GAME_UNO),
+            MenuItem("game_blackjack", "Blackjack", MenuAction.GAME_BLACKJACK),
+            MenuItem("game_poker", "Póker ötlapos húzás", MenuAction.GAME_POKER),
+            MenuItem("game_slot", "Félkarú rabló", MenuAction.GAME_SLOT),
+            MenuItem("game_mille_bornes", "Mille Bornes", MenuAction.GAME_MILLE_BORNES),
+            MenuItem("games_back", "Vissza a főmenübe", MenuAction.SUBMENU)
+        )),
+
         MenuItem("books", "Könyvek", MenuAction.SUBMENU, listOf(
             MenuItem("book_library", "Könyvtár", MenuAction.BOOK_LIBRARY),
             MenuItem("book_search", "Könyv keresése felolvasással", MenuAction.BOOK_SEARCH),
@@ -242,62 +283,25 @@ object MenuTree {
         MenuItem("info", "Információ", MenuAction.SUBMENU, listOf(
             MenuItem("day_greeting", "Napi üdvözlés", MenuAction.DAY_GREETING),
             MenuItem("day_summary", "Napi összefoglaló", MenuAction.DAY_SUMMARY),
+            MenuItem("status_report", "Helyzetjelentés", MenuAction.STATUS_REPORT),
             MenuItem("weather", "Időjárás most", MenuAction.WEATHER),
             MenuItem("weather_city", "Időjárás város szerint", MenuAction.WEATHER_CITY),
             MenuItem("news_read", "Hírek felolvasása", MenuAction.NEWS_READ),
+            MenuItem("news_feed_manage", "Hírforrások kezelése", MenuAction.NEWS_FEED_MANAGE),
+            MenuItem("news_feed_opml", "Hírforrások OPML import", MenuAction.NEWS_FEED_IMPORT_OPML),
             MenuItem("web_search", "Internet kereső", MenuAction.WEB_SEARCH),
             MenuItem("battery", "Akkumulátor állapot", MenuAction.BATTERY),
             MenuItem("info_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
-        MenuItem("community", "Közösség", MenuAction.SUBMENU, listOf(
+        MenuItem("community", "Közlekedés", MenuAction.SUBMENU, listOf(
             MenuItem("nav_where", "Hol vagyok?", MenuAction.NAV_WHERE),
             MenuItem("nav_walk", "Gyalogos útvonal diktálással", MenuAction.NAV_WALK),
             MenuItem("nav_search", "Cím vagy hely keresése", MenuAction.NAV_SEARCH),
             MenuItem("gps_radar", "G P S Kitekintő", MenuAction.SUBMENU, listOf(
                 MenuItem("gps_radar_nearby", "Közeli helyek", MenuAction.GPS_RADAR),
                 MenuItem("gps_radar_custom", "Egyéni helyek", MenuAction.GPS_RADAR_SAVED_LIST),
-                MenuItem("gps_radar_back", "Vissza a közösséghez", MenuAction.SUBMENU)
-            )),
-            MenuItem("env_scanner", "Környezeti Kitekintő kamerával", MenuAction.ENV_SCANNER),
-            MenuItem("transit_nearby", "Közeli megállók felolvasása", MenuAction.TRANSIT),
-            MenuItem("transit_stop", "Megálló keresése felolvasással", MenuAction.TRANSIT_STOP),
-            MenuItem("transit_route", "Útvonal tömegközlekedéssel felolvasással", MenuAction.TRANSIT_ROUTE),
-            MenuItem("gps_route", "G P S útvonal", MenuAction.SUBMENU, listOf(
-                MenuItem("gps_route_record", "Útvonal rögzítése", MenuAction.GPS_ROUTE_RECORD),
-                MenuItem("gps_route_stop", "Rögzítés vagy útmutatás leállítása", MenuAction.GPS_ROUTE_STOP),
-                MenuItem("gps_route_list", "Mentett útvonalak", MenuAction.GPS_ROUTE_LIST),
-                MenuItem("gps_route_guide", "Útvonal útmutatás", MenuAction.GPS_ROUTE_GUIDE),
-                MenuItem("gps_route_delete", "Útvonal törlése", MenuAction.GPS_ROUTE_DELETE),
-                MenuItem("gps_route_back", "Vissza a közösséghez", MenuAction.SUBMENU)
-            )),
-            MenuItem("community_back", "Vissza a főmenübe", MenuAction.SUBMENU)
-        )),
-
-        MenuItem("tools", "Eszközök", MenuAction.SUBMENU, listOf(
-            MenuItem("flashlight", "Zseblámpa", MenuAction.FLASHLIGHT),
-            MenuItem("qr", "Q R kód olvasó", MenuAction.QR_SCAN),
-            MenuItem("light_detector", "Fénydetektor kamerával", MenuAction.LIGHT_DETECTOR),
-            MenuItem("color_detector", "Színfelismerő kamerával", MenuAction.COLOR_DETECTOR),
-            MenuItem("env_scanner_tools", "Környezeti Kitekintő kamerával", MenuAction.ENV_SCANNER),
-            MenuItem("currency_recognizer", "Super DL Pénzfelismerő", MenuAction.CURRENCY_RECOGNIZER),
-            MenuItem("medication_reader", "Gyógyszerdoboz olvasó", MenuAction.MEDICATION_READER),
-            MenuItem("label_reader", "Címke olvasó", MenuAction.LABEL_READER),
-            MenuItem("text_reader", "Szöveg olvasó", MenuAction.TEXT_READER),
-            MenuItem("continuous_ocr", "Folyamatos szövegolvasó", MenuAction.CONTINUOUS_OCR),
-            MenuItem("calculator", "Számológép", MenuAction.CALCULATOR),
-            MenuItem("shopping_list", "Bevásárlólista", MenuAction.SHOPPING_LIST),
-            MenuItem("dictaphone", "Profi Diktafon", MenuAction.SUBMENU, listOf(
-                MenuItem("dict_record", "Felvétel indítása", MenuAction.DICTAPHONE_RECORD),
-                MenuItem("dict_settings", "Minőség és formátum beállítása", MenuAction.DICTAPHONE_SETTINGS),
-                MenuItem("dict_library", "Mentett felvételek", MenuAction.DICTAPHONE_LIBRARY),
-                MenuItem("dict_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
-            )),
-            MenuItem("pharmacy_guardian", "Patika Őrangyal", MenuAction.SUBMENU, listOf(
-                MenuItem("med_read", "Aktuális emlékeztetők felolvasása", MenuAction.MEDICATION_READ),
-                MenuItem("med_add", "Új gyógyszer rögzítése", MenuAction.MEDICATION_ADD),
-                MenuItem("med_delete", "Emlékeztető törlése", MenuAction.MEDICATION_DELETE),
-                MenuItem("pharmacy_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+                MenuItem("gps_radar_back", "Vissza a közlekedéshez", MenuAction.SUBMENU)
             )),
             MenuItem("location_watch", "Helyszín felismerő", MenuAction.SUBMENU, listOf(
                 MenuItem("location_train", "Helyszín tanítása", MenuAction.LOCATION_TRAIN),
@@ -305,15 +309,79 @@ object MenuTree {
                 MenuItem("location_watch_text", "Figyelő szabad szöveggel", MenuAction.LOCATION_WATCH_TEXT),
                 MenuItem("location_profile_list", "Mentett helyszínek", MenuAction.LOCATION_PROFILE_LIST),
                 MenuItem("location_watch_stop", "Figyelő leállítása", MenuAction.LOCATION_WATCH_STOP),
-                MenuItem("location_watch_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+                MenuItem("location_watch_back", "Vissza a közlekedéshez", MenuAction.SUBMENU)
             )),
-            MenuItem("face_camera", "Kamera és szelfi", MenuAction.FACE_CAMERA),
-            MenuItem("face_camera_quality", "Kamera minőség", MenuAction.FACE_CAMERA_QUALITY),
+            MenuItem("env_scanner", "Környezeti Kitekintő kamerával", MenuAction.ENV_SCANNER),
+            MenuItem("transit_nearby", "Közeli megállók felolvasása", MenuAction.TRANSIT),
+            MenuItem("transit_stop", "Megálló keresése felolvasással", MenuAction.TRANSIT_STOP),
+            MenuItem("transit_favorites", "Kedvenc megállók indulási időkkel", MenuAction.TRANSIT_FAVORITES),
+            MenuItem("transit_route", "Útvonal tömegközlekedéssel felolvasással", MenuAction.TRANSIT_ROUTE),
+            MenuItem("gps_route", "G P S útvonal", MenuAction.SUBMENU, listOf(
+                MenuItem("gps_route_record", "Útvonal rögzítése", MenuAction.GPS_ROUTE_RECORD),
+                MenuItem("gps_route_stop", "Rögzítés vagy útmutatás leállítása", MenuAction.GPS_ROUTE_STOP),
+                MenuItem("gps_route_list", "Mentett útvonalak", MenuAction.GPS_ROUTE_LIST),
+                MenuItem("gps_route_guide", "Útvonal útmutatás", MenuAction.GPS_ROUTE_GUIDE),
+                MenuItem("gps_route_delete", "Útvonal törlése", MenuAction.GPS_ROUTE_DELETE),
+                MenuItem("gps_route_back", "Vissza a közlekedéshez", MenuAction.SUBMENU)
+            )),
+            MenuItem("community_back", "Vissza a főmenübe", MenuAction.SUBMENU)
+        )),
+
+        MenuItem("tools", "Eszközök", MenuAction.SUBMENU, listOf(
+            MenuItem("flashlight", "Zseblámpa", MenuAction.FLASHLIGHT),
+            MenuItem("tools_readers", "Olvasók", MenuAction.SUBMENU, listOf(
+                MenuItem("qr", "Q R kód olvasó", MenuAction.QR_SCAN),
+                MenuItem("medication_reader", "Gyógyszerdoboz olvasó", MenuAction.MEDICATION_READER),
+                MenuItem("label_reader", "Címke olvasó", MenuAction.LABEL_READER),
+                MenuItem("text_reader", "Szöveg olvasó", MenuAction.TEXT_READER),
+                MenuItem("continuous_ocr", "Folyamatos szövegolvasó", MenuAction.CONTINUOUS_OCR),
+                MenuItem("tools_readers_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+            )),
+            MenuItem("tools_recognizers", "Felismerők", MenuAction.SUBMENU, listOf(
+                MenuItem("light_detector", "Fénydetektor kamerával", MenuAction.LIGHT_DETECTOR),
+                MenuItem("color_detector", "Színfelismerő kamerával", MenuAction.COLOR_DETECTOR),
+                MenuItem("env_scanner_tools", "Környezeti Kitekintő kamerával", MenuAction.ENV_SCANNER),
+                MenuItem("currency_recognizer", "Super DL Pénzfelismerő", MenuAction.CURRENCY_RECOGNIZER),
+                MenuItem("card_organizer", "Kártya rendszerező", MenuAction.SUBMENU, listOf(
+                    MenuItem("card_train", "Új kártya hozzáadása", MenuAction.CARD_TRAIN),
+                    MenuItem("card_recognize", "Kártya felismerése", MenuAction.CARD_RECOGNIZE),
+                    MenuItem("card_list", "Mentett kártyák", MenuAction.CARD_LIST),
+                    MenuItem("card_delete", "Kártya törlése", MenuAction.CARD_DELETE),
+                    MenuItem("card_back", "Vissza a felismerőkhöz", MenuAction.SUBMENU)
+                )),
+                MenuItem("tools_recognizers_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+            )),
+            MenuItem("tools_camera", "Kamera", MenuAction.SUBMENU, listOf(
+                MenuItem("face_camera", "Kamera és szelfi", MenuAction.FACE_CAMERA),
+                MenuItem("face_camera_quality", "Kamera minőség", MenuAction.FACE_CAMERA_QUALITY),
+                MenuItem("tools_camera_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+            )),
+            MenuItem("tools_daily", "Mindennapi", MenuAction.SUBMENU, listOf(
+                MenuItem("hearing_aid", "Hallás erősítő", MenuAction.HEARING_AID),
+                MenuItem("calculator", "Számológép", MenuAction.CALCULATOR),
+                MenuItem("shopping_list", "Bevásárlólista", MenuAction.SHOPPING_LIST),
+                MenuItem("dictaphone", "Profi Diktafon", MenuAction.SUBMENU, listOf(
+                    MenuItem("dict_record", "Felvétel indítása", MenuAction.DICTAPHONE_RECORD),
+                    MenuItem("dict_settings", "Minőség és formátum beállítása", MenuAction.DICTAPHONE_SETTINGS),
+                    MenuItem("dict_library", "Mentett felvételek", MenuAction.DICTAPHONE_LIBRARY),
+                    MenuItem("dict_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)
+                )),
+                MenuItem("pharmacy_guardian", "Patika Őrangyal", MenuAction.SUBMENU, listOf(
+                    MenuItem("med_read", "Aktuális emlékeztetők felolvasása", MenuAction.MEDICATION_READ),
+                    MenuItem("med_add", "Új gyógyszer rögzítése", MenuAction.MEDICATION_ADD),
+                    MenuItem("med_delete", "Emlékeztető törlése", MenuAction.MEDICATION_DELETE),
+                    MenuItem("pharmacy_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)
+                )),
+                MenuItem("tools_daily_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+            )),
             MenuItem("tools_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
         MenuItem("assistant", "Asszisztens", MenuAction.SUBMENU, listOf(
-            MenuItem("voice_assistant", "Hangos asszisztens", MenuAction.VOICE_ASSISTANT),
+            MenuItem("voice_assistant", "Elena", MenuAction.VOICE_ASSISTANT),
+            MenuItem("elena_wake_listen", "Elena figyelő", MenuAction.ELENA_WAKE_LISTEN_TOGGLE),
+            MenuItem("elena_wake_train", "Elena felébresztő tanítása", MenuAction.ELENA_WAKE_TRAIN),
+            MenuItem("elena_wake_custom_list", "Saját felébresztő mondatok", MenuAction.ELENA_WAKE_CUSTOM_LIST),
             MenuItem("assistant_default_setup", "Alapértelmezett asszisztens beállítása", MenuAction.ASSISTANT_DEFAULT_SETUP),
             MenuItem("assistant_default_status", "Asszisztens állapota", MenuAction.ASSISTANT_DEFAULT_STATUS),
             MenuItem("bt_assistant", "Bluetooth gomb asszisztens", MenuAction.BT_ASSISTANT_TOGGLE),
@@ -343,12 +411,17 @@ object MenuTree {
                 MenuItem("lock_toggle", "PIN zárolás ki-be", MenuAction.LOCK_PIN_TOGGLE),
                 MenuItem("lock_set", "PIN kód beállítása", MenuAction.LOCK_PIN_SET),
                 MenuItem("lock_status", "PIN zárolás állapota", MenuAction.LOCK_PIN_STATUS),
-                MenuItem("call_filter_private", "Rejtett számok tiltása", MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE),
+                MenuItem("keyguard_pin_toggle", "Rendszer PIN segéd ki-be", MenuAction.KEYGUARD_PIN_ASSIST_TOGGLE),
+                MenuItem("keyguard_pin_setup", "Rendszer PIN segéd engedélyezése", MenuAction.KEYGUARD_PIN_ASSIST_SETUP),
+                MenuItem("keyguard_pin_status", "Rendszer PIN segéd állapota", MenuAction.KEYGUARD_PIN_ASSIST_STATUS),
+                MenuItem("call_filter_mode", "Hívás szűrő mód", MenuAction.CALL_FILTER_MODE_CYCLE),
+                MenuItem("call_filter_status", "Hívás szűrő állapota", MenuAction.CALL_FILTER_MODE_STATUS),
                 MenuItem("dialer_default_setup", "Alapértelmezett telefon beállítása", MenuAction.DIALER_DEFAULT_SETUP),
                 MenuItem("dialer_default_status", "Telefon alkalmazás állapota", MenuAction.DIALER_DEFAULT_STATUS),
                 MenuItem("security_back", "Vissza a beállításokhoz", MenuAction.SUBMENU)
             )),
             MenuItem("sound_settings", "Hangok", MenuAction.SUBMENU, listOf(
+                MenuItem("sound_theme", "Swipe hangtéma", MenuAction.SOUND_THEME_SELECT),
                 MenuItem("sound_volume", "Csengőhang hangerő", MenuAction.ALERT_SOUND_VOLUME_CYCLE),
                 MenuItem("sound_silent", "Néma mód ki-be", MenuAction.ALERT_SILENT_MODE_TOGGLE),
                 MenuItem("sound_calendar", "Program emlékeztető hang", MenuAction.ALERT_SOUND_CALENDAR),

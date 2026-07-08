@@ -9,7 +9,7 @@ object MedicationSpeech {
             1 -> names.first()
             else -> names.joinToString(" és ")
         }
-        return "Patika Őrangyal figyelmeztetés! Papa, kérlek vedd be a következő gyógyszert: $nameText."
+        return "Kérlek vedd be a gyógyszered! $nameText."
     }
 
     fun readAll(reminders: List<MedicationReminder>): String {
