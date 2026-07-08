@@ -21,6 +21,9 @@
 # Speech / TTS reflection
 -keep class android.speech.** { *; }
 
+# Hidden API bypass (hotspot / tethering reflection)
+-keep class org.lsposed.hiddenapibypass.** { *; }
+
 # BroadcastReceiver / Service manifest entries
 -keepclasseswithmembers class * {
     public <init>(...);

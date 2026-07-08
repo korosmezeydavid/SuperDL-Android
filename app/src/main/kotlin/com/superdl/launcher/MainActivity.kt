@@ -39,6 +39,7 @@ import com.superdl.launcher.input.NumberPadKey
 import com.superdl.launcher.input.NumberPadPurpose
 import com.superdl.launcher.input.PinPadMode
 import com.superdl.launcher.lock.LockScreenActivity
+import com.superdl.launcher.lock.keyguard.KeyguardPinSettings
 import com.superdl.launcher.security.LockPinStore
 import com.superdl.launcher.security.LockSession
 import com.superdl.launcher.apps.ExternalAppHelper
@@ -63,6 +64,9 @@ import com.superdl.launcher.gps.GpsRadarContextAction
 import com.superdl.launcher.gps.GpsRadarHelper
 import com.superdl.launcher.gps.GpsRadarManager
 import com.superdl.launcher.gps.GpsRadarStore
+import com.superdl.launcher.gps.GpsStreetAnnouncer
+import com.superdl.launcher.gps.GpsSurroundingsManager
+import com.superdl.launcher.gps.GpsStreetHelper
 import com.superdl.launcher.gps.SavedPoi
 import com.superdl.launcher.gps.SavedPoiStore
 import com.superdl.launcher.timer.TimerEntry
@@ -111,8 +115,13 @@ import com.superdl.launcher.music.MusicHelper
 import com.superdl.launcher.music.MusicPlayerActivity
 import com.superdl.launcher.music.MusicTrack
 import com.superdl.launcher.weather.WeatherHelper
+import com.superdl.launcher.contacts.ContactBookItem
+import com.superdl.launcher.contacts.ContactContextAction
 import com.superdl.launcher.contacts.ContactHelper
 import com.superdl.launcher.contacts.ContactMatch
+import com.superdl.launcher.contacts.ContactStore
+import com.superdl.launcher.contacts.ContactSyncHelper
+import com.superdl.launcher.contacts.ContactSyncScheduler
 import com.superdl.launcher.email.EmailAccountHelper
 import com.superdl.launcher.email.EmailHelper
 import com.superdl.launcher.email.EmailRecipient
@@ -133,26 +142,39 @@ import com.superdl.launcher.weather.WeatherCityStore
 import com.superdl.launcher.gps.LastLocationStore
 import com.superdl.launcher.assistant.AssistantMediaButtonHandler
 import com.superdl.launcher.assistant.BluetoothAssistantStore
+import com.superdl.launcher.assistant.ElenaWakeHelper
+import com.superdl.launcher.assistant.ElenaWakeListenService
+import com.superdl.launcher.assistant.ElenaWakeStore
 import com.superdl.launcher.qr.QrActionType
 import com.superdl.launcher.qr.QrScanActivity
 import com.superdl.launcher.settings.LauncherExitHelper
 import com.superdl.launcher.settings.PermissionGuideTexts
 import com.superdl.launcher.settings.PermissionGuideType
 import com.superdl.launcher.callfilter.CallFilterHelper
+import com.superdl.launcher.callfilter.CallFilterMode
 import com.superdl.launcher.callfilter.CallFilterStore
+
 import com.superdl.launcher.feedback.AlertSoundCategory
 import com.superdl.launcher.feedback.AlertSoundPlayer
 import com.superdl.launcher.feedback.AlertSoundPreset
 import com.superdl.launcher.feedback.AlertSoundSettingsStore
 import com.superdl.launcher.feedback.AlertSoundStore
 import com.superdl.launcher.feedback.DeviceStateSoundManager
+import com.superdl.launcher.feedback.GestureSoundHelper
 import com.superdl.launcher.feedback.SoundFeedback
+import com.superdl.launcher.feedback.SoundTheme
+import com.superdl.launcher.feedback.SoundThemeStore
 import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.feedback.ToggleAnnouncement
 import com.superdl.launcher.tools.FlashlightState
 import com.superdl.launcher.flow.AppFlow
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.color.ColorDetectorActivity
+import com.superdl.launcher.games.blackjack.BlackjackActivity
+import com.superdl.launcher.games.millebornes.MilleBornesActivity
+import com.superdl.launcher.games.poker.PokerActivity
+import com.superdl.launcher.games.uno.UnoActivity
+import com.superdl.launcher.hearingaid.HearingAidActivity
 import com.superdl.launcher.currency.CurrencyRecognizerActivity
 import com.superdl.launcher.textreader.TextReaderActivity
 import com.superdl.launcher.textreader.TextReaderMode
@@ -163,9 +185,15 @@ import com.superdl.launcher.camera.FaceCameraActivity
 import com.superdl.launcher.light.LightDetectorActivity
 import com.superdl.launcher.locationwatch.LocationProfile
 import com.superdl.launcher.locationwatch.LocationProfileStore
+import com.superdl.launcher.locationwatch.LocationProfilePhotosActivity
 import com.superdl.launcher.locationwatch.LocationTrainerActivity
 import com.superdl.launcher.locationwatch.LocationWatchActivity
 import com.superdl.launcher.locationwatch.LocationWatchState
+import com.superdl.launcher.cardorganizer.CardProfile
+import com.superdl.launcher.cardorganizer.CardRecognizerActivity
+import com.superdl.launcher.cardorganizer.CardStore
+import com.superdl.launcher.cardorganizer.CardTrainerActivity
+import com.superdl.launcher.gps.GpsRadarService
 import com.superdl.launcher.route.GpsRouteRecording
 import com.superdl.launcher.route.GpsRouteSession
 import com.superdl.launcher.route.GpsRouteStore
@@ -185,24 +213,31 @@ import com.superdl.launcher.sms.Recipient
 import com.superdl.launcher.sms.SmsHelper
 import com.superdl.launcher.sms.SmsRoleHelper
 import com.superdl.launcher.sms.SmsComposeActivity
+import com.superdl.launcher.sms.SmsIncomingNotifier
 import com.superdl.launcher.favorites.FavoriteContactCatalog
 import com.superdl.launcher.favorites.FavoriteContactCandidate
+import com.superdl.launcher.sms.SmsFolder
 import com.superdl.launcher.sms.SmsMessage
 import com.superdl.launcher.news.NewsFeed
+import com.superdl.launcher.news.NewsFeedStore
 import com.superdl.launcher.news.RssHelper
 import com.superdl.launcher.notifications.NotificationHelper
 import com.superdl.launcher.notifications.NotificationStore
 import com.superdl.launcher.sos.SosPreferences
 import com.superdl.launcher.sos.SosService
 import com.superdl.launcher.system.ConnectivityHelper
+import com.superdl.launcher.system.QuietModeHelper
 import com.superdl.launcher.assistant.AssistantRoleHelper
+import com.superdl.launcher.assistant.SpeechContextBuilder
 import com.superdl.launcher.assistant.VoiceAssistantHelper
 import com.superdl.launcher.assistant.VoiceAssistantIntent
 import com.superdl.launcher.navigation.NavigationHelper
 import com.superdl.launcher.navigation.NavPlace
 import com.superdl.launcher.transit.OsmHelper
+import com.superdl.launcher.transit.TransitContextAction
 import com.superdl.launcher.transit.TransitHelper
 import com.superdl.launcher.transit.TransitPlace
+import com.superdl.launcher.transit.TransitStopStore
 import com.superdl.launcher.tts.TtsEngineHelper
 import com.superdl.launcher.tts.TtsVoiceCatalog
 import com.superdl.launcher.tts.TtsVoiceOption
@@ -227,6 +262,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_LAUNCH_VOICE_ASSISTANT = "launch_voice_assistant"
         const val EXTRA_ASSISTANT_FROM_KEYGUARD = "assistant_from_keyguard"
+        const val EXTRA_WAKE_COMMAND = "wake_command"
+        const val EXTRA_WAKE_GREETING_ONLY = "wake_greeting_only"
         const val ACTION_LAUNCH_VOICE_ASSISTANT = "com.superdl.launcher.action.LAUNCH_VOICE_ASSISTANT"
         const val ACTION_VOICE_ASSIST = "android.intent.action.VOICE_ASSIST"
         private const val TRAINING_DOUBLE_SWIPE_MS = 1500L
@@ -275,11 +312,19 @@ class MainActivity : AppCompatActivity() {
     private var assistantLockedMode = false
     private var pendingAssistantFromKeyguard = false
     private var pendingAssistantLaunch = false
+    private var pendingWakeCommand: String? = null
+    private var pendingWakeGreetingOnly = false
+    private var pendingHotspotToggle = false
+
     private var lockReceiver: BroadcastReceiver? = null
+    private var gpsArrivalReceiver: BroadcastReceiver? = null
+    private var smsIncomingReceiver: BroadcastReceiver? = null
     private var radarCompass: CompassProvider? = null
     private var radarRefreshRunnable: Runnable? = null
+    private var transitCompass: CompassProvider? = null
     private var dictaphoneElapsedRunnable: Runnable? = null
     private var pendingSmsForwardBody: String? = null
+    private var pendingSmsFolderRead: SmsFolder? = null
     private var smsInboxRestore: AppFlow.SmsInbox? = null
     private var calendarEditEventId: Long? = null
     private var medicationDraftName: String? = null
@@ -288,6 +333,27 @@ class MainActivity : AppCompatActivity() {
     private var lastExitConfirmSwipeAt = 0L
     private var gpsRefineCancel: (() -> Unit)? = null
     private var gnssCancel: (() -> Unit)? = null
+
+    private val opmlImportLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            tts.speak("OPML import megszakítva.")
+            return@registerForActivityResult
+        }
+        try {
+            val count = contentResolver.openInputStream(uri)?.use { stream ->
+                NewsFeedStore.importOpml(this, stream)
+            } ?: 0
+            if (count > 0) {
+                tts.speak("$count új hírforrás importálva OPML fájlból.")
+            } else {
+                tts.speak("Nem találtam importálható hírforrást az OPML fájlban.")
+            }
+        } catch (_: Exception) {
+            tts.speak("Az OPML fájl beolvasása sikertelen.")
+        }
+    }
 
     private val callScreeningRoleLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -308,7 +374,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         when {
             AssistantRoleHelper.isVoiceInteractionActive(this) ->
-                tts.speak("Super DL asszisztens aktív. Az oldalsó gomb hosszú nyomására a hangos asszisztens indul.")
+                tts.speak("Super DL asszisztens aktív. Az oldalsó gomb hosszú nyomására ${ElenaWakeHelper.ASSISTANT_NAME} indul.")
 
             AssistantRoleHelper.needsActivation(this) ->
                 tts.speakThen(
@@ -338,7 +404,10 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (SmsRoleHelper.isDefaultSmsApp(this)) {
-            tts.speak("Super DL beállítva alapértelmezett üzenet alkalmazásként.")
+            tts.speak(
+                "Super DL beállítva alapértelmezett üzenet alkalmazásként. " +
+                    "A bejövő üzeneteket az Üzenetek és E-mail menüben olvashatod."
+            )
         } else {
             tts.speak("A Super DL még nincs alapértelmezett üzenet alkalmazásként. A súgóban lépésről lépésre útmutató található.")
         }
@@ -413,6 +482,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
             add(Manifest.permission.READ_MEDIA_AUDIO)
+            add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             add(Manifest.permission.GET_ACCOUNTS)
@@ -519,12 +589,17 @@ class MainActivity : AppCompatActivity() {
         requestPermissionsIfNeeded()
         BatteryPatrolManager.start(this)
         DeviceStateSoundManager.start(this)
+        GestureSoundHelper.restorePhoneRingerIfNeeded(this)
         TimerManager.resumeIfNeeded(this)
         CalendarReminderScheduler.rescheduleUpcoming(this)
         MedicationScheduler.rescheduleAll(this)
+        ContactSyncScheduler.reschedule(this)
+        Thread { ContactSyncHelper.syncIfNeeded(this) }.start()
+        syncElenaWakeListenService()
         updateDisplay()
         val pendingCalendarAlarm = intent?.action == CalendarAlarmReceiver.ACTION_CALENDAR_ALARM
         handleCalendarAlarmIntent(intent)
+
         queueVoiceAssistantLaunchIfNeeded(intent)
         handleDialIntent(intent)
 
@@ -611,6 +686,9 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 speakContactMatch(flow.matches[next])
             }
+            is AppFlow.ContactBookBrowse -> navigateContactBook(flow, -1)
+            is AppFlow.ContactContextMenu -> navigateContactContextMenu(flow, -1)
+            is AppFlow.ContactDeleteConfirm -> repeatContactDeleteConfirm(flow.contact)
             is AppFlow.SmsRecipientConfirm -> repeatSmsRecipientConfirm(flow.recipient)
             is AppFlow.SmsConfirm -> repeatSmsConfirm(flow.recipient, flow.message)
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
@@ -645,7 +723,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, -1)
+            is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, -1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
+            is AppFlow.CardBrowse -> navigateCardList(flow, -1)
+            is AppFlow.CardDeleteConfirm -> repeatCardDeleteConfirm(flow.card)
+            is AppFlow.NewsFeedManageBrowse -> navigateNewsFeedManageList(flow, -1)
+            is AppFlow.GpsArrivalLocationPrompt -> navigateGpsArrivalPrompt(flow, -1)
             is AppFlow.CameraQualityBrowse -> navigateCameraQuality(flow, -1)
             AppFlow.DictaphoneRecording -> speakDictaphoneElapsed()
             is AppFlow.DictaphoneSettingsBrowse -> navigateDictaphoneSettings(flow, -1)
@@ -653,6 +736,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.DictaphoneSampleRateBrowse -> navigateDictaphoneSampleRate(flow, -1)
             is AppFlow.DictaphoneBitrateBrowse -> navigateDictaphoneBitrate(flow, -1)
             is AppFlow.DictaphoneChannelsBrowse -> navigateDictaphoneChannels(flow, -1)
+
             is AppFlow.DictaphoneRecordingsBrowse -> navigateDictaphoneRecordings(flow, -1)
             is AppFlow.DictaphoneRecordingContextMenu -> navigateDictaphoneRecordingContextMenu(flow, -1)
             is AppFlow.DictaphoneShareEmailPickRecipient -> navigateDictaphoneShareEmailPick(flow, -1)
@@ -682,6 +766,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.LegalBrowse -> navigateLegalList(flow, -1)
             is AppFlow.GuideBrowse -> navigateGuideList(flow, -1)
             is AppFlow.TransitBrowse -> navigateTransitList(flow, -1)
+            is AppFlow.TransitContextMenu -> navigateTransitContextMenu(flow, -1)
             is AppFlow.TransitRouteBrowse -> navigateTransitRouteList(flow, -1)
             is AppFlow.NavPlaceBrowse -> navigateNavPlaceList(flow, -1)
             is AppFlow.BookLibraryBrowse -> navigateBookList(flow, -1)
@@ -696,6 +781,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosSetupMethodPick -> navigateSosSetupMethodPick(flow, -1)
             is AppFlow.SosContactCandidateBrowse -> navigateSosContactCandidates(flow, -1)
             is AppFlow.SoundTrainingBrowse -> navigateSoundTraining(flow, -1)
+            is AppFlow.SoundThemeBrowse -> navigateSoundTheme(flow, -1)
             is AppFlow.AlertSoundPresetBrowse -> navigateAlertSoundPreset(flow, -1)
             is AppFlow.NumberPadInput -> navigateNumberPad(flow, -1)
             is AppFlow.NumericDictationAwait -> speakNumericInputIntro(flow.purpose)
@@ -739,6 +825,9 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 speakContactMatch(flow.matches[next])
             }
+            is AppFlow.ContactBookBrowse -> navigateContactBook(flow, +1)
+            is AppFlow.ContactContextMenu -> navigateContactContextMenu(flow, +1)
+            is AppFlow.ContactDeleteConfirm -> repeatContactDeleteConfirm(flow.contact)
             is AppFlow.SmsRecipientConfirm -> repeatSmsRecipientConfirm(flow.recipient)
             is AppFlow.SmsConfirm -> repeatSmsConfirm(flow.recipient, flow.message)
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
@@ -773,7 +862,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, +1)
+            is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, +1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
+            is AppFlow.CardBrowse -> navigateCardList(flow, +1)
+            is AppFlow.CardDeleteConfirm -> repeatCardDeleteConfirm(flow.card)
+            is AppFlow.NewsFeedManageBrowse -> navigateNewsFeedManageList(flow, +1)
+            is AppFlow.GpsArrivalLocationPrompt -> navigateGpsArrivalPrompt(flow, +1)
             is AppFlow.CameraQualityBrowse -> navigateCameraQuality(flow, +1)
             AppFlow.DictaphoneRecording -> speakDictaphoneElapsed()
             is AppFlow.DictaphoneSettingsBrowse -> navigateDictaphoneSettings(flow, +1)
@@ -781,6 +875,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.DictaphoneSampleRateBrowse -> navigateDictaphoneSampleRate(flow, +1)
             is AppFlow.DictaphoneBitrateBrowse -> navigateDictaphoneBitrate(flow, +1)
             is AppFlow.DictaphoneChannelsBrowse -> navigateDictaphoneChannels(flow, +1)
+
             is AppFlow.DictaphoneRecordingsBrowse -> navigateDictaphoneRecordings(flow, +1)
             is AppFlow.DictaphoneRecordingContextMenu -> navigateDictaphoneRecordingContextMenu(flow, +1)
             is AppFlow.DictaphoneShareEmailPickRecipient -> navigateDictaphoneShareEmailPick(flow, +1)
@@ -815,6 +910,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.LegalBrowse -> navigateLegalList(flow, +1)
             is AppFlow.GuideBrowse -> navigateGuideList(flow, +1)
             is AppFlow.TransitBrowse -> navigateTransitList(flow, +1)
+            is AppFlow.TransitContextMenu -> navigateTransitContextMenu(flow, +1)
             is AppFlow.TransitRouteBrowse -> navigateTransitRouteList(flow, +1)
             is AppFlow.NavPlaceBrowse -> navigateNavPlaceList(flow, +1)
             is AppFlow.BookLibraryBrowse -> navigateBookList(flow, +1)
@@ -829,6 +925,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosSetupMethodPick -> navigateSosSetupMethodPick(flow, +1)
             is AppFlow.SosContactCandidateBrowse -> navigateSosContactCandidates(flow, +1)
             is AppFlow.SoundTrainingBrowse -> navigateSoundTraining(flow, +1)
+            is AppFlow.SoundThemeBrowse -> navigateSoundTheme(flow, +1)
             is AppFlow.AlertSoundPresetBrowse -> navigateAlertSoundPreset(flow, +1)
             is AppFlow.NumberPadInput -> navigateNumberPad(flow, +1)
             is AppFlow.NumericDictationAwait -> openNumberPadFromAwait(flow)
@@ -864,6 +961,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsDeleteConfirm -> deleteSmsMessage(flow)
             is AppFlow.CallPickContact -> enterCallConfirm(flow.matches[flow.index])
             is AppFlow.CallConfirm -> placeCall(flow.contact.phone, flow.contact.name)
+            is AppFlow.ContactBookBrowse -> onContactBookActivate(flow)
+            is AppFlow.ContactContextMenu -> onContactContextActivate(flow)
+            is AppFlow.ContactDeleteConfirm -> deleteContactFromBook(flow)
             is AppFlow.SosCountdown -> tts.speak("Visszaszámlálás folyamatban. Swipe balra a leállításhoz.")
             is AppFlow.AlarmListBrowse -> onAlarmListActivate(flow)
             is AppFlow.AlarmConfirm -> saveAlarm(flow.hour, flow.minute, flow.label)
@@ -893,7 +993,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> deleteGpsRoute(flow)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> onLocationProfileListActivate(flow)
+            is AppFlow.LocationProfileActions -> onLocationProfileActionActivate(flow)
             is AppFlow.LocationProfileDeleteConfirm -> deleteLocationProfile(flow)
+            is AppFlow.CardBrowse -> onCardListActivate(flow)
+            is AppFlow.CardDeleteConfirm -> deleteCard(flow)
+            is AppFlow.NewsFeedManageBrowse -> toggleNewsFeed(flow)
+            is AppFlow.GpsArrivalLocationPrompt -> activateGpsArrivalPrompt(flow)
             is AppFlow.CameraQualityBrowse -> applyCameraQuality(flow)
             AppFlow.DictaphoneRecording -> toggleDictaphonePause()
             is AppFlow.DictaphoneSettingsBrowse -> onDictaphoneSettingsActivate(flow)
@@ -901,6 +1006,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.DictaphoneSampleRateBrowse -> applyDictaphoneSampleRate(flow)
             is AppFlow.DictaphoneBitrateBrowse -> applyDictaphoneBitrate(flow)
             is AppFlow.DictaphoneChannelsBrowse -> applyDictaphoneChannels(flow)
+
             is AppFlow.DictaphoneRecordingsBrowse -> enterDictaphoneRecordingContextMenu(flow)
             is AppFlow.DictaphoneRecordingContextMenu -> onDictaphoneRecordingContextActivate(flow)
             is AppFlow.DictaphoneShareEmailPickRecipient -> enterDictaphoneShareEmailConfirm(flow.entry, flow.matches[flow.index])
@@ -937,7 +1043,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.YoutubePlayConfirm -> playYoutubeVideo(flow.video)
             is AppFlow.LegalBrowse -> tts.speak(flow.sections[flow.index].speakFull())
             is AppFlow.GuideBrowse -> tts.speak(flow.sections[flow.index].speakFull())
-            is AppFlow.TransitBrowse -> tts.speak(flow.places[flow.index].speakFull())
+            is AppFlow.TransitBrowse -> enterTransitContextMenu(flow)
+            is AppFlow.TransitContextMenu -> onTransitContextActivate(flow)
             is AppFlow.TransitRouteBrowse -> tts.speak(flow.route.steps[flow.index].speakPreview())
             is AppFlow.NavPlaceBrowse -> openNavPlaceInMaps(flow.places[flow.index])
             is AppFlow.BookLibraryBrowse -> openBook(flow.books[flow.index])
@@ -952,6 +1059,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosSetupMethodPick -> onSosSetupMethodActivate(flow)
             is AppFlow.SosContactCandidateBrowse -> saveSosNumberFromContact(flow.slot, flow.contacts[flow.index])
             is AppFlow.SoundTrainingBrowse -> playSoundTrainingItem(flow.items[flow.index])
+            is AppFlow.SoundThemeBrowse -> selectSoundTheme(flow)
             is AppFlow.AlertSoundPresetBrowse -> selectAlertSoundPreset(flow)
             is AppFlow.NumberPadInput -> onNumberPadActivate(flow)
             is AppFlow.NumericDictationAwait -> startNumericDictation(flow)
@@ -1013,19 +1121,25 @@ class MainActivity : AppCompatActivity() {
                 exitFlow("Gyógyszer rögzítés megszakítva.")
             }
             is AppFlow.MedicationListBrowse -> exitFlow("Patika Őrangyal bezárva.")
-            is AppFlow.SmsContextMenu -> returnToSmsInbox(flow.messages, flow.messageIndex)
+            is AppFlow.SmsContextMenu -> returnToSmsInbox(flow.messages, flow.messageIndex, flow.folder)
             is AppFlow.SmsDeleteConfirm -> {
                 activeFlow = AppFlow.SmsContextMenu(
                     flow.messages,
                     flow.messageIndex,
                     SmsContextAction.all,
-                    SmsContextAction.DELETE.ordinal
+                    SmsContextAction.DELETE.ordinal,
+                    flow.folder
                 )
                 updateFlowDisplay()
                 tts.speak("Törlés megszakítva.")
             }
             is AppFlow.CallLogContextMenu -> returnToCallLogBrowse(flow.entries, flow.entryIndex)
             is AppFlow.CallLogSaveContactAwaitName -> returnToCallLogBrowse(flow.entries, flow.entryIndex)
+            is AppFlow.ContactBookBrowse -> exitFlow("Névjegyzék bezárva.")
+            is AppFlow.ContactContextMenu -> returnToContactBook(flow.items, flow.contactIndex)
+            is AppFlow.ContactEditAwaitName -> returnToContactBookFromEdit(flow.contact)
+            is AppFlow.ContactEditAwaitPhone -> returnToContactBookFromEdit(flow.contact)
+            is AppFlow.ContactDeleteConfirm -> enterContactContextMenu(flow.items, flow.index)
             is AppFlow.ContactCreateAwaitName -> exitFlow("Névjegy létrehozás megszakítva.")
             is AppFlow.FavoriteDeleteConfirm -> {
                 activeFlow = AppFlow.FavoritesBrowse(flow.favorites, flow.index, FavoritesListMode.DELETE)
@@ -1046,6 +1160,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TimerListBrowse -> exitFlow("Időzítők bezárva.")
             is AppFlow.GpsRadarBrowse -> exitFlow("G P S kitekintő bezárva.")
             is AppFlow.GpsRadarContextMenu -> returnToGpsRadarBrowse(flow)
+            is AppFlow.TransitBrowse -> {
+                stopTransitCompass()
+                exitFlow("Megállók bezárva.")
+            }
+            is AppFlow.TransitContextMenu -> returnToTransitBrowse(flow)
             is AppFlow.GpsRadarGuiding -> unlockGpsRadarTarget(flow)
             is AppFlow.GpsRadarAwaitSaveName -> cancelGpsSaveOwnLocation(flow)
             is AppFlow.GpsSavedPoiBrowse -> exitFlow("Egyéni helyek bezárva.")
@@ -1067,6 +1186,23 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.GpsRouteGuidingActive -> stopGpsRouteGuidance()
             is AppFlow.LocationProfileBrowse -> exitFlow("Mentett helyszínek bezárva.")
+            is AppFlow.LocationProfileActions -> {
+                activeFlow = AppFlow.LocationProfileBrowse(flow.profiles, flow.profileIndex, deleteMode = false)
+                updateFlowDisplay()
+                tts.speak(flow.profile.speakPreview())
+            }
+            is AppFlow.CardBrowse -> exitFlow("Kártyák bezárva.")
+            is AppFlow.CardDeleteConfirm -> {
+                activeFlow = AppFlow.CardBrowse(flow.cards, flow.index, deleteMode = true)
+                updateFlowDisplay()
+                tts.speak("Törlés megszakítva.")
+            }
+            is AppFlow.NewsFeedManageBrowse -> exitFlow("Hírforrások kezelése bezárva.")
+            is AppFlow.GpsArrivalLocationPrompt -> {
+                activeFlow = AppFlow.Menu
+                updateDisplay()
+                tts.speak("Helyszín felismerő kihagyva.")
+            }
             is AppFlow.LocationProfileDeleteConfirm -> {
                 activeFlow = AppFlow.LocationProfileBrowse(flow.profiles, flow.index, deleteMode = true)
                 updateFlowDisplay()
@@ -1190,8 +1326,11 @@ class MainActivity : AppCompatActivity() {
             AppFlow.VoiceAssistantAwaitQuestion,
             AppFlow.VoiceAssistantChat -> {
                 voiceAssistantReturnPending = false
-                exitFlow("Hangos asszisztens bezárva.")
+                voiceInput.cancel()
+                resumeElenaWakeListening()
+                exitFlow("${ElenaWakeHelper.ASSISTANT_NAME} bezárva.")
             }
+            AppFlow.ElenaWakeTrainAwaitPhrase -> exitFlow("Elena tanítás megszakítva.")
             is AppFlow.NewsBrowse -> exitFlow("Hírek bezárva.")
             is AppFlow.NewsFeedBrowse -> exitFlow("Hírek bezárva.")
             is AppFlow.CalendarContextMenu -> returnToCalendarBrowse(flow.events, flow.eventIndex)
@@ -1248,7 +1387,7 @@ class MainActivity : AppCompatActivity() {
                 smsInboxRestore = null
                 voiceInput.cancel()
                 if (restore != null) {
-                    returnToSmsInbox(restore.messages, restore.index)
+                    returnToSmsInbox(restore.messages, restore.index, restore.folder)
                 } else {
                     exitFlow("Mégse.")
                 }
@@ -1296,8 +1435,12 @@ class MainActivity : AppCompatActivity() {
                     "${item.label}. Almenü. Csak jobbra swipe nyitja meg, fel-le továbblép."
                 item.action == MenuAction.WIFI_TOGGLE ->
                     "${item.label}. ${ConnectivityHelper.wifiStatus(this)}"
+                item.action == MenuAction.HOTSPOT_TOGGLE ->
+                    "${item.label}. ${ConnectivityHelper.hotspotStatus(this)}"
                 item.action == MenuAction.BT_TOGGLE ->
                     "${item.label}. ${ConnectivityHelper.bluetoothStatus(this)}"
+                item.action == MenuAction.CALL_FILTER_MODE_CYCLE ->
+                    "${item.label}. Jelenlegi mód: ${CallFilterStore.getMode(this).menuLabel}."
                 ToggleAnnouncement.isToggle(item.action) ->
                     ToggleAnnouncement.speakFocused(this, item.label, item.action)
                 else -> item.label
@@ -1391,6 +1534,8 @@ class MainActivity : AppCompatActivity() {
                 if (item.children.isNotEmpty()) enterSubMenu(item) else goBack()
             }
             MenuAction.CONTACTS -> startContactCallFlow()
+            MenuAction.CONTACT_BOOK -> startContactBookFlow()
+            MenuAction.CONTACT_SYNC -> runContactSync(manual = true)
             MenuAction.CALL_LOG -> startCallLogFlow()
             MenuAction.FAVORITES_ADD -> startFavoritesAddFlow()
             MenuAction.FAVORITES_CALL -> startFavoritesFlow(FavoritesListMode.CALL)
@@ -1400,6 +1545,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.CONTACT_CREATE -> startContactCreateFlow()
             MenuAction.DIAL -> startDialFlow()
             MenuAction.SMS_READ -> startSmsInboxFlow()
+            MenuAction.SMS_SENT_READ -> startSmsSentFlow()
             MenuAction.SMS_WRITE -> startSmsComposeFlow()
             MenuAction.EMAIL_WRITE -> startEmailComposeFlow()
             MenuAction.EMAIL_IMPORT -> startEmailImportFlow()
@@ -1438,6 +1584,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.WEATHER_CITY -> startWeatherCityFlow()
             MenuAction.DAY_GREETING -> speakDayGreeting()
             MenuAction.DAY_SUMMARY -> startDaySummaryFlow()
+            MenuAction.STATUS_REPORT -> tts.speak(StatusReportHelper.buildReport(this))
             MenuAction.NEWS_READ -> startNewsReadFlow()
             MenuAction.SHOPPING_LIST -> startShoppingListFlow()
             MenuAction.EMAIL_IMAP_READ -> startEmailInboxFlow()
@@ -1451,12 +1598,11 @@ class MainActivity : AppCompatActivity() {
             MenuAction.GPS_RADAR_SAVE_POI -> requestGpsSaveCurrentPoi()
             MenuAction.TRANSIT -> startTransitNearbyFlow()
             MenuAction.TRANSIT_STOP -> startTransitStopFlow()
+            MenuAction.TRANSIT_FAVORITES -> startTransitFavoritesFlow()
             MenuAction.TRANSIT_ROUTE -> startTransitRouteFlow()
             MenuAction.NOTIFICATIONS_READ -> startNotificationReadFlow()
             MenuAction.BATTERY -> {
-                val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
-                val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-                tts.speak("Akkumulátor töltöttség: $level százalék.")
+                tts.speak(InfoHelper.batteryAndSignalReport(this))
             }
             MenuAction.BATTERY_PATROL_TOGGLE -> toggleBatteryPatrol()
             MenuAction.PATROL_BATTERY_TOGGLE -> togglePatrolBattery()
@@ -1507,6 +1653,7 @@ class MainActivity : AppCompatActivity() {
                 startActivity(textReaderIntent(TextReaderMode.CONTINUOUS))
             }
             MenuAction.SOUND_TRAINING -> startSoundTrainingFlow()
+            MenuAction.SOUND_THEME_SELECT -> startSoundThemeFlow()
             MenuAction.ALERT_SOUND_VOLUME_CYCLE -> cycleAlertSoundVolume()
             MenuAction.ALERT_SILENT_MODE_TOGGLE -> toggleAlertSilentMode()
             MenuAction.ALERT_SOUND_CALENDAR -> startAlertSoundPresetFlow(AlertSoundCategory.CALENDAR)
@@ -1525,11 +1672,44 @@ class MainActivity : AppCompatActivity() {
             MenuAction.BOOK_FOLDER_SET -> startBookFolderSetFlow()
             MenuAction.BOOK_FOLDER_READ -> readBookFolders()
             MenuAction.BOOK_FOLDER_CLEAR -> clearBookFolders()
+            MenuAction.HEARING_AID -> {
+                tts.speak("Hallás erősítő indítása. Bluetooth fejhallgatóval is működik.")
+                startActivity(Intent(this, HearingAidActivity::class.java))
+            }
+            MenuAction.GAME_UNO -> {
+                tts.speak("UNO kártyajáték indítása.")
+                startActivity(Intent(this, UnoActivity::class.java))
+            }
+            MenuAction.GAME_BLACKJACK -> {
+                tts.speak("Blackjack indítása.")
+                startActivity(Intent(this, BlackjackActivity::class.java))
+            }
+            MenuAction.GAME_POKER -> {
+                tts.speak("Póker indítása.")
+                startActivity(Intent(this, PokerActivity::class.java))
+            }
+            MenuAction.GAME_SLOT -> {
+                tts.speak("Félkarú rabló indítása.")
+                startActivity(Intent(this, com.superdl.launcher.games.slot.SlotActivity::class.java))
+            }
+            MenuAction.GAME_MILLE_BORNES -> {
+                tts.speak("Mille Bornes indítása.")
+                startActivity(Intent(this, MilleBornesActivity::class.java))
+            }
             MenuAction.CALCULATOR -> startCalculatorFlow()
             MenuAction.WIFI_TOGGLE -> toggleWifi()
+            MenuAction.HOTSPOT_TOGGLE -> toggleHotspot()
             MenuAction.BT_TOGGLE -> toggleBluetooth()
-            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE -> toggleCallFilterBlockPrivate()
+            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE -> cycleCallFilterMode()
+            MenuAction.CALL_FILTER_MODE_CYCLE -> cycleCallFilterMode()
+            MenuAction.CALL_FILTER_MODE_STATUS -> tts.speak(CallFilterStore.speakMode(this))
+
             MenuAction.VOICE_ASSISTANT -> startVoiceAssistantFlow()
+            MenuAction.ELENA_WAKE_LISTEN_TOGGLE -> toggleElenaWakeListen()
+            MenuAction.ELENA_WAKE_LISTEN_ON -> setElenaWakeListen(true)
+            MenuAction.ELENA_WAKE_LISTEN_OFF -> setElenaWakeListen(false)
+            MenuAction.ELENA_WAKE_TRAIN -> startElenaWakeTrainFlow()
+            MenuAction.ELENA_WAKE_CUSTOM_LIST -> tts.speak(ElenaWakeHelper.speakCustomPhrases(this))
             MenuAction.ASSISTANT_DEFAULT_SETUP -> startAssistantDefaultSetupFlow()
             MenuAction.ASSISTANT_DEFAULT_STATUS -> tts.speak(AssistantRoleHelper.speakStatus(this))
             MenuAction.DIALER_DEFAULT_SETUP -> startDialerDefaultSetupFlow()
@@ -1562,6 +1742,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.LOCK_PIN_TOGGLE -> toggleLockPin()
             MenuAction.LOCK_PIN_SET -> startLockPinSetupFlow()
             MenuAction.LOCK_PIN_STATUS -> tts.speak(LockPinStore.speakStatus(this))
+            MenuAction.KEYGUARD_PIN_ASSIST_TOGGLE -> toggleKeyguardPinAssist()
+            MenuAction.KEYGUARD_PIN_ASSIST_SETUP -> setupKeyguardPinAssist()
+            MenuAction.KEYGUARD_PIN_ASSIST_STATUS -> tts.speak(KeyguardPinSettings.speakStatus(this))
             MenuAction.DICTAPHONE_RECORD -> startDictaphoneRecordingFlow()
             MenuAction.DICTAPHONE_SETTINGS -> startDictaphoneSettingsFlow()
             MenuAction.DICTAPHONE_LIBRARY -> startDictaphoneLibraryFlow()
@@ -1581,6 +1764,12 @@ class MainActivity : AppCompatActivity() {
             MenuAction.GPS_ROUTE_LIST -> startGpsRouteListFlow(deleteMode = false)
             MenuAction.GPS_ROUTE_GUIDE -> startGpsRouteListFlow(deleteMode = false, guideMode = true)
             MenuAction.GPS_ROUTE_DELETE -> startGpsRouteListFlow(deleteMode = true)
+            MenuAction.CARD_TRAIN -> startCardTrainFlow()
+            MenuAction.CARD_RECOGNIZE -> startCardRecognizeFlow()
+            MenuAction.CARD_LIST -> startCardListFlow(deleteMode = false)
+            MenuAction.CARD_DELETE -> startCardListFlow(deleteMode = true)
+            MenuAction.NEWS_FEED_MANAGE -> startNewsFeedManageFlow()
+            MenuAction.NEWS_FEED_IMPORT_OPML -> startNewsOpmlImportFlow()
             MenuAction.EXIT_LAUNCHER -> startLauncherExitConfirmFlow()
         }
     }
@@ -1705,35 +1894,113 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // ==================== SMS OLVASÁS ====================
-
-    private fun startSmsInboxFlow() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+    private fun startSmsToPhone(phone: String, name: String) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            tts.speak("SMS olvasás engedély szükséges.")
+            tts.speak("SMS küldés engedély szükséges.")
             return
         }
-        val messages = SmsHelper.getRecentMessages(this)
-        if (messages.isEmpty()) {
-            tts.speak("Nincs bejövő üzenet.")
+        val trimmedPhone = phone.trim()
+        if (trimmedPhone.isBlank()) {
+            tts.speak("Nincs telefonszám.")
             return
         }
-        activeFlow = AppFlow.SmsInbox(messages, 0)
-        updateFlowDisplay()
-        tts.speak("${messages.size} üzenet. Swipe fel-le navigálás, jobbra műveletek, balra vissza.")
-        speakSmsPreview(messages.first())
+        voiceInput.cancel()
+        val label = name.trim().ifBlank { trimmedPhone }
+        enterSmsRecipientConfirm(Recipient(trimmedPhone, label))
     }
 
-    private fun speakSmsPreview(message: SmsMessage) {
-        val sender = SmsHelper.resolveSenderLabel(this, message.address)
-        val preview = if (message.body.length > 60) message.body.take(60) + "…" else message.body
-        tts.speak("Feladó: $sender. $preview")
+    // ==================== SMS OLVASÁS ====================
+
+    private fun ensureReadSmsPermission(folder: SmsFolder, onGranted: () -> Unit) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingSmsFolderRead = null
+            onGranted()
+            return
+        }
+        pendingSmsFolderRead = folder
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_SMS), PERM_REQUEST)
+        tts.speak("SMS olvasás engedély szükséges.")
+    }
+
+    private fun startSmsInboxFlow() {
+        ensureReadSmsPermission(SmsFolder.INBOX) { openSmsFolderFlow(SmsFolder.INBOX) }
+    }
+
+    private fun startSmsSentFlow() {
+        ensureReadSmsPermission(SmsFolder.SENT) { openSmsFolderFlow(SmsFolder.SENT) }
+    }
+
+    private fun openSmsFolderFlow(folder: SmsFolder) {
+        val messages = SmsHelper.getRecentMessages(this, folder)
+        if (messages.isEmpty()) {
+            tts.speak(
+                when (folder) {
+                    SmsFolder.INBOX -> {
+                        if (SmsRoleHelper.isDefaultSmsApp(this)) {
+                            "Nincs bejövő üzenet. Ha most érkezett SMS, várj pár másodpercet, majd próbáld újra."
+                        } else {
+                            "Nincs bejövő üzenet."
+                        }
+                    }
+                    SmsFolder.SENT -> "Nincs kimenő üzenet."
+                }
+            )
+            return
+        }
+        showSmsFolder(folder, messages, 0, announceCount = true)
+    }
+
+    private fun showSmsFolder(
+        folder: SmsFolder,
+        messages: List<SmsMessage>,
+        index: Int,
+        announceCount: Boolean
+    ) {
+        if (messages.isEmpty()) return
+        val safeIndex = index.coerceIn(0, messages.lastIndex)
+        activeFlow = AppFlow.SmsInbox(messages, safeIndex, folder)
+        updateFlowDisplay()
+        if (announceCount) {
+            val folderLabel = folder.label.lowercase()
+            tts.speak("${messages.size} $folderLabel üzenet. Swipe fel-le navigálás, jobbra műveletek, balra vissza.")
+        }
+        speakSmsPreview(messages[safeIndex], folder)
+    }
+
+    private fun refreshSmsInboxIfVisible() {
+        val flow = activeFlow as? AppFlow.SmsInbox ?: return
+        if (flow.folder != SmsFolder.INBOX) return
+        val messages = SmsHelper.getRecentMessages(this, SmsFolder.INBOX)
+        if (messages.isEmpty()) return
+        val previousId = flow.messages.getOrNull(flow.index)?.id
+        val newIndex = messages.indexOfFirst { it.id == previousId }.let { found ->
+            if (found >= 0) found else 0
+        }
+        activeFlow = AppFlow.SmsInbox(messages, newIndex, SmsFolder.INBOX)
+        updateFlowDisplay()
+        if (newIndex == 0 && previousId != messages.first().id) {
+            speakSmsPreview(messages.first(), SmsFolder.INBOX)
+        }
+    }
+
+    private fun speakSmsPreview(message: SmsMessage, folder: SmsFolder = message.folder) {
+        val label = SmsHelper.resolveSenderLabel(this, message.address)
+        val previewBody = message.body.ifBlank { "üres üzenet" }
+        val preview = if (previewBody.length > 60) previewBody.take(60) + "…" else previewBody
+        val prefix = when (folder) {
+            SmsFolder.INBOX -> "Feladó: $label."
+            SmsFolder.SENT -> "Címzett: $label."
+        }
+        tts.speak("$prefix $preview")
     }
 
     private fun enterSmsContextMenu(flow: AppFlow.SmsInbox) {
         val actions = SmsContextAction.all
-        activeFlow = AppFlow.SmsContextMenu(flow.messages, flow.index, actions, 0)
+        activeFlow = AppFlow.SmsContextMenu(flow.messages, flow.index, actions, 0, flow.folder)
         updateFlowDisplay()
         tts.speak("Üzenet műveletek. ${actions.first().label}. Swipe fel-le választás, jobbra végrehajtás, balra vissza.")
     }
@@ -1748,28 +2015,33 @@ class MainActivity : AppCompatActivity() {
     private fun onSmsContextActivate(flow: AppFlow.SmsContextMenu) {
         val message = flow.messages[flow.messageIndex]
         when (flow.actions[flow.actionIndex]) {
-            SmsContextAction.READ -> tts.speak(message.body)
-            SmsContextAction.REPLY -> startSmsReplyTo(message, flow.messages, flow.messageIndex)
-            SmsContextAction.FORWARD -> startSmsForward(message, flow.messages, flow.messageIndex)
-            SmsContextAction.DELETE -> enterSmsDeleteConfirm(flow.messages, flow.messageIndex)
+            SmsContextAction.READ -> tts.speak(message.body.ifBlank { "Üres üzenet." })
+            SmsContextAction.REPLY -> startSmsReplyTo(message, flow.messages, flow.messageIndex, flow.folder)
+            SmsContextAction.FORWARD -> startSmsForward(message, flow.messages, flow.messageIndex, flow.folder)
+            SmsContextAction.DELETE -> enterSmsDeleteConfirm(flow.messages, flow.messageIndex, flow.folder)
         }
     }
 
-    private fun returnToSmsInbox(messages: List<SmsMessage>, index: Int) {
-        activeFlow = AppFlow.SmsInbox(messages, index)
+    private fun returnToSmsInbox(messages: List<SmsMessage>, index: Int, folder: SmsFolder) {
+        activeFlow = AppFlow.SmsInbox(messages, index, folder)
         updateFlowDisplay()
         tts.speak("Vissza az üzenetlistában.")
-        speakSmsPreview(messages[index])
+        speakSmsPreview(messages[index], folder)
     }
 
-    private fun startSmsReplyTo(message: SmsMessage, messages: List<SmsMessage>, index: Int) {
+    private fun startSmsReplyTo(
+        message: SmsMessage,
+        messages: List<SmsMessage>,
+        index: Int,
+        folder: SmsFolder
+    ) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
             tts.speak("SMS küldés engedély szükséges.")
             return
         }
-        smsInboxRestore = AppFlow.SmsInbox(messages, index)
+        smsInboxRestore = AppFlow.SmsInbox(messages, index, folder)
         pendingSmsForwardBody = null
         val label = SmsHelper.resolveSenderLabel(this, message.address)
         ensureMicAndRun {
@@ -1777,14 +2049,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startSmsForward(message: SmsMessage, messages: List<SmsMessage>, index: Int) {
+    private fun startSmsForward(
+        message: SmsMessage,
+        messages: List<SmsMessage>,
+        index: Int,
+        folder: SmsFolder
+    ) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
             tts.speak("SMS küldés engedély szükséges.")
             return
         }
-        smsInboxRestore = AppFlow.SmsInbox(messages, index)
+        smsInboxRestore = AppFlow.SmsInbox(messages, index, folder)
         pendingSmsForwardBody = message.body
         ensureMicAndRun {
             activeFlow = AppFlow.SmsAwaitRecipient
@@ -1793,15 +2070,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun enterSmsDeleteConfirm(messages: List<SmsMessage>, index: Int) {
-        activeFlow = AppFlow.SmsDeleteConfirm(messages, index)
+    private fun enterSmsDeleteConfirm(messages: List<SmsMessage>, index: Int, folder: SmsFolder) {
+        activeFlow = AppFlow.SmsDeleteConfirm(messages, index, folder)
         updateFlowDisplay()
-        repeatSmsDeleteConfirm(AppFlow.SmsDeleteConfirm(messages, index))
+        repeatSmsDeleteConfirm(AppFlow.SmsDeleteConfirm(messages, index, folder))
     }
 
     private fun repeatSmsDeleteConfirm(flow: AppFlow.SmsDeleteConfirm) {
-        val sender = SmsHelper.resolveSenderLabel(this, flow.messages[flow.messageIndex].address)
-        tts.speak("Biztosan törlöd $sender üzenetét? Swipe jobbra a törléshez, swipe balra a mégsehez. Ismétlés: swipe fel.")
+        val label = SmsHelper.resolveSenderLabel(this, flow.messages[flow.messageIndex].address)
+        val prompt = when (flow.folder) {
+            SmsFolder.INBOX -> "Biztosan törlöd $label üzenetét?"
+            SmsFolder.SENT -> "Biztosan törlöd a $label részére küldött üzenetet?"
+        }
+        tts.speak("$prompt Swipe jobbra a törléshez, swipe balra a mégsehez. Ismétlés: swipe fel.")
     }
 
     private fun deleteSmsMessage(flow: AppFlow.SmsDeleteConfirm) {
@@ -1812,16 +2093,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
         feedbackSuccess()
-        val updated = SmsHelper.getRecentMessages(this)
+        val updated = SmsHelper.getRecentMessages(this, flow.folder)
         if (updated.isEmpty()) {
-            exitFlow("Üzenet törölve. Nincs több bejövő üzenet.", success = true)
+            val emptyText = when (flow.folder) {
+                SmsFolder.INBOX -> "Üzenet törölve. Nincs több bejövő üzenet."
+                SmsFolder.SENT -> "Üzenet törölve. Nincs több kimenő üzenet."
+            }
+            exitFlow(emptyText, success = true)
             return
         }
         val newIndex = flow.messageIndex.coerceAtMost(updated.lastIndex)
-        activeFlow = AppFlow.SmsInbox(updated, newIndex)
+        activeFlow = AppFlow.SmsInbox(updated, newIndex, flow.folder)
         updateFlowDisplay()
         tts.speak("Üzenet törölve.")
-        speakSmsPreview(updated[newIndex])
+        speakSmsPreview(updated[newIndex], flow.folder)
     }
 
     // ==================== E-MAIL ====================
@@ -2236,6 +2521,254 @@ class MainActivity : AppCompatActivity() {
 
     private fun speakContactMatch(contact: ContactMatch) {
         tts.speak("${contact.name}, ${ContactHelper.maskPhone(contact.phone)}")
+    }
+
+    // ==================== NÉVJEGYZÉK ====================
+
+    private fun buildContactBookItems(contacts: List<ContactMatch>): List<ContactBookItem> =
+        listOf(ContactBookItem.SyncAction) + contacts.map { ContactBookItem.Entry(it) }
+
+    private fun reloadContactCache() {
+        val contacts = ContactHelper.listAllWithPhone(this)
+        ContactStore.save(this, contacts)
+    }
+
+    private fun startContactBookFlow() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Névjegy olvasás engedély szükséges.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS), PERM_REQUEST)
+            return
+        }
+        val cached = ContactStore.getCached(this)
+        if (cached.isEmpty()) {
+            tts.speak("Névjegyzék betöltése. Várj egy pillanatot.")
+            Thread {
+                ContactSyncHelper.sync(this)
+                postWhenAlive { openContactBookBrowse() }
+            }.start()
+            return
+        }
+        openContactBookBrowse()
+    }
+
+    private fun openContactBookBrowse(index: Int = 0) {
+        val items = buildContactBookItems(ContactStore.getCached(this))
+        val safeIndex = index.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+        activeFlow = AppFlow.ContactBookBrowse(items, safeIndex)
+        updateFlowDisplay()
+        val contactCount = (items.size - 1).coerceAtLeast(0)
+        val intro = if (contactCount == 0) {
+            "Nincs telefonszámmal rendelkező névjegy. A lista tetején szinkronizálás. Swipe jobbra a szinkronhoz, balra vissza."
+        } else {
+            "$contactCount névjegy. A lista tetején szinkronizálás. Swipe fel-le navigálás, jobbra művelet vagy szinkron, balra vissza."
+        }
+        tts.speak(intro)
+        speakContactBookItem(items[safeIndex])
+    }
+
+    private fun speakContactBookItem(item: ContactBookItem) {
+        tts.speakAdd(item.speakLabel())
+    }
+
+    private fun navigateContactBook(flow: AppFlow.ContactBookBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakContactBookItem(flow.items[next])
+    }
+
+    private fun onContactBookActivate(flow: AppFlow.ContactBookBrowse) {
+        when (flow.items[flow.index]) {
+            ContactBookItem.SyncAction -> runContactSync(manual = true)
+            is ContactBookItem.Entry -> enterContactContextMenu(flow.items, flow.index)
+        }
+    }
+
+    private fun runContactSync(manual: Boolean) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Névjegy olvasás engedély szükséges.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS), PERM_REQUEST)
+            return
+        }
+        if (manual) {
+            tts.speak("Szinkronizálás a telefon névjegyzékével. Várj egy pillanatot.")
+        }
+        Thread {
+            val result = ContactSyncHelper.sync(this)
+            postWhenAlive {
+                val items = buildContactBookItems(ContactStore.getCached(this))
+                when (val flow = activeFlow) {
+                    is AppFlow.ContactBookBrowse -> {
+                        val newIndex = flow.index.coerceAtMost(items.lastIndex.coerceAtLeast(0))
+                        activeFlow = AppFlow.ContactBookBrowse(items, newIndex)
+                        updateFlowDisplay()
+                        feedbackSuccess()
+                        tts.speak(result.speakSummary())
+                        speakContactBookItem(items[newIndex])
+                    }
+                    else -> {
+                        feedbackSuccess()
+                        tts.speak("${result.speakSummary()} ${ContactStore.speakLastSync(this)}")
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun returnToContactBook(items: List<ContactBookItem>, index: Int) {
+        val safeIndex = index.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+        activeFlow = AppFlow.ContactBookBrowse(items, safeIndex)
+        updateFlowDisplay()
+        tts.speak("Vissza a névjegyzékben.")
+        speakContactBookItem(items[safeIndex])
+    }
+
+    private fun returnToContactBookFromEdit(contact: ContactMatch) {
+        val items = buildContactBookItems(ContactStore.getCached(this))
+        val index = items.indexOfFirst {
+            it is ContactBookItem.Entry && it.contact.id == contact.id
+        }.takeIf { it >= 0 } ?: 1.coerceAtMost(items.lastIndex)
+        returnToContactBook(items, index)
+    }
+
+    private fun enterContactContextMenu(items: List<ContactBookItem>, contactIndex: Int) {
+        val entry = items.getOrNull(contactIndex) as? ContactBookItem.Entry ?: return
+        val actions = ContactContextAction.browseActions
+        activeFlow = AppFlow.ContactContextMenu(items, contactIndex, actions, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Névjegy műveletek: ${entry.contact.name}. ${actions.first().label}. " +
+                "Swipe fel-le választás, jobbra végrehajtás, balra vissza."
+        )
+    }
+
+    private fun navigateContactContextMenu(flow: AppFlow.ContactContextMenu, delta: Int) {
+        val next = (flow.actionIndex + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun onContactContextActivate(flow: AppFlow.ContactContextMenu) {
+        val entry = flow.items.getOrNull(flow.contactIndex) as? ContactBookItem.Entry ?: return
+        val contact = entry.contact
+        when (flow.actions[flow.actionIndex]) {
+            ContactContextAction.CALL -> placeCall(contact.phone, contact.name)
+            ContactContextAction.SEND_SMS -> startSmsToPhone(contact.phone, contact.name)
+            ContactContextAction.EDIT -> startContactEditFlow(contact)
+            ContactContextAction.DELETE -> enterContactDeleteConfirm(contact, flow.items, flow.contactIndex)
+        }
+    }
+
+    private fun startContactEditFlow(contact: ContactMatch) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Névjegy szerkesztés engedély szükséges.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_CONTACTS), PERM_REQUEST)
+            return
+        }
+        activeFlow = AppFlow.ContactEditAwaitName(contact)
+        updateFlowDisplay()
+        listenForContactEditName(contact)
+    }
+
+    private fun listenForContactEditName(contact: ContactMatch) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Mondd az új nevet. Jelenleg: ${contact.name}.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    if (activeFlow !is AppFlow.ContactEditAwaitName) return@listen
+                    val name = spoken.trim()
+                    if (name.isBlank()) {
+                        tts.speak("A név üres. Mondd újra.")
+                        listenForContactEditName(contact)
+                        return@listen
+                    }
+                    activeFlow = AppFlow.ContactEditAwaitPhone(contact, name)
+                    updateFlowDisplay()
+                    listenForContactEditPhone(contact, name)
+                },
+                onError = { returnToContactBookFromEdit(contact) }
+            )
+        }
+    }
+
+    private fun listenForContactEditPhone(contact: ContactMatch, newName: String) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Mondd az új telefonszámot. Jelenleg: ${ContactHelper.maskPhone(contact.phone)}.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    if (activeFlow !is AppFlow.ContactEditAwaitPhone) return@listen
+                    val phone = spoken.replace(" ", "").trim()
+                    if (phone.isBlank()) {
+                        tts.speak("A szám üres. Mondd újra.")
+                        listenForContactEditPhone(contact, newName)
+                        return@listen
+                    }
+                    val ok = ContactHelper.updateContact(this, contact.id, newName, phone)
+                    if (!ok) {
+                        exitFlow("Névjegy szerkesztése sikertelen.", error = true)
+                        return@listen
+                    }
+                    feedbackSuccess()
+                    reloadContactCache()
+                    returnToContactBookFromEdit(contact.copy(name = newName, phone = phone))
+                    tts.speakAdd("$newName frissítve.")
+                },
+                onError = { returnToContactBookFromEdit(contact) }
+            )
+        }
+    }
+
+    private fun enterContactDeleteConfirm(
+        contact: ContactMatch,
+        items: List<ContactBookItem>,
+        index: Int
+    ) {
+        activeFlow = AppFlow.ContactDeleteConfirm(contact, items, index)
+        updateFlowDisplay()
+        repeatContactDeleteConfirm(contact)
+    }
+
+    private fun repeatContactDeleteConfirm(contact: ContactMatch) {
+        tts.speak(
+            "Biztosan törlöd ${contact.name} névjegyet? " +
+                "Swipe jobbra a törléshez, swipe balra a mégsehez. Ismétlés: swipe fel."
+        )
+    }
+
+    private fun deleteContactFromBook(flow: AppFlow.ContactDeleteConfirm) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Névjegy törlés engedély szükséges.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_CONTACTS), PERM_REQUEST)
+            return
+        }
+        val ok = ContactHelper.deleteContact(this, flow.contact.id)
+        if (!ok) {
+            exitFlow("Névjegy törlése sikertelen.", error = true)
+            return
+        }
+        feedbackSuccess()
+        reloadContactCache()
+        val items = buildContactBookItems(ContactStore.getCached(this))
+        if (items.size <= 1) {
+            activeFlow = AppFlow.ContactBookBrowse(items, 0)
+            updateFlowDisplay()
+            tts.speak("${flow.contact.name} törölve. Nincs több névjegy.")
+            return
+        }
+        val newIndex = flow.index.coerceAtMost(items.lastIndex).coerceAtLeast(1)
+        returnToContactBook(items, newIndex)
+        tts.speakAdd("${flow.contact.name} törölve.")
     }
 
     // ==================== ÉBRESZTŐ & NAPTÁR (M3) ====================
@@ -3404,6 +3937,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleCalendarAlarmIntent(intent)
+
         queueVoiceAssistantLaunchIfNeeded(intent)
         handleDialIntent(intent)
         if (pendingAssistantLaunch) {
@@ -3539,6 +4073,7 @@ class MainActivity : AppCompatActivity() {
         val entry = flow.entries[flow.entryIndex]
         when (flow.actions[flow.actionIndex]) {
             CallLogContextAction.CALL -> placeCall(entry.number, entry.name.ifBlank { entry.number })
+            CallLogContextAction.SEND_SMS -> startSmsToPhone(entry.number, entry.name.ifBlank { entry.number })
             CallLogContextAction.COPY_NUMBER -> copyPhoneNumber(entry.number)
             CallLogContextAction.SAVE_CONTACT -> startCallLogSaveContact(flow)
             CallLogContextAction.ADD_FAVORITE -> addCallLogToFavorites(entry, flow.entries, flow.entryIndex)
@@ -4203,6 +4738,34 @@ class MainActivity : AppCompatActivity() {
             LockSession.unlock()
             LockSession.lockScreenVisible = false
             tts.speak(ToggleAnnouncement.speakAfterToggle("PIN zárolás", false))
+        }
+    }
+
+    private fun toggleKeyguardPinAssist() {
+        val wasEnabled = KeyguardPinSettings.isFeatureEnabled(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle("Rendszer PIN segéd", wasEnabled))
+        val enabling = !wasEnabled
+        KeyguardPinSettings.setFeatureEnabled(this, enabling)
+        tts.speak(ToggleAnnouncement.speakAfterToggle("Rendszer PIN segéd", enabling))
+        if (enabling && !KeyguardPinSettings.isServiceEnabled(this)) {
+            tts.speakAdd(
+                "A rendszer PIN feloldáshoz engedélyezd a Super DL rendszer PIN segéd szolgáltatást " +
+                    "a Kisegítő lehetőségek menüben."
+            )
+        }
+    }
+
+    private fun setupKeyguardPinAssist() {
+        KeyguardPinSettings.setFeatureEnabled(this, true)
+        if (KeyguardPinSettings.isServiceEnabled(this)) {
+            tts.speak("A rendszer PIN segéd már engedélyezve van.")
+            return
+        }
+        tts.speakThen(
+            "Megnyitom a Kisegítő lehetőségek menüt. " +
+                "Kapcsold be a Super DL rendszer PIN segéd szolgáltatást."
+        ) {
+            KeyguardPinSettings.openAccessibilitySettings(this)
         }
     }
 
@@ -5527,19 +6090,22 @@ class MainActivity : AppCompatActivity() {
     private fun startNewsReadFlow() {
         tts.speak("Hírek betöltése. Várj egy pillanatot.")
         RssHelper.fetchHeadlines(
-            onResult = { items ->
+            context = this,
+            page = 0,
+            onResult = { page ->
                 postWhenAlive {
-                    if (items.isEmpty()) {
+                    if (page.items.isEmpty()) {
                         tts.speak("Nem találtam híreket. Ellenőrizd az internetkapcsolatot.")
                         return@postWhenAlive
                     }
-                    activeFlow = AppFlow.NewsBrowse(items, 0, null)
+                    activeFlow = AppFlow.NewsBrowse(page.items, 0, null, page.page, page.hasMore)
                     updateFlowDisplay()
+                    val moreHint = if (page.hasMore) " Az utolsó hírnél lefelé swipe a következő 20 hírhez." else ""
                     tts.speak(
-                        "${items.size} hír betöltve. Swipe fel-le navigálás, " +
-                            "jobbra teljes hír felolvasása, balra vissza a menübe."
+                        "${page.items.size} hír betöltve. Swipe fel-le navigálás, " +
+                            "jobbra teljes hír felolvasása, balra vissza a menübe.$moreHint"
                     )
-                    tts.speakAdd(items.first().speakPreview())
+                    tts.speakAdd(page.items.first().speakPreview())
                 }
             },
             onError = {
@@ -5548,6 +6114,45 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
+    }
+
+    private fun startNewsFeedManageFlow() {
+        val feeds = NewsFeedStore.allDefaultFeeds() + NewsFeedStore.customFeeds(this)
+        if (feeds.isEmpty()) {
+            tts.speak("Nincs hírforrás.")
+            return
+        }
+        activeFlow = AppFlow.NewsFeedManageBrowse(feeds, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${feeds.size} hírforrás. Swipe fel-le választás, jobbra be- vagy kikapcsolás, balra vissza."
+        )
+        tts.speakAdd(newsFeedManagePreview(feeds.first()))
+    }
+
+    private fun newsFeedManagePreview(feed: NewsFeed): String {
+        val status = if (NewsFeedStore.isEnabled(this, feed.id)) "bekapcsolva" else "kikapcsolva"
+        return "${feed.speakPreview()}. $status."
+    }
+
+    private fun navigateNewsFeedManageList(flow: AppFlow.NewsFeedManageBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.feeds.size) % flow.feeds.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(newsFeedManagePreview(flow.feeds[next]))
+    }
+
+    private fun toggleNewsFeed(flow: AppFlow.NewsFeedManageBrowse) {
+        val feed = flow.feeds[flow.index]
+        val enabled = !NewsFeedStore.isEnabled(this, feed.id)
+        NewsFeedStore.setEnabled(this, feed.id, enabled)
+        val status = if (enabled) "bekapcsolva" else "kikapcsolva"
+        tts.speak("${feed.name} $status.")
+    }
+
+    private fun startNewsOpmlImportFlow() {
+        tts.speak("Válaszd ki az OPML hírforrás fájlt.")
+        opmlImportLauncher.launch(arrayOf("text/*", "application/xml", "*/*"))
     }
 
     private fun navigateNewsFeedList(flow: AppFlow.NewsFeedBrowse, delta: Int) {
@@ -5560,16 +6165,19 @@ class MainActivity : AppCompatActivity() {
     private fun loadNewsFromFeed(feed: NewsFeed) {
         tts.speak("${feed.name} hírei betöltése. Várj egy pillanatot.")
         RssHelper.fetchFromFeed(
+            context = this,
             feedId = feed.id,
-            onResult = { items ->
+            page = 0,
+            onResult = { page ->
                 postWhenAlive {
-                    activeFlow = AppFlow.NewsBrowse(items, 0, feed.id)
+                    activeFlow = AppFlow.NewsBrowse(page.items, 0, feed.id, page.page, page.hasMore)
                     updateFlowDisplay()
+                    val moreHint = if (page.hasMore) " Az utolsó hírnél lefelé swipe a következő 20 hírhez." else ""
                     tts.speak(
-                        "${items.size} hír a ${feed.name} forrásból. Swipe fel-le navigálás, " +
-                            "jobbra teljes cikk felolvasása, balra vissza a forrásokhoz."
+                        "${page.items.size} hír a ${feed.name} forrásból. Swipe fel-le navigálás, " +
+                            "jobbra teljes cikk felolvasása, balra vissza.$moreHint"
                     )
-                    tts.speakAdd(items.first().speakPreview())
+                    tts.speakAdd(page.items.first().speakPreview())
                 }
             },
             onError = {
@@ -5581,10 +6189,45 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateNewsList(flow: AppFlow.NewsBrowse, delta: Int) {
+        if (delta > 0 && flow.index == flow.items.lastIndex && flow.hasMore) {
+            loadNextNewsPage(flow)
+            return
+        }
         val next = (flow.index + delta + flow.items.size) % flow.items.size
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
         tts.speak(flow.items[next].speakPreview())
+    }
+
+    private fun loadNextNewsPage(flow: AppFlow.NewsBrowse) {
+        tts.speak("Következő hírek betöltése. Várj.")
+        val nextPage = flow.page + 1
+        val fetch = if (flow.feedId == null) {
+            { cb: (com.superdl.launcher.news.RssPage) -> Unit, err: () -> Unit ->
+                RssHelper.fetchHeadlines(this, nextPage, cb, err)
+            }
+        } else {
+            { cb: (com.superdl.launcher.news.RssPage) -> Unit, err: () -> Unit ->
+                RssHelper.fetchFromFeed(this, flow.feedId, nextPage, cb, err)
+            }
+        }
+        fetch(
+            { page ->
+                postWhenAlive {
+                    if (page.items.isEmpty()) {
+                        tts.speak("Nincs több hír.")
+                        return@postWhenAlive
+                    }
+                    activeFlow = AppFlow.NewsBrowse(page.items, 0, flow.feedId, page.page, page.hasMore)
+                    updateFlowDisplay()
+                    tts.speak("${page.items.size} új hír, ${page.page + 1}. oldal.")
+                    tts.speakAdd(page.items.first().speakPreview())
+                }
+            },
+            {
+                postWhenAlive { tts.speak("A következő hírek nem tölthetők.") }
+            }
+        )
     }
 
     // ==================== BELSŐ NAVIGÁCIÓ ====================
@@ -5611,6 +6254,9 @@ class MainActivity : AppCompatActivity() {
                 val index = pois.indexOfFirst { it.id == target.id }.takeIf { it >= 0 } ?: 0
                 activeFlow = AppFlow.GpsRadarGuiding(pois, index)
                 updateFlowDisplay()
+                if (!GpsSurroundingsManager.isRunning()) {
+                    startSurroundingsMonitoring()
+                }
                 tts.speak("Célkövetés folyamatban: ${target.speakRadar()}")
                 return
             }
@@ -5618,7 +6264,7 @@ class MainActivity : AppCompatActivity() {
         startRadarSensors()
         activeFlow = AppFlow.GpsRadarLoading
         updateFlowDisplay()
-        tts.speak("G P S kitekintő. Közeli helyek keresése 300 méteren belül. Várj.")
+        tts.speak("G P S kitekintő. Közeli helyek, utcák és kereszteződések keresése. Várj.")
         val heading = radarCompass?.heading() ?: 0f
         GpsRadarHelper.loadNearbyPois(
             context = this,
@@ -5627,12 +6273,13 @@ class MainActivity : AppCompatActivity() {
                 postWhenAlive {
                     if (pois.isEmpty()) {
                         stopRadarSession()
-                        exitFlow("Nincs közeli bolt, étterem vagy megálló 300 méteren belül.")
+                        exitFlow("Nincs közeli bolt, étterem, utca vagy kereszteződés 300 méteren belül.")
                         return@postWhenAlive
                     }
                     activeFlow = AppFlow.GpsRadarBrowse(pois, 0)
                     updateFlowDisplay()
                     startRadarRefreshLoop()
+                    startSurroundingsMonitoring()
                     tts.speak(GpsRadarHelper.speakAllPois(pois))
                 }
             },
@@ -5660,8 +6307,20 @@ class MainActivity : AppCompatActivity() {
         radarRefreshRunnable = null
     }
 
+    private fun startSurroundingsMonitoring() {
+        if (!GpsRadarStore.streetMonitoringEnabled) return
+        GpsStreetAnnouncer.resetSession()
+        GpsSurroundingsManager.start(this)
+    }
+
+    private fun stopSurroundingsMonitoring() {
+        GpsSurroundingsManager.stop(this)
+        GpsStreetAnnouncer.resetSession()
+    }
+
     private fun stopRadarSession(stopGuidance: Boolean = false) {
         stopRadarRefreshLoop()
+        stopSurroundingsMonitoring()
         stopRadarSensorsOnly()
         if (stopGuidance) {
             GpsRadarManager.stopGuidance(this)
@@ -5720,6 +6379,9 @@ class MainActivity : AppCompatActivity() {
         val poi = flow.pois[flow.index]
         stopRadarRefreshLoop()
         stopRadarSensorsOnly()
+        if (!GpsSurroundingsManager.isRunning()) {
+            startSurroundingsMonitoring()
+        }
         GpsRadarManager.startGuidance(this, poi)
         activeFlow = AppFlow.GpsRadarGuiding(flow.pois, flow.index)
         updateFlowDisplay()
@@ -5732,6 +6394,9 @@ class MainActivity : AppCompatActivity() {
         updateFlowDisplay()
         startRadarSensors()
         startRadarRefreshLoop()
+        if (!GpsSurroundingsManager.isRunning()) {
+            startSurroundingsMonitoring()
+        }
         tts.speak("Célzárolás feloldva. Vissza a helylistában.")
         speakGpsRadarPoi(flow.pois[flow.index])
     }
@@ -5755,6 +6420,9 @@ class MainActivity : AppCompatActivity() {
             GpsRadarContextAction.LOCK_TARGET -> lockGpsRadarTarget(
                 AppFlow.GpsRadarBrowse(flow.pois, flow.poiIndex)
             )
+            GpsRadarContextAction.HEAR_INTERSECTION_AHEAD -> speakIntersectionAhead()
+            GpsRadarContextAction.WHERE_AM_I -> speakGpsWhereAmI()
+            GpsRadarContextAction.TOGGLE_STREET_MONITORING -> toggleGpsStreetMonitoring()
             GpsRadarContextAction.SAVE_OWN_LOCATION -> startGpsSaveOwnLocation(
                 returnBrowse = AppFlow.GpsRadarBrowse(flow.pois, flow.poiIndex)
             )
@@ -5763,6 +6431,62 @@ class MainActivity : AppCompatActivity() {
                 flow.poiIndex,
                 returnBrowse = AppFlow.GpsRadarBrowse(flow.pois, flow.poiIndex)
             )
+        }
+    }
+
+    private fun speakIntersectionAhead() {
+        val heading = radarCompass?.heading() ?: GpsRadarStore.lastHeading
+        val context = GpsRadarStore.streetContext
+        if (context == null) {
+            tts.speak("Nincs elérhető kereszteződés adat. Várj, amíg frissül a környezet.")
+            return
+        }
+        val ahead = GpsStreetHelper.intersectionAhead(context, heading)
+        if (ahead == null) {
+            tts.speak("Nincs kereszteződés közvetlenül előtted a közelben.")
+        } else {
+            tts.speak(ahead.speakAhead())
+        }
+    }
+
+    private fun speakGpsWhereAmI() {
+        val heading = radarCompass?.heading() ?: GpsRadarStore.lastHeading
+        val context = GpsRadarStore.streetContext
+        if (context != null) {
+            tts.speak(GpsStreetHelper.speakWhereAmI(context, heading))
+            return
+        }
+        val location = GpsLocationHelper.getLastLocation(this)
+        if (location == null) {
+            tts.speak("Helymeghatározás nem elérhető.")
+            return
+        }
+        Thread {
+            val fetched = try {
+                GpsStreetHelper.fetchStreetContext(location.latitude, location.longitude, heading)
+            } catch (_: Exception) {
+                null
+            }
+            postWhenAlive {
+                if (fetched == null) {
+                    tts.speak("Nem sikerült lekérdezni a helyszínt.")
+                } else {
+                    GpsRadarStore.streetContext = fetched
+                    tts.speak(GpsStreetHelper.speakWhereAmI(fetched, heading))
+                }
+            }
+        }.start()
+    }
+
+    private fun toggleGpsStreetMonitoring() {
+        GpsRadarStore.streetMonitoringEnabled = !GpsRadarStore.streetMonitoringEnabled
+        if (GpsRadarStore.streetMonitoringEnabled) {
+            if (!GpsSurroundingsManager.isRunning()) {
+                startSurroundingsMonitoring()
+            }
+            tts.speak("Utcabemondás bekapcsolva. ${GpsStreetAnnouncer.introMessage()}")
+        } else {
+            tts.speak("Utcabemondás kikapcsolva. A környezeti figyelő továbbra is fut, de nem mond be utcaneveket.")
         }
     }
 
@@ -6048,6 +6772,9 @@ class MainActivity : AppCompatActivity() {
         stopRadarSensorsOnly()
         GpsRadarStore.approachSavedPoi = true
         GpsRadarStore.lastApproachThreshold = null
+        if (!GpsSurroundingsManager.isRunning()) {
+            startSurroundingsMonitoring()
+        }
         GpsRadarManager.startGuidance(this, poi)
         activeFlow = AppFlow.GpsRadarGuiding(listOf(poi), 0)
         updateFlowDisplay()
@@ -6105,7 +6832,7 @@ class MainActivity : AppCompatActivity() {
         val intro = if (deleteMode) {
             "${profiles.size} helyszín profil. Törlés mód. Swipe fel-le választás, jobbra törlés megerősítése."
         } else {
-            "${profiles.size} helyszín profil. Swipe fel-le választás, jobbra figyelő indítása."
+            "${profiles.size} helyszín profil. Swipe fel-le választás, jobbra műveletek: figyelő, fotók bővítése, fotók törlése."
         }
         tts.speak(intro)
         tts.speakAdd(profiles.first().speakPreview())
@@ -6123,7 +6850,46 @@ class MainActivity : AppCompatActivity() {
         if (flow.deleteMode) {
             enterLocationProfileDeleteConfirm(profile, flow.profiles, flow.index)
         } else {
-            startLocationWatchForProfile(profile)
+            enterLocationProfileActions(profile, flow.profiles, flow.index)
+        }
+    }
+
+    private fun enterLocationProfileActions(
+        profile: LocationProfile,
+        profiles: List<LocationProfile>,
+        index: Int
+    ) {
+        activeFlow = AppFlow.LocationProfileActions(profile, profiles, index, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${profile.speakPreview()}. ${AppFlow.LocationProfileActions.OPTIONS.first()}. " +
+                "Swipe fel-le művelet választás, jobbra végrehajtás, balra vissza."
+        )
+    }
+
+    private fun navigateLocationProfileActions(flow: AppFlow.LocationProfileActions, delta: Int) {
+        val options = AppFlow.LocationProfileActions.OPTIONS
+        val next = (flow.actionIndex + delta + options.size) % options.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(options[next])
+    }
+
+    private fun onLocationProfileActionActivate(flow: AppFlow.LocationProfileActions) {
+        when (flow.actionIndex) {
+            0 -> startLocationWatchForProfile(flow.profile)
+            1 -> {
+                tts.speak("Fotók bővítése: ${flow.profile.name}")
+                startActivity(LocationTrainerActivity.intentForEdit(this, flow.profile.id))
+            }
+            2 -> {
+                if (flow.profile.referenceImagePaths.isEmpty()) {
+                    tts.speak("Ehhez a helyszínhez nincs mentett fotó.")
+                } else {
+                    tts.speak("Fotók törlése: ${flow.profile.name}")
+                    startActivity(LocationProfilePhotosActivity.intent(this, flow.profile.id))
+                }
+            }
         }
     }
 
@@ -6169,6 +6935,111 @@ class MainActivity : AppCompatActivity() {
         } else {
             tts.speak("Nincs aktív helyszín figyelő.")
         }
+    }
+
+    private fun startGpsArrivalLocationPrompt(destinationName: String) {
+        GpsRadarStore.pendingArrivalPrompt = null
+        activeFlow = AppFlow.GpsArrivalLocationPrompt(destinationName, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Megérkeztél: $destinationName. Szeretnéd a helyszín felismerőt használni? " +
+                AppFlow.GpsArrivalLocationPrompt.OPTIONS.first() +
+                ". Swipe fel-le választás, jobbra megerősítés, balra kihagyás."
+        )
+    }
+
+    private fun navigateGpsArrivalPrompt(flow: AppFlow.GpsArrivalLocationPrompt, delta: Int) {
+        val options = AppFlow.GpsArrivalLocationPrompt.OPTIONS
+        val next = (flow.index + delta + options.size) % options.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(options[next])
+    }
+
+    private fun activateGpsArrivalPrompt(flow: AppFlow.GpsArrivalLocationPrompt) {
+        when (flow.index) {
+            0 -> startLocationWatchFlow()
+            1 -> startLocationTrainFlow()
+            else -> tts.speak("Rendben, helyszín felismerő nélkül.")
+        }
+        if (activeFlow is AppFlow.GpsArrivalLocationPrompt) {
+            activeFlow = AppFlow.Menu
+            updateDisplay()
+        }
+    }
+
+    // ==================== KÁRTYA RENDSZEREZŐ ====================
+
+    private fun startCardTrainFlow() {
+        tts.speak("Kártya hozzáadása. Először fotózd le az elejét, majd a hátulját, végül add meg a nevét.")
+        startActivity(CardTrainerActivity.intent(this))
+    }
+
+    private fun startCardRecognizeFlow() {
+        val cards = CardStore.getAll(this)
+        if (cards.isEmpty()) {
+            tts.speak("Nincs mentett kártya. Előbb adj hozzá egyet az Új kártya menüpontban.")
+            return
+        }
+        tts.speak("Kártya felismerő indítása. ${cards.size} mentett kártya.")
+        startActivity(CardRecognizerActivity.intent(this))
+    }
+
+    private fun startCardListFlow(deleteMode: Boolean) {
+        val cards = CardStore.getAll(this)
+        if (cards.isEmpty()) {
+            tts.speak("Nincs mentett kártya.")
+            return
+        }
+        activeFlow = AppFlow.CardBrowse(cards, 0, deleteMode)
+        updateFlowDisplay()
+        val intro = if (deleteMode) {
+            "${cards.size} kártya. Törlés mód. Swipe fel-le választás, jobbra törlés."
+        } else {
+            "${cards.size} kártya. Swipe fel-le böngészés."
+        }
+        tts.speak(intro)
+        tts.speakAdd(cards.first().speakPreview())
+    }
+
+    private fun navigateCardList(flow: AppFlow.CardBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.cards.size) % flow.cards.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.cards[next].speakPreview())
+    }
+
+    private fun onCardListActivate(flow: AppFlow.CardBrowse) {
+        val card = flow.cards[flow.index]
+        if (flow.deleteMode) {
+            enterCardDeleteConfirm(card, flow.cards, flow.index)
+        } else {
+            tts.speak(card.speakPreview())
+        }
+    }
+
+    private fun enterCardDeleteConfirm(card: CardProfile, cards: List<CardProfile>, index: Int) {
+        activeFlow = AppFlow.CardDeleteConfirm(card, cards, index)
+        updateFlowDisplay()
+        repeatCardDeleteConfirm(card)
+    }
+
+    private fun repeatCardDeleteConfirm(card: CardProfile) {
+        tts.speak("Törlöd ezt a kártyát? ${card.speakPreview()}. Swipe jobbra a törléshez, balra a mégsehez.")
+    }
+
+    private fun deleteCard(flow: AppFlow.CardDeleteConfirm) {
+        CardStore.remove(this, flow.card.id)
+        val updated = CardStore.getAll(this)
+        if (updated.isEmpty()) {
+            exitFlow("Kártya törölve: ${flow.card.speakPreview()}. Nincs több mentett kártya.")
+            return
+        }
+        val newIndex = flow.index.coerceAtMost(updated.lastIndex)
+        activeFlow = AppFlow.CardBrowse(updated, newIndex, deleteMode = true)
+        updateFlowDisplay()
+        tts.speak("Kártya törölve: ${flow.card.speakPreview()}.")
+        tts.speakAdd(updated[newIndex].speakPreview())
     }
 
     // ==================== ARC KAMERA ====================
@@ -7171,16 +8042,49 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTransitNearbyFlow() {
         if (!ensureLocationPermission()) return
-        tts.speak("Közeli megállók keresése. Várj egy pillanatot.")
+        startTransitCompass()
+        tts.speak("Közeli megállók keresése indulási időkkel. Várj egy pillanatot.")
+        val heading = transitCompass?.heading() ?: 0f
         TransitHelper.fetchNearbyStops(
             context = this,
-            onResult = { places -> postWhenAlive { showTransitBrowse(places, "Közeli megállók") } },
-            onError = { message -> postWhenAlive { tts.speak(message) } }
+            onResult = { places ->
+                postWhenAlive {
+                    showTransitBrowse(
+                        places,
+                        title = "Közeli megállók",
+                        radiusMode = TransitHelper.StopRadiusMode.NEAR
+                    )
+                }
+            },
+            onError = { message -> postWhenAlive { tts.speak(message) } },
+            headingDegrees = heading
+        )
+    }
+
+    private fun startTransitFavoritesFlow() {
+        if (!ensureLocationPermission()) return
+        startTransitCompass()
+        tts.speak("Kedvenc megállók betöltése. Várj.")
+        val heading = transitCompass?.heading() ?: 0f
+        TransitHelper.fetchFavoriteStops(
+            context = this,
+            onResult = { places ->
+                postWhenAlive {
+                    showTransitBrowse(
+                        places,
+                        title = "Kedvenc megállók",
+                        radiusMode = TransitHelper.StopRadiusMode.NEAR
+                    )
+                }
+            },
+            onError = { message -> postWhenAlive { tts.speak(message) } },
+            headingDegrees = heading
         )
     }
 
     private fun startTransitStopFlow() {
         ensureMicAndRun {
+            startTransitCompass()
             activeFlow = AppFlow.TransitAwaitStop
             updateFlowDisplay()
             voiceInput.listen(
@@ -7194,16 +8098,32 @@ class MainActivity : AppCompatActivity() {
                     }
                     voiceInput.cancel()
                     tts.speak("Megálló keresése: $stop. Várj egy pillanatot.")
+                    val heading = transitCompass?.heading() ?: 0f
                     TransitHelper.searchStop(
                         context = this,
                         stopName = stop,
-                        onResult = { places -> postWhenAlive { showTransitBrowse(places, "Megálló keresés") } },
-                        onError = { message -> postWhenAlive { exitFlow(message) } }
+                        onResult = { places ->
+                            postWhenAlive {
+                                showTransitBrowse(places, "Megálló keresés", TransitHelper.StopRadiusMode.NEAR)
+                            }
+                        },
+                        onError = { message -> postWhenAlive { exitFlow(message) } },
+                        headingDegrees = heading
                     )
                 },
                 onError = { exitFlow("Nem értettem a megálló nevét.") }
             )
         }
+    }
+
+    private fun startTransitCompass() {
+        transitCompass?.stop()
+        transitCompass = CompassProvider(this).also { it.start() }
+    }
+
+    private fun stopTransitCompass() {
+        transitCompass?.stop()
+        transitCompass = null
     }
 
     private fun startTransitRouteFlow() {
@@ -7233,11 +8153,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showTransitBrowse(places: List<TransitPlace>, title: String) {
-        activeFlow = AppFlow.TransitBrowse(places, 0)
+    private fun showTransitBrowse(
+        places: List<TransitPlace>,
+        title: String,
+        radiusMode: TransitHelper.StopRadiusMode = TransitHelper.StopRadiusMode.NEAR
+    ) {
+        activeFlow = AppFlow.TransitBrowse(places, 0, title, radiusMode)
         updateFlowDisplay()
         tts.speak(
-            "$title. ${places.size} találat. Swipe fel-le választás, jobbra részletes felolvasás, balra vissza."
+            "$title. ${places.size} találat. ${radiusMode.label}. " +
+                "Swipe fel-le választás, jobbra műveletek, balra vissza."
         )
         tts.speakAdd(places.first().speakPreview())
     }
@@ -7247,6 +8172,134 @@ class MainActivity : AppCompatActivity() {
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
         tts.speak(flow.places[next].speakPreview())
+    }
+
+    private fun enterTransitContextMenu(flow: AppFlow.TransitBrowse) {
+        val place = flow.places[flow.index]
+        val actions = buildList {
+            add(TransitContextAction.SPEAK_FULL)
+            if (place.isFavorite) add(TransitContextAction.REMOVE_FAVORITE)
+            else add(TransitContextAction.SAVE_FAVORITE)
+            if (flow.title == "Közeli megállók") add(TransitContextAction.TOGGLE_RADIUS)
+            add(TransitContextAction.REFRESH)
+        }
+        activeFlow = AppFlow.TransitContextMenu(
+            flow.places,
+            flow.index,
+            actions,
+            0,
+            flow.title,
+            flow.radiusMode
+        )
+        updateFlowDisplay()
+        tts.speak("Megálló műveletek. ${actions.first().label}. Swipe fel-le választás, jobbra végrehajtás, balra vissza.")
+    }
+
+    private fun navigateTransitContextMenu(flow: AppFlow.TransitContextMenu, delta: Int) {
+        val next = (flow.actionIndex + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun onTransitContextActivate(flow: AppFlow.TransitContextMenu) {
+        val place = flow.places[flow.placeIndex]
+        when (flow.actions[flow.actionIndex]) {
+            TransitContextAction.SPEAK_FULL -> tts.speak(place.speakFull())
+            TransitContextAction.SAVE_FAVORITE -> {
+                val saved = TransitStopStore.add(
+                    this,
+                    name = place.name,
+                    latitude = place.latitude,
+                    longitude = place.longitude,
+                    stopId = place.stopId,
+                    address = place.address
+                )
+                if (saved == null) {
+                    tts.speak("${place.name} már kedvencnek van mentve, vagy nem sikerült menteni.")
+                } else {
+                    val updated = flow.places.mapIndexed { index, item ->
+                        if (index == flow.placeIndex) item.copy(isFavorite = true) else item
+                    }
+                    activeFlow = AppFlow.TransitBrowse(updated, flow.placeIndex, flow.title, flow.radiusMode)
+                    updateFlowDisplay()
+                    tts.speak("${place.name} kedvenc megállónak mentve.")
+                }
+            }
+            TransitContextAction.REMOVE_FAVORITE -> {
+                val favorite = TransitStopStore.getAll(this)
+                    .firstOrNull { it.name.equals(place.name, true) || it.stopId == place.stopId }
+                if (favorite != null && TransitStopStore.remove(this, favorite.id)) {
+                    val updated = flow.places.mapIndexed { index, item ->
+                        if (index == flow.placeIndex) item.copy(isFavorite = false) else item
+                    }
+                    activeFlow = AppFlow.TransitBrowse(updated, flow.placeIndex, flow.title, flow.radiusMode)
+                    updateFlowDisplay()
+                    tts.speak("${place.name} törölve a kedvencek közül.")
+                } else {
+                    tts.speak("Nem találtam kedvencnek mentve: ${place.name}.")
+                }
+            }
+            TransitContextAction.TOGGLE_RADIUS -> refreshTransitWithRadius(flow)
+            TransitContextAction.REFRESH -> refreshTransitList(flow)
+        }
+    }
+
+    private fun refreshTransitWithRadius(flow: AppFlow.TransitContextMenu) {
+        val newMode = if (flow.radiusMode == TransitHelper.StopRadiusMode.NEAR) {
+            TransitHelper.StopRadiusMode.EXTENDED
+        } else {
+            TransitHelper.StopRadiusMode.NEAR
+        }
+        tts.speak("${newMode.label}. Frissítés.")
+        val heading = transitCompass?.heading() ?: 0f
+        TransitHelper.fetchNearbyStops(
+            context = this,
+            onResult = { places ->
+                postWhenAlive {
+                    showTransitBrowse(places, flow.title, newMode)
+                }
+            },
+            onError = { message -> postWhenAlive { tts.speak(message) } },
+            radiusMode = newMode,
+            headingDegrees = heading
+        )
+    }
+
+    private fun refreshTransitList(flow: AppFlow.TransitContextMenu) {
+        tts.speak("Megállók frissítése.")
+        val heading = transitCompass?.heading() ?: 0f
+        if (flow.title == "Kedvenc megállók") {
+            TransitHelper.fetchFavoriteStops(
+                context = this,
+                onResult = { places ->
+                    postWhenAlive {
+                        showTransitBrowse(places, flow.title, flow.radiusMode)
+                    }
+                },
+                onError = { message -> postWhenAlive { tts.speak(message) } },
+                headingDegrees = heading
+            )
+        } else {
+            TransitHelper.fetchNearbyStops(
+                context = this,
+                onResult = { places ->
+                    postWhenAlive {
+                        showTransitBrowse(places, flow.title, flow.radiusMode)
+                    }
+                },
+                onError = { message -> postWhenAlive { tts.speak(message) } },
+                radiusMode = flow.radiusMode,
+                headingDegrees = heading
+            )
+        }
+    }
+
+    private fun returnToTransitBrowse(flow: AppFlow.TransitContextMenu) {
+        activeFlow = AppFlow.TransitBrowse(flow.places, flow.placeIndex, flow.title, flow.radiusMode)
+        updateFlowDisplay()
+        tts.speak("Vissza a megálló listában.")
+        tts.speakAdd(flow.places[flow.placeIndex].speakPreview())
     }
 
     private fun showTransitRouteBrowse(route: com.superdl.launcher.transit.TransitRoute) {
@@ -7267,7 +8320,112 @@ class MainActivity : AppCompatActivity() {
         tts.speak(flow.route.steps[next].speakPreview())
     }
 
-    // ==================== HANGOS ASSZISZTENS ====================
+    // ==================== ELENA FELÉBRESZTŐ ====================
+
+    private fun toggleElenaWakeListen(speak: Boolean = true): Boolean {
+        val enabled = !ElenaWakeStore.isListenEnabled(this)
+        setElenaWakeListen(enabled, speak)
+        return enabled
+    }
+
+    private fun setElenaWakeListen(enabled: Boolean, speak: Boolean = true) {
+        if (!enabled) {
+            ElenaWakeStore.listeningPaused = false
+            voiceInput.cancel()
+        }
+        ElenaWakeStore.setListenEnabled(this, enabled)
+        syncElenaWakeListenService()
+        if (speak) {
+            tts.speak(ElenaWakeHelper.speakListenStatus(this, enabled))
+        }
+    }
+
+    private fun pauseElenaWakeListening() {
+        ElenaWakeStore.listeningPaused = true
+        if (!ElenaWakeStore.isListenEnabled(this)) return
+        startService(
+            Intent(this, ElenaWakeListenService::class.java).apply {
+                action = ElenaWakeListenService.ACTION_PAUSE
+            }
+        )
+    }
+
+    private fun resumeElenaWakeListening() {
+        if (!ElenaWakeStore.isListenEnabled(this)) return
+        ElenaWakeStore.listeningPaused = false
+        startService(
+            Intent(this, ElenaWakeListenService::class.java).apply {
+                action = ElenaWakeListenService.ACTION_RESUME
+            }
+        )
+    }
+
+    private fun syncElenaWakeListenService() {
+        if (ElenaWakeStore.isListenEnabled(this)) {
+            val serviceIntent = Intent(this, ElenaWakeListenService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } else {
+            stopService(
+                Intent(this, ElenaWakeListenService::class.java).apply {
+                    action = ElenaWakeListenService.ACTION_STOP
+                }
+            )
+        }
+    }
+
+    private fun startElenaWakeTrainFlow(fromAssistant: Boolean = false) {
+        ensureMicAndRun {
+            activeFlow = AppFlow.ElenaWakeTrainAwaitPhrase
+            updateFlowDisplay()
+            tts.speakThen(
+                "Mondd a saját felébresztő mondatod. Például: Szia ${ElenaWakeHelper.ASSISTANT_NAME}, " +
+                    "vagy Kérlek ${ElenaWakeHelper.ASSISTANT_NAME}."
+            ) {
+                voiceInput.listenPrompt(
+                    prompt = "Felébresztő mondat",
+                    onResult = { spoken -> finishElenaWakeTrain(spoken, fromAssistant) },
+                    onError = {
+                        if (fromAssistant) {
+                            tts.speakThen("Nem hallottam. Próbáld újra.") {
+                                startElenaWakeTrainFlow(fromAssistant = true)
+                            }
+                        } else {
+                            exitFlow("Elena tanítás megszakítva.")
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private fun finishElenaWakeTrain(spoken: String, fromAssistant: Boolean) {
+        val normalized = VoiceAssistantHelper.normalize(spoken)
+        if (normalized.length < 3) {
+            tts.speakThen("Túl rövid. Mondd újra a teljes mondatot.") {
+                startElenaWakeTrainFlow(fromAssistant)
+            }
+            return
+        }
+        val saved = ElenaWakeStore.addCustomPhrase(this, spoken)
+        val message = if (saved) {
+            "Mentve. Saját felébresztő: $normalized."
+        } else {
+            "Ez a mondat már mentve van, vagy túl rövid."
+        }
+        if (fromAssistant) {
+            activeFlow = AppFlow.VoiceAssistantChat
+            updateFlowDisplay()
+            tts.speakThen(message) { resumeVoiceAssistantListening() }
+        } else {
+            exitFlow(message)
+        }
+    }
+
+    // ==================== HANGOS ASSZISZTENS (ELENA) ====================
 
     private fun shouldLaunchVoiceAssistant(intent: Intent?): Boolean {
         if (intent == null) return false
@@ -7284,11 +8442,23 @@ class MainActivity : AppCompatActivity() {
         pendingAssistantLaunch = true
         pendingAssistantFromKeyguard =
             intent?.getBooleanExtra(EXTRA_ASSISTANT_FROM_KEYGUARD, false) == true
+        pendingWakeCommand = intent?.getStringExtra(EXTRA_WAKE_COMMAND)?.trim()?.takeIf { it.isNotBlank() }
+        pendingWakeGreetingOnly = intent?.getBooleanExtra(EXTRA_WAKE_GREETING_ONLY, false) == true
         intent?.removeExtra(EXTRA_LAUNCH_VOICE_ASSISTANT)
         intent?.removeExtra(EXTRA_ASSISTANT_FROM_KEYGUARD)
+        intent?.removeExtra(EXTRA_WAKE_COMMAND)
+        intent?.removeExtra(EXTRA_WAKE_GREETING_ONLY)
         intent?.action = null
         val lockedMode = pendingAssistantFromKeyguard
-        pendingVoiceAction = { startVoiceAssistantFlow(lockedMode = lockedMode) }
+        val wakeCommand = pendingWakeCommand
+        val greetingOnly = pendingWakeGreetingOnly
+        pendingVoiceAction = {
+            startVoiceAssistantFlow(
+                lockedMode = lockedMode,
+                initialCommand = wakeCommand,
+                greetingOnly = greetingOnly
+            )
+        }
     }
 
     private fun runPendingVoiceActionIfReady() {
@@ -7328,7 +8498,7 @@ class MainActivity : AppCompatActivity() {
         if (intent != null) {
             tts.speakThen(
                 "A Super DL most megjelenik a rendszer digitális asszisztens listájában. " +
-                    "Válaszd ki a Super DL-t, hogy az oldalsó gomb hosszú nyomására a hangos asszisztens induljon."
+                    "Válaszd ki a Super DL-t, hogy az oldalsó gomb hosszú nyomására ${ElenaWakeHelper.ASSISTANT_NAME} induljon."
             ) {
                 assistantRoleLauncher.launch(intent)
             }
@@ -7355,22 +8525,36 @@ class MainActivity : AppCompatActivity() {
         startPermissionGuideFlow(PermissionGuideType.DIALER_ROLE, "Alapértelmezett telefon beállítása")
     }
 
-    private fun startVoiceAssistantFlow(lockedMode: Boolean = false) {
+    private fun startVoiceAssistantFlow(
+        lockedMode: Boolean = false,
+        initialCommand: String? = null,
+        greetingOnly: Boolean = false
+    ) {
         voiceAssistantReturnPending = false
         assistantLockedMode = lockedMode
         pendingAssistantLaunch = false
         pendingAssistantFromKeyguard = false
+        pendingWakeCommand = null
+        pendingWakeGreetingOnly = false
+        pauseElenaWakeListening()
         if (lockedMode) applyAssistantWindowFlags(true)
         ensureMicAndRun {
             activeFlow = AppFlow.VoiceAssistantAwaitQuestion
             updateFlowDisplay()
-            val intro = if (lockedMode) {
-                "Hangos asszisztens, zárolt mód. Egyszerű parancsok engedélyezettek. Hallgatlak."
-            } else {
-                "Hangos asszisztens. Hallgatlak."
+            val intro = when {
+                greetingOnly -> ElenaWakeHelper.wakeGreeting()
+                initialCommand != null -> ElenaWakeHelper.wakeGreeting()
+                lockedMode -> "${ElenaWakeHelper.ASSISTANT_NAME}, zárolt mód. Egyszerű parancsok engedélyezettek. Hallgatlak."
+                else -> "${ElenaWakeHelper.ASSISTANT_NAME}. Hallgatlak."
             }
             tts.speakThen(intro) {
-                resumeVoiceAssistantListening()
+                if (!initialCommand.isNullOrBlank()) {
+                    activeFlow = AppFlow.VoiceAssistantChat
+                    updateFlowDisplay()
+                    processVoiceAssistant(initialCommand)
+                } else {
+                    resumeVoiceAssistantListening()
+                }
             }
         }
     }
@@ -7423,28 +8607,53 @@ class MainActivity : AppCompatActivity() {
             if (!isVoiceAssistantActive()) return@ensureMicAndRun
             activeFlow = AppFlow.VoiceAssistantChat
             updateFlowDisplay()
-            voiceInput.listenPrompt(
-                prompt = "Hangos parancs",
-                onResult = { spoken ->
-                    if (!isVoiceAssistantActive()) return@listenPrompt
-                    val question = spoken.trim()
-                    if (question.isBlank()) {
-                        tts.speakThen("Nem értettem. Próbáld újra.") { resumeVoiceAssistantListening() }
-                        return@listenPrompt
+            voiceInput.listenPromptAssistant(
+                prompt = "Elena parancs",
+                hints = SpeechContextBuilder.assistantHints(this),
+                onResult = { result ->
+                    if (!isVoiceAssistantActive()) return@listenPromptAssistant
+                    if (result.hypotheses.isEmpty()) {
+                        tts.speakThen("Nem hallottam semmit. Mondd újra lassan, tisztán.") {
+                            resumeVoiceAssistantListening()
+                        }
+                        return@listenPromptAssistant
                     }
-                    processVoiceAssistant(question)
+                    processVoiceAssistant(result)
                 },
-                onError = {
-                    if (!isVoiceAssistantActive()) return@listenPrompt
-                    tts.speakThen("Nem értettem. Próbáld újra.") { resumeVoiceAssistantListening() }
+                onError = { errorCode ->
+                    if (!isVoiceAssistantActive()) return@listenPromptAssistant
+                    val message = assistantListenErrorMessage(errorCode)
+                    tts.speakThen(message) { resumeVoiceAssistantListening() }
                 }
             )
         }
     }
 
-    private fun processVoiceAssistant(question: String) {
+    private fun assistantListenErrorMessage(errorCode: Int): String = when (errorCode) {
+        android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+            "Nem hallottam időben. Mondd újra lassan, a sípszó után."
+        android.speech.SpeechRecognizer.ERROR_NO_MATCH ->
+            "Nem értettem a szöveget. Próbáld rövidebben, pl.: idő, ébresztő, hívd fel."
+        android.speech.SpeechRecognizer.ERROR_NETWORK,
+        android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+            "Nincs stabil internet a felismeréshez. Próbáld újra, vagy mondd rövidebben."
+        android.speech.SpeechRecognizer.ERROR_AUDIO ->
+            "Nem érhető el a mikrofon. Ellenőrizd az engedélyt."
+        else ->
+            "Nem értettem. Próbáld újra lassan és tisztán."
+    }
+
+    private fun processVoiceAssistant(result: com.superdl.launcher.voice.SpeechRecognitionResult) {
         voiceInput.cancel()
-        val intent = VoiceAssistantHelper.interpret(question)
+        val interpreted = VoiceAssistantHelper.interpretBest(result, this)
+        processVoiceAssistant(interpreted.heard, interpreted.intent)
+    }
+
+    private fun processVoiceAssistant(
+        question: String,
+        intent: VoiceAssistantIntent = VoiceAssistantHelper.interpret(question, this)
+    ) {
+        voiceInput.cancel()
         if (assistantLockedMode && !VoiceAssistantHelper.isAllowedWhenLocked(intent)) {
             activeFlow = AppFlow.VoiceAssistantChat
             updateFlowDisplay()
@@ -7457,7 +8666,12 @@ class MainActivity : AppCompatActivity() {
             is VoiceAssistantIntent.Speak -> {
                 activeFlow = AppFlow.VoiceAssistantChat
                 updateFlowDisplay()
-                tts.speakThen(intent.message) { resumeVoiceAssistantListening() }
+                val message = if (intent.message.startsWith("Nem értettem")) {
+                    VoiceAssistantHelper.unknownFeedback(question)
+                } else {
+                    intent.message
+                }
+                tts.speakThen(message) { resumeVoiceAssistantListening() }
             }
             is VoiceAssistantIntent.CallContact -> resolveAssistantCallContact(intent.query)
             is VoiceAssistantIntent.RunAction -> executeAssistantAction(intent.action)
@@ -7485,12 +8699,14 @@ class MainActivity : AppCompatActivity() {
         when (action) {
             MenuAction.TIME_NOW -> tts.speakThen(InfoHelper.speakDateTime()) { resumeVoiceAssistantListening() }
             MenuAction.BATTERY -> {
-                val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
-                val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-                tts.speakThen("Akkumulátor töltöttség: $level százalék.") { resumeVoiceAssistantListening() }
+                tts.speakThen(InfoHelper.batteryAndSignalReport(this)) { resumeVoiceAssistantListening() }
             }
             MenuAction.WIFI_TOGGLE -> {
                 toggleWifi()
+                resumeVoiceAssistantListening()
+            }
+            MenuAction.HOTSPOT_TOGGLE -> {
+                toggleHotspot()
                 resumeVoiceAssistantListening()
             }
             MenuAction.BT_TOGGLE -> {
@@ -7501,10 +8717,15 @@ class MainActivity : AppCompatActivity() {
                 toggleFlashlight()
                 resumeVoiceAssistantListening()
             }
-            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE -> {
-                toggleCallFilterBlockPrivate()
+            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE,
+            MenuAction.CALL_FILTER_MODE_CYCLE -> {
+                cycleCallFilterMode()
                 resumeVoiceAssistantListening()
             }
+            MenuAction.CALL_FILTER_MODE_STATUS -> {
+                tts.speakThen(CallFilterStore.speakMode(this)) { resumeVoiceAssistantListening() }
+            }
+
             MenuAction.QR_SCAN -> {
                 voiceAssistantReturnPending = true
                 tts.speak("Beépített Q R olvasó indítása.")
@@ -7549,8 +8770,14 @@ class MainActivity : AppCompatActivity() {
             MenuAction.NAV_SEARCH -> startSubFlowFromAssistant { startNavSearchFlow() }
             MenuAction.TRANSIT -> startSubFlowFromAssistant { startTransitNearbyFlow() }
             MenuAction.TRANSIT_STOP -> startSubFlowFromAssistant { startTransitStopFlow() }
+            MenuAction.TRANSIT_FAVORITES -> startSubFlowFromAssistant { startTransitFavoritesFlow() }
             MenuAction.TRANSIT_ROUTE -> startSubFlowFromAssistant { startTransitRouteFlow() }
             MenuAction.CONTACTS -> startSubFlowFromAssistant { startContactCallFlow() }
+            MenuAction.CONTACT_BOOK -> startSubFlowFromAssistant { startContactBookFlow() }
+            MenuAction.CONTACT_SYNC -> {
+                runContactSync(manual = true)
+                resumeVoiceAssistantListening()
+            }
             MenuAction.CALL_LOG -> startSubFlowFromAssistant { startCallLogFlow() }
             MenuAction.DIAL -> startSubFlowFromAssistant { startDialFlow() }
             MenuAction.CONTACT_CREATE -> startSubFlowFromAssistant { startContactCreateFlow() }
@@ -7573,6 +8800,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.DICTAPHONE_LIBRARY -> startSubFlowFromAssistant { startDictaphoneLibraryFlow() }
             MenuAction.SMS_WRITE -> startSubFlowFromAssistant { startSmsComposeFlow() }
             MenuAction.SMS_READ -> startSubFlowFromAssistant { startSmsInboxFlow() }
+            MenuAction.SMS_SENT_READ -> startSubFlowFromAssistant { startSmsSentFlow() }
             MenuAction.EMAIL_WRITE -> startSubFlowFromAssistant { startEmailComposeFlow() }
             MenuAction.ALARM_SET -> startSubFlowFromAssistant { startAlarmSetFlow() }
             MenuAction.ALARM_LIST -> startSubFlowFromAssistant { startAlarmListFlow(deleteMode = false) }
@@ -7602,6 +8830,9 @@ class MainActivity : AppCompatActivity() {
                     onSpeak = { summary -> tts.speakThen(summary) { resumeVoiceAssistantListening() } },
                     onError = { message -> tts.speakThen(message) { resumeVoiceAssistantListening() } }
                 )
+            }
+            MenuAction.STATUS_REPORT -> {
+                tts.speakThen(StatusReportHelper.buildReport(this)) { resumeVoiceAssistantListening() }
             }
             MenuAction.SHOPPING_LIST -> startSubFlowFromAssistant { startShoppingListFlow() }
             MenuAction.EMAIL_IMAP_READ -> startSubFlowFromAssistant { startEmailInboxFlow() }
@@ -7658,6 +8889,7 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.CALCULATOR -> startSubFlowFromAssistant { startCalculatorFlow() }
             MenuAction.SOUND_TRAINING -> startSubFlowFromAssistant { startSoundTrainingFlow() }
+            MenuAction.SOUND_THEME_SELECT -> startSubFlowFromAssistant { startSoundThemeFlow() }
             MenuAction.TRAINING_PLAYGROUND -> startSubFlowFromAssistant { startTrainingPlaygroundFlow() }
             MenuAction.BOOK_LIBRARY -> startSubFlowFromAssistant { startBookLibraryFlow() }
             MenuAction.BOOK_SEARCH -> startSubFlowFromAssistant { startBookSearchFlow() }
@@ -7738,6 +8970,22 @@ class MainActivity : AppCompatActivity() {
             MenuAction.VOICE_ASSISTANT -> {
                 tts.speakThen(VoiceAssistantHelper.helpText()) { resumeVoiceAssistantListening() }
             }
+            MenuAction.ELENA_WAKE_LISTEN_TOGGLE -> {
+                val enabled = toggleElenaWakeListen(speak = false)
+                tts.speakThen(ElenaWakeHelper.speakListenStatus(this, enabled)) { resumeVoiceAssistantListening() }
+            }
+            MenuAction.ELENA_WAKE_LISTEN_ON -> {
+                setElenaWakeListen(true, speak = false)
+                tts.speakThen(ElenaWakeHelper.speakListenStatus(this, true)) { resumeVoiceAssistantListening() }
+            }
+            MenuAction.ELENA_WAKE_LISTEN_OFF -> {
+                setElenaWakeListen(false, speak = false)
+                tts.speakThen(ElenaWakeHelper.speakListenStatus(this, false)) { resumeVoiceAssistantListening() }
+            }
+            MenuAction.ELENA_WAKE_TRAIN -> startSubFlowFromAssistant { startElenaWakeTrainFlow(fromAssistant = true) }
+            MenuAction.ELENA_WAKE_CUSTOM_LIST -> {
+                tts.speakThen(ElenaWakeHelper.speakCustomPhrases(this)) { resumeVoiceAssistantListening() }
+            }
             MenuAction.ASSISTANT_DEFAULT_SETUP -> {
                 if (AssistantRoleHelper.isAssistantRoleHeld(this)) {
                     tts.speakThen(AssistantRoleHelper.speakStatus(this)) { resumeVoiceAssistantListening() }
@@ -7805,6 +9053,17 @@ class MainActivity : AppCompatActivity() {
                     toggleLockPin()
                     resumeVoiceAssistantListening()
                 }
+            }
+            MenuAction.KEYGUARD_PIN_ASSIST_TOGGLE -> {
+                toggleKeyguardPinAssist()
+                resumeVoiceAssistantListening()
+            }
+            MenuAction.KEYGUARD_PIN_ASSIST_SETUP -> {
+                setupKeyguardPinAssist()
+                resumeVoiceAssistantListening()
+            }
+            MenuAction.KEYGUARD_PIN_ASSIST_STATUS -> {
+                tts.speakThen(KeyguardPinSettings.speakStatus(this)) { resumeVoiceAssistantListening() }
             }
             MenuAction.EXTERNAL_APPS -> startSubFlowFromAssistant { startExternalAppsFlow() }
             MenuAction.FAVORITE_APPS_LAUNCH ->
@@ -7887,22 +9146,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun searchYoutube(query: String) {
+    private fun searchYoutube(query: String, page: Int = 0) {
         voiceInput.cancel()
         tts.speak("Keresés: $query. Várj egy pillanatot.")
         YoutubeHelper.search(
             query = query,
-            onResult = { videos ->
-                activeFlow = AppFlow.YoutubeBrowse(videos, 0)
+            page = page,
+            onResult = { result ->
+                activeFlow = AppFlow.YoutubeBrowse(result.videos, 0, query, result.page, result.hasMore)
                 updateFlowDisplay()
-                tts.speak("${videos.size} találat. Swipe fel-le választás, jobbra lejátszás megerősítése, balra vissza.")
-                tts.speakAdd(videos.first().speakPreview())
+                val moreHint = if (result.hasMore) " Az utolsó találatnál lefelé swipe a következő 20 videóhoz." else ""
+                tts.speak(
+                    "${result.videos.size} találat. Swipe fel-le választás, jobbra lejátszás, balra vissza.$moreHint"
+                )
+                tts.speakAdd(result.videos.first().speakPreview())
             },
             onError = { message -> exitFlow(message, error = true) }
         )
     }
 
     private fun navigateYoutubeList(flow: AppFlow.YoutubeBrowse, delta: Int) {
+        if (delta > 0 && flow.index == flow.videos.lastIndex && flow.hasMore && flow.query.isNotBlank()) {
+            tts.speak("Következő találatok betöltése. Várj.")
+            YoutubeHelper.search(
+                query = flow.query,
+                page = flow.page + 1,
+                onResult = { result ->
+                    activeFlow = AppFlow.YoutubeBrowse(result.videos, 0, flow.query, result.page, result.hasMore)
+                    updateFlowDisplay()
+                    tts.speak("${result.videos.size} új találat, ${result.page + 1}. oldal.")
+                    tts.speakAdd(result.videos.first().speakPreview())
+                },
+                onError = { tts.speak("A következő találatok nem tölthetők.") }
+            )
+            return
+        }
         val next = (flow.index + delta + flow.videos.size) % flow.videos.size
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
@@ -8653,6 +9931,45 @@ class MainActivity : AppCompatActivity() {
         tts.speak("${type.label}. ${type.description}")
     }
 
+    private fun startSoundThemeFlow() {
+        val themes = SoundTheme.selectable
+        val current = SoundThemeStore.get(this)
+        val index = themes.indexOf(current).coerceAtLeast(0)
+        activeFlow = AppFlow.SoundThemeBrowse(themes, index)
+        updateFlowDisplay()
+        tts.speak(
+            "Swipe hangtéma. ${themes.size} választék. " +
+                "Swipe fel-le választás, jobbra beállítás és előnézet, balra vissza."
+        )
+        speakSoundTheme(themes[index])
+    }
+
+    private fun navigateSoundTheme(flow: AppFlow.SoundThemeBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.themes.size) % flow.themes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        sounds.play(SoundType.MENU_NAV)
+        speakSoundTheme(flow.themes[next])
+    }
+
+    private fun speakSoundTheme(theme: SoundTheme) {
+        val current = SoundThemeStore.get(this)
+        tts.speak("${theme.label}. ${theme.description} Jelenlegi: ${current.label}.")
+    }
+
+    private fun selectSoundTheme(flow: AppFlow.SoundThemeBrowse) {
+        val theme = flow.themes[flow.index]
+        SoundThemeStore.set(this, theme)
+        sounds.reloadTheme()
+        theme.previewSwipeTypes().forEachIndexed { index, type ->
+            mainHandler.postDelayed({ sounds.play(type) }, index * 220L)
+        }
+        feedbackSuccess()
+        activeFlow = AppFlow.Menu
+        updateDisplay()
+        tts.speak("Swipe hangtéma beállítva: ${theme.label}.")
+    }
+
     private fun cycleAlertSoundVolume() {
         AlertSoundSettingsStore.cycleVolumePercent(this)
         tts.speak(AlertSoundSettingsStore.speakVolume(this))
@@ -8664,12 +9981,22 @@ class MainActivity : AppCompatActivity() {
         val wasEnabled = AlertSoundSettingsStore.isSilentMode(this)
         tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
         val next = AlertSoundSettingsStore.toggleSilentMode(this)
-        val extra = if (next) {
-            "Bekapcsolva. A csengőhangok és emlékeztető hangok némaak."
-        } else {
-            "Kikapcsolva."
+        val systemResult = QuietModeHelper.apply(this, next)
+        val extra = when {
+            next && systemResult.dndApplied ->
+                "Bekapcsolva. Az emlékeztető hangok és értesítés-bemondások némák. A swipe hangok és a telefon csengőhangja továbbra is működik."
+            next && systemResult.needsPolicyAccess ->
+                "Az emlékeztető hangok és értesítés-bemondások némák. A swipe hangok és a telefon csengőhangja továbbra is működik. " +
+                    "A teljes rendszer-csendhez engedélyezd a Super DL-t a megnyitott Ne zavarjanak beállításban."
+            next ->
+                "Bekapcsolva. Az emlékeztető hangok némák. A swipe hangok és a telefon csengőhangja továbbra is működik."
+            else ->
+                "Kikapcsolva. A korábbi értesítési beállítás visszaállítva."
         }
         tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+        if (next && systemResult.needsPolicyAccess) {
+            QuietModeHelper.openPolicyAccessSettings(this)
+        }
         if (!next) {
             AlertSoundPlayer.preview(this, AlertSoundPreset.SOFT_CHIME)
         }
@@ -8943,8 +10270,48 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         } catch (_: Exception) {
-            tts.speak("WiFi kapcsolás nem sikerült.")
+            tts.speak("WiFi kapcsolás sikertelen.")
         }
+    }
+
+    private fun toggleHotspot() {
+        if (!ConnectivityHelper.hasNearbyWifiPermission(this)) {
+            pendingHotspotToggle = true
+            tts.speak("A közeli WiFi eszközök engedély kell a hotspot-hoz.")
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES),
+                PERM_REQUEST
+            )
+            return
+        }
+        runHotspotToggle()
+    }
+
+    private fun runHotspotToggle() {
+        val wasEnabled = ConnectivityHelper.isHotspotEnabled(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle("Hotspot", wasEnabled))
+        Thread({
+            try {
+                val result = ConnectivityHelper.toggleHotspot(
+                    applicationContext,
+                    knownWasEnabled = wasEnabled
+                )
+                runOnUiThread {
+                    if (result.success) {
+                        tts.speak(ToggleAnnouncement.speakAfterToggle("Hotspot", result.nowEnabled))
+                    } else {
+                        tts.speak(
+                            result.failureMessage
+                                ?: "Hotspot kapcsolás sikertelen. Hotspot jelenleg " +
+                                "${if (result.nowEnabled) "BEKAPCSOLVA" else "KIKAPCSOLVA"}."
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread { tts.speak("Hotspot kapcsolás nem sikerült.") }
+            }
+        }, "SuperDL-HotspotToggle").start()
     }
 
     private fun toggleBluetooth() {
@@ -8964,15 +10331,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleCallFilterBlockPrivate() {
-        val label = "Rejtett számok tiltása"
-        val wasEnabled = CallFilterStore.isBlockPrivateEnabled(this)
-        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
-        val next = CallFilterStore.toggleBlockPrivate(this)
-        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next))
-        if (next) {
-            ensureCallScreeningRole(promptIfMissing = true)
-        }
+    private fun cycleCallFilterMode() {
+        val previous = CallFilterStore.getMode(this)
+        val next = CallFilterStore.cycleMode(this)
+        tts.speak("Hívás szűrő mód váltva. Előző: ${previous.menuLabel}.")
+        tts.speakAdd(next.speakLabel)
+        ensureCallScreeningRole(promptIfMissing = true)
     }
 
     private fun ensureCallScreeningRole(promptIfMissing: Boolean) {
@@ -9048,15 +10412,21 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.SmsInbox -> {
                 val msg = flow.messages[flow.index]
-                tvItem.text = msg.body
-                tvPosition.text = "Üzenetek  •  ${flow.index + 1} / ${flow.messages.size}"
+                val contactLabel = SmsHelper.resolveSenderLabel(this, msg.address)
+                tvItem.text = msg.body.ifBlank { "(üres üzenet)" }
+                val partyLabel = when (flow.folder) {
+                    SmsFolder.INBOX -> "Feladó: $contactLabel"
+                    SmsFolder.SENT -> "Címzett: $contactLabel"
+                }
+                tvPosition.text = "${flow.folder.label} üzenetek  •  ${flow.index + 1} / ${flow.messages.size}  •  $partyLabel"
                 tvHint.text = "⬆⬇ navigálás  •  ➡ műveletek  •  ⬅ vissza"
             }
             is AppFlow.SmsContextMenu -> {
                 val msg = flow.messages[flow.messageIndex]
+                val contactLabel = SmsHelper.resolveSenderLabel(this, msg.address)
                 tvItem.text = flow.actions[flow.actionIndex].label
-                tvPosition.text = "Üzenet műveletek  •  ${flow.actionIndex + 1} / ${flow.actions.size}"
-                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza  •  ${SmsHelper.resolveSenderLabel(this, msg.address)}"
+                tvPosition.text = "${flow.folder.label} műveletek  •  ${flow.actionIndex + 1} / ${flow.actions.size}  •  $contactLabel"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza"
             }
             is AppFlow.SmsDeleteConfirm -> {
                 val msg = flow.messages[flow.messageIndex]
@@ -9111,6 +10481,44 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.contact.name
                 tvPosition.text = "Hívás megerősítés  •  ${ContactHelper.maskPhone(flow.contact.phone)}"
                 tvHint.text = "➡ hívás  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+            }
+            is AppFlow.ContactBookBrowse -> {
+                val item = flow.items[flow.index]
+                tvItem.text = when (item) {
+                    ContactBookItem.SyncAction -> "Szinkronizálás"
+                    is ContactBookItem.Entry -> item.contact.name
+                }
+                val contactCount = (flow.items.size - 1).coerceAtLeast(0)
+                tvPosition.text = if (item is ContactBookItem.SyncAction) {
+                    "Névjegyzék  •  szinkron  •  $contactCount névjegy"
+                } else {
+                    "Névjegyzék  •  ${flow.index} / $contactCount"
+                }
+                tvHint.text = when (item) {
+                    ContactBookItem.SyncAction -> "➡ szinkron  •  ⬆⬇ navigálás  •  ⬅ vissza"
+                    is ContactBookItem.Entry -> "➡ műveletek  •  ⬆⬇ navigálás  •  ⬅ vissza  •  ${ContactHelper.maskPhone(item.contact.phone)}"
+                }
+            }
+            is AppFlow.ContactContextMenu -> {
+                val entry = flow.items.getOrNull(flow.contactIndex) as? ContactBookItem.Entry
+                tvItem.text = flow.actions[flow.actionIndex].label
+                tvPosition.text = "Névjegy műveletek  •  ${flow.actionIndex + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza  •  ${entry?.contact?.name.orEmpty()}"
+            }
+            is AppFlow.ContactEditAwaitName -> {
+                tvItem.text = flow.contact.name
+                tvPosition.text = "Névjegy szerkesztése  •  új név"
+                tvHint.text = "Diktáld az új nevet  •  ⬅ mégse"
+            }
+            is AppFlow.ContactEditAwaitPhone -> {
+                tvItem.text = flow.newName
+                tvPosition.text = "Névjegy szerkesztése  •  új telefonszám"
+                tvHint.text = "Diktáld az új számot  •  ⬅ mégse"
+            }
+            is AppFlow.ContactDeleteConfirm -> {
+                tvItem.text = flow.contact.name
+                tvPosition.text = "Névjegy törlése  •  ${ContactHelper.maskPhone(flow.contact.phone)}"
+                tvHint.text = "➡ törlés  •  ⬅ mégse  •  ⬆⬇ ismétlés"
             }
             is AppFlow.SosCountdown -> {
                 tvItem.text = flow.secondsLeft.toString()
@@ -9249,7 +10657,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRadarBrowse -> {
                 val poi = flow.pois[flow.index]
                 tvItem.text = poi.name
-                tvPosition.text = "Radar  •  ${flow.index + 1} / ${flow.pois.size}  •  ${poi.distanceMeters} m"
+                val category = if (poi.category.isNotBlank()) "  •  ${poi.category}" else ""
+                tvPosition.text = "Radar  •  ${flow.index + 1} / ${flow.pois.size}  •  ${poi.distanceMeters} m$category"
                 tvHint.text = "⬆⬇ választás  •  ➡ műveletek  •  ⬅ bezárás"
             }
             is AppFlow.GpsRadarContextMenu -> {
@@ -9321,8 +10730,14 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = if (flow.deleteMode) {
                     "⬆⬇ választás  •  ➡ törlés  •  ⬅ vissza"
                 } else {
-                    "⬆⬇ választás  •  ➡ figyelő  •  ⬅ vissza"
+                    "⬆⬇ választás  •  ➡ műveletek  •  ⬅ vissza"
                 }
+            }
+            is AppFlow.LocationProfileActions -> {
+                val options = AppFlow.LocationProfileActions.OPTIONS
+                tvItem.text = options[flow.actionIndex]
+                tvPosition.text = "${flow.profile.speakPreview()}  •  ${flow.profile.referenceImagePaths.size} fotó"
+                tvHint.text = "⬆⬇ művelet  •  ➡ végrehajtás  •  ⬅ vissza"
             }
             is AppFlow.LocationProfileDeleteConfirm -> {
                 tvItem.text = flow.profile.speakPreview()
@@ -9629,8 +11044,17 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NewsBrowse -> {
                 val item = flow.items[flow.index]
                 tvItem.text = item.title
-                tvPosition.text = "${item.source}  •  ${flow.index + 1} / ${flow.items.size}"
-                tvHint.text = "⬆⬇ navigálás  •  ➡ felolvas  •  ⬅ források"
+                val pageLabel = if (flow.page > 0) "  •  ${flow.page + 1}. oldal" else ""
+                tvPosition.text = "${item.source}  •  ${flow.index + 1} / ${flow.items.size}$pageLabel"
+                val moreHint = if (flow.hasMore && flow.index == flow.items.lastIndex) "  •  ⬇ következő 20" else ""
+                tvHint.text = "⬆⬇ navigálás  •  ➡ felolvas  •  ⬅ vissza$moreHint"
+            }
+            is AppFlow.NewsFeedManageBrowse -> {
+                val feed = flow.feeds[flow.index]
+                val status = if (NewsFeedStore.isEnabled(this, feed.id)) "bekapcsolva" else "kikapcsolva"
+                tvItem.text = feed.name
+                tvPosition.text = "Hírforrások  •  ${flow.index + 1} / ${flow.feeds.size}  •  $status"
+                tvHint.text = "⬆⬇ választás  •  ➡ ki-be  •  ⬅ vissza"
             }
             AppFlow.SearchAwaitQuery -> {
                 tvItem.text = "Internet kereső"
@@ -9800,8 +11224,15 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TransitBrowse -> {
                 val place = flow.places[flow.index]
                 tvItem.text = place.name
-                tvPosition.text = "Megállók  •  ${flow.index + 1} / ${flow.places.size}"
-                tvHint.text = "⬆⬇ választás  •  ➡ felolvas  •  ⬅ vissza"
+                val direction = place.clockDirection?.let { "  •  $it" }.orEmpty()
+                tvPosition.text = "${flow.title}  •  ${flow.index + 1} / ${flow.places.size}$direction"
+                tvHint.text = "⬆⬇ választás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.TransitContextMenu -> {
+                val place = flow.places[flow.placeIndex]
+                tvItem.text = flow.actions[flow.actionIndex].label
+                tvPosition.text = "Megálló műveletek  •  ${flow.actionIndex + 1} / ${flow.actions.size}  •  ${place.name}"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza"
             }
             is AppFlow.TransitRouteBrowse -> {
                 val step = flow.route.steps[flow.index]
@@ -9811,9 +11242,14 @@ class MainActivity : AppCompatActivity() {
             }
             AppFlow.VoiceAssistantAwaitQuestion,
             AppFlow.VoiceAssistantChat -> {
-                tvItem.text = "Hangos asszisztens"
+                tvItem.text = ElenaWakeHelper.ASSISTANT_NAME
                 tvPosition.text = "Parancs diktálása"
-                tvHint.text = "Diktálj  •  ➡ új parancs  •  ⬅ kilépés"
+                tvHint.text = "Diktálj  •  Szia ${ElenaWakeHelper.ASSISTANT_NAME}  •  ➡ új parancs  •  ⬅ kilépés"
+            }
+            AppFlow.ElenaWakeTrainAwaitPhrase -> {
+                tvItem.text = "Elena tanítás"
+                tvPosition.text = "Saját felébresztő mondat"
+                tvHint.text = "Mondd a mondatot  •  ⬅ mégse"
             }
             AppFlow.YoutubeAwaitQuery -> {
                 tvItem.text = "YouTube keresés"
@@ -9823,8 +11259,30 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.YoutubeBrowse -> {
                 val video = flow.videos[flow.index]
                 tvItem.text = video.title
-                tvPosition.text = "YouTube  •  ${flow.index + 1} / ${flow.videos.size}"
-                tvHint.text = "⬆⬇ választás  •  ➡ lejátszás  •  ⬅ vissza"
+                val pageLabel = if (flow.page > 0) "  •  ${flow.page + 1}. oldal" else ""
+                tvPosition.text = "YouTube  •  ${flow.index + 1} / ${flow.videos.size}$pageLabel"
+                val moreHint = if (flow.hasMore && flow.index == flow.videos.lastIndex) "  •  ⬇ következő 20" else ""
+                tvHint.text = "⬆⬇ választás  •  ➡ lejátszás  •  ⬅ vissza$moreHint"
+            }
+            is AppFlow.GpsArrivalLocationPrompt -> {
+                tvItem.text = AppFlow.GpsArrivalLocationPrompt.OPTIONS[flow.index]
+                tvPosition.text = "Megérkeztél: ${flow.destinationName}"
+                tvHint.text = "⬆⬇ választás  •  ➡ megerősítés  •  ⬅ kihagyás"
+            }
+            is AppFlow.CardBrowse -> {
+                val card = flow.cards[flow.index]
+                tvItem.text = card.name
+                tvPosition.text = if (flow.deleteMode) {
+                    "Kártyák törlése  •  ${flow.index + 1} / ${flow.cards.size}"
+                } else {
+                    "Mentett kártyák  •  ${flow.index + 1} / ${flow.cards.size}"
+                }
+                tvHint.text = "⬆⬇ választás  •  ➡ ${if (flow.deleteMode) "törlés" else "felolvas"}  •  ⬅ vissza"
+            }
+            is AppFlow.CardDeleteConfirm -> {
+                tvItem.text = flow.card.name
+                tvPosition.text = "Kártya törlés megerősítés"
+                tvHint.text = "➡ törlés  •  ⬅ mégse"
             }
             is AppFlow.YoutubePlayConfirm -> {
                 tvItem.text = flow.video.title
@@ -9960,6 +11418,12 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Hangok  •  ${flow.index + 1} / ${flow.items.size}"
                 tvHint.text = "⬆⬇ választás  •  ➡ hallgatás  •  ⬅ vissza"
             }
+            is AppFlow.SoundThemeBrowse -> {
+                val theme = flow.themes[flow.index]
+                tvItem.text = theme.label
+                tvPosition.text = "Swipe hangtéma  •  ${flow.index + 1} / ${flow.themes.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ beállítás és előnézet  •  ⬅ vissza"
+            }
             is AppFlow.TrainingPlayground -> {
                 val step = flow.steps[flow.stepIndex]
                 when (step) {
@@ -9989,7 +11453,7 @@ class MainActivity : AppCompatActivity() {
         return when (item.action) {
             MenuAction.EXIT_LAUNCHER ->
                 "⬆⬇ navigálás  •  ➡➡ megerősítés  •  ⬅ vissza"
-            MenuAction.WIFI_TOGGLE, MenuAction.BT_TOGGLE ->
+            MenuAction.WIFI_TOGGLE, MenuAction.HOTSPOT_TOGGLE, MenuAction.BT_TOGGLE ->
                 "⬆⬇ navigálás  •  ➡ kapcsol  •  ⬅ vissza"
             MenuAction.SUBMENU -> if (item.children.isNotEmpty())
                 "⬆⬇ navigálás  •  ➡ almenü megnyit  •  ⬅ vissza"
@@ -10034,6 +11498,14 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != PERM_REQUEST) return
 
+        if (pendingHotspotToggle) {
+            pendingHotspotToggle = false
+            if (ConnectivityHelper.hasNearbyWifiPermission(this)) {
+                runHotspotToggle()
+                return
+            }
+        }
+
         val voiceAction = pendingVoiceAction
         pendingVoiceAction = null
         if (voiceAction != null &&
@@ -10041,6 +11513,16 @@ class MainActivity : AppCompatActivity() {
             == PackageManager.PERMISSION_GRANTED
         ) {
             voiceAction()
+            return
+        }
+
+        val smsFolder = pendingSmsFolderRead
+        pendingSmsFolderRead = null
+        if (smsFolder != null &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            openSmsFolderFlow(smsFolder)
             return
         }
 
@@ -10072,6 +11554,7 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.POST_NOTIFICATIONS -> "értesítések"
         Manifest.permission.READ_MEDIA_AUDIO -> "zene"
         Manifest.permission.BLUETOOTH_CONNECT -> "bluetooth"
+        Manifest.permission.NEARBY_WIFI_DEVICES -> "közeli WiFi eszközök"
         Manifest.permission.GET_ACCOUNTS -> "fiókok"
         Manifest.permission.READ_EXTERNAL_STORAGE -> "fájlok"
         else -> permission.substringAfterLast('.')
@@ -10108,6 +11591,8 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         isForeground = true
         registerLockReceiver()
+        registerGpsArrivalReceiver()
+        registerSmsIncomingReceiver()
         if (mediaButtonHandler == null) {
             mediaButtonHandler = AssistantMediaButtonHandler(this)
         }
@@ -10120,6 +11605,10 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         lockReceiver?.let { unregisterReceiver(it) }
         lockReceiver = null
+        gpsArrivalReceiver?.let { unregisterReceiver(it) }
+        gpsArrivalReceiver = null
+        smsIncomingReceiver?.let { unregisterReceiver(it) }
+        smsIncomingReceiver = null
         super.onStop()
     }
 
@@ -10145,7 +11634,52 @@ class MainActivity : AppCompatActivity() {
             ) {
                 mainHandler.postDelayed({ resumeVoiceAssistantListening() }, 500)
             }
+            checkPendingGpsArrivalPrompt()
         }
+    }
+
+    private fun checkPendingGpsArrivalPrompt() {
+        val destination = GpsRadarStore.pendingArrivalPrompt ?: return
+        if (activeFlow !is AppFlow.Menu && activeFlow !is AppFlow.GpsRadarGuiding) return
+        postWhenAlive { startGpsArrivalLocationPrompt(destination) }
+    }
+
+    private fun registerSmsIncomingReceiver() {
+        if (smsIncomingReceiver != null) return
+        val filter = IntentFilter(SmsIncomingNotifier.ACTION_SMS_INCOMING)
+        smsIncomingReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                postWhenAlive { refreshSmsInboxIfVisible() }
+            }
+        }
+        ContextCompat.registerReceiver(
+            this,
+            smsIncomingReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    private fun registerGpsArrivalReceiver() {
+        if (gpsArrivalReceiver != null) return
+        val filter = IntentFilter(GpsRadarService.ACTION_GPS_ARRIVAL)
+        gpsArrivalReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val name = intent.getStringExtra(GpsRadarService.EXTRA_DESTINATION_NAME).orEmpty()
+                if (name.isBlank()) return
+                postWhenAlive {
+                    if (isForeground) {
+                        startGpsArrivalLocationPrompt(name)
+                    }
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            this,
+            gpsArrivalReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onPause() {
@@ -10168,11 +11702,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(lockReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(lockReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            this,
+            lockReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     private fun onScreenTurnedOn() {

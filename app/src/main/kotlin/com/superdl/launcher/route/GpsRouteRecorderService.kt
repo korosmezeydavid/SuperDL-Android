@@ -9,6 +9,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
@@ -25,7 +26,9 @@ class GpsRouteRecorderService : Service() {
         private const val MIN_POINT_DISTANCE_M = 3
     }
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val workerThread = HandlerThread("SuperDL-RouteRecord").apply { start() }
+    private val workerHandler = Handler(workerThread.looper)
     private var locationListener: LocationListener? = null
     private val eventDetector = RouteEventDetector()
     private var announcedStart = false
@@ -38,7 +41,7 @@ class GpsRouteRecorderService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         eventDetector.reset()
         locationListener = GpsLocationHelper.requestUpdates(this, UPDATE_INTERVAL_MS) { location ->
-            onLocationUpdate(location)
+            workerHandler.post { onLocationUpdate(location) }
         }
     }
 
@@ -59,6 +62,9 @@ class GpsRouteRecorderService : Service() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
+        workerHandler.removeCallbacksAndMessages(null)
+        workerThread.quitSafely()
         GpsLocationHelper.removeUpdates(this, locationListener)
         locationListener = null
         super.onDestroy()
@@ -115,7 +121,7 @@ class GpsRouteRecorderService : Service() {
         val detected = eventDetector.onLocation(location, previousPoint)
         GpsRouteSession.events.addAll(detected)
 
-        handler.post {
+        mainHandler.post {
             updateNotification(GpsRouteSession.points.size, GpsRouteSession.events.size)
         }
     }

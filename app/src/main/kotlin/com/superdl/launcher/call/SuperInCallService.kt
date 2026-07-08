@@ -1,9 +1,11 @@
 package com.superdl.launcher.call
 
+import android.os.Build
 import android.telecom.Call
 import android.telecom.InCallService
 import com.superdl.launcher.callfilter.CallFilterEngine
 import com.superdl.launcher.contacts.ContactHelper
+import com.superdl.launcher.system.QuietModeHelper
 
 class SuperInCallService : InCallService() {
 
@@ -19,13 +21,14 @@ class SuperInCallService : InCallService() {
         call.registerCallback(callback)
         callbacks[call] = callback
         ActiveCallRegistry.onCallAdded(call)
-        handleCallState(call, call.details.state)
+        handleCallState(call, callState(call))
     }
 
     override fun onCallRemoved(call: Call) {
         callbacks.remove(call)?.let { call.unregisterCallback(it) }
         ActiveCallRegistry.onCallRemoved(call)
         if (!ActiveCallRegistry.hasManagedCall) {
+            IncomingCallRinger.stop(applicationContext)
             IncomingCallState.dismissIfShowing(applicationContext)
         }
     }
@@ -37,15 +40,22 @@ class SuperInCallService : InCallService() {
 
         when (state) {
             Call.STATE_RINGING -> {
+                if (QuietModeHelper.shouldSuppressIncomingCalls(applicationContext)) {
+                    IncomingCallRinger.stop(applicationContext)
+                    return
+                }
                 if (CallFilterEngine.shouldBlock(applicationContext, number, presentation)) {
+                    IncomingCallRinger.stop(applicationContext)
                     call.reject(false, null)
                     return
                 }
+                IncomingCallRinger.start(applicationContext, number, name)
                 if (!IncomingCallState.isShowing) {
                     IncomingCallState.show(applicationContext, number, name)
                 }
             }
             Call.STATE_ACTIVE -> {
+                IncomingCallRinger.stop(applicationContext)
                 IncomingCallState.isShowing = false
                 if (!CallSession.isInCallUiActive) {
                     CallHelper.launchInCall(
@@ -57,6 +67,7 @@ class SuperInCallService : InCallService() {
                 }
             }
             Call.STATE_DIALING, Call.STATE_CONNECTING -> {
+                IncomingCallRinger.stop(applicationContext)
                 if (!CallSession.isInCallUiActive) {
                     CallHelper.launchInCall(
                         applicationContext,
@@ -67,10 +78,19 @@ class SuperInCallService : InCallService() {
                 }
             }
             Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
+                IncomingCallRinger.stop(applicationContext)
                 IncomingCallState.dismissIfShowing(applicationContext)
             }
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun callState(call: Call): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            call.details.state
+        } else {
+            call.state
+        }
 
     private fun resolveCallerName(number: String): String {
         val fromContacts = ContactHelper.findNameByPhone(applicationContext, number).orEmpty()

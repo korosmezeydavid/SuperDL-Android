@@ -1,6 +1,7 @@
 package com.superdl.launcher.contacts
 
 import android.content.ContentProviderOperation
+import android.content.ContentUris
 import android.content.Context
 import android.provider.ContactsContract
 
@@ -8,13 +9,19 @@ data class ContactMatch(
     val id: String,
     val name: String,
     val phone: String
-)
+) {
+    fun speakPreview(index: Int, total: Int): String =
+        "$index / $total. $name, ${ContactHelper.maskPhone(phone)}"
+}
 
 object ContactHelper {
 
     fun searchByName(context: Context, query: String): List<ContactMatch> {
-        val normalized = query.trim()
-        if (normalized.isBlank()) return emptyList()
+        val normalizedQuery = com.superdl.launcher.assistant.VoiceAssistantHelper.normalize(query)
+        if (normalizedQuery.isBlank()) return emptyList()
+
+        val sqlToken = normalizedQuery.split(" ").firstOrNull { it.length >= 2 } ?: normalizedQuery
+        val queryWords = normalizedQuery.split(" ").filter { it.length >= 2 }
 
         val results = linkedMapOf<String, ContactMatch>()
         val projection = arrayOf(
@@ -23,7 +30,7 @@ object ContactHelper {
             ContactsContract.CommonDataKinds.Phone.NUMBER
         )
         val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$normalized%")
+        val selectionArgs = arrayOf("%$sqlToken%")
 
         context.contentResolver.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
@@ -35,15 +42,19 @@ object ContactHelper {
             val idIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
             val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
             val phoneIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            while (cursor.moveToNext() && results.size < 20) {
+            while (cursor.moveToNext() && results.size < 40) {
                 val id = cursor.getString(idIdx) ?: continue
                 val name = cursor.getString(nameIdx)?.trim().orEmpty()
                 val phone = cursor.getString(phoneIdx)?.replace(" ", "")?.trim().orEmpty()
                 if (name.isBlank() || phone.isBlank()) continue
+                val normalizedName = com.superdl.launcher.assistant.VoiceAssistantHelper.normalize(name)
+                val matches = normalizedName.contains(normalizedQuery) ||
+                    queryWords.all { word -> normalizedName.contains(word) }
+                if (!matches) continue
                 results.putIfAbsent("$id|$phone", ContactMatch(id, name, phone))
             }
         }
-        return results.values.toList()
+        return results.values.take(20).toList()
     }
 
     fun maskPhone(phone: String): String {
@@ -145,6 +156,60 @@ object ContactHelper {
             )
             context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
             true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun updateContact(context: Context, contactId: String, name: String, phone: String): Boolean {
+        val trimmedName = name.trim()
+        val trimmedPhone = phone.trim()
+        if (trimmedName.isBlank() || trimmedPhone.isBlank()) return false
+        return try {
+            val ops = ArrayList<ContentProviderOperation>()
+            val nameSelection = (
+                "${ContactsContract.Data.CONTACT_ID}=? AND " +
+                    "${ContactsContract.Data.MIMETYPE}=?"
+                )
+            val nameArgs = arrayOf(
+                contactId,
+                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
+            )
+            ops.add(
+                ContentProviderOperation.newUpdate(ContactsContract.Data.CONTENT_URI)
+                    .withSelection(nameSelection, nameArgs)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, trimmedName)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, trimmedName)
+                    .build()
+            )
+            val phoneSelection = (
+                "${ContactsContract.Data.CONTACT_ID}=? AND " +
+                    "${ContactsContract.Data.MIMETYPE}=?"
+                )
+            val phoneArgs = arrayOf(
+                contactId,
+                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE
+            )
+            ops.add(
+                ContentProviderOperation.newUpdate(ContactsContract.Data.CONTENT_URI)
+                    .withSelection(phoneSelection, phoneArgs)
+                    .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, trimmedPhone)
+                    .build()
+            )
+            context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun deleteContact(context: Context, contactId: String): Boolean {
+        return try {
+            val uri = ContentUris.withAppendedId(
+                ContactsContract.Contacts.CONTENT_URI,
+                contactId.toLong()
+            )
+            context.contentResolver.delete(uri, null, null) > 0
         } catch (_: Exception) {
             false
         }

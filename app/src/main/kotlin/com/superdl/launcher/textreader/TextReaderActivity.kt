@@ -59,6 +59,7 @@ class TextReaderActivity : AppCompatActivity() {
     private var lastBackPressAt = 0L
     private var chunks: List<String> = emptyList()
     private var chunkIndex = 0
+    private var consecutiveOcrFailures = 0
 
     private val isContinuousMode: Boolean
         get() = mode == TextReaderMode.CONTINUOUS
@@ -183,6 +184,7 @@ class TextReaderActivity : AppCompatActivity() {
             setStatusText(getString(R.string.text_reader_continuous_paused))
         } else {
             changeDetector.reset()
+            consecutiveOcrFailures = 0
             tts.speak(getString(R.string.text_reader_continuous_resumed))
             setStatusText(getString(R.string.text_reader_status_scanning))
         }
@@ -191,16 +193,16 @@ class TextReaderActivity : AppCompatActivity() {
     private fun startCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
-            val provider = providerFuture.get()
-            val preview = CameraStabilityHelper.buildLightPreview(
-                findViewById<PreviewView>(R.id.textReaderPreview).surfaceProvider
-            )
-            imageAnalysis = CameraStabilityHelper.buildLightImageAnalysis()
-                .build()
-                .also { analysis ->
-                    analysis.setAnalyzer(cameraExecutor, FrameAnalyzer())
-                }
             try {
+                val provider = providerFuture.get()
+                val preview = CameraStabilityHelper.buildLightPreview(
+                    findViewById<PreviewView>(R.id.textReaderPreview).surfaceProvider
+                )
+                imageAnalysis = CameraStabilityHelper.buildLightImageAnalysis()
+                    .build()
+                    .also { analysis ->
+                        analysis.setAnalyzer(cameraExecutor, FrameAnalyzer())
+                    }
                 provider.unbindAll()
                 provider.bindToLifecycle(
                     this,
@@ -221,29 +223,48 @@ class TextReaderActivity : AppCompatActivity() {
     }
 
     private fun onRecognizedText(raw: String, forceAnnounce: Boolean) {
-        val speech = TextFormatter.formatForMode(raw, mode)
-        if (speech.isBlank()) {
-            if (forceAnnounce) {
-                tts.speak(getString(R.string.text_reader_no_text))
-                setStatusText(getString(R.string.text_reader_status_scanning))
+        try {
+            consecutiveOcrFailures = 0
+            val speech = TextFormatter.formatForMode(raw, mode)
+            if (speech.isBlank()) {
+                if (forceAnnounce) {
+                    tts.speak(getString(R.string.text_reader_no_text))
+                    setStatusText(getString(R.string.text_reader_status_scanning))
+                }
+                return
             }
-            return
-        }
 
-        latestSpeechText.set(speech)
+            latestSpeechText.set(speech)
 
-        if (isContinuousMode) {
-            handleContinuousRecognition(speech, forceAnnounce)
-            return
-        }
+            if (isContinuousMode) {
+                handleContinuousRecognition(speech, forceAnnounce)
+                return
+            }
 
-        if (!forceAnnounce && !debouncer.shouldAutoAnnounce(speech)) {
-            return
+            if (!forceAnnounce && !debouncer.shouldAutoAnnounce(speech)) {
+                return
+            }
+            if (forceAnnounce) {
+                debouncer.markAnnounced(speech)
+            }
+            announceText(speech)
+        } catch (oom: OutOfMemoryError) {
+            latestBitmap.getAndSet(null)?.recycle()
+            System.gc()
+            handleMemoryFailure()
+        } catch (_: Exception) {
+            registerOcrFailure()
         }
-        if (forceAnnounce) {
-            debouncer.markAnnounced(speech)
-        }
-        announceText(speech)
+    }
+
+    private fun registerOcrFailure() {
+        consecutiveOcrFailures++
+        if (!isContinuousMode || consecutiveOcrFailures < MAX_CONSECUTIVE_OCR_FAILURES) return
+        scanPaused.set(true)
+        consecutiveOcrFailures = 0
+        pendingSpeechText.set(null)
+        tts.speak(getString(R.string.text_reader_continuous_error_pause))
+        setStatusText(getString(R.string.text_reader_continuous_error_pause))
     }
 
     private fun handleContinuousRecognition(speech: String, forceAnnounce: Boolean) {
@@ -411,10 +432,16 @@ class TextReaderActivity : AppCompatActivity() {
     private fun handleMemoryFailure() {
         if (!memoryFailureHandled.compareAndSet(false, true)) return
         scanning.set(false)
+        scanPaused.set(true)
+        pendingSpeechText.set(null)
         imageAnalysis?.clearAnalyzer()
         sounds.play(SoundType.ACTION_ERROR)
         setStatusText(getString(R.string.camera_memory_error))
-        tts.speak(getString(R.string.camera_memory_error))
+        if (isContinuousMode) {
+            tts.speakThen(getString(R.string.text_reader_continuous_memory_exit)) { finishReader() }
+        } else {
+            tts.speak(getString(R.string.camera_memory_error))
+        }
     }
 
     override fun onDestroy() {
@@ -460,15 +487,25 @@ class TextReaderActivity : AppCompatActivity() {
             try {
                 val bitmap = imageProxy.toBitmap()
                 latestBitmap.getAndSet(bitmap)?.recycle()
-                val frameCopy = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                val frameCopy = try {
+                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                } catch (oom: OutOfMemoryError) {
+                    latestBitmap.getAndSet(null)?.recycle()
+                    System.gc()
+                    postWhenAlive { handleMemoryFailure() }
+                    return
+                }
                 bitmap.recycle()
                 engine.recognize(
                     bitmap = frameCopy,
                     onResult = { raw ->
                         frameCopy.recycle()
-                        onRecognizedText(raw, forceAnnounce = false)
+                        postWhenAlive { onRecognizedText(raw, forceAnnounce = false) }
                     },
-                    onError = { frameCopy.recycle() }
+                    onError = {
+                        frameCopy.recycle()
+                        postWhenAlive { registerOcrFailure() }
+                    }
                 )
             } catch (oom: OutOfMemoryError) {
                 latestBitmap.getAndSet(null)?.recycle()
@@ -484,6 +521,7 @@ class TextReaderActivity : AppCompatActivity() {
     companion object {
         private const val REQ_CAMERA = 7105
         private const val FRAME_INTERVAL_MS = 900L
-        private const val CONTINUOUS_FRAME_INTERVAL_MS = 750L
+        private const val CONTINUOUS_FRAME_INTERVAL_MS = 1400L
+        private const val MAX_CONSECUTIVE_OCR_FAILURES = 4
     }
 }

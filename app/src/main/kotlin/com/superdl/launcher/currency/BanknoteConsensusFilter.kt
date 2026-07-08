@@ -1,8 +1,8 @@
 package com.superdl.launcher.currency
 
 class BanknoteConsensusFilter(
-    private val windowSize: Int = 3,
-    private val requiredAgreements: Int = 2
+    private val windowSize: Int = 4,
+    private val requiredAgreements: Int = 3
 ) {
     private val recent = ArrayDeque<BanknoteClassificationResult?>(windowSize)
 

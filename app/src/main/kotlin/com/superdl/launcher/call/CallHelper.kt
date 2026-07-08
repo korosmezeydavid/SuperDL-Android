@@ -6,10 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
-import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.telecom.Call
 import android.telecom.TelecomManager
 import android.telecom.VideoProfile
@@ -18,6 +19,9 @@ import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 
 object CallHelper {
+
+    private val dtmfHandler = Handler(Looper.getMainLooper())
+    private var pendingDtmfStop: Runnable? = null
 
     fun launchInCall(
         context: Context,
@@ -128,29 +132,38 @@ object CallHelper {
     fun tryEndCall(context: Context): Boolean = endCallAggressive(context)
 
     fun endCallAggressive(context: Context): Boolean {
-        if (endCallViaTelecom(context)) return true
-        if (endCallViaReflection(context)) return true
+        var attempted = false
+        if (disconnectManagedCalls()) attempted = true
+        if (endCallViaTelecomApi(context)) attempted = true
+        if (endCallViaReflection(context)) attempted = true
         if (context is Activity) {
             dispatchEndCallKey(context)
-            if (endCallViaTelecom(context)) return true
-            if (endCallViaReflection(context)) return true
+            if (disconnectManagedCalls()) attempted = true
+            if (endCallViaTelecomApi(context)) attempted = true
+            if (endCallViaReflection(context)) attempted = true
         }
-        return false
+        return attempted
     }
 
-    private fun endCallViaTelecom(context: Context): Boolean {
-        val managed = ActiveCallRegistry.activeCall ?: ActiveCallRegistry.ringingCall
-        managed?.let { call ->
-            return try {
+    private fun disconnectManagedCalls(): Boolean {
+        val calls = listOfNotNull(ActiveCallRegistry.activeCall, ActiveCallRegistry.ringingCall).distinct()
+        if (calls.isEmpty()) return false
+        var attempted = false
+        calls.forEach { call ->
+            try {
                 when (call.state) {
                     Call.STATE_RINGING -> call.reject(false, null)
+                    Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> Unit
                     else -> call.disconnect()
                 }
-                true
+                attempted = true
             } catch (_: Exception) {
-                false
             }
         }
+        return attempted
+    }
+
+    private fun endCallViaTelecomApi(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS)
             != PackageManager.PERMISSION_GRANTED
@@ -200,13 +213,52 @@ object CallHelper {
         }
     }
 
-    fun sendDtmfTone(digit: Char): Boolean {
-        val tone = dtmfToneFor(digit) ?: return false
+    fun sendDtmfTone(context: Context, digit: Char): Boolean {
+        if (!isValidDtmfDigit(digit)) return false
+        ActiveCallRegistry.activeCall?.let { call ->
+            if (sendDtmfOverCall(call, digit)) return true
+        }
+        return sendDtmfViaITelephony(context, digit)
+    }
+
+    private fun sendDtmfOverCall(call: Call, digit: Char): Boolean {
         return try {
-            val generator = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
-            val ok = generator.startTone(tone, 200)
-            handlerPostRelease(generator)
-            ok
+            call.playDtmfTone(digit)
+            scheduleStopDtmf(call)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun scheduleStopDtmf(call: Call) {
+        pendingDtmfStop?.let { dtmfHandler.removeCallbacks(it) }
+        val stopRunnable = Runnable {
+            try {
+                call.stopDtmfTone()
+            } catch (_: Exception) {
+            }
+            pendingDtmfStop = null
+        }
+        pendingDtmfStop = stopRunnable
+        dtmfHandler.postDelayed(stopRunnable, 200L)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun sendDtmfViaITelephony(context: Context, digit: Char): Boolean {
+        return try {
+            val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            val telephonyClass = Class.forName(telephony.javaClass.name)
+            val getITelephony = telephonyClass.getDeclaredMethod("getITelephony")
+            getITelephony.isAccessible = true
+            val iTelephony = getITelephony.invoke(telephony) ?: return false
+            val sendDtmf = iTelephony.javaClass.getDeclaredMethod(
+                "sendDtmf",
+                Char::class.javaPrimitiveType
+            )
+            sendDtmf.isAccessible = true
+            sendDtmf.invoke(iTelephony, digit)
+            true
         } catch (_: Exception) {
             false
         }
@@ -252,6 +304,24 @@ object CallHelper {
         }
     }
 
+    fun restoreDefaultAudioRoute(context: Context) {
+        IncomingCallRinger.stop(context)
+        if (ActiveCallRegistry.hasManagedCall) return
+        try {
+            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audio.clearCommunicationDevice()
+            }
+            @Suppress("DEPRECATION")
+            audio.isSpeakerphoneOn = false
+            audio.isMicrophoneMute = false
+            if (audio.mode != AudioManager.MODE_NORMAL) {
+                audio.mode = AudioManager.MODE_NORMAL
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     fun speakPhoneNumber(phone: String): String {
         val words = mapOf(
             '0' to "nulla", '1' to "egy", '2' to "kettő", '3' to "három", '4' to "négy",
@@ -266,28 +336,6 @@ object CallHelper {
         }.filter { it.isNotBlank() }.joinToString(" ")
     }
 
-    private fun dtmfToneFor(digit: Char): Int? = when (digit) {
-        '0' -> ToneGenerator.TONE_DTMF_0
-        '1' -> ToneGenerator.TONE_DTMF_1
-        '2' -> ToneGenerator.TONE_DTMF_2
-        '3' -> ToneGenerator.TONE_DTMF_3
-        '4' -> ToneGenerator.TONE_DTMF_4
-        '5' -> ToneGenerator.TONE_DTMF_5
-        '6' -> ToneGenerator.TONE_DTMF_6
-        '7' -> ToneGenerator.TONE_DTMF_7
-        '8' -> ToneGenerator.TONE_DTMF_8
-        '9' -> ToneGenerator.TONE_DTMF_9
-        '*' -> ToneGenerator.TONE_DTMF_S
-        '#' -> ToneGenerator.TONE_DTMF_P
-        else -> null
-    }
-
-    private fun handlerPostRelease(generator: ToneGenerator) {
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            try {
-                generator.release()
-            } catch (_: Exception) {
-            }
-        }, 250L)
-    }
+    private fun isValidDtmfDigit(digit: Char): Boolean =
+        digit in '0'..'9' || digit == '*' || digit == '#'
 }

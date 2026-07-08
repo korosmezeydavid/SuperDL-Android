@@ -74,7 +74,7 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
         try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             pm.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                PowerManager.PARTIAL_WAKE_LOCK,
                 "SuperDL:CalendarAlarm"
             ).apply {
                 setReferenceCounted(false)

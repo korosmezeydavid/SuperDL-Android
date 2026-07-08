@@ -25,6 +25,27 @@ object GpsRadarStore {
     @Volatile
     var lastApproachThreshold: Int? = null
 
+    @Volatile
+    var pendingArrivalPrompt: String? = null
+
+    @Volatile
+    var streetMonitoringEnabled: Boolean = true
+
+    @Volatile
+    var lastAnnouncedStreet: String? = null
+
+    @Volatile
+    var streetContext: StreetContext? = null
+
+    @Volatile
+    var announcedIntersectionKeys: MutableSet<String> = mutableSetOf()
+
+    @Volatile
+    var announcedIntersectionMilestones: MutableSet<String> = mutableSetOf()
+
+    @Volatile
+    var surroundingsMonitoringActive: Boolean = false
+
     fun clear() {
         nearbyPois = emptyList()
         targetPoi = null
@@ -33,5 +54,11 @@ object GpsRadarStore {
         isGuiding = false
         approachSavedPoi = false
         lastApproachThreshold = null
+        pendingArrivalPrompt = null
+        lastAnnouncedStreet = null
+        streetContext = null
+        announcedIntersectionKeys = mutableSetOf()
+        announcedIntersectionMilestones = mutableSetOf()
+        surroundingsMonitoringActive = false
     }
 }

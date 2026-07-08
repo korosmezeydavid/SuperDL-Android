@@ -11,6 +11,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.superdl.launcher.feedback.AlertSoundCategory
 import com.superdl.launcher.feedback.AlertSoundPlayer
+import com.superdl.launcher.system.QuietModeHelper
 import com.superdl.launcher.tts.TtsEngineStore
 import com.superdl.launcher.tts.TtsSettingsStore
 import java.util.Locale
@@ -43,6 +44,10 @@ object PatrolAnnouncer {
     ) {
         val trimmed = message.trim()
         if (trimmed.isEmpty()) {
+            onDone?.let { mainHandler.post(it) }
+            return
+        }
+        if (QuietModeHelper.shouldSuppressNotificationAnnouncements(context)) {
             onDone?.let { mainHandler.post(it) }
             return
         }

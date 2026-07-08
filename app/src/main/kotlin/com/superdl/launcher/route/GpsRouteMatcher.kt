@@ -7,17 +7,23 @@ data class RouteMatch(
     val distanceToRouteM: Int,
     val nextEvent: RouteEvent?,
     val nextEventIndex: Int,
-    val distanceToNextEventM: Int?
+    val distanceToNextEventM: Int?,
+    val reversed: Boolean = false
 )
 
 object GpsRouteMatcher {
 
     private const val MAX_OFF_ROUTE_M = 35
 
-    fun match(route: GpsRouteRecording, latitude: Double, longitude: Double): RouteMatch {
+    fun match(
+        route: GpsRouteRecording,
+        latitude: Double,
+        longitude: Double,
+        reversed: Boolean = false
+    ): RouteMatch {
         val points = route.points
         if (points.isEmpty()) {
-            return RouteMatch(-1, Int.MAX_VALUE, null, -1, null)
+            return RouteMatch(-1, Int.MAX_VALUE, null, -1, null, reversed)
         }
 
         var closestIndex = 0
@@ -35,15 +41,21 @@ object GpsRouteMatcher {
             }
         }
 
-        val eventIndices = route.events.map { event ->
-            event to nearestPointIndex(points, event.latitude, event.longitude)
+        val eventIndices = route.events.mapIndexed { eventIndex, event ->
+            Triple(eventIndex, event, nearestPointIndex(points, event.latitude, event.longitude))
         }
-        val next = eventIndices
-            .filter { (_, pointIndex) -> pointIndex > closestIndex }
-            .minByOrNull { (_, pointIndex) -> pointIndex - closestIndex }
+        val next = if (reversed) {
+            eventIndices
+                .filter { (_, _, pointIndex) -> pointIndex < closestIndex }
+                .maxByOrNull { (_, _, pointIndex) -> pointIndex }
+        } else {
+            eventIndices
+                .filter { (_, _, pointIndex) -> pointIndex > closestIndex }
+                .minByOrNull { (_, _, pointIndex) -> pointIndex - closestIndex }
+        }
 
-        val nextEvent = next?.first
-        val nextEventIndex = eventIndices.indexOfFirst { it.first == nextEvent }
+        val nextEvent = next?.second
+        val nextEventIndex = next?.first ?: -1
         val distanceToNextEvent = nextEvent?.let {
             GpsRadarMath.distanceMeters(latitude, longitude, it.latitude, it.longitude)
         }
@@ -53,7 +65,8 @@ object GpsRouteMatcher {
             distanceToRouteM = closestDistance,
             nextEvent = nextEvent,
             nextEventIndex = nextEventIndex,
-            distanceToNextEventM = distanceToNextEvent
+            distanceToNextEventM = distanceToNextEvent,
+            reversed = reversed
         )
     }
 

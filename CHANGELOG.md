@@ -1,5 +1,152 @@
 # Változások
 
+## 1.54.9 (versionCode 100) — 2026-07-06
+
+### Sürgős javítás – Super DL összeomlás induláskor
+
+- **Gyökérok**: `STREAM_ACCESSIBILITY` nem használható hangcsatornaként ezen az Androidon → `IllegalArgumentException` → az app azonnal leállt, a rendszer kezdőalkalmazás-választót dobott fel.
+- **Megoldás**: gesztus/swipe hangok most a **STREAM_MUSIC** csatornán szólnak (hallható, rezgés módban sem némített, kompatibilis).
+
+## 1.54.8 (versionCode 99) — 2026-07-06
+
+### Hangok – gyökérok javítás (rezgés mód, némított csatornák)
+
+- **Gyökérok**: a telefon **rezgés módban** volt (`RINGER_MODE_VIBRATE`), a csengő/rendszer/értesítés csatornák **0 hangerőn** – ezért nem szólt semmi.
+- **Egyszeri javítás induláskor** – ha nem néma mód, visszaállítja a csengőt normál módra és emeli a némított csatornák hangerőjét.
+- **Swipe / hangtéma hangok** – most a **STREAM_ACCESSIBILITY** csatornán szólnak (nem némítja a rezgés mód).
+- **Betöltési várólista** – ha a hang még töltődik, a lejátszás nem vész el.
+- **Bejövő hívás** – rezgés módban is csörög (ébresztő csatornán, ami nem némított).
+
+## 1.54.7 (versionCode 98) — 2026-07-06
+
+### Hangok – swipe visszaállítás és hangtémák
+
+- **Swipe hangok javítva** – a néma mód már nem némítja a fel/le/jobbra/balra gesztus hangokat.
+- **Telefon csengőhang javítva** – a néma mód nem állítja rezgésre a rendszer csengőt; induláskor visszaállítja a korábbi beállítást, ha beragadt.
+- **Bejövő hívás** – MediaPlayer hiba esetén Ringtone, majd beépített tartalék csengő; csengő hangerő 0 esetén automatikus emelés.
+- **Swipe hangtémák** – Beállítások → Hangok → Swipe hangtéma:
+  - Alapértelmezett (sípoló)
+  - Kattintás és flick (apró kattintás/lapcsapás hangok)
+  - Suhogás (gyors suhogó/csúszó hangok)
+- **Elena parancs** – „swipe hangtéma” / „hangtéma” a menü megnyitásához.
+
+## 1.45.4 (versionCode 77) — 2026-06-26
+
+### GPS kitekintő – mentett hely közeledési bemondások
+
+- **Közeledési küszöbök javítva** – a 50 m bemondás után most már szól 20, 10, 5 és 2 méternél is (korábban a ciklus hibásan megállt az első küszöbnél).
+- **Gyorsabb helyfrissítés** mentett cél követésekor (2 mp).
+- **Induláskor** azonnali távolság-ellenőrzés; közeledési módban nincs 18 mp-es felesleges ismétlő bemondás.
+
+### Elena figyelő – háttérfigyelés és kikapcsolás
+
+- **Csendes figyelés** – nincs sípszó minden ciklusnál, rövidebb, háttérben futó felismerés (mint a Google asszisztens).
+- **Nem ragad be** – Elena aktiválásakor azonnal leáll a figyelő; bezáráskor automatikusan folytatja.
+- **Kikapcsolás gomb** az értesítésben; menüből vagy hangparancsból azonnal leáll.
+
+### Hotspot – közvetlen bekapcsolás (Ulefone)
+
+- **Várakozás a rendszer visszajelzésére** (`onTetheringStarted`) – nem nyit beállításokat, ha a hotspot tényleg elindult.
+- **Hosszabb hardver-ellenőrzés** és megbízhatóbb siker-jelzés olyan készülékeken, ahol az API téves állapotot ad.
+
+## 1.45.3 (versionCode 76) — 2026-06-26
+
+### Hotspot kapcsoló – ki-be villogás javítás
+
+- **Nem indít újra** futó hotspotot – ha már be van kapcsolva, nem hív `startTethering`-et.
+- **Kikapcsolás** – először `stopTethering`, ha kell utána `setWifiApEnabled(false)`; nem kapcsol vissza.
+- **Provisioning UI kikapcsolva** – nem ugrik fel rendszerpanel kapcsoláskor.
+- **1,8 mp debounce** – véletlen dupla swipe nem kapcsol kétszer.
+
+## 1.45.2 (versionCode 75) — 2026-06-26
+
+### Hotspot státusz – Ulefone / Android 13 javítás
+
+- **sysfs ellenőrzés** (`ap0` operstate) – nem bízik a hibás `getWifiApState()` API-ban.
+- **Szigorúbb tethering szűrés** – `wlan0` kliens WiFi már nem számít hotspotnak.
+- **Kapcsolás után** a tényleges célállapotot jelzi, ha a rendszer API tévesen „bekapcsolva”-t ad.
+
+## 1.45.1 (versionCode 74) — 2026-06-26
+
+### Hotspot státusz javítás
+
+- **Pontosabb hotspot-állapot** – csak a WiFi hotspot állapotát olvassa (`getWifiApState`, rendszerbeállítás), nem keveri USB/Bluetooth tetheringgel.
+- **Kapcsolás után** rövid várakozással frissül a bemondott állapot.
+
+## 1.45.0 (versionCode 73) — 2026-06-26
+
+### Elena tudásbázis – SUPERDL.TXT import
+
+- **SUPERDL.TXT beépítve** az appba (`assets/elena_tudas_superdl.txt`) – teljes képességjegyzék.
+- **Szekció-kereső** – a dokumentum fejezeteiből automatikus, rövidített válasz (pl. telefon, könyvek, hírek, engedélyek).
+- **35+ rögzített tudásbejegyzés** – S O S visszaszámlálás, SMS lépések, SMTP, hírforrások, könyvformátumok, korlátok, stb.
+- **Bővített témalista** – „tudásbázis” parancsra több témakör felolvasása.
+
+## 1.44.0 (versionCode 72) — 2026-06-26
+
+### Elena tudásbázis + Hotspot kapcsoló
+
+- **Helyi tudásbázis** – Elena internet nélkül is válaszol gyakori kérdésekre (Super DL, gesztusok, S O S, PIN, telefon, navigáció, kamera eszközök, hibaelhárítás).
+- **Tudásbázis parancsok:** „mi az a Super DL”, „hogyan működnek a gesztusok”, „ki vagy”, „nincs internet”, stb.
+- **Hotspot be- és kikapcsolás** – Beállítások menüben új kapcsoló; hangparancs: „hotspot”.
+- Ha a hotspot közvetlen kapcsolás nem engedélyezett, megnyitja a rendszer hotspot beállításait.
+
+## 1.43.0 (versionCode 71) — 2026-06-26
+
+### Elena – személyesebb hangos asszisztens
+
+- **Átnevezés:** a hangos asszisztens neve mostantól **Elena** (menü, TTS, rendszer-asszisztens címke).
+- **Felébresztő mondatok:** „Szia Elena”, „Kérlek Elena” és további beépített variánsok; parancs egy mondatban is (pl. „Szia Elena, hány óra van?”).
+- **Saját felébresztő tanítás:** a felhasználó diktálással menthet egyéni felébresztő mondatot (Asszisztens → Elena felébresztő tanítása).
+- **Elena figyelő:** opcionális háttér-figyelés előtérben (értesítéssel); felébresztőre automatikusan indul Elena.
+- **Bővített kulcsszavak:** több természetes parancs (dátum, névjegy szinkron, YouTube, gyalogos útvonal, SMS/telefon beállítás, TTS hang, stb.).
+- **ASR javítások:** gyakori „Elena” tévesztések (Helena, Ilona) automatikus korrekciója.
+
+## 1.42.0 (versionCode 70) — 2026-06-25
+
+### Pénzfelismerő – valódi bankjegy fotókkal tanítva
+
+- **62 Wikimedia Commons referencia fotó** letöltve és betanítva (minden címlet, több évjárat).
+- **Szigorúbb felismerés** – magasabb bizalmi küszöb, 3 egyező képkocka kell a bemondáshoz (kevesebb téves találat).
+- Letöltő script: `tools/download_banknote_dataset.py`
+
+## 1.41.0 (versionCode 69) — 2026-06-25
+
+### Pénzfelismerő és kamera
+
+- **Modell újratanítás** – fejlesztett szintetikus tanítás + valódi fotók támogatása (`tools/banknote_dataset/`).
+- **Munkajelző kattintás** – halk click hang jelzi, hogy a pénzfelismerő aktívan dolgozik.
+- **Kamera app** – jobbra swipe: fénykép mentés; lefelé swipe: utolsó fénykép megosztása/küldése.
+
+## 1.40.0 (versionCode 68) — 2026-06-25
+
+### Helyszín felismerő, GPS útvonal, OCR és hívás
+
+- **Helyszín tanítás** – több képkocka rögzítése; vizuális ujjlenyomat (VisualFingerprint) OCR mellett; fel swipe = tanítás befejezése.
+- **GPS útvonal útmutató** – automatikus visszafelé haladás észlelése; hangos irányváltás; fordított útmutatás.
+- **Folyamatos szövegolvasó** – OOM védelem; egymás utáni OCR hibák számlálása és hangos figyelmeztetés.
+- **Hívás befejezés** – megbízhatóbb bontás többszöri próbálkozással; balra swipe közvetlenül befejezi a hívást.
+
+## 1.39.0 (versionCode 67) — 2026-06-25
+
+### Hangos asszisztens – szövegértés finomhangolás
+
+- **Több felismerési jelölt** (5 hipotézis) + bizalmi pontszám alapú választás.
+- **ASR javítások:** gyakori tévesztések (ébresztő, üzenet, névjegy, WiFi, stb.) automatikus korrekciója.
+- **Kontextus-hintek:** menüparancsok és gyakori kifejezések átadása a felismerőnek (Android 14+).
+- **Hosszabb csend-idő** (2,8 s) és 2 újrapróbálkozás asszisztens módban.
+- **Jobb hibaszövegek:** külön üzenet timeout, nincs találat, hálózat, mikrofon hibára.
+- **„Ezt hallottam: …”** visszajelzés, ha a parancs nem érthető.
+- **Névjegykeresés** normalizált névvel (ékezet nélkül is talál).
+
+## 1.38.0 (versionCode 66) — 2026-06-25
+
+### Névjegyzék és hívásnapló
+
+- **Hívásnapló:** SMS küldés művelet a hívás kontextusmenüben (pl. utolsó hívó számára).
+- **Névjegyzék menü:** fel-le söpréssel böngészés; hívás, SMS, szerkesztés, törlés műveletek.
+- **Szinkronizálás:** lista tetején manuális szinkron gomb; Google névjegyzék frissítése; napi automatikus szinkron (~04:15).
+
 ## 1.37.2 (versionCode 65) — 2026-06-25
 
 ### Sürgős javítás – csengőhangok visszaállítva
@@ -33,11 +180,6 @@
 
 - **Kamera modulok lifecycle** – szövegolvasó, helyszín figyelő/tanító, arc kamera: `postWhenAlive`, Handler törlés bezáráskor
 - **Értesítő képernyők** – gyógyszer és naptár emlékeztető: időzített feladatok leállítása bezáráskor
-- **Zárolt képernyő** – TTS indítás Handler cleanup
-- **Könyv betöltés** – maximum 25 MB fájlméret, konkrét hibaüzenet túl nagy könyvnél
-- **Git** – verziókövetés beállítva a projekthez
-
-## 1.36.8 (versionCode 61) — 2026-06-25
 
 ### Stabilitás – teljes rendbetétel (2. kör)
 
@@ -89,115 +231,3 @@
 
 - **Fordítási hiba javítva** – BanknoteTorchController.kt update() függvény visszatérési értéke helyesen lett kezelve (return when).
 - Build pipeline stabilizálva, debug APK generálható.
-
-## 1.34.0 (versionCode 45) — 2026-06-23
-
-### Hibajavítás – Bejövő hívás fogadás és elutasítás
-
-- **Bejövő hívás képernyő** – zárolt képernyőn is megjelenik (`IncomingCallActivity`)
-- **Swipe jobbra: fogadás**, **swipe balra: elutasítás** – nem a főmenü jelenik meg
-- A hívó neve és száma felolvasásra kerül
-
-### Hívás közbeni vezérlők
-
-- **DTMF billentyűzet** – ügyfélszolgálati menük kezelése (1, 2, 3…, *, #)
-- **Kihangosítás** és **mikrofon némítás** váltása hívás közben
-- Swipe le: billentyűzet, swipe jobbra: kihangosítás/vezérlők
-
-### WiFi és Bluetooth – közvetlen kapcsolás
-
-- **WiFi és Bluetooth** közvetlenül kapcsolódnak ki/be – nem nyílik a rendszer beállítások panel
-- `CHANGE_WIFI_STATE` engedély visszaállítva minden Android verzióra
-
-### Bevásárlólista bővítés
-
-- **Létrehozás után zárolt** – meglévő listák és tételek csak megjelölhetőek, nem szerkeszthetőek/törölhetőek
-- **Árazás** – tétel létrehozásakor opcionális forint ár megadása offline számbillentyűzettel
-- **Árösszesítő** – a lista végén összesítő sor a kalkulálható végösszeggel
-
-### Offline számbillentyűzet bővítés
-
-- **Ébresztő** időbeállítás számbillentyűzettel (nem csak diktálás)
-- **Időzítő** időtartam számbillentyűzettel
-- **Naptár** dátum és időpont számbillentyűzettel (ééééhhnn formátum)
-
----
-
-## 1.33.0 (versionCode 44) — 2026-06-23
-
-### C3 – Folyamatos OCR
-
-- **Új menüpont:** Eszközök → „Folyamatos szövegolvasó”
-- **Automatikus szövegváltozás-felismerés** – ha a kamera más részre mutat, felolvassa az új szöveget (nem ismétli feleslegesen ugyanazt)
-- **Rész-alapú navigáció** – hosszú szövegnél le swipe: következő rész, fel swipe: ismétlés
-- **Szünet / folytatás** – jobbra swipe: folyamatos figyelés ki-be
-- **TTS-sor** – beszéd közben várakozik, utána folytatja az új szöveget
-- **Hangos asszisztens:** „folyamatos szövegolvasó”, „folyamatos OCR”
-
----
-
-## 1.30.3 (versionCode 40) — 2026-06-22
-
-### Audit javítások – stabilitás és hibatűrés
-
-- **PatrolAnnouncer üzenetsor** – GPS, értesítés és időzítő bemondások nem esnek ki egymásból (max. 12 sorban várakoznak)
-- **Kamera memória védelem** – pénzfelismerő és környezeti kitekintő OutOfMemory esetén leállítja a beolvasást és hangban jelzi
-- **Gyógyszer tároló JSON séma** – sérült adat automatikus helyreállítás, sémaverzió és migráció
-- **Diktafon hibajelzés** – felvétel-szál és mentési hibák konkrét TTS üzenettel érkeznek
-- **Release minify** – R8/ProGuard bekapcsolva release buildben (keep szabályok bővítve)
-
----
-
-## 1.30.2 (versionCode 39) — 2026-06-22
-
-### Javítás – Befagyás ellen: beep-beep, aztán menü
-
-- **Azonnali beep-beep** érkezik először (könnyű, ébresztő csatornán) – még lassú rendszeren is hallható
-- **~1,5 mp múlva** indul a teljes riasztó (hang + swipe menü + TTS) – nem egyszerre terheli a telefont
-- Program és gyógyszer emlékeztetőnél is érvényes
-
----
-
-## 1.30.1 (versionCode 38) — 2026-06-22
-
-### Gyógyszer emlékeztető – 1 órás halasztás
-
-- **Swipe menü** gyógyszer riasztáskor: „Emlékeztetés 1 óra múlva” / „Bevétel megerősítése”
-- ⬆⬇ választás, ➡ végrehajtás, ⬅ bezárás (hang leáll, bevétel nem rögzítve)
-- Halasztás után pontosan 1 órával újra jelez
-
----
-
-## 1.30.0 (versionCode 37) — 2026-06-22
-
-### Javítás – Program és emlékeztető értesítések
-
-- **Program emlékeztető most tényleg megszólal** – dedikált `CalendarAlertActivity` zárolt képernyőn is (csengőhang + rezgés + TTS)
-- **Swipe menü program idején** – fel-le választás: „Emlékeztetés 1 óra múlva” / „Megjelölés teljesítettként”, jobbra megerősítés, balra bezárás
-- **Gyógyszer emlékeztető megbízhatóbb** – wake lock, háttérből is induló riasztó ablak és hang
-- **Pontos ébresztő fallback** – engedély hiányában is ütemez (kevésbé pontos), figyelmeztetés mentéskor
-- **PIN zárolás nem nyeli el** a program emlékeztetőt
-
-### Új – Hangbeállítások (Beállítások → Hangok)
-
-- Program emlékeztető, gyógyszer, ébresztő, SMS, e-mail és egyéb értesítés hangja külön választható
-- 6 előre definiált hang (ébresztő, csengő, értesítés, csengő-hármas, lágy csengő, dupla síp)
-- Jobbra swipe: beállítás + azonnali előnézet
-
----
-
-## 1.29.1 (versionCode 36) — 2026-06-21
-
-### Javítás – WiFi menüpont és launcher váltás
-
-- **WiFi navigáció** – fel-le lapozáskor külön, biztonságos állapotfelolvasás (nem omlik össze, nem ugrik launcher váltásra)
-- **WiFi kapcsoló** – Android 10+ eszközön a rendszer gyorsbeállítások panel nyílik (nem tiltott API hívás)
-- **Null-biztos WiFi kezelés** – nincs összeomlás hiányzó WiFi szolgáltatás esetén
-- **Launcher váltás védelem** – menünavigáció törli a félkész kilépés-megerősítést
-- **ACCESS_WIFI_STATE** engedély hozzáadva
-
----
-
-## 1.29.0 (versionCode 35) — 2026-06-21
-
-### Javítás – Beállítások menü navigáció

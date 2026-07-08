@@ -1,5 +1,6 @@
 package com.superdl.launcher.feedback
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -7,14 +8,22 @@ import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.math.PI
 import kotlin.math.sin
 
 object DeviceStateTonePlayer {
 
     private val handler = Handler(Looper.getMainLooper())
+    private val audioExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "SuperDL-DeviceTone")
+    }
+    private val pendingToneReleases = mutableListOf<ToneGenerator>()
 
-    fun play(event: DeviceStateEvent) {
+    fun play(event: DeviceStateEvent, context: Context? = null) {
+        if (context != null && AlertSoundSettingsStore.isSilentMode(context)) return
+        context?.let { GestureSoundHelper.ensureGestureStreamAudible(it) }
         handler.post {
             when (event) {
                 DeviceStateEvent.CHARGER_CONNECTED -> playSequence(
@@ -33,16 +42,17 @@ object DeviceStateTonePlayer {
     }
 
     private fun playSequence(notes: List<Pair<Int, Int>>) {
-        Thread {
+        audioExecutor.execute {
             for ((index, note) in notes.withIndex()) {
+                if (Thread.currentThread().isInterrupted) return@execute
                 playBurstSync(note.first, note.second)
-                if (index < notes.lastIndex) Thread.sleep(70)
+                if (index < notes.lastIndex) sleepInterruptibly(70L)
             }
-        }.start()
+        }
     }
 
     private fun playBurst(freq: Int, durationMs: Int) {
-        Thread { playBurstSync(freq, durationMs) }.start()
+        audioExecutor.execute { playBurstSync(freq, durationMs) }
     }
 
     fun playBurstSync(freq: Int, durationMs: Int) {
@@ -60,13 +70,7 @@ object DeviceStateTonePlayer {
                 buffer[i] = (sin(phase) * Short.MAX_VALUE * 0.55 * env).toInt().toShort()
             }
             val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setLegacyStreamType(AudioManager.STREAM_NOTIFICATION)
-                        .build()
-                )
+                .setAudioAttributes(GestureSoundHelper.gestureAudioAttributes())
                 .setAudioFormat(
                     AudioFormat.Builder()
                         .setSampleRate(sampleRate)
@@ -79,7 +83,7 @@ object DeviceStateTonePlayer {
                 .build()
             track.write(buffer, 0, buffer.size)
             track.play()
-            Thread.sleep(durationMs.toLong() + 40)
+            sleepInterruptibly(durationMs.toLong() + 40L)
             track.stop()
             track.release()
         } catch (_: Exception) {
@@ -95,9 +99,27 @@ object DeviceStateTonePlayer {
                 freq >= 600 -> ToneGenerator.TONE_PROP_ACK
                 else -> ToneGenerator.TONE_PROP_NACK
             }
-            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85)
+            val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
+            synchronized(pendingToneReleases) {
+                pendingToneReleases.add(tone)
+            }
             tone.startTone(toneType, durationMs)
-            handler.postDelayed({ tone.release() }, (durationMs + 80).toLong())
-        } catch (_: Exception) {}
+            handler.postDelayed({
+                synchronized(pendingToneReleases) {
+                    pendingToneReleases.remove(tone)
+                }
+                runCatching { tone.release() }
+            }, (durationMs + 80).toLong())
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun sleepInterruptibly(delayMs: Long) {
+        if (delayMs <= 0L || Thread.currentThread().isInterrupted) return
+        try {
+            Thread.sleep(delayMs)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 }

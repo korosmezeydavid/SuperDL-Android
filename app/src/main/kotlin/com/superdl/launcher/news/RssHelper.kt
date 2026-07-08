@@ -1,5 +1,6 @@
 package com.superdl.launcher.news
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import org.xmlpull.v1.XmlPullParser
@@ -33,48 +34,42 @@ data class RssItem(
     }
 }
 
+data class RssPage(
+    val items: List<RssItem>,
+    val page: Int,
+    val hasMore: Boolean
+)
+
 object RssHelper {
 
-    private const val ALL_FEEDS_ID = "all"
+    const val ALL_FEEDS_ID = "all"
+    const val PAGE_SIZE = 20
 
-    private val FEEDS = listOf(
-        NewsFeed(ALL_FEEDS_ID, "Összes hír", "", ""),
-        NewsFeed("telex", "Telex", "Általános", "https://telex.hu/rss"),
-        NewsFeed("444", "444", "Általános", "https://444.hu/feed"),
-        NewsFeed("index", "Index", "Általános", "https://index.hu/24ora/rss/"),
-        NewsFeed("hvg", "HVG", "Általános", "https://hvg.hu/rss"),
-        NewsFeed("24hu", "24.hu", "Általános", "https://24.hu/feed/"),
-        NewsFeed("portfolio", "Portfolio", "Gazdaság", "https://www.portfolio.hu/rss/all.xml"),
-        NewsFeed("origo", "Origo", "Általános", "https://www.origo.hu/contentpartner/rss/hircentrum/origo.xml"),
-        NewsFeed("rtl", "RTL", "Általános", "https://www.rtl.hu/content/rss"),
-        NewsFeed("nepszava", "Népszava", "Politika", "https://nepszava.hu/rss"),
-        NewsFeed("magyarnemzet", "Magyar Nemzet", "Politika", "https://magyarnemzet.hu/rss"),
-        NewsFeed("hirstart", "Hírstart", "Általános", "https://www.hirstart.hu/rss.php"),
-        NewsFeed("nemzetisport", "Nemzeti Sport", "Sport", "https://www.nemzetisport.hu/rss"),
-        NewsFeed("index_sport", "Index Sport", "Sport", "https://index.hu/sport/rss/"),
-        NewsFeed("hwsw", "HWSW", "Tech", "https://www.hwsw.hu/rss"),
-        NewsFeed("itbusiness", "IT Business", "Tech", "https://www.itbusiness.hu/rss"),
-        NewsFeed("kultura", "Kultúra.hu", "Kultúra", "https://kultura.hu/rss/"),
-        NewsFeed("magyarorszag", "Magyarorszag.hu", "Általános", "https://magyarorszag.hu/rss")
-    )
-
-    fun allFeeds(): List<NewsFeed> = FEEDS
+    fun allFeeds(context: Context): List<NewsFeed> = NewsFeedStore.allAvailableFeeds(context)
 
     fun fetchHeadlines(
-        onResult: (List<RssItem>) -> Unit,
+        context: Context,
+        page: Int = 0,
+        onResult: (RssPage) -> Unit,
         onError: () -> Unit
-    ) = fetchFromFeed(ALL_FEEDS_ID, onResult, onError)
+    ) = fetchFromFeed(context, ALL_FEEDS_ID, page, onResult, onError)
 
     fun fetchFromFeed(
+        context: Context,
         feedId: String,
-        onResult: (List<RssItem>) -> Unit,
+        page: Int = 0,
+        onResult: (RssPage) -> Unit,
         onError: () -> Unit
     ) {
         Thread {
             try {
-                val items = if (feedId == ALL_FEEDS_ID) fetchMixed() else fetchSingle(feedId)
+                val rssPage = if (feedId == ALL_FEEDS_ID) {
+                    fetchMixed(context, page)
+                } else {
+                    fetchSingle(context, feedId, page)
+                }
                 Handler(Looper.getMainLooper()).post {
-                    if (items.isEmpty()) onError() else onResult(items)
+                    if (rssPage.items.isEmpty()) onError() else onResult(rssPage)
                 }
             } catch (_: Exception) {
                 Handler(Looper.getMainLooper()).post { onError() }
@@ -82,25 +77,39 @@ object RssHelper {
         }.start()
     }
 
-    private fun fetchSingle(feedId: String): List<RssItem> {
-        val feed = FEEDS.find { it.id == feedId } ?: return emptyList()
-        return parseFeed(feed.url, feed.name).take(15)
+    private fun fetchSingle(context: Context, feedId: String, page: Int): RssPage {
+        val feed = NewsFeedStore.enabledFeeds(context).find { it.id == feedId }
+            ?: NewsFeedStore.customFeeds(context).find { it.id == feedId }
+            ?: return RssPage(emptyList(), page, false)
+        val needed = (page + 1) * PAGE_SIZE + 1
+        val all = parseFeed(feed.url, feed.name, maxItems = needed)
+        val start = page * PAGE_SIZE
+        val slice = all.drop(start).take(PAGE_SIZE)
+        val hasMore = all.size > start + PAGE_SIZE
+        return RssPage(slice, page, hasMore)
     }
 
-    private fun fetchMixed(): List<RssItem> {
+    private fun fetchMixed(context: Context, page: Int): RssPage {
+        val feeds = NewsFeedStore.enabledFeeds(context)
+        val perFeed = 4
+        val needed = (page + 1) * PAGE_SIZE + 1
         val items = mutableListOf<RssItem>()
-        for (feed in FEEDS.drop(1)) {
-            if (items.size >= 15) break
-            items.addAll(parseFeed(feed.url, feed.name).take(3))
+        for (feed in feeds) {
+            if (items.size >= needed) break
+            items.addAll(parseFeed(feed.url, feed.name, maxItems = perFeed * (page + 2)))
         }
-        return items.distinctBy { it.title }.take(15)
+        val distinct = items.distinctBy { "${it.source}:${it.title}" }
+        val start = page * PAGE_SIZE
+        val slice = distinct.drop(start).take(PAGE_SIZE)
+        val hasMore = distinct.size > start + PAGE_SIZE
+        return RssPage(slice, page, hasMore)
     }
 
-    private fun parseFeed(feedUrl: String, source: String): List<RssItem> {
+    private fun parseFeed(feedUrl: String, source: String, maxItems: Int): List<RssItem> {
         val connection = URL(feedUrl).openConnection() as HttpURLConnection
-        connection.connectTimeout = 8000
-        connection.readTimeout = 8000
-        connection.setRequestProperty("User-Agent", "SuperDL/1.10")
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        connection.setRequestProperty("User-Agent", "SuperDL/1.46")
         if (connection.responseCode !in 200..299) return emptyList()
         connection.inputStream.use { stream ->
             val factory = XmlPullParserFactory.newInstance()
@@ -113,7 +122,7 @@ object RssHelper {
             var title = ""
             var description = ""
 
-            while (event != XmlPullParser.END_DOCUMENT && items.size < 8) {
+            while (event != XmlPullParser.END_DOCUMENT && items.size < maxItems) {
                 when (event) {
                     XmlPullParser.START_TAG -> when (parser.name.lowercase()) {
                         "item", "entry" -> {

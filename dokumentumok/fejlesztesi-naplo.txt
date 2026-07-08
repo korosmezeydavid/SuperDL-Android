@@ -1,0 +1,242 @@
+================================================================================
+  SUPER DL (Super Digital Launcher) — FEJLESZTÉSI NAPLÓ / MEMÓRIA TÉR
+================================================================================
+
+  Utolsó frissítés: 2026-06-30
+  Fejlesztő:        Kőrösmezey Dávid
+  Kapcsolat:        korosmezey.david.richard@gmail.com
+  Projekt mappa:    C:\Users\msn\Documents\SuperDL-Android
+  Csomagnév:        com.superdl.launcher
+  Aktuális verzió:  1.48.0 (versionCode 85)
+  Tesztkészülék:    Ulefone Armor 24 (USB)
+
+  Ez a fájl a fejlesztés állandó hivatkozási pontja. Minden fejlesztési kör
+  után frissítendő. Kapcsolódó fájlok:
+    - CHANGELOG.md              — verzió-változások részletesen
+    - dokumentumok/osszefoglalom.txt — korábbi összefoglalók (1.36.x–1.37.x)
+    - dokumentumok/javitas.txt       — pénzfelismerő javítás napló (1.42.0)
+    - app/src/main/assets/elena_tudas_superdl.txt — Elena tudásbázis
+    - C:\Users\msn\superdlosszefog.txt — 2026-06-20 összefoglaló (diktálás, asszisztens)
+
+
+================================================================================
+  1. PROJEKT RÖVID LEÍRÁS
+================================================================================
+
+  A Super DL egy magyar nyelvű Android launcher vak és gyengénlátó
+  felhasználóknak. Gesztusokkal (fel/le/jobbra/balra swipe) és hanggal
+  (TTS + diktálás) vezérelhető. Nem webes felület — natív Android app.
+
+  Fő technológiák:
+    - Kotlin, Android SDK 34, minSdk 26
+    - Gradle build (gradlew.bat assembleRelease / assembleDebug)
+    - TTS, SpeechRecognizer, CameraX, ML Kit, saját bankjegy-modell
+    - Elena hangos asszisztens (korábban „Hangos asszisztens")
+
+  ADB útvonal:
+    C:\Users\msn\AppData\Local\Android\Sdk\platform-tools\adb.exe
+
+
+================================================================================
+  2. AKTUÁLIS ÁLLAPOT (2026-06-30)
+================================================================================
+
+  Legfrissebb forráskód verzió:  1.48.0 (versionCode 85)
+  Telefonon telepített verzió:  1.47.1 (84) — 1.48.0 build kész, USB telepítésre vár
+
+  Utolsó jelentős fejlesztések (1.43.0 – 1.45.4):
+
+  [✓] Elena asszisztens (átnevezés, felébresztő tanítás, háttérfigyelő)
+  [✓] Elena tudásbázis (elena_tudas_superdl.txt beépítve, szekció-kereső)
+  [✓] Hotspot kapcsoló (Ulefone-specifikus javítások, sysfs ellenőrzés)
+  [✓] GPS kitekintő közeledési bemondások (50/20/10/5/2 m)
+  [✓] Pénzfelismerő (Wikimedia fotók + szigorúbb felismerés, YOLO pipeline)
+  [✓] Helyszín felismerő, GPS útvonal, OCR folyamatos olvasó
+  [✓] Névjegyzék szinkron, hívásnapló SMS, kedvencek a Telefon menüben
+  [✓] Új névjegy létrehozás (számbillentyűzet + diktálás)
+  [✓] Diktálás megszakítása minden funkcióra (balra swipe)
+  [✓] Hangos asszisztens parancsértelmezés javítva (ékezet-normalizálás)
+
+
+================================================================================
+  3. VERZIÓTÖRTÉNET — RÖVID ÁTTEKINTÉS
+================================================================================
+
+  1.45.4 — GPS közeledési küszöbök, Elena figyelő csendes mód, hotspot Ulefone
+  1.45.3 — Hotspot ki-be villogás javítás, debounce
+  1.45.2 — Hotspot sysfs (ap0) ellenőrzés Android 13-on
+  1.45.1 — Hotspot státusz pontosítás
+  1.45.0 — Elena tudásbázis SUPERDL.TXT import
+  1.44.0 — Elena helyi tudásbázis + hotspot menü
+  1.43.0 — Elena átnevezés, felébresztő, háttérfigyelő
+  1.42.0 — Pénzfelismerő Wikimedia fotókkal, szigorúbb küszöb
+  1.41.0 — Pénzfelismerő munkajelző, kamera mentés/megosztás
+  1.40.0 — Helyszín felismerő, GPS útvonal, OCR, hívás javítás
+  1.39.0 — Asszisztens ASR finomhangolás
+  1.38.0 — Névjegyzék böngészés, szinkron, hívásnapló SMS
+  1.37.x — Stabilitás javítások, új funkciók
+  1.36.x — Pénzfelismerő, kamera, DTMF, számbevitel egységesítés
+
+  Részletes changelog: CHANGELOG.md
+
+
+================================================================================
+  4. FŐMENÜ STRUKTÚRA (aktuális)
+================================================================================
+
+  1.  Telefon és Hívások (kedvencek, új névjegy, hívásnapló, tárcsázás)
+  2.  Üzenetek és E-mail
+  3.  Idő és Szervezés (ébresztő, időzítő, naptár, stopper)
+  4.  Média (zene, YouTube, rádió, podcast)
+  5.  Olvasás (könyvek, hírek, RSS)
+  6.  Navigáció és Hely (GPS kitekintő, tömegközlekedés, helykeresés)
+  7.  Környezet (környezeti kitekintő, helyszín felismerő, pénzfelismerő)
+  8.  Eszközök (kamera, diktafon, zseblámpa, számológép, bevásárlólista)
+  9.  Elena (hangos asszisztens, felébresztő tanítás, figyelő)
+  10. Beállítások (TTS, hangok, hotspot, PIN, engedélyek, stb.)
+  11. S.O.S. (azonnali aktiválás)
+  12. Program hangjainak megismerése
+
+
+================================================================================
+  5. GESZTUS ALAPELVEK (emlékeztető)
+================================================================================
+
+  Fel:    előző elem / ismétlés
+  Le:     következő elem
+  Jobbra: megerősítés / belépés / aktiválás
+  Balra:  vissza / megszakítás / kilépés (diktálás is leáll!)
+
+  Diktálás: mikrofon engedély kell. Balra swipe = megszakítás mindenhol.
+  Megerősítés: swipe jobbra elég, „mondj igent" felhívás eltávolítva.
+
+
+================================================================================
+  6. ELENA (HANGOS ASSZISZTENS)
+================================================================================
+
+  Név: Elena (korábban Hangos asszisztens)
+  Felébresztők: „Szia Elena", „Kérlek Elena" + egyéni tanítható
+  Háttérfigyelő: opcionális, értesítéssel; kikapcsolható menüből vagy hanggal
+  Tudásbázis: assets/elena_tudas_superdl.txt + ElenaKnowledgeBase.kt
+  Parancsok: idő, hívás, üzenet, navigáció, hotspot, könyv, YouTube, segítség stb.
+  ASR: ékezet-normalizálás, 5 hipotézis, kontextus-hintek (Android 14+)
+
+
+================================================================================
+  7. PÉNZFELISMERŐ — FONTOS TUDNIVALÓK
+================================================================================
+
+  Filozófia: inkább „nem felismerhető", mint téves címlet.
+  Küszöbök: ~52% bizalom, 3/4 egyező képkortex, 10% különbség 1.-2. között
+  Tanítási adatok: tools/banknote_dataset/, Wikimedia Commons fotók
+  YOLO pipeline: tools/train_banknote_yolo.py, tools/prepare_banknote_yolo_dataset.py
+  Hangerő gomb: azonnali manuális ellenőrzés
+  Saját fotók hozzáadása: tools/banknote_dataset/huf_XXX/ mappákba → újratanítás
+
+
+================================================================================
+  8. BUILD ÉS TELEPÍTÉS
+================================================================================
+
+  Release build:
+    cd C:\Users\msn\Documents\SuperDL-Android
+    .\gradlew.bat assembleRelease
+
+  Debug build:
+    .\gradlew.bat assembleDebug
+
+  APK helye (release):
+    app\build\outputs\apk\release\SuperDL-1.47.1-release.apk
+
+  Telepítés USB-n:
+    adb install -r app\build\outputs\apk\release\SuperDL-1.47.1-release.apk
+
+  Verzió ellenőrzés telefonon:
+    adb shell dumpsys package com.superdl.launcher | findstr version
+
+
+================================================================================
+  9. NYITOTT / FOLYAMATBAN LÉVŐ TÉMÁK
+================================================================================
+
+  [ ] Pénzfelismerő: saját bankjegyfotók begyűjtése és újratanítás (legjobb pontosság)
+  [ ] Pénzfelismerő YOLO modell: banknote training pipeline futtatása / finomhangolás
+  [ ] Elena tudásbázis: elena_tudas_superdl.txt verziószáma elavult (1.10.0) — frissíteni
+  [ ] README.md verziószáma elavult (1.36.5) — frissíteni
+  [ ] Windows SuperDL asztali verzió: külön projekt (Documents\Audacity\SuperDownloader)
+        — az Android és Windows verziók párhuzamosan fejlődnek
+
+
+================================================================================
+  10. FEJLESZTÉSI KÖRÖK NAPLÓJA
+================================================================================
+
+  --- 2026-06-30 — GPS utcabemondás / Voice Vista-szerű környezeti figyelő ---
+  Kérés:
+    GPS kitekintő utcabemondás javítása; Voice Vista (Soundscape) élmény Androidra
+
+  Változások (1.48.0):
+    - GpsSurroundingsService: folyamatos G P S + háttérszálon futó utca/kereszteződés bemondás
+    - GpsStreetAnnouncer: utcaváltás, közeledő kereszteződés (80/50/25/12 m), áthaladás
+    - OSM: úthálózat-alapú kereszteződés-felismerés (nem csak közlekedési lámpa)
+    - Nominatim + Overpass fallback utcanévhez
+    - Hálózati lekérdezés háttérszálon (korábban főszálon csendben elbukott)
+
+  Build: app\build\outputs\apk\release\SuperDL-1.48.0-release.apk
+
+  --- 2026-06-30 — Telefon frissítése legújabb verzióra ---
+  Kérés:
+    Fejlesztés folytatása, telefon frissítése a legújabb verzióra
+
+  Állapot:
+    - Telefon: Ulefone Armor 24 csatlakoztatva (3116TF1010002416)
+    - Telefonon volt: 1.47.0 (83) → frissítve: 1.47.1 (84) ✓
+    - Release build sikeres: app\build\outputs\apk\release\SuperDL-1.47.1-release.apk
+    - Telepítés sikeres (adb install -r)
+
+  --- 2026-06-27 — Fejlesztés folytatása, napló létrehozása ---
+  Kérés:
+    1. Fejlesztési napló / memória tér létrehozása a dokumentumokba
+    2. Telefon ellenőrzése USB-n, legfrissebb verzió telepítése
+
+  Állapot:
+    - Telefon: Ulefone Armor 24 csatlakoztatva (3116TF1010002416)
+    - Telefonon volt: 1.45.3 (76) → frissítve: 1.45.4 (77) ✓
+    - Release build sikeres: app\build\outputs\apk\release\SuperDL-1.45.4-release.apk
+    - Telepítés sikeres (adb install -r)
+    - Ez a naplófájl létrehozva: dokumentumok/fejlesztesi-naplo.txt
+
+  --- 2026-06-26 — 1.45.x sorozat (Elena, hotspot, GPS) ---
+  - Elena átnevezés, tudásbázis, háttérfigyelő
+  - Hotspot Ulefone javítások (sysfs, debounce, provisioning UI)
+  - GPS közeledési bemondások finomítva
+
+  --- 2026-06-25 — 1.36.x – 1.42.x sorozat ---
+  - Stabilitás javítások (kamera, DTMF, főmenü dupla gesztus)
+  - Pénzfelismerő, helyszín felismerő, névjegyzék, asszisztens ASR
+  - Részletek: dokumentumok/osszefoglalom.txt, dokumentumok/javitas.txt
+
+  --- 2026-06-20 — Diktálás, asszisztens, névjegy, kedvencek ---
+  - Diktálás megszakítás minden funkcióra
+  - Asszisztens ékezet-normalizálás, „hívd fel XY", segítség szöveg
+  - Kedvencek → Telefon és Hívások alá
+  - Új névjegy létrehozás (számbillentyűzet logika)
+  - Részletek: C:\Users\msn\superdlosszefog.txt
+
+
+================================================================================
+  11. GYORS PARANCSOK (fejlesztői)
+================================================================================
+
+  Eszköz lista:     adb devices -l
+  Telepített verzió: adb shell dumpsys package com.superdl.launcher | findstr version
+  Build release:    .\gradlew.bat assembleRelease
+  Telepítés:        adb install -r <apk-útvonal>
+  Logcat:           adb logcat -s SuperDL
+  Gradle clean:     .\gradlew.bat clean
+
+
+================================================================================
+  VÉGE — következő frissítésnél a 2., 9. és 10. szakaszt kell bővíteni
+================================================================================

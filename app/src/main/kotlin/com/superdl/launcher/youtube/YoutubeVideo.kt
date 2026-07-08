@@ -1,5 +1,11 @@
 package com.superdl.launcher.youtube
 
+data class YoutubeSearchPage(
+    val videos: List<YoutubeVideo>,
+    val page: Int,
+    val hasMore: Boolean
+)
+
 data class YoutubeVideo(
     val videoId: String,
     val title: String,

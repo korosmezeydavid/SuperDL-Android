@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 @ExperimentalGetImage
 class LocationWatchActivity : AppCompatActivity() {
@@ -51,6 +52,7 @@ class LocationWatchActivity : AppCompatActivity() {
     private val scanning = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
+    private val latestFrameBitmap = AtomicReference<Bitmap?>(null)
     private var imageAnalysis: ImageAnalysis? = null
     private var watchTarget: LocationWatchTarget? = null
     private var watchProfile: LocationProfile? = null
@@ -196,24 +198,24 @@ class LocationWatchActivity : AppCompatActivity() {
 
     private fun onOcrResult(raw: String) {
         val target = watchTarget ?: return
-        if (raw.isBlank()) return
+        val frameBitmap = latestFrameBitmap.get()?.takeUnless { it.isRecycled }
 
         val announcement = when (target) {
             is LocationWatchTarget.ProfileId -> {
                 val profile = watchProfile ?: LocationProfileStore.getById(this, target.id)
                 watchProfile = profile
-                if (profile == null || !LocationMatcher.isProfileMatch(profile, raw)) return
+                if (profile == null || !LocationMatcher.isProfileMatch(profile, raw, frameBitmap)) return
                 if (!debouncer.shouldAnnounce(target.debounceKey())) return
                 getString(R.string.location_watch_match_profile, profile.name)
             }
             is LocationWatchTarget.FreeText -> {
-                if (!LocationMatcher.matchTargetText(target.text, raw)) return
+                if (raw.isBlank() || !LocationMatcher.matchTargetText(target.text, raw)) return
                 if (!debouncer.shouldAnnounce(target.debounceKey())) return
                 getString(R.string.location_watch_match_text, target.text)
             }
             is LocationWatchTarget.AllProfiles -> {
                 val profiles = allProfiles.ifEmpty { LocationProfileStore.getAll(this) }.also { allProfiles = it }
-                val matched = profiles.firstOrNull { LocationMatcher.isProfileMatch(it, raw) } ?: return
+                val matched = profiles.firstOrNull { LocationMatcher.isProfileMatch(it, raw, frameBitmap) } ?: return
                 val debounceKey = LocationWatchTarget.ProfileId(matched.id).debounceKey()
                 if (!debouncer.shouldAnnounce(debounceKey)) return
                 getString(R.string.location_watch_match_profile, matched.name)
@@ -283,6 +285,7 @@ class LocationWatchActivity : AppCompatActivity() {
         CameraStabilityHelper.shutdownExecutor(cameraExecutor)
         recognitionEngine?.close()
         recognitionEngine = null
+        latestFrameBitmap.getAndSet(null)?.recycle()
         tts.shutdown()
         sounds.release()
         super.onDestroy()
@@ -310,15 +313,24 @@ class LocationWatchActivity : AppCompatActivity() {
 
             try {
                 val bitmap = imageProxy.toBitmap()
-                val frameCopy = bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                bitmap.recycle()
+                latestFrameBitmap.getAndSet(bitmap)?.recycle()
+                val frameCopy = try {
+                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                } catch (_: OutOfMemoryError) {
+                    postWhenAlive { handleMemoryFailure() }
+                    return
+                } ?: return
                 engine.recognize(
                     bitmap = frameCopy,
                     onResult = { raw ->
-                        frameCopy.recycle()
-                        onOcrResult(raw)
+                        postWhenAlive {
+                            onOcrResult(raw)
+                            if (!frameCopy.isRecycled) frameCopy.recycle()
+                        }
                     },
-                    onError = { frameCopy.recycle() }
+                    onError = {
+                        if (!frameCopy.isRecycled) frameCopy.recycle()
+                    }
                 )
             } catch (oom: OutOfMemoryError) {
                 System.gc()

@@ -23,6 +23,8 @@ class GpsRadarService : Service() {
         private const val NOTIFICATION_ID = 7400
         private const val DIRECTION_BEEP_MS = 2_800L
         private const val REFRESH_MS = 18_000L
+        const val ACTION_GPS_ARRIVAL = "com.superdl.launcher.GPS_ARRIVAL"
+        const val EXTRA_DESTINATION_NAME = "destination_name"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -54,7 +56,8 @@ class GpsRadarService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         compass = CompassProvider(this).also { it.start() }
-        locationListener = GpsLocationHelper.requestUpdates(this, 3_000L) { location ->
+        val updateIntervalMs = if (GpsRadarStore.approachSavedPoi) 2_000L else 3_000L
+        locationListener = GpsLocationHelper.requestUpdates(this, updateIntervalMs) { location ->
             GpsRadarStore.lastLocation = location
             updateTargetFromLocation(location)
         }
@@ -75,6 +78,9 @@ class GpsRadarService : Service() {
                 "Célzárolva: ${target.speakRadar()} Követés elindult.",
                 withBeep = true
             )
+            GpsRadarStore.lastLocation?.let { location ->
+                updateTargetFromLocation(location)
+            }
         }
         return START_STICKY
     }
@@ -152,8 +158,10 @@ class GpsRadarService : Service() {
                 updated.longitude
             )
             val relative = GpsRadarMath.relativeBearing(bearing, heading)
-            val message = updated.speakGuidance(GpsRadarMath.turnHint(relative))
-            PatrolAnnouncer.announce(this, message, withBeep = true)
+            if (!GpsRadarStore.approachSavedPoi) {
+                val message = updated.speakGuidance(GpsRadarMath.turnHint(relative))
+                PatrolAnnouncer.announce(this, message, withBeep = true)
+            }
             updateNotification(updated)
         }
     }
@@ -176,25 +184,29 @@ class GpsRadarService : Service() {
     private fun checkApproachAnnouncements(target: GpsPoi) {
         val distance = target.distanceMeters
         val thresholds = listOf(50, 20, 10, 5, 2)
-        for (threshold in thresholds) {
-            if (distance <= threshold) {
-                val last = GpsRadarStore.lastApproachThreshold
-                if (last == null || last > threshold) {
-                    GpsRadarStore.lastApproachThreshold = threshold
-                    val message = when (threshold) {
-                        50 -> "50 méterre vagy ${target.name} helyétől."
-                        20 -> "20 méterre vagy."
-                        10 -> "10 méter, közel vagy."
-                        5 -> "5 méter."
-                        else -> "Cél elérve: ${target.name}."
-                    }
-                    PatrolAnnouncer.announce(this, message, withBeep = true)
-                    if (threshold <= 2) {
-                        GpsRadarManager.stopGuidance(this)
-                    }
-                }
-                break
-            }
+        val crossed = thresholds.filter { distance <= it }
+        if (crossed.isEmpty()) return
+
+        val milestone = crossed.minOrNull() ?: return
+        val last = GpsRadarStore.lastApproachThreshold
+        if (last != null && last <= milestone) return
+
+        GpsRadarStore.lastApproachThreshold = milestone
+        val message = when (milestone) {
+            50 -> "50 méterre vagy ${target.name} helyétől."
+            20 -> "20 méterre vagy."
+            10 -> "10 méter, közel vagy."
+            5 -> "5 méter."
+            else -> "Cél elérve: ${target.name}."
+        }
+        PatrolAnnouncer.announce(this, message, withBeep = true)
+        if (milestone <= 2) {
+            GpsRadarStore.pendingArrivalPrompt = target.name
+            GpsRadarManager.stopGuidance(this)
+            sendBroadcast(
+                Intent(ACTION_GPS_ARRIVAL).setPackage(packageName)
+                    .putExtra(EXTRA_DESTINATION_NAME, target.name)
+            )
         }
     }
 

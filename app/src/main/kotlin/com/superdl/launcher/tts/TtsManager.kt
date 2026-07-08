@@ -1,6 +1,9 @@
 package com.superdl.launcher.tts
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
@@ -48,6 +51,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 isReady = true
             }
             applySelectedVoice()
+            configureAudioRouting()
             tts.setSpeechRate(speechRate)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
@@ -130,7 +134,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             return
         }
         onUtteranceDone = null
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SDL_${System.currentTimeMillis()}")
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, speakParams(), "SDL_${System.currentTimeMillis()}")
     }
 
     fun speakThen(text: String, onDone: () -> Unit) {
@@ -145,7 +149,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         }
         onUtteranceDone = onDone
         val id = "SDL_DONE_${System.currentTimeMillis()}"
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, speakParams(), id)
     }
 
     fun speakAdd(text: String) {
@@ -154,7 +158,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             runWhenReady { speakAdd(text) }
             return
         }
-        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "SDL_ADD_${System.currentTimeMillis()}")
+        tts.speak(text, TextToSpeech.QUEUE_ADD, speakParams(), "SDL_ADD_${System.currentTimeMillis()}")
     }
 
     fun isSpeaking(): Boolean = isReady && tts.isSpeaking
@@ -174,6 +178,22 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         speak("Sebesség: ${String.format(Locale.getDefault(), "%.1f", speechRate)}")
     }
 
+    private fun configureAudioRouting() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                .build()
+            tts.setAudioAttributes(attributes)
+        }
+    }
+
+    private fun speakParams(): Bundle = Bundle().apply {
+        putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ACCESSIBILITY)
+        putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+    }
+
     private fun applySelectedVoice() {
         val voiceName = selectedVoiceName?.takeIf { it.isNotBlank() } ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
@@ -183,6 +203,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun shutdown() {
+        handler.removeCallbacksAndMessages(null)
         onUtteranceDone = null
         pendingOnReady = null
         readyCallbacks.clear()

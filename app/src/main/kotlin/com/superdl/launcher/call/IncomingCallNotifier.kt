@@ -7,6 +7,7 @@ import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import com.superdl.launcher.callfilter.CallFilterEngine
 import com.superdl.launcher.contacts.ContactHelper
+import com.superdl.launcher.system.QuietModeHelper
 
 object IncomingCallNotifier {
 
@@ -22,6 +23,7 @@ object IncomingCallNotifier {
     }
 
     private fun onRinging(context: Context, intent: Intent) {
+        if (QuietModeHelper.shouldSuppressIncomingCalls(context)) return
         if (DialerRoleHelper.isDefaultDialer(context) || ActiveCallRegistry.hasManagedCall) return
 
         @Suppress("DEPRECATION")
@@ -36,6 +38,7 @@ object IncomingCallNotifier {
         }
         if (IncomingCallState.isShowing) return
         val name = resolveCallerName(context, number)
+        IncomingCallRinger.start(context, number, name)
         IncomingCallState.show(context, number, name)
     }
 
@@ -63,6 +66,7 @@ object IncomingCallState {
     var isShowing: Boolean = false
 
     fun show(context: Context, phone: String, name: String) {
+        if (QuietModeHelper.shouldSuppressIncomingCalls(context)) return
         isShowing = true
         val launch = Intent(context, IncomingCallActivity::class.java).apply {
             putExtra(IncomingCallActivity.EXTRA_PHONE, phone)
@@ -75,9 +79,20 @@ object IncomingCallState {
         context.startActivity(launch)
     }
 
+    fun dismissUiOnly(context: Context) {
+        if (!isShowing) return
+        isShowing = false
+        context.sendBroadcast(
+            Intent(ACTION_DISMISS_INCOMING_CALL).setPackage(context.packageName)
+        )
+    }
+
     fun dismissIfShowing(context: Context) {
         isShowing = false
-        context.sendBroadcast(Intent(ACTION_DISMISS_INCOMING_CALL))
+        IncomingCallRinger.stop(context)
+        context.sendBroadcast(
+            Intent(ACTION_DISMISS_INCOMING_CALL).setPackage(context.packageName)
+        )
     }
 
     const val ACTION_DISMISS_INCOMING_CALL = "com.superdl.launcher.action.DISMISS_INCOMING_CALL"

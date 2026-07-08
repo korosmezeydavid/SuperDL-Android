@@ -30,6 +30,7 @@ object ToggleAnnouncement {
             PatrolStore.isPowerButtonTimeEnabled(it)
         },
         MenuAction.WIFI_TOGGLE to ToggleSpec("WiFi") { ConnectivityHelper.isWifiEnabled(it) },
+        MenuAction.HOTSPOT_TOGGLE to ToggleSpec("Hotspot") { ConnectivityHelper.isHotspotEnabled(it) },
         MenuAction.BT_TOGGLE to ToggleSpec("Bluetooth") { ConnectivityHelper.isBluetoothEnabled(it) },
         MenuAction.LOCK_PIN_TOGGLE to ToggleSpec("PIN zárolás") { LockPinStore.isEnabled(it) },
         MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE to ToggleSpec("Rejtett számok tiltása") {

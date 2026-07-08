@@ -4,9 +4,11 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 
-inline fun Activity.postWhenAlive(crossinline block: () -> Unit) {
+private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+
+fun Activity.postWhenAlive(block: () -> Unit) {
     if (isFinishing || isDestroyed) return
-    Handler(Looper.getMainLooper()).post {
+    mainHandler.post {
         if (isFinishing || isDestroyed) return@post
         block()
     }

@@ -70,7 +70,7 @@ class AssistantMediaButtonHandler(
     companion object {
         fun speakStatus(context: Context, enabled: Boolean): String =
             if (enabled) {
-                "Bluetooth gomb figyelve. Hosszú nyomás: hangos asszisztens."
+                "Bluetooth gomb figyelve. Hosszú nyomás: Elena."
             } else {
                 "Bluetooth asszisztens gomb kikapcsolva."
             }

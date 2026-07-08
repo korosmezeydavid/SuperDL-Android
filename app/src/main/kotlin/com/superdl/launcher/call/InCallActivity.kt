@@ -63,6 +63,10 @@ class InCallActivity : AppCompatActivity() {
 
     private var callStateWatcher: CallStateWatcher? = null
     private var endCallCheckRunnable: Runnable? = null
+    private var endCallRetryRunnable: Runnable? = null
+    private var bringToFrontRunnable: Runnable? = null
+    private var endCallAttemptCount = 0
+    private var endingCall = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -180,18 +184,7 @@ class InCallActivity : AppCompatActivity() {
 
     private fun onSwipeLeft() {
         sounds.play(SoundType.SWIPE_LEFT)
-        when (panel) {
-            InCallPanel.KEYPAD, InCallPanel.CONTROLS -> exitInCallSubPanel()
-            InCallPanel.STATUS -> onUserEndRequest()
-        }
-    }
-
-    private fun exitInCallSubPanel() {
-        if (panel == InCallPanel.STATUS) return
-        panel = InCallPanel.STATUS
-        keypadIndex = 0
-        updateHint()
-        tts.speak("Vissza a hívás vezérlőkhöz. Fel: állapot. Le: DTMF billentyűzet. Jobbra: kihangosítás és mikrofon.")
+        onUserEndRequest()
     }
 
     private fun navigateKeypad(delta: Int) {
@@ -203,7 +196,7 @@ class InCallActivity : AppCompatActivity() {
         val item = keypadItems[keypadIndex]
         if (item.key != NumberPadKey.DIGIT && item.key != NumberPadKey.OPERATOR) return
         val digit = item.value.firstOrNull() ?: return
-        if (CallHelper.sendDtmfTone(digit)) {
+        if (CallHelper.sendDtmfTone(this, digit)) {
             tts.speak("${item.speakLabel()} elküldve.")
         } else {
             tts.speak("A hangjel nem sikerült.")
@@ -313,6 +306,10 @@ class InCallActivity : AppCompatActivity() {
         }
         stopDurationUpdates()
         unregisterPhoneListener()
+        endingCall = false
+        endCallAttemptCount = 0
+        endCallCheckRunnable?.let { handler.removeCallbacks(it) }
+        endCallRetryRunnable?.let { handler.removeCallbacks(it) }
         val duration = formatDuration(currentDurationSeconds())
         tvStatus.text = getString(R.string.call_status_ended)
         sounds.play(SoundType.SWIPE_LEFT)
@@ -320,7 +317,6 @@ class InCallActivity : AppCompatActivity() {
     }
 
     private fun onUserEndRequest() {
-        sounds.play(SoundType.SWIPE_LEFT)
         if (!callStarted) {
             finishCallUi()
             return
@@ -330,21 +326,66 @@ class InCallActivity : AppCompatActivity() {
             finishCallUi()
             return
         }
-        if (CallHelper.endCallAggressive(this)) {
-            tts.speak("Hívás befejezése.")
-            endCallCheckRunnable?.let { handler.removeCallbacks(it) }
-            val runnable = Runnable {
-                if (isFinishing || isDestroyed) return@Runnable
-                if (callState == TelephonyManager.CALL_STATE_IDLE || !callStarted) finishCallUi()
-            }
-            endCallCheckRunnable = runnable
-            handler.postDelayed(runnable, 2500L)
+        if (callState == TelephonyManager.CALL_STATE_IDLE) {
+            finishCallUi()
             return
         }
+
+        endingCall = true
+        endCallAttemptCount++
+        val attempted = CallHelper.endCallAggressive(this)
+        scheduleEndCallVerification()
+
+        if (attempted) {
+            if (endCallAttemptCount == 1) {
+                tts.speak("Hívás befejezése.")
+            } else {
+                tts.speak("Hívás befejezése, újrapróbálás.")
+            }
+            return
+        }
+
+        if (endCallAttemptCount < MAX_END_CALL_ATTEMPTS) {
+            scheduleEndCallRetry()
+            return
+        }
+
         tts.speak(
             "A hívás befejezése nem sikerült automatikusan. " +
                 "Próbáld újra balra pöccintéssel, vagy használd a telefon befejezés gombját."
         )
+    }
+
+    private fun scheduleEndCallRetry() {
+        endCallRetryRunnable?.let { handler.removeCallbacks(it) }
+        val runnable = Runnable {
+            if (isFinishing || isDestroyed || !endingCall) return@Runnable
+            if (callState == TelephonyManager.CALL_STATE_IDLE) {
+                finishCallUi()
+                return@Runnable
+            }
+            onUserEndRequest()
+        }
+        endCallRetryRunnable = runnable
+        handler.postDelayed(runnable, END_CALL_RETRY_MS)
+    }
+
+    private fun scheduleEndCallVerification() {
+        endCallCheckRunnable?.let { handler.removeCallbacks(it) }
+        val runnable = Runnable {
+            if (isFinishing || isDestroyed) return@Runnable
+            if (callState == TelephonyManager.CALL_STATE_IDLE || !callStarted) {
+                endingCall = false
+                finishCallUi()
+                return@Runnable
+            }
+            if (endingCall && endCallAttemptCount < MAX_END_CALL_ATTEMPTS) {
+                CallHelper.endCallAggressive(this@InCallActivity)
+                scheduleEndCallRetry()
+            }
+        }
+        endCallCheckRunnable = runnable
+        handler.postDelayed(runnable, END_CALL_VERIFY_MS)
     }
 
     private fun applyLockScreenFlags() {
@@ -462,24 +503,35 @@ class InCallActivity : AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus && callStarted && CallSession.isInCallUiActive) {
-            handler.postDelayed({
-                if (callStarted && CallSession.isInCallUiActive && !isFinishing) {
+            bringToFrontRunnable?.let { handler.removeCallbacks(it) }
+            val runnable = Runnable {
+                bringToFrontRunnable = null
+                if (callStarted && CallSession.isInCallUiActive && !isFinishing && !isDestroyed) {
                     CallHelper.bringInCallToFront(this)
                 }
-            }, 150L)
+            }
+            bringToFrontRunnable = runnable
+            handler.postDelayed(runnable, 150L)
         }
     }
 
     override fun onDestroy() {
         stopDurationUpdates()
         endCallCheckRunnable?.let { handler.removeCallbacks(it) }
+        endCallRetryRunnable?.let { handler.removeCallbacks(it) }
+        bringToFrontRunnable?.let { handler.removeCallbacks(it) }
         endCallCheckRunnable = null
+        endCallRetryRunnable = null
+        bringToFrontRunnable = null
+        endingCall = false
+        endCallAttemptCount = 0
         cancelUiCallbacks(handler)
         unregisterPhoneListener()
         panel = InCallPanel.STATUS
         keypadIndex = 0
         CallHelper.setSpeakerphone(this, false)
         CallHelper.setMicrophoneMute(this, false)
+        CallHelper.restoreDefaultAudioRoute(this)
         CallSession.markInCallUiEnded()
         tts.shutdown()
         if (::sounds.isInitialized) sounds.release()
@@ -576,5 +628,8 @@ class InCallActivity : AppCompatActivity() {
         const val MODE_INCOMING = "incoming"
         private const val READ_PHONE_STATE_REQUEST = 3001
         private const val IDLE_GRACE_MS = 5000L
+        private const val END_CALL_RETRY_MS = 700L
+        private const val END_CALL_VERIFY_MS = 2200L
+        private const val MAX_END_CALL_ATTEMPTS = 5
     }
 }

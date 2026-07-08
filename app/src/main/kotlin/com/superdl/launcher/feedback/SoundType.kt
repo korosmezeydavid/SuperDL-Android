@@ -3,7 +3,7 @@ package com.superdl.launcher.feedback
 import com.superdl.launcher.R
 
 enum class SoundType(
-    val resId: Int,
+    val defaultResId: Int,
     val label: String,
     val description: String
 ) {

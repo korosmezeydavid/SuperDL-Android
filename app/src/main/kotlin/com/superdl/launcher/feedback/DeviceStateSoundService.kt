@@ -57,8 +57,8 @@ class DeviceStateSoundService : Service() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (!DeviceStateStore.isEnabled(context)) return
                 when (intent.action) {
-                    Intent.ACTION_SCREEN_ON -> DeviceStateTonePlayer.play(DeviceStateEvent.SCREEN_ON)
-                    Intent.ACTION_SCREEN_OFF -> DeviceStateTonePlayer.play(DeviceStateEvent.SCREEN_OFF)
+                    Intent.ACTION_SCREEN_ON -> DeviceStateTonePlayer.play(DeviceStateEvent.SCREEN_ON, context)
+                    Intent.ACTION_SCREEN_OFF -> DeviceStateTonePlayer.play(DeviceStateEvent.SCREEN_OFF, context)
                 }
             }
         }
@@ -77,7 +77,7 @@ class DeviceStateSoundService : Service() {
                 if (status == BatteryManager.BATTERY_STATUS_FULL && plugged != 0) {
                     if (!DeviceStateStore.isFullAnnounced(context)) {
                         DeviceStateStore.setFullAnnounced(context, true)
-                        DeviceStateTonePlayer.play(DeviceStateEvent.BATTERY_FULL)
+                        DeviceStateTonePlayer.play(DeviceStateEvent.BATTERY_FULL, context)
                     }
                 } else if (plugged == 0) {
                     DeviceStateStore.setFullAnnounced(context, false)

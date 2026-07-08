@@ -1,5 +1,7 @@
 package com.superdl.launcher.locationwatch
 
+import android.graphics.Bitmap
+
 object LocationMatcher {
 
     const val PROFILE_MATCH_THRESHOLD = 0.55f
@@ -33,8 +35,19 @@ object LocationMatcher {
         return intersection.toFloat() / union.toFloat()
     }
 
-    fun isProfileMatch(profile: LocationProfile, ocrText: String): Boolean =
-        matchProfile(profile, ocrText) >= PROFILE_MATCH_THRESHOLD
+    fun matchVisual(profile: LocationProfile, bitmap: Bitmap): Float {
+        if (bitmap.isRecycled || profile.visualHashes.isEmpty()) return 0f
+        return runCatching {
+            VisualFingerprint.bestSimilarity(profile.visualHashes, VisualFingerprint.compute(bitmap))
+        }.getOrDefault(0f)
+    }
+
+    fun isProfileMatch(profile: LocationProfile, ocrText: String, bitmap: Bitmap? = null): Boolean {
+        val ocrScore = matchProfile(profile, ocrText)
+        if (ocrScore >= PROFILE_MATCH_THRESHOLD) return true
+        val visualBitmap = bitmap ?: return false
+        return matchVisual(profile, visualBitmap) >= VisualFingerprint.MATCH_THRESHOLD
+    }
 
     fun matchTargetText(targetText: String, ocrText: String): Boolean {
         val normalizedTarget = normalize(targetText)

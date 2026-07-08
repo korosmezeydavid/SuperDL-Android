@@ -1,7 +1,9 @@
 package com.superdl.launcher.environment
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -24,6 +26,7 @@ class AccessibilityTts(context: Context) : TextToSpeech.OnInitListener, Closeabl
                 tts.setLanguage(Locale.ENGLISH)
                 ready = true
             }
+            configureAudioRouting()
         } else {
             Log.e(TAG, "TTS inicializálás sikertelen: $status")
             ready = false
@@ -49,9 +52,22 @@ class AccessibilityTts(context: Context) : TextToSpeech.OnInitListener, Closeabl
         tts.shutdown()
     }
 
+    private fun configureAudioRouting() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            tts.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                    .build()
+            )
+        }
+    }
+
     private fun accessibilityParams(): Bundle =
         Bundle().apply {
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ACCESSIBILITY)
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
         }
 
     private fun utteranceId(prefix: String): String =

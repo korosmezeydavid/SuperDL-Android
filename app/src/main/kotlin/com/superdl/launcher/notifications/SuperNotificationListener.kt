@@ -5,6 +5,7 @@ import android.service.notification.StatusBarNotification
 import com.superdl.launcher.patrol.PatrolAnnouncer
 import com.superdl.launcher.patrol.PatrolNotificationClassifier
 import com.superdl.launcher.patrol.PatrolStore
+import com.superdl.launcher.system.QuietModeHelper
 
 class SuperNotificationListener : NotificationListenerService() {
 
@@ -46,6 +47,7 @@ class SuperNotificationListener : NotificationListenerService() {
 
     private fun maybeAnnounceNotification(sbn: StatusBarNotification) {
         if (!PatrolStore.isMasterEnabled(this)) return
+        if (QuietModeHelper.shouldSuppressNotificationAnnouncements(this)) return
         if (PatrolStore.isQuietNow(this)) return
 
         val kind = PatrolNotificationClassifier.classify(sbn)

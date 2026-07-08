@@ -64,10 +64,9 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.RECEIVE_MMS" />
     <uses-permission android:name="android.permission.WRITE_SMS" />
-    <uses-permission android:name="android.permission.BROADCAST_SMS" />
-    <uses-permission android:name="android.permission.BROADCAST_WAP_PUSH" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
 
     <!-- Helyzet -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -76,8 +75,13 @@
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- Ébresztő & Értesítések -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -108,6 +112,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
@@ -118,6 +123,7 @@
     <application
         android:name=".SuperDlApplication"
         android:allowBackup="false"
+        android:directBootAware="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.SuperDL"
@@ -212,6 +218,42 @@
             android:theme="@style/Theme.SuperDL" />
 
         <activity
+            android:name=".hearingaid.HearingAidActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".games.uno.UnoActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".games.blackjack.BlackjackActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".games.poker.PokerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".games.slot.SlotActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".games.millebornes.MilleBornesActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
             android:name=".textreader.TextReaderActivity"
             android:exported="false"
             android:screenOrientation="portrait"
@@ -225,6 +267,24 @@
 
         <activity
             android:name=".locationwatch.LocationWatchActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".locationwatch.LocationProfilePhotosActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".cardorganizer.CardTrainerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".cardorganizer.CardRecognizerActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.SuperDL" />
@@ -318,6 +378,20 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.SuperDL" />
 
+        <!-- Rendszer zárolási PIN – akadálymentes AccessibilityService -->
+        <service
+            android:name=".lock.keyguard.KeyguardPinAccessibilityService"
+            android:exported="true"
+            android:label="@string/keyguard_pin_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
         <!-- Akadálymentes PIN zárolás – képernyő bekapcsoláskor -->
         <activity
             android:name=".lock.LockScreenActivity"
@@ -340,6 +414,18 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Hallás erősítő – valós idejű mikrofon → fülhallgató -->
+        <service
+            android:name=".hearingaid.HearingAidService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Elena figyelő – felébresztő mondatok háttérben -->
+        <service
+            android:name=".assistant.ElenaWakeListenService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <!-- GPS Kitekintő – térképi radar és célkövetés -->
         <service
             android:name=".gps.GpsRadarService"
@@ -349,6 +435,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="gps_radar" />
         </service>
+
+        <!-- GPS Környezeti figyelő – Voice Vista / Soundscape-szerű utcabemondás -->
+        <service
+            android:name=".gps.GpsSurroundingsService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <!-- GPS Útvonal – saját útvonal rögzítése -->
         <service
@@ -429,6 +521,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".contacts.ContactSyncReceiver"
+            android:exported="false" />
+
         <!-- Boot receiver (ébresztő újraindítás után) -->
         <receiver
             android:name=".alarm.BootReceiver"
@@ -497,12 +593,29 @@
         <!-- Alapértelmezett SMS app – bejövő üzenetek -->
         <receiver
             android:name=".sms.SmsDeliverReceiver"
+            android:directBootAware="true"
             android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_DELIVER" />
             </intent-filter>
         </receiver>
+
+        <!-- Tartalék fogadó – OEM-eken, ahol az SMS_DELIVER nem megbízható -->
+        <receiver
+            android:name=".sms.SmsReceivedReceiver"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".sms.SmsInboundService"
+            android:directBootAware="true"
+            android:exported="false" />
 
         <receiver
             android:name=".sms.MmsWapPushReceiver"

@@ -58,9 +58,11 @@ object AlertSoundPlayer {
         val running = AtomicBoolean(true)
         val thread = Thread(
             {
-                while (running.get()) {
+                while (running.get() && !Thread.currentThread().isInterrupted) {
                     playToneSequenceSync(context, sequence, force = false)
-                    if (running.get()) Thread.sleep(700)
+                    if (running.get() && !Thread.currentThread().isInterrupted) {
+                        sleepInterruptibly(700L)
+                    }
                 }
             },
             "SuperDL-AlertToneLoop"
@@ -134,14 +136,16 @@ object AlertSoundPlayer {
         force: Boolean
     ) {
         if (context != null && !AlertSoundSettingsStore.shouldPlay(context, force)) return
+        if (Thread.currentThread().isInterrupted) return
         val volume = toneVolume(context)
         for ((index, note) in notes.withIndex()) {
+            if (Thread.currentThread().isInterrupted) return
             if (note.first > 0 && note.second > 0) {
                 playAlarmBurst(note.first, note.second, volume)
             } else if (note.second > 0) {
-                Thread.sleep(note.second.toLong())
+                sleepInterruptibly(note.second.toLong())
             }
-            if (index < notes.lastIndex) Thread.sleep(60)
+            if (index < notes.lastIndex) sleepInterruptibly(60L)
         }
     }
 
@@ -155,10 +159,19 @@ object AlertSoundPlayer {
                 else -> ToneGenerator.TONE_PROP_ACK
             }
             tone.startTone(toneType, durationMs.coerceIn(80, 2000))
-            Thread.sleep((durationMs + 60).toLong())
+            sleepInterruptibly((durationMs + 60).toLong())
             tone.release()
         } catch (e: Exception) {
             Log.w(TAG, "Beépített síp lejátszás sikertelen", e)
+        }
+    }
+
+    private fun sleepInterruptibly(delayMs: Long) {
+        if (delayMs <= 0L || Thread.currentThread().isInterrupted) return
+        try {
+            Thread.sleep(delayMs)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 }

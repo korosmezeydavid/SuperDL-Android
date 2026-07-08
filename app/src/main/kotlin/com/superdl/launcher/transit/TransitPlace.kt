@@ -4,14 +4,31 @@ data class TransitPlace(
     val name: String,
     val address: String,
     val distanceMeters: Int?,
-    val nextDepartures: List<String> = emptyList()
+    val nextDepartures: List<String> = emptyList(),
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val stopId: String? = null,
+    val clockDirection: String? = null,
+    val routeLines: List<String> = emptyList(),
+    val vehicleApproach: String? = null,
+    val wheelchairAccessible: Boolean? = null,
+    val isFavorite: Boolean = false
 ) {
     fun speakPreview(): String = buildString {
+        if (isFavorite) append("Kedvenc. ")
         append(name)
         if (!address.isBlank() && address != name) append(". $address")
         distanceMeters?.let { append(". ${formatDistance(it)}") }
+        clockDirection?.let { append(". $it irányában") }
+        if (routeLines.isNotEmpty()) {
+            append(". Járatok: ${routeLines.take(5).joinToString(", ")}")
+        }
         if (nextDepartures.isNotEmpty()) {
             append(". Következő indulás: ${nextDepartures.first()}")
+        }
+        vehicleApproach?.let { append(". $it") }
+        wheelchairAccessible?.let { accessible ->
+            append(if (accessible) ". Akadálymentes." else ". Nem akadálymentes.")
         }
     }
 
@@ -19,7 +36,7 @@ data class TransitPlace(
         append(speakPreview())
         if (nextDepartures.size > 1) {
             append(". További indulások: ")
-            append(nextDepartures.drop(1).take(3).joinToString(", "))
+            append(nextDepartures.drop(1).take(4).joinToString(", "))
         }
     }
 

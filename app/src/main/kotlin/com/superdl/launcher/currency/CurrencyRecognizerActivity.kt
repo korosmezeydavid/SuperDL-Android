@@ -7,11 +7,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
-import android.view.View
-import android.widget.Button
-import android.widget.TextView
-import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -20,14 +18,25 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import com.superdl.launcher.R
 import com.superdl.launcher.camera.CameraAnalysisConfig
 import com.superdl.launcher.camera.CameraStabilityHelper
+import com.superdl.launcher.currency.compose.CurrencyRecognizerScreen
+import com.superdl.launcher.currency.compose.CurrencyRecognizerViewModel
+import com.superdl.launcher.currency.compose.createCurrencyGestureListener
 import com.superdl.launcher.feedback.SoundFeedback
 import com.superdl.launcher.feedback.SoundType
-import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 import com.superdl.launcher.util.postWhenAlive
 import java.util.concurrent.ExecutorService
@@ -37,42 +46,36 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 @ExperimentalGetImage
-class CurrencyRecognizerActivity : AppCompatActivity() {
+class CurrencyRecognizerActivity : ComponentActivity() {
 
-    private lateinit var tvStatus: TextView
+    private val viewModel: CurrencyRecognizerViewModel by viewModels()
     private lateinit var sounds: SoundFeedback
     private lateinit var tts: TtsManager
-    private lateinit var gestureListener: SwipeGestureListener
+    private lateinit var gestureListener: com.superdl.launcher.gestures.SwipeGestureListener
     private lateinit var cameraExecutor: ExecutorService
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private var classifierEngine: BanknoteClassifierEngine? = null
     private var scanBeepPlayer: ScanBeepPlayer? = null
-    private val debouncer = BanknoteScanDebouncer()
-    private val consensusFilter = BanknoteConsensusFilter()
-    private val torchController = BanknoteTorchController()
     private val scanning = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
     private var imageAnalysis: ImageAnalysis? = null
     private var boundCamera: Camera? = null
+    private var previewView: PreviewView? = null
     private var lastBackPressAt = 0L
-    private var lastTorchSpeechAt = 0L
+    private var lastWorkingTickAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_currency_recognizer)
-        title = getString(R.string.currency_title)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        tvStatus = findViewById(R.id.tvCurrencyStatus)
         sounds = SoundFeedback(this)
         tts = TtsManager(this)
         cameraExecutor = Executors.newSingleThreadExecutor()
         scanBeepPlayer = ScanBeepPlayer()
 
-        gestureListener = SwipeGestureListener(
+        gestureListener = createCurrencyGestureListener(
             context = this,
             onSwipeUp = {
                 sounds.play(SoundType.SWIPE_UP)
@@ -89,27 +92,32 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
             onSwipeLeft = { finishRecognizer() }
         )
 
-        findViewById<View>(R.id.currencyRecognizerRoot).setOnTouchListener { view, event ->
-            gestureListener.detector.onTouchEvent(event)
-            if (event.action == android.view.MotionEvent.ACTION_UP) {
-                view.performClick()
-            }
-            true
-        }
-
-        findViewById<Button>(R.id.btnCurrencyExit).setOnClickListener { finishRecognizer() }
-
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                val now = System.currentTimeMillis()
-                if (now - lastBackPressAt < 2000L) {
-                    finishRecognizer()
-                } else {
-                    lastBackPressAt = now
-                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+        setContent {
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            LaunchedEffect(uiState.fatalError) {
+                uiState.fatalError?.let { message ->
+                    tts.runWhenReady { tts.speak(message) }
                 }
             }
-        })
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                CurrencyRecognizerScreen(
+                    uiState = uiState,
+                    onPreviewViewReady = { preview ->
+                        previewView = preview
+                        if (hasCameraPermission() && scanning.get()) {
+                            bindCamera(preview)
+                        }
+                    },
+                    onTouchEvent = { event ->
+                        gestureListener.detector.onTouchEvent(event)
+                        event.action == android.view.MotionEvent.ACTION_UP
+                    },
+                    onExit = { finishRecognizer() }
+                )
+            }
+        }
+
+        observeViewModel()
 
         if (hasCameraPermission()) {
             initializeRecognizer()
@@ -118,29 +126,47 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
         }
     }
 
-    private fun initializeRecognizer() {
-        try {
-            classifierEngine = BanknoteClassifierEngine(this)
-        } catch (_: Exception) {
-            sounds.play(SoundType.ACTION_ERROR)
-            setStatusText(getString(R.string.currency_model_error))
-            tts.runWhenReady { tts.speak(getString(R.string.currency_model_error)) }
-            return
+    private fun observeViewModel() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.events.collect { event ->
+                    if (event == null) return@collect
+                    when (event) {
+                        is CurrencyRecognizerViewModel.FrameEvent.Announce ->
+                            tts.speak(event.speech)
+                        is CurrencyRecognizerViewModel.FrameEvent.SpeakAdd ->
+                            tts.speakAdd(event.speech)
+                        CurrencyRecognizerViewModel.FrameEvent.PlayWorkingTick -> {
+                            val now = System.currentTimeMillis()
+                            if (now - lastWorkingTickAt >= WORKING_TICK_INTERVAL_MS) {
+                                lastWorkingTickAt = now
+                                scanBeepPlayer?.playWorkingTick()
+                            }
+                        }
+                        CurrencyRecognizerViewModel.FrameEvent.PlayEntryBeep ->
+                            scanBeepPlayer?.playScanStart()
+                        CurrencyRecognizerViewModel.FrameEvent.PlayError ->
+                            sounds.play(SoundType.ACTION_ERROR)
+                    }
+                    viewModel.consumeEvent()
+                }
+            }
         }
-
-        setStatusText(getString(R.string.currency_status_active))
-        tts.runWhenReady { tts.speak(getString(R.string.currency_intro)) }
-        scanning.set(true)
-        startCamera()
     }
 
-    private fun startCamera() {
+    private fun initializeRecognizer() {
+        viewModel.initialize {
+            tts.runWhenReady { tts.speak(getString(R.string.currency_intro)) }
+            scanning.set(true)
+            previewView?.let { bindCamera(it) }
+        }
+    }
+
+    private fun bindCamera(previewView: PreviewView) {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
             try {
                 val provider = providerFuture.get()
-                val previewView = findViewById<PreviewView>(R.id.currencyPreview)
-                CameraStabilityHelper.configurePreviewView(previewView)
                 val preview = CameraStabilityHelper.buildLightPreview(previewView.surfaceProvider)
                 imageAnalysis = CameraAnalysisConfig.imageAnalysisBuilder()
                     .build()
@@ -154,121 +180,21 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
                     preview,
                     imageAnalysis
                 )
-                boundCamera?.let { torchController.attach(it) }
+                boundCamera?.let { viewModel.torchController.attach(it) }
             } catch (_: Exception) {
                 sounds.play(SoundType.ACTION_ERROR)
-                setStatusText(getString(R.string.currency_camera_error))
                 tts.runWhenReady { tts.speak(getString(R.string.currency_camera_error)) }
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun setStatusText(text: String) {
-        postWhenAlive { tvStatus.text = text }
-    }
-
-    private fun onFrame(bitmap: Bitmap) {
-        val frameDecision = BanknoteFrameGate.evaluate(bitmap)
-        val torchJustOn = torchController.update(frameDecision.metrics)
-        if (torchJustOn) {
-            maybeSpeakTorchOn()
-        }
-
-        if (frameDecision.isEmptySlot) {
-            when (debouncer.onAbsentFrame()) {
-                BanknoteScanDebouncer.BillPresenceEvent.REMOVED ->
-                    setStatusText(getString(R.string.currency_status_scanning))
-                else -> Unit
-            }
-            consensusFilter.reset()
-            return
-        }
-
-        val rawResult = classifierEngine?.classify(bitmap)
-        val stableResult = consensusFilter.submit(frameDecision, rawResult)
-        if (stableResult == null) {
-            when (debouncer.onAbsentFrame()) {
-                BanknoteScanDebouncer.BillPresenceEvent.REMOVED ->
-                    setStatusText(getString(R.string.currency_status_scanning))
-                else -> Unit
-            }
-            return
-        }
-
-        when (val decision = debouncer.onDetected(stableResult)) {
-            is BanknoteScanDebouncer.ScanDecision.Announce -> {
-                if (decision.playEntryBeep) {
-                    scanBeepPlayer?.playScanStart()
-                    setStatusText(getString(R.string.currency_status_detected))
-                }
-                announceDenomination(decision.result, flush = true)
-                debouncer.markAnnounced(decision.result.denomination)
-            }
-            BanknoteScanDebouncer.ScanDecision.BillRemoved ->
-                setStatusText(getString(R.string.currency_status_scanning))
-            BanknoteScanDebouncer.ScanDecision.Ignored -> Unit
-        }
-    }
-
-    private fun maybeSpeakTorchOn() {
-        val now = System.currentTimeMillis()
-        if (now - lastTorchSpeechAt < 8000L) return
-        lastTorchSpeechAt = now
-        tts.speakAdd(getString(R.string.currency_torch_on))
-    }
-
-    private fun announceDenomination(result: BanknoteClassificationResult, flush: Boolean) {
-        val speech = result.denomination.speechHu
-        postWhenAlive {
-            setStatusText(speech)
-            if (flush) tts.speak(speech) else tts.speakAdd(speech)
-        }
-    }
-
     private fun triggerManualVerification() {
-        val engine = classifierEngine ?: return
-        val bitmap = latestBitmap.get()
-        if (bitmap == null) {
-            tts.speak(getString(R.string.currency_no_frame))
-            return
-        }
-
-        try {
-            val frameDecision = BanknoteFrameGate.evaluate(bitmap)
-            torchController.update(frameDecision.metrics)
-
-            if (frameDecision.isEmptySlot) {
-                scanBeepPlayer?.playScanStart()
-                tts.speak(getString(R.string.currency_no_banknote))
-                setStatusText(getString(R.string.currency_status_scanning))
-                return
-            }
-
-            if (frameDecision.needsMoreLight) {
-                torchController.forceOn()
-                maybeSpeakTorchOn()
-            }
-
-            val result = engine.classifyForManualCheck(bitmap)
-            if (result == null || !result.isReliableForManualCheck()) {
-                scanBeepPlayer?.playScanStart()
-                tts.speak(getString(R.string.currency_not_recognized))
-                setStatusText(getString(R.string.currency_status_scanning))
-                return
-            }
-            announceDenomination(result, flush = true)
-            debouncer.markAnnounced(result.denomination)
-        } catch (_: Exception) {
-            sounds.play(SoundType.ACTION_ERROR)
-            tts.speak(getString(R.string.currency_verify_error))
-        }
+        viewModel.manualVerify(latestBitmap.get())
     }
 
     private fun finishRecognizer() {
         scanning.set(false)
-        debouncer.reset()
-        consensusFilter.reset()
-        torchController.release()
+        viewModel.stopScanning()
         sounds.play(SoundType.SWIPE_LEFT)
         tts.speakThen(getString(R.string.currency_exit)) { finish() }
     }
@@ -280,7 +206,13 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_BACK -> {
-                onBackPressedDispatcher.onBackPressed()
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressAt < 2000L) {
+                    finishRecognizer()
+                } else {
+                    lastBackPressAt = now
+                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+                }
                 return true
             }
         }
@@ -302,7 +234,6 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
                 initializeRecognizer()
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
-                setStatusText(getString(R.string.currency_permission_denied))
                 tts.runWhenReady { tts.speak(getString(R.string.currency_permission_denied)) }
                 finish()
             }
@@ -312,13 +243,12 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
     override fun onDestroy() {
         scanning.set(false)
         mainHandler.removeCallbacksAndMessages(null)
-        torchController.release()
+        viewModel.release()
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
         boundCamera = null
+        previewView = null
         CameraStabilityHelper.shutdownExecutor(cameraExecutor)
-        classifierEngine?.close()
-        classifierEngine = null
         scanBeepPlayer?.close()
         scanBeepPlayer = null
         latestBitmap.getAndSet(null)?.recycle()
@@ -342,18 +272,13 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
             }
             lastFrameProcessedAt.set(now)
 
-            if (classifierEngine == null) {
-                imageProxy.close()
-                return
-            }
-
             try {
                 val bitmap = imageProxy.toBitmap()
                 latestBitmap.getAndSet(bitmap)?.recycle()
                 if (scanning.get()) {
-                    onFrame(bitmap)
+                    viewModel.onFrame(bitmap)
                 }
-            } catch (oom: OutOfMemoryError) {
+            } catch (_: OutOfMemoryError) {
                 latestBitmap.getAndSet(null)?.recycle()
                 System.gc()
                 postWhenAlive { handleFrameMemoryFailure() }
@@ -369,12 +294,12 @@ class CurrencyRecognizerActivity : AppCompatActivity() {
         scanning.set(false)
         imageAnalysis?.clearAnalyzer()
         sounds.play(SoundType.ACTION_ERROR)
-        setStatusText(getString(R.string.currency_memory_error))
         tts.speak(getString(R.string.currency_memory_error))
     }
 
     companion object {
         private const val REQ_CAMERA = 7104
-        private const val FRAME_INTERVAL_MS = 360L
+        private const val FRAME_INTERVAL_MS = 260L
+        private const val WORKING_TICK_INTERVAL_MS = 380L
     }
 }

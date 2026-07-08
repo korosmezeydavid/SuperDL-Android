@@ -3,6 +3,7 @@ package com.superdl.launcher.camera
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -95,6 +96,8 @@ class FaceCameraActivity : AppCompatActivity() {
     private var photoDelayRunnable: Runnable? = null
     private var videoDelayRunnable: Runnable? = null
     private var fatalFinishRunnable: Runnable? = null
+    private var lastSavedPhotoUri: Uri? = null
+    private var lastSavedPhotoName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -150,6 +153,8 @@ class FaceCameraActivity : AppCompatActivity() {
                 sounds.play(SoundType.SWIPE_DOWN)
                 if (isRecording.get()) {
                     stopVideoRecording()
+                } else if (lastSavedPhotoUri != null) {
+                    shareLastPhoto()
                 } else {
                     announceCurrentCamera()
                 }
@@ -216,6 +221,22 @@ class FaceCameraActivity : AppCompatActivity() {
             getString(R.string.face_camera_mode_back)
         }
         tts.speak(label)
+    }
+
+    private fun shareLastPhoto() {
+        val uri = lastSavedPhotoUri
+        val name = lastSavedPhotoName
+        if (uri == null || name.isNullOrBlank()) {
+            tts.speak(getString(R.string.face_camera_share_none))
+            return
+        }
+        val ok = CameraShareHelper.sharePhoto(this, uri, name)
+        if (ok) {
+            tts.speak(getString(R.string.face_camera_share_opened, name))
+        } else {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(getString(R.string.face_camera_share_error))
+        }
     }
 
     private fun switchCameraFacing() {
@@ -445,6 +466,8 @@ class FaceCameraActivity : AppCompatActivity() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     if (isFinishing || isDestroyed) return
+                    lastSavedPhotoUri = outputFileResults.savedUri
+                    lastSavedPhotoName = fileName
                     sounds.play(SoundType.SWIPE_RIGHT)
                     val message = getString(R.string.face_camera_photo_saved, fileName)
                     setStatusText(message)
@@ -507,11 +530,19 @@ class FaceCameraActivity : AppCompatActivity() {
             .build()
 
         val pendingRecording = capture.output.prepareRecording(this, mediaStoreOutput)
-        val recording = if (hasAudioPermission()) {
-            pendingRecording.withAudioEnabled()
-        } else {
-            pendingRecording
-        }.start(ContextCompat.getMainExecutor(this)) { event ->
+        val recording = (
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                try {
+                    pendingRecording.withAudioEnabled()
+                } catch (_: SecurityException) {
+                    pendingRecording
+                }
+            } else {
+                pendingRecording
+            }
+        ).start(ContextCompat.getMainExecutor(this)) { event ->
             if (isFinishing || isDestroyed) return@start
             when (event) {
                 is VideoRecordEvent.Start -> {

@@ -90,6 +90,15 @@ object GpsRouteSession {
     @Volatile
     var lastApproachThreshold: Int? = null
 
+    @Volatile
+    var lastPointIndex: Int = -1
+
+    @Volatile
+    var guidanceReversed: Boolean = false
+
+    @Volatile
+    var announcedReverseDirection: Boolean = false
+
     fun clearRecording() {
         isRecording = false
         recordingName = ""
@@ -103,5 +112,8 @@ object GpsRouteSession {
         lastLocation = null
         lastAnnouncedEventIndex = -1
         lastApproachThreshold = null
+        lastPointIndex = -1
+        guidanceReversed = false
+        announcedReverseDirection = false
     }
 }

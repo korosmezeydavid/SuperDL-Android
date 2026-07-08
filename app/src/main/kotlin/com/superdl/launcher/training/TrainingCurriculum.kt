@@ -38,7 +38,8 @@ object TrainingCurriculum {
 
         add(
             TrainingStep.Explain(
-                "További tudnivalók. A hangos asszisztens a menüből vagy az oldalsó gomb hosszú nyomásával érhető el. " +
+                "További tudnivalók. Elena a menüből vagy az oldalsó gomb hosszú nyomásával érhető el. " +
+                    "Mondd: Szia Elena, vagy Kérlek Elena. Beállítható háttérfigyelő és saját felébresztő mondat. " +
                     "A program hangjait külön a Névjegy menü Hangok betanítása pontjában hallgathatod meg. " +
                     "A diktafon induláskor csak egy rövid pittyenést ad, nem beszél bele a felvételbe."
             )

@@ -12,7 +12,8 @@ import java.net.URLEncoder
  */
 internal object YoutubeExtractor {
 
-    private const val MAX_RESULTS = 12
+    const val PAGE_SIZE = 20
+    private const val MAX_RESULTS = PAGE_SIZE
     private const val USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -28,33 +29,59 @@ internal object YoutubeExtractor {
         "https://invidious.f5.si"
     )
 
-    fun search(query: String): List<YoutubeVideo> {
+    fun search(query: String, page: Int = 0): YoutubeSearchPage {
         val trimmed = query.trim()
-        if (trimmed.isBlank()) return emptyList()
+        if (trimmed.isBlank()) return YoutubeSearchPage(emptyList(), page, false)
 
-        searchWithPiped(trimmed).takeIf { it.isNotEmpty() }?.let { return it }
-        searchWithInvidious(trimmed).takeIf { it.isNotEmpty() }?.let { return it }
-        searchWithInnerTube(trimmed).takeIf { it.isNotEmpty() }?.let { return it }
-        return searchWithHtmlScrape(trimmed)
+        searchWithPiped(trimmed, page)?.let { return it }
+        if (page == 0) {
+            searchWithInvidious(trimmed)?.takeIf { it.videos.isNotEmpty() }?.let { return it }
+            searchWithInnerTube(trimmed)?.takeIf { it.videos.isNotEmpty() }?.let { return it }
+            val html = searchWithHtmlScrape(trimmed)
+            return YoutubeSearchPage(html, 0, html.size >= PAGE_SIZE)
+        }
+        return YoutubeSearchPage(emptyList(), page, false)
     }
 
-    private fun searchWithPiped(query: String): List<YoutubeVideo> {
+    private fun searchWithPiped(query: String, page: Int): YoutubeSearchPage? {
         val encoded = URLEncoder.encode(query, "UTF-8")
         for (base in PIPED_INSTANCES) {
             try {
-                val videos = fetchPiped("$base/search?q=$encoded&filter=videos")
-                if (videos.isNotEmpty()) return videos
+                val result = fetchPipedPage("$base/search?q=$encoded&filter=videos", page)
+                if (result.videos.isNotEmpty()) return result
             } catch (_: Exception) {
                 continue
             }
         }
-        return emptyList()
+        return null
     }
 
-    private fun fetchPiped(url: String): List<YoutubeVideo> {
-        val body = httpGet(url, mapOf("User-Agent" to "SuperDL/1.8"))
-        val items = JSONObject(body).optJSONArray("items") ?: JSONArray()
-        return parsePipedItems(items)
+    private fun fetchPipedPage(baseUrl: String, page: Int): YoutubeSearchPage {
+        var url = baseUrl
+        var currentPage = 0
+        var hasMore = false
+        var videos = emptyList<YoutubeVideo>()
+        while (currentPage <= page) {
+            val body = httpGet(url, mapOf("User-Agent" to "SuperDL/1.46"))
+            val root = JSONObject(body)
+            val items = root.optJSONArray("items") ?: JSONArray()
+            hasMore = root.optString("nextpage").isNotBlank()
+            if (currentPage == page) {
+                videos = parsePipedItems(items)
+                break
+            }
+            val next = root.optString("nextpage")
+            if (next.isBlank()) {
+                hasMore = false
+                break
+            }
+            url = if (next.startsWith("http")) next else {
+                val base = baseUrl.substringBefore("/search")
+                "$base$next"
+            }
+            currentPage++
+        }
+        return YoutubeSearchPage(videos, page, hasMore)
     }
 
     private fun parsePipedItems(items: JSONArray): List<YoutubeVideo> {
@@ -78,19 +105,19 @@ internal object YoutubeExtractor {
         return videos
     }
 
-    private fun searchWithInvidious(query: String): List<YoutubeVideo> {
+    private fun searchWithInvidious(query: String): YoutubeSearchPage? {
         val encoded = URLEncoder.encode(query, "UTF-8")
         for (base in INVIDIOUS_INSTANCES) {
             try {
                 val body = httpGet("$base/api/v1/search?q=$encoded&type=video", mapOf("User-Agent" to USER_AGENT))
                 val items = JSONArray(body)
                 val videos = parseInvidiousItems(items)
-                if (videos.isNotEmpty()) return videos
+                if (videos.isNotEmpty()) return YoutubeSearchPage(videos, 0, videos.size >= PAGE_SIZE)
             } catch (_: Exception) {
                 continue
             }
         }
-        return emptyList()
+        return null
     }
 
     private fun parseInvidiousItems(items: JSONArray): List<YoutubeVideo> {
@@ -115,7 +142,7 @@ internal object YoutubeExtractor {
         return videos
     }
 
-    private fun searchWithInnerTube(query: String): List<YoutubeVideo> {
+    private fun searchWithInnerTube(query: String): YoutubeSearchPage? {
         val payload = JSONObject().apply {
             put("context", innerTubeContext())
             put("query", query)
@@ -132,7 +159,8 @@ internal object YoutubeExtractor {
                 "Referer" to "https://www.youtube.com/"
             )
         )
-        return extractVideosFromJson(JSONObject(body))
+        val videos = extractVideosFromJson(JSONObject(body))
+        return YoutubeSearchPage(videos, 0, videos.size >= PAGE_SIZE)
     }
 
     private fun innerTubeContext(): JSONObject = JSONObject().apply {
@@ -310,8 +338,14 @@ internal object YoutubeExtractor {
     }
 
     private fun readHttpBody(connection: HttpURLConnection): String {
-        val code = connection.responseCode
-        if (code !in 200..299) throw IllegalStateException("HTTP $code")
-        return connection.inputStream.bufferedReader().readText()
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) throw IllegalStateException("HTTP $code")
+            return connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            runCatching { connection.inputStream?.close() }
+            runCatching { connection.errorStream?.close() }
+            runCatching { connection.disconnect() }
+        }
     }
 }

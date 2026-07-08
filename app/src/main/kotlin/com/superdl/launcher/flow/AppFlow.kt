@@ -3,6 +3,7 @@ package com.superdl.launcher.flow
 import com.superdl.launcher.alarm.AlarmEntry
 import com.superdl.launcher.contacts.ContactMatch
 import com.superdl.launcher.sms.Recipient
+import com.superdl.launcher.sms.SmsFolder
 import com.superdl.launcher.sms.SmsMessage
 
 sealed class AppFlow {
@@ -14,18 +15,24 @@ sealed class AppFlow {
     data class SmsAwaitMessage(val recipient: Recipient) : AppFlow()
     data class SmsConfirm(val recipient: Recipient, val message: String) : AppFlow()
 
-    data class SmsInbox(val messages: List<SmsMessage>, val index: Int) : AppFlow()
+    data class SmsInbox(
+        val messages: List<SmsMessage>,
+        val index: Int,
+        val folder: SmsFolder = SmsFolder.INBOX
+    ) : AppFlow()
 
     data class SmsContextMenu(
         val messages: List<SmsMessage>,
         val messageIndex: Int,
         val actions: List<com.superdl.launcher.sms.SmsContextAction>,
-        val actionIndex: Int
+        val actionIndex: Int,
+        val folder: SmsFolder = SmsFolder.INBOX
     ) : AppFlow()
 
     data class SmsDeleteConfirm(
         val messages: List<SmsMessage>,
-        val messageIndex: Int
+        val messageIndex: Int,
+        val folder: SmsFolder = SmsFolder.INBOX
     ) : AppFlow()
 
     object EmailAwaitRecipient : AppFlow()
@@ -42,6 +49,27 @@ sealed class AppFlow {
 
     data class CallPickContact(val matches: List<ContactMatch>, val index: Int) : AppFlow()
     data class CallConfirm(val contact: ContactMatch) : AppFlow()
+
+    data class ContactBookBrowse(
+        val items: List<com.superdl.launcher.contacts.ContactBookItem>,
+        val index: Int
+    ) : AppFlow()
+
+    data class ContactContextMenu(
+        val items: List<com.superdl.launcher.contacts.ContactBookItem>,
+        val contactIndex: Int,
+        val actions: List<com.superdl.launcher.contacts.ContactContextAction>,
+        val actionIndex: Int
+    ) : AppFlow()
+
+    data class ContactEditAwaitName(val contact: ContactMatch) : AppFlow()
+    data class ContactEditAwaitPhone(val contact: ContactMatch, val newName: String) : AppFlow()
+
+    data class ContactDeleteConfirm(
+        val contact: ContactMatch,
+        val items: List<com.superdl.launcher.contacts.ContactBookItem>,
+        val index: Int
+    ) : AppFlow()
 
     data class SosCountdown(val secondsLeft: Int) : AppFlow()
 
@@ -273,14 +301,47 @@ sealed class AppFlow {
     data class NewsBrowse(
         val items: List<com.superdl.launcher.news.RssItem>,
         val index: Int,
-        val feedId: String? = null
+        val feedId: String? = null,
+        val page: Int = 0,
+        val hasMore: Boolean = false
     ) : AppFlow()
+    data class NewsFeedManageBrowse(
+        val feeds: List<com.superdl.launcher.news.NewsFeed>,
+        val index: Int
+    ) : AppFlow()
+    data class GpsArrivalLocationPrompt(
+        val destinationName: String,
+        val index: Int = 0
+    ) : AppFlow() {
+        companion object {
+            val OPTIONS = listOf(
+                "Helyszín figyelő bekapcsolása",
+                "Új helyszín tanítása",
+                "Nem kell most"
+            )
+        }
+    }
     object TransitAwaitStop : AppFlow()
     object TransitAwaitDestination : AppFlow()
     object NavAwaitWalkDestination : AppFlow()
     object NavAwaitPlaceQuery : AppFlow()
     data class NavPlaceBrowse(val places: List<com.superdl.launcher.navigation.NavPlace>, val index: Int) : AppFlow()
-    data class TransitBrowse(val places: List<com.superdl.launcher.transit.TransitPlace>, val index: Int) : AppFlow()
+    data class TransitBrowse(
+        val places: List<com.superdl.launcher.transit.TransitPlace>,
+        val index: Int,
+        val title: String = "Megállók",
+        val radiusMode: com.superdl.launcher.transit.TransitHelper.StopRadiusMode =
+            com.superdl.launcher.transit.TransitHelper.StopRadiusMode.NEAR
+    ) : AppFlow()
+    data class TransitContextMenu(
+        val places: List<com.superdl.launcher.transit.TransitPlace>,
+        val placeIndex: Int,
+        val actions: List<com.superdl.launcher.transit.TransitContextAction>,
+        val actionIndex: Int,
+        val title: String = "Megállók",
+        val radiusMode: com.superdl.launcher.transit.TransitHelper.StopRadiusMode =
+            com.superdl.launcher.transit.TransitHelper.StopRadiusMode.NEAR
+    ) : AppFlow()
     data class TransitRouteBrowse(
         val route: com.superdl.launcher.transit.TransitRoute,
         val index: Int
@@ -288,9 +349,16 @@ sealed class AppFlow {
 
     object VoiceAssistantAwaitQuestion : AppFlow()
     object VoiceAssistantChat : AppFlow()
+    object ElenaWakeTrainAwaitPhrase : AppFlow()
 
     object YoutubeAwaitQuery : AppFlow()
-    data class YoutubeBrowse(val videos: List<com.superdl.launcher.youtube.YoutubeVideo>, val index: Int) : AppFlow()
+    data class YoutubeBrowse(
+        val videos: List<com.superdl.launcher.youtube.YoutubeVideo>,
+        val index: Int,
+        val query: String = "",
+        val page: Int = 0,
+        val hasMore: Boolean = false
+    ) : AppFlow()
     data class YoutubePlayConfirm(
         val video: com.superdl.launcher.youtube.YoutubeVideo,
         val videos: List<com.superdl.launcher.youtube.YoutubeVideo>,
@@ -352,6 +420,11 @@ sealed class AppFlow {
     data class AlertSoundPresetBrowse(
         val category: com.superdl.launcher.feedback.AlertSoundCategory,
         val presets: List<com.superdl.launcher.feedback.AlertSoundPreset>,
+        val index: Int
+    ) : AppFlow()
+
+    data class SoundThemeBrowse(
+        val themes: List<com.superdl.launcher.feedback.SoundTheme>,
         val index: Int
     ) : AppFlow()
 
@@ -531,6 +604,8 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+
+
     data class DictaphoneRecordingsBrowse(
         val recordings: List<com.superdl.launcher.dictaphone.DictaphoneRecordingEntry>,
         val index: Int
@@ -627,6 +702,33 @@ sealed class AppFlow {
         val profiles: List<com.superdl.launcher.locationwatch.LocationProfile>,
         val index: Int,
         val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    data class LocationProfileActions(
+        val profile: com.superdl.launcher.locationwatch.LocationProfile,
+        val profiles: List<com.superdl.launcher.locationwatch.LocationProfile>,
+        val profileIndex: Int,
+        val actionIndex: Int = 0
+    ) : AppFlow() {
+        companion object {
+            val OPTIONS = listOf(
+                "Figyelő indítása",
+                "Fotók bővítése",
+                "Fotók törlése"
+            )
+        }
+    }
+
+    data class CardBrowse(
+        val cards: List<com.superdl.launcher.cardorganizer.CardProfile>,
+        val index: Int,
+        val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    data class CardDeleteConfirm(
+        val card: com.superdl.launcher.cardorganizer.CardProfile,
+        val cards: List<com.superdl.launcher.cardorganizer.CardProfile>,
+        val index: Int
     ) : AppFlow()
 
     data class LocationProfileDeleteConfirm(

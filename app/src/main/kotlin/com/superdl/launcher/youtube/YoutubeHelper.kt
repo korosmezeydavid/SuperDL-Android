@@ -4,27 +4,40 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.atomic.AtomicInteger
 
 object YoutubeHelper {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     fun search(
         query: String,
-        onResult: (List<YoutubeVideo>) -> Unit,
+        page: Int = 0,
+        onResult: (YoutubeSearchPage) -> Unit,
         onError: (String) -> Unit
-    ) {
-        Thread {
+    ): () -> Unit {
+        val generation = AtomicInteger(0)
+        val token = generation.incrementAndGet()
+        val worker = Thread({
             try {
-                val videos = YoutubeExtractor.search(query)
-                Handler(Looper.getMainLooper()).post {
-                    if (videos.isEmpty()) onError("Nincs találat: $query")
-                    else onResult(videos)
+                val result = YoutubeExtractor.search(query, page)
+                mainHandler.post {
+                    if (generation.get() != token) return@post
+                    if (result.videos.isEmpty()) onError("Nincs találat: $query")
+                    else onResult(result)
                 }
             } catch (_: Exception) {
-                Handler(Looper.getMainLooper()).post {
+                mainHandler.post {
+                    if (generation.get() != token) return@post
                     onError("YouTube keresés sikertelen. Ellenőrizd az internetkapcsolatot.")
                 }
             }
-        }.start()
+        }, "SuperDL-YoutubeSearch")
+        worker.start()
+        return {
+            generation.incrementAndGet()
+            worker.interrupt()
+        }
     }
 
     fun playVideo(context: Context, video: YoutubeVideo): Boolean {

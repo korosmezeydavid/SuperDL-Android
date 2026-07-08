@@ -13,9 +13,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 class DictaphoneRecorder(
-    private val context: Context,
+    context: Context,
     private val config: DictaphoneConfig
 ) {
+    private val appContext = context.applicationContext
     private var audioRecord: AudioRecord? = null
     private var effects: DictaphoneAudioEffects? = null
     private var recordingThread: Thread? = null
@@ -32,7 +33,7 @@ class DictaphoneRecorder(
 
     fun start(outputFile: File): Boolean {
         DictaphoneStore.lastError = null
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
             DictaphoneStore.setError("Mikrofon engedély hiányzik.")
@@ -60,7 +61,7 @@ class DictaphoneRecorder(
             return false
         }
 
-        pcmTempFile = File(context.cacheDir, "dictaphone_${System.currentTimeMillis()}.pcm")
+        pcmTempFile = File(appContext.cacheDir, "dictaphone_${System.currentTimeMillis()}.pcm")
         outputStream = try {
             FileOutputStream(pcmTempFile)
         } catch (e: IOException) {

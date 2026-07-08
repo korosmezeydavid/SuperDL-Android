@@ -9,6 +9,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
@@ -23,7 +24,10 @@ class GpsRouteGuideService : Service() {
         private const val UPDATE_INTERVAL_MS = 2_000L
     }
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val workerThread = HandlerThread("SuperDL-RouteGuide").apply { start() }
+    private val workerHandler = Handler(workerThread.looper)
+
     private var locationListener: LocationListener? = null
     private var announcedStart = false
 
@@ -34,7 +38,7 @@ class GpsRouteGuideService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         locationListener = GpsLocationHelper.requestUpdates(this, UPDATE_INTERVAL_MS) { location ->
-            onLocationUpdate(location)
+            workerHandler.post { onLocationUpdate(location) }
         }
     }
 
@@ -56,8 +60,11 @@ class GpsRouteGuideService : Service() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
+        workerHandler.removeCallbacksAndMessages(null)
         GpsLocationHelper.removeUpdates(this, locationListener)
         locationListener = null
+        workerThread.quitSafely()
         super.onDestroy()
     }
 
@@ -65,7 +72,9 @@ class GpsRouteGuideService : Service() {
         val route = GpsRouteSession.activeRoute ?: return
         GpsRouteSession.lastLocation = location
 
-        val match = GpsRouteMatcher.match(route, location.latitude, location.longitude)
+        updateGuidanceDirection(route, location.latitude, location.longitude)
+        val reversed = GpsRouteSession.guidanceReversed
+        val match = GpsRouteMatcher.match(route, location.latitude, location.longitude, reversed)
         val nextEvent = match.nextEvent ?: run {
             checkRouteCompletion(route, match)
             return
@@ -79,7 +88,7 @@ class GpsRouteGuideService : Service() {
                 val last = GpsRouteSession.lastApproachThreshold
                 if (last == null || last > threshold) {
                     GpsRouteSession.lastApproachThreshold = threshold
-                    val message = buildApproachMessage(nextEvent, threshold)
+                    val message = buildApproachMessage(nextEvent, threshold, reversed)
                     PatrolAnnouncer.announce(this, message, withBeep = threshold <= 20)
                     if (threshold <= 10) {
                         GpsRouteSession.lastAnnouncedEventIndex = match.nextEventIndex
@@ -90,36 +99,87 @@ class GpsRouteGuideService : Service() {
             }
         }
 
-        handler.post {
-            updateNotification(route.name, nextEvent, distance)
+        mainHandler.post {
+            updateNotification(route.name, nextEvent, distance, reversed)
         }
+    }
+
+    private fun updateGuidanceDirection(route: GpsRouteRecording, latitude: Double, longitude: Double) {
+        val forwardMatch = GpsRouteMatcher.match(route, latitude, longitude, reversed = false)
+        val previousIndex = GpsRouteSession.lastPointIndex
+        val currentIndex = forwardMatch.pointIndex
+        if (previousIndex >= 0 && currentIndex >= 0) {
+            val delta = currentIndex - previousIndex
+            when {
+                delta <= -2 -> {
+                    if (!GpsRouteSession.guidanceReversed) {
+                        GpsRouteSession.guidanceReversed = true
+                        GpsRouteSession.lastAnnouncedEventIndex = -1
+                        GpsRouteSession.lastApproachThreshold = null
+                        if (!GpsRouteSession.announcedReverseDirection) {
+                            GpsRouteSession.announcedReverseDirection = true
+                            PatrolAnnouncer.announce(
+                                this,
+                                "Visszafelé haladsz az útvonalon.",
+                                withBeep = true
+                            )
+                        }
+                    }
+                }
+                delta >= 2 -> {
+                    if (GpsRouteSession.guidanceReversed) {
+                        GpsRouteSession.guidanceReversed = false
+                        GpsRouteSession.lastAnnouncedEventIndex = -1
+                        GpsRouteSession.lastApproachThreshold = null
+                        GpsRouteSession.announcedReverseDirection = false
+                        PatrolAnnouncer.announce(
+                            this,
+                            "Előrefelé haladsz az útvonalon.",
+                            withBeep = false
+                        )
+                    }
+                }
+            }
+        }
+        GpsRouteSession.lastPointIndex = currentIndex
     }
 
     private fun checkRouteCompletion(route: GpsRouteRecording, match: RouteMatch) {
         if (route.points.isEmpty()) return
         val distanceToEnd = match.distanceToRouteM
-        if (match.pointIndex >= route.points.lastIndex - 1 && distanceToEnd <= 15) {
-            PatrolAnnouncer.announce(this, "Útvonal vége elérve.", withBeep = true)
+        val reachedEnd = if (match.reversed) {
+            match.pointIndex <= 1 && distanceToEnd <= 15
+        } else {
+            match.pointIndex >= route.points.lastIndex - 1 && distanceToEnd <= 15
+        }
+        if (reachedEnd) {
+            val message = if (match.reversed) {
+                "Az útvonal kezdete elérve."
+            } else {
+                "Útvonal vége elérve."
+            }
+            PatrolAnnouncer.announce(this, message, withBeep = true)
             GpsRouteStore.stopGuidance(this)
-            stopSelf()
+            mainHandler.post { stopSelf() }
         }
     }
 
-    private fun buildApproachMessage(event: RouteEvent, thresholdM: Int): String {
+    private fun buildApproachMessage(event: RouteEvent, thresholdM: Int, reversed: Boolean): String {
         val action = when (event.type) {
-            RouteEventType.TURN_LEFT -> "fordulj balra"
-            RouteEventType.TURN_RIGHT -> "fordulj jobbra"
+            RouteEventType.TURN_LEFT -> if (reversed) "fordulj jobbra" else "fordulj balra"
+            RouteEventType.TURN_RIGHT -> if (reversed) "fordulj balra" else "fordulj jobbra"
             RouteEventType.TURN_SLIGHT -> "enyhe kanyar"
             RouteEventType.U_TURN -> "fordulj vissza"
             RouteEventType.CROSSING -> "kereszteződés"
             RouteEventType.WAYPOINT -> event.label ?: "út pont"
-            RouteEventType.START -> "indulás"
-            RouteEventType.STOP -> "megállás"
+            RouteEventType.START -> if (reversed) "megállás" else "indulás"
+            RouteEventType.STOP -> if (reversed) "indulás" else "megállás"
         }
+        val prefix = if (reversed) "Visszafelé: " else ""
         return when (thresholdM) {
-            50 -> "50 méter múlva $action."
-            20 -> "20 méter múlva $action."
-            else -> "Most $action."
+            50 -> "${prefix}50 méter múlva $action."
+            20 -> "${prefix}20 méter múlva $action."
+            else -> "${prefix}Most $action."
         }
     }
 
@@ -147,20 +207,26 @@ class GpsRouteGuideService : Service() {
             .build()
     }
 
-    private fun updateNotification(routeName: String, nextEvent: RouteEvent, distanceM: Int) {
+    private fun updateNotification(
+        routeName: String,
+        nextEvent: RouteEvent,
+        distanceM: Int,
+        reversed: Boolean
+    ) {
         val label = when (nextEvent.type) {
-            RouteEventType.TURN_LEFT -> "balra"
-            RouteEventType.TURN_RIGHT -> "jobbra"
+            RouteEventType.TURN_LEFT -> if (reversed) "jobbra" else "balra"
+            RouteEventType.TURN_RIGHT -> if (reversed) "balra" else "jobbra"
             RouteEventType.TURN_SLIGHT -> "enyhe kanyar"
             RouteEventType.U_TURN -> "visszafordulás"
             RouteEventType.CROSSING -> "kereszteződés"
             RouteEventType.WAYPOINT -> nextEvent.label ?: "út pont"
-            RouteEventType.START -> "indulás"
-            RouteEventType.STOP -> "megállás"
+            RouteEventType.START -> if (reversed) "megállás" else "indulás"
+            RouteEventType.STOP -> if (reversed) "indulás" else "megállás"
         }
+        val direction = if (reversed) "vissza • " else ""
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("GPS Útvonal követés")
-            .setContentText("$routeName • $distanceM m • $label")
+            .setContentText("$routeName • $direction$distanceM m • $label")
             .setSmallIcon(android.R.drawable.ic_menu_directions)
             .setOngoing(true)
             .setSilent(true)

@@ -70,7 +70,7 @@ object AssistantRoleHelper {
     fun speakStatus(context: Context): String = when {
         isVoiceInteractionActive(context) ->
             "A Super DL be van állítva és aktív alapértelmezett digitális asszisztensként. " +
-                "Az oldalsó gomb hosszú nyomására a hangos asszisztens indul."
+                "Az oldalsó gomb hosszú nyomására Elena indul."
 
         needsActivation(context) ->
             "A Super DL ki van választva asszisztensnek, de a rendszer még nem aktiválta. " +
@@ -78,7 +78,7 @@ object AssistantRoleHelper {
 
         isAssistantRoleHeld(context) ->
             "A Super DL be van állítva alapértelmezett digitális asszisztensként. " +
-                "Az oldalsó gomb hosszú nyomására a hangos asszisztens indul."
+                "Az oldalsó gomb hosszú nyomására Elena indul."
 
         else ->
             "A Super DL még nincs beállítva alapértelmezett asszisztensként. " +
@@ -92,7 +92,7 @@ object AssistantRoleHelper {
                 "A menüben válaszd: Asszisztens, Alapértelmezett asszisztens beállítása. " +
                 "A rendszer kérése után válaszd a Super DL-t. " +
                 "Ezután az oldalsó bekapcsoló gomb hosszú nyomására, " +
-                "vagy a rendszer asszisztens gombjára a Super DL hangos asszisztense indul."
+                "vagy a rendszer asszisztens gombjára Elena indul."
         ),
         PermissionGuideSection(
             "Alapértelmezett asszisztens – kézi beállítás",
@@ -108,7 +108,7 @@ object AssistantRoleHelper {
                 "Ezután ellenőrizd az Asszisztens állapota menüpontot."
         ),
         PermissionGuideSection(
-            "Hangos asszisztens engedély",
+            "Elena engedély",
             "Az asszisztens mikrofont használ. Engedélyezd a mikrofon hozzáférést a Super DL-nek: " +
                 "Beállítások, Alkalmazások, Super DL, Engedélyek, Mikrofon."
         )

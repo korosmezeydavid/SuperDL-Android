@@ -19,6 +19,7 @@ import com.superdl.launcher.contacts.ContactHelper
 import com.superdl.launcher.feedback.SoundFeedback
 import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.gestures.SwipeGestureListener
+import com.superdl.launcher.system.QuietModeHelper
 import com.superdl.launcher.tts.TtsManager
 
 class IncomingCallActivity : AppCompatActivity() {
@@ -37,6 +38,10 @@ class IncomingCallActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (QuietModeHelper.shouldSuppressIncomingCalls(this)) {
+            finish()
+            return
+        }
         applyLockScreenFlags()
         setContentView(R.layout.activity_in_call)
         applyImmersive()
@@ -97,6 +102,7 @@ class IncomingCallActivity : AppCompatActivity() {
     private fun acceptCall() {
         if (handled) return
         handled = true
+        IncomingCallRinger.stop(applicationContext)
         if (CallHelper.acceptIncomingCall(this)) {
             sounds.play(SoundType.ACTION_OK)
             val phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
@@ -116,6 +122,7 @@ class IncomingCallActivity : AppCompatActivity() {
     private fun rejectCall() {
         if (handled) return
         handled = true
+        IncomingCallRinger.stop(applicationContext)
         if (CallHelper.rejectIncomingCall(this)) {
             tts.speakThen("Hívás elutasítva.") { finish() }
         } else {
@@ -202,6 +209,7 @@ class IncomingCallActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         IncomingCallState.isShowing = false
+        IncomingCallRinger.stop(applicationContext)
         dismissReceiver?.let { unregisterReceiver(it) }
         dismissReceiver = null
         unregisterPhoneListener()

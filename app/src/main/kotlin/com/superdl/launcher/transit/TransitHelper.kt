@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.superdl.launcher.gps.GpsRadarMath
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -17,13 +18,26 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 object TransitHelper {
 
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "SuperDL-TransitIO")
+    }
+
     private const val BKK_BASE = "https://futar.bkk.hu/api/query/v1/ws/otp/api/where"
     private const val BKK_KEY = "bkk-web"
-    private const val BKK_RADIUS = 450
+    private const val BKK_RADIUS_NEAR = 450
+    private const val BKK_RADIUS_EXTENDED = 2500
+    private const val OSM_RADIUS_NEAR = 500
+    private const val OSM_RADIUS_EXTENDED = 2000
+
+    enum class StopRadiusMode(val label: String, val bkkRadius: Int, val osmRadius: Int) {
+        NEAR("Legközelebbi megállók", BKK_RADIUS_NEAR, OSM_RADIUS_NEAR),
+        EXTENDED("Távolabbi megállók is", BKK_RADIUS_EXTENDED, OSM_RADIUS_EXTENDED)
+    }
     private const val BUDAPEST_MIN_LAT = 47.30
     private const val BUDAPEST_MAX_LAT = 47.62
     private const val BUDAPEST_MIN_LON = 18.90
@@ -32,7 +46,9 @@ object TransitHelper {
     fun fetchNearbyStops(
         context: Context,
         onResult: (List<TransitPlace>) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        radiusMode: StopRadiusMode = StopRadiusMode.NEAR,
+        headingDegrees: Float = 0f
     ) {
         val location = getLastLocation(context)
             ?: run {
@@ -40,14 +56,58 @@ object TransitHelper {
                 return
             }
         runAsync(onError, {
-            if (isInBudapest(location)) {
-                fetchBkkNearby(location).ifEmpty { OsmHelper.nearbyStops(location.latitude, location.longitude) }
+            val raw = if (isInBudapest(location)) {
+                fetchBkkNearby(location, radiusMode.bkkRadius)
+                    .ifEmpty { OsmHelper.nearbyStops(location.latitude, location.longitude, radiusMode.osmRadius, 12) }
             } else {
-                OsmHelper.nearbyStops(location.latitude, location.longitude)
+                OsmHelper.nearbyStops(location.latitude, location.longitude, radiusMode.osmRadius, 12)
             }
+            enrichPlaces(context, raw, location, headingDegrees)
         }) { places ->
-            if (places.isEmpty()) onError("Nem találtam közeli megállót.")
+            if (places.isEmpty()) onError("Nem találtam megállót a ${radiusMode.label.lowercase()} körzetben.")
             else onResult(places)
+        }
+    }
+
+    fun fetchFavoriteStops(
+        context: Context,
+        onResult: (List<TransitPlace>) -> Unit,
+        onError: (String) -> Unit,
+        headingDegrees: Float = 0f
+    ) {
+        val favorites = TransitStopStore.getAll(context)
+        if (favorites.isEmpty()) {
+            onError("Nincs mentett kedvenc megálló. A megálló listában jobbra műveletek, majd mentés.")
+            return
+        }
+        val location = getLastLocation(context)
+        runAsync(onError, {
+            val places = favorites.map { favorite ->
+                val distance = if (location != null && favorite.latitude != null && favorite.longitude != null) {
+                    dist(location, favorite.latitude, favorite.longitude)
+                } else null
+                TransitPlace(
+                    name = favorite.name,
+                    address = favorite.address,
+                    distanceMeters = distance,
+                    latitude = favorite.latitude,
+                    longitude = favorite.longitude,
+                    stopId = favorite.stopId,
+                    isFavorite = true
+                )
+            }.sortedBy { it.distanceMeters ?: Int.MAX_VALUE }
+            val enriched = enrichPlaces(context, places, location, headingDegrees)
+            if (location != null && isInBudapest(location)) {
+                enriched.map { place ->
+                    if (place.nextDepartures.isNotEmpty()) place
+                    else refreshDeparturesForStop(location, place) ?: place
+                }
+            } else {
+                enriched
+            }
+        }) { result ->
+            if (result.isEmpty()) onError("Nem sikerült betölteni a kedvenc megállókat.")
+            else onResult(result)
         }
     }
 
@@ -55,7 +115,8 @@ object TransitHelper {
         context: Context,
         stopName: String,
         onResult: (List<TransitPlace>) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        headingDegrees: Float = 0f
     ) {
         val trimmed = stopName.trim()
         if (trimmed.isBlank()) {
@@ -63,28 +124,34 @@ object TransitHelper {
             return
         }
         val location = getLastLocation(context)
+        val normalizedQuery = normalizeStopQuery(trimmed)
         runAsync(onError, {
-            val geocoded = OsmHelper.geocode("$trimmed megálló")
-                .ifEmpty { OsmHelper.geocode(trimmed) }
-            val places = geocoded.map { geo ->
-                val distance = location?.let { dist(it, geo.lat, geo.lon) }
-                TransitPlace(
-                    name = geo.shortName,
-                    address = geo.fullName,
-                    distanceMeters = distance
-                )
-            }.distinctBy { it.name }
-
-            if (places.isNotEmpty()) places
-            else if (location != null && isInBudapest(location)) {
-                fetchBkkStopsForLocation(location)
-                    .filter { it.name.contains(trimmed, ignoreCase = true) || trimmed.contains(it.name, ignoreCase = true) }
+            val bkkMatches = if (location != null && isInBudapest(location)) {
+                fetchBkkStopsForLocation(location, BKK_RADIUS_EXTENDED)
+                    .filter { matchesStopQuery(it.name, normalizedQuery) }
             } else {
                 emptyList()
             }
+            if (bkkMatches.isNotEmpty()) {
+                enrichPlaces(context, bkkMatches, location, headingDegrees)
+            } else {
+                val geocoded = OsmHelper.geocode("$trimmed megálló")
+                    .ifEmpty { OsmHelper.geocode(trimmed) }
+                val places = geocoded.map { geo ->
+                    val distance = location?.let { dist(it, geo.lat, geo.lon) }
+                    TransitPlace(
+                        name = geo.shortName,
+                        address = geo.fullName,
+                        distanceMeters = distance,
+                        latitude = geo.lat,
+                        longitude = geo.lon
+                    )
+                }.distinctBy { it.name }
+                enrichPlaces(context, places, location, headingDegrees)
+            }
         }) { result ->
             if (result.isEmpty()) onError("Nem találtam megállót: $trimmed.")
-            else onResult(result)
+            else onResult(result.sortedBy { it.distanceMeters ?: Int.MAX_VALUE })
         }
     }
 
@@ -119,14 +186,14 @@ object TransitHelper {
         }
     }
 
-    private fun fetchBkkNearby(location: Location): List<TransitPlace> {
+    private fun fetchBkkNearby(location: Location, radius: Int): List<TransitPlace> {
         val url = bkkUrl(
             "arrivals-and-departures-for-location",
             "lat=${location.latitude}",
             "lon=${location.longitude}",
-            "radius=$BKK_RADIUS",
-            "limit=12",
-            "minutesAfter=40",
+            "radius=$radius",
+            "limit=16",
+            "minutesAfter=45",
             "includeReferences=true"
         )
         val json = JSONObject(fetchText(url))
@@ -134,9 +201,12 @@ object TransitHelper {
         val references = data.optJSONObject("references") ?: JSONObject()
         val stopsRef = references.optJSONObject("stops") ?: JSONObject()
         val routesRef = references.optJSONObject("routes") ?: JSONObject()
+        val vehiclesRef = references.optJSONObject("vehicles") ?: JSONObject()
         val list = data.optJSONArray("list") ?: JSONArray()
 
         val stopDepartures = linkedMapOf<String, MutableList<String>>()
+        val stopLines = linkedMapOf<String, LinkedHashSet<String>>()
+        val stopVehicleApproach = linkedMapOf<String, String>()
         val stopIds = linkedSetOf<String>()
 
         for (i in 0 until list.length()) {
@@ -152,6 +222,9 @@ object TransitHelper {
                 val stopId = stopTime.optString("stopId")
                 if (stopId.isBlank()) continue
                 stopIds.add(stopId)
+                if (routeName.isNotBlank()) {
+                    stopLines.getOrPut(stopId) { linkedSetOf() }.add(routeName)
+                }
                 val departure = stopTime.optLong("predictedDepartureTime")
                     .takeIf { it > 0 } ?: stopTime.optLong("departureTime")
                 val depText = formatDeparture(departure)
@@ -162,6 +235,11 @@ object TransitHelper {
                     append(", $depText")
                 }.trim()
                 stopDepartures.getOrPut(stopId) { mutableListOf() }.add(line)
+                val vehicleId = stopTime.optString("vehicleId")
+                if (vehicleId.isNotBlank() && stopId !in stopVehicleApproach) {
+                    formatVehicleApproach(vehiclesRef.optJSONObject(vehicleId), vehicle, routeName)
+                        ?.let { stopVehicleApproach[stopId] = it }
+                }
             }
         }
 
@@ -174,19 +252,25 @@ object TransitHelper {
                 name = name,
                 address = stop.optString("localityName").ifBlank { "BKK" },
                 distanceMeters = dist(location, lat, lon),
-                nextDepartures = stopDepartures[stopId]?.distinct()?.take(3).orEmpty()
+                nextDepartures = stopDepartures[stopId]?.distinct()?.take(4).orEmpty(),
+                latitude = lat,
+                longitude = lon,
+                stopId = stopId,
+                routeLines = stopLines[stopId]?.toList().orEmpty(),
+                vehicleApproach = stopVehicleApproach[stopId],
+                wheelchairAccessible = parseWheelchair(stop)
             )
         }.sortedBy { it.distanceMeters ?: Int.MAX_VALUE }
-            .distinctBy { it.name }
-            .take(8)
+            .distinctBy { it.stopId ?: it.name }
+            .take(12)
     }
 
-    private fun fetchBkkStopsForLocation(location: Location): List<TransitPlace> {
+    private fun fetchBkkStopsForLocation(location: Location, radius: Int): List<TransitPlace> {
         val url = bkkUrl(
             "stops-for-location",
             "lat=${location.latitude}",
             "lon=${location.longitude}",
-            "radius=2500",
+            "radius=$radius",
             "includeReferences=false"
         )
         val json = JSONObject(fetchText(url))
@@ -196,15 +280,95 @@ object TransitHelper {
             val stop = list.optJSONObject(i) ?: continue
             val name = stop.optString("name")
             if (name.isBlank()) continue
+            val lat = stop.optDouble("lat")
+            val lon = stop.optDouble("lon")
             places.add(
                 TransitPlace(
                     name = name,
                     address = stop.optString("localityName").ifBlank { "BKK" },
-                    distanceMeters = dist(location, stop.optDouble("lat"), stop.optDouble("lon"))
+                    distanceMeters = dist(location, lat, lon),
+                    latitude = lat,
+                    longitude = lon,
+                    stopId = stop.optString("id").ifBlank { stop.optString("stopId") }.ifBlank { null },
+                    wheelchairAccessible = parseWheelchair(stop)
                 )
             )
         }
-        return places.distinctBy { it.name }.sortedBy { it.distanceMeters ?: Int.MAX_VALUE }
+        return places.distinctBy { it.stopId ?: it.name }.sortedBy { it.distanceMeters ?: Int.MAX_VALUE }
+    }
+
+    private fun refreshDeparturesForStop(location: Location, place: TransitPlace): TransitPlace? {
+        if (place.latitude == null || place.longitude == null) return null
+        val nearby = fetchBkkNearby(
+            Location("").apply {
+                latitude = place.latitude
+                longitude = place.longitude
+            },
+            radius = 80
+        )
+        return nearby.firstOrNull { it.stopId == place.stopId || it.name == place.name }
+    }
+
+    private fun enrichPlaces(
+        context: Context,
+        places: List<TransitPlace>,
+        location: Location?,
+        headingDegrees: Float
+    ): List<TransitPlace> = places.map { place ->
+        val distance = if (location != null && place.latitude != null && place.longitude != null) {
+            dist(location, place.latitude, place.longitude)
+        } else {
+            place.distanceMeters
+        }
+        val clockDirection = if (location != null && place.latitude != null && place.longitude != null) {
+            val bearing = GpsRadarMath.bearingDegrees(
+                location.latitude, location.longitude, place.latitude, place.longitude
+            )
+            GpsRadarMath.clockDirection(GpsRadarMath.relativeBearing(bearing, headingDegrees))
+        } else {
+            place.clockDirection
+        }
+        place.copy(
+            distanceMeters = distance,
+            clockDirection = clockDirection,
+            isFavorite = TransitStopStore.isFavorite(context, place.name, place.stopId)
+        )
+    }
+
+    private fun formatVehicleApproach(vehicle: JSONObject?, vehicleType: String, line: String): String? {
+        vehicle ?: return null
+        val status = vehicle.optString("status")
+        val statusText = when (status.uppercase(Locale.ROOT)) {
+            "IN_TRANSIT_TO" -> "úton a megálló felé"
+            "STOPPED_AT" -> "a megállóban"
+            else -> "közeledik"
+        }
+        return buildString {
+            if (vehicleType.isNotBlank()) append("$vehicleType ")
+            if (line.isNotBlank()) append("$line ")
+            append(statusText)
+        }.trim().ifBlank { null }
+    }
+
+    private fun parseWheelchair(stop: JSONObject): Boolean? = when (stop.optString("wheelchairBoarding")) {
+        "true", "1", "yes" -> true
+        "false", "0", "no" -> false
+        else -> null
+    }
+
+    private fun normalizeStopQuery(query: String): String =
+        query.lowercase()
+            .replace("utca", "")
+            .replace("út", "")
+            .replace("tér", "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun matchesStopQuery(stopName: String, normalizedQuery: String): Boolean {
+        val normalizedStop = normalizeStopQuery(stopName)
+        return normalizedStop.contains(normalizedQuery) ||
+            normalizedQuery.contains(normalizedStop) ||
+            normalizedStop.split(" ").any { it.startsWith(normalizedQuery) || normalizedQuery.startsWith(it) }
     }
 
     private fun fetchBkkRoute(origin: Location, target: GeoPlace): TransitRoute? {
@@ -322,14 +486,21 @@ object TransitHelper {
     }
 
     private fun fetchText(url: String, timeoutMs: Int = 12000): String {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.connectTimeout = timeoutMs
-        connection.readTimeout = timeoutMs
-        connection.setRequestProperty("User-Agent", "SuperDL/1.6")
-        if (connection.responseCode !in 200..299) {
-            throw TransitApiException("Tömegközlekedés lekérdezés sikertelen.")
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = timeoutMs
+            readTimeout = timeoutMs
+            setRequestProperty("User-Agent", "SuperDL/1.6")
         }
-        return connection.inputStream.bufferedReader().readText()
+        try {
+            if (connection.responseCode !in 200..299) {
+                throw TransitApiException("Tömegközlekedés lekérdezés sikertelen.")
+            }
+            return connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            runCatching { connection.inputStream?.close() }
+            runCatching { connection.errorStream?.close() }
+            runCatching { connection.disconnect() }
+        }
     }
 
     private fun <T> runAsync(
@@ -337,18 +508,19 @@ object TransitHelper {
         block: () -> T,
         onResult: (T) -> Unit
     ) {
-        Thread {
+        val mainHandler = Handler(Looper.getMainLooper())
+        ioExecutor.execute {
             try {
                 val result = block()
-                Handler(Looper.getMainLooper()).post { onResult(result) }
+                mainHandler.post { onResult(result) }
             } catch (e: TransitApiException) {
-                Handler(Looper.getMainLooper()).post { onError(e.message ?: "Tömegközlekedés hiba.") }
+                mainHandler.post { onError(e.message ?: "Tömegközlekedés hiba.") }
             } catch (_: Exception) {
-                Handler(Looper.getMainLooper()).post {
+                mainHandler.post {
                     onError("Tömegközlekedés lekérdezés sikertelen. Ellenőrizd az internetkapcsolatot.")
                 }
             }
-        }.start()
+        }
     }
 
     private fun getLastLocation(context: Context): Location? {

@@ -124,6 +124,8 @@ class BootReceiver : BroadcastReceiver() {
                 com.superdl.launcher.timer.TimerManager.resumeIfNeeded(context)
                 com.superdl.launcher.battery.BatteryPatrolManager.start(context)
                 com.superdl.launcher.feedback.DeviceStateSoundManager.start(context)
+                com.superdl.launcher.contacts.ContactSyncScheduler.reschedule(context)
+                com.superdl.launcher.contacts.ContactSyncHelper.syncIfNeeded(context)
             }
         }
     }

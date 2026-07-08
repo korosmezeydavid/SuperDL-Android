@@ -22,16 +22,23 @@ object CallFilterEngine {
         handlePresentation: Int = TelecomManager.PRESENTATION_ALLOWED
     ): Boolean {
         val normalized = phoneNumber?.let(CallFilterStore::normalizePhone).orEmpty()
+
         if (normalized.isNotBlank() && CallFilterStore.isWhitelisted(context, normalized)) {
             return false
         }
         if (normalized.isNotBlank() && CallFilterStore.isBlacklisted(context, normalized)) {
             return true
         }
-        if (CallFilterStore.isBlockPrivateEnabled(context) && isPrivateOrHidden(normalized, handlePresentation)) {
-            return true
+
+        return when (CallFilterStore.getMode(context)) {
+            CallFilterMode.TOTAL_DND -> true
+            CallFilterMode.PRIORITY_ONLY -> !CallContactLookup.isPriorityCaller(context, normalized)
+            CallFilterMode.CONTACTS_ONLY -> {
+                if (isPrivateOrHidden(normalized, handlePresentation)) return true
+                !CallContactLookup.isKnownContact(context, normalized)
+            }
+            CallFilterMode.ACCEPT_ALL -> isPrivateOrHidden(normalized, handlePresentation)
         }
-        return false
     }
 
     fun isPrivateOrHidden(phoneNumber: String, handlePresentation: Int): Boolean {
@@ -44,9 +51,16 @@ object CallFilterEngine {
     fun speakBlockReason(context: Context, phoneNumber: String?, handlePresentation: Int): String {
         val normalized = phoneNumber?.let(CallFilterStore::normalizePhone).orEmpty()
         return when {
+            CallFilterStore.getMode(context) == CallFilterMode.TOTAL_DND ->
+                "Teljes Ne Zavarj mód. Hívás blokkolva."
             normalized.isNotBlank() && CallFilterStore.isBlacklisted(context, normalized) ->
                 "Letiltott szám."
-            CallFilterStore.isBlockPrivateEnabled(context) &&
+            CallFilterStore.getMode(context) == CallFilterMode.PRIORITY_ONLY ->
+                "Részleges szűrés. Csak kedvenc és csillagozott hívások engedélyezettek."
+            CallFilterStore.getMode(context) == CallFilterMode.CONTACTS_ONLY &&
+                !CallContactLookup.isKnownContact(context, normalized) ->
+                "Laza szűrés. Ismeretlen szám blokkolva."
+            CallFilterStore.getMode(context) == CallFilterMode.ACCEPT_ALL &&
                 isPrivateOrHidden(normalized, handlePresentation) ->
                 "Rejtett számú hívás blokkolva."
             else -> "Hívás blokkolva."

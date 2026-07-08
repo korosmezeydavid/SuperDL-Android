@@ -58,7 +58,19 @@ class LocationTrainerActivity : AppCompatActivity() {
     private val latestBitmap = AtomicReference<Bitmap?>(null)
     private var imageAnalysis: ImageAnalysis? = null
     private var lastBackPressAt = 0L
-    private var pendingOcrText: String? = null
+    private var pendingCaptures: MutableList<LocationCaptureDraft> = mutableListOf()
+    private var profileId: String = ""
+    private var editingProfile: LocationProfile? = null
+
+    private val isEditMode: Boolean get() = editingProfile != null
+
+    private val maxCapturesThisSession: Int
+        get() {
+            val existingCount = editingProfile?.referenceImagePaths?.size ?: 0
+            return (LocationProfileStore.MAX_PHOTOS_PER_PROFILE - existingCount)
+                .coerceAtMost(NEW_CAPTURES_PER_SESSION)
+                .coerceAtLeast(1)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,9 +85,19 @@ class LocationTrainerActivity : AppCompatActivity() {
         voiceInput = VoiceInput(this)
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        intent.getStringExtra(EXTRA_EDIT_PROFILE_ID)?.takeIf { it.isNotBlank() }?.let { id ->
+            editingProfile = LocationProfileStore.getById(this, id)
+            if (editingProfile != null) {
+                profileId = id
+            }
+        }
+
         gestureListener = SwipeGestureListener(
             context = this,
-            onSwipeUp = { sounds.play(SoundType.SWIPE_UP) },
+            onSwipeUp = {
+                sounds.play(SoundType.SWIPE_UP)
+                finalizeCapturesAndName()
+            },
             onSwipeDown = { sounds.play(SoundType.SWIPE_DOWN) },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
@@ -106,6 +128,12 @@ class LocationTrainerActivity : AppCompatActivity() {
             }
         })
 
+        if (editingProfile == null && intent.getStringExtra(EXTRA_EDIT_PROFILE_ID).orEmpty().isNotBlank()) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speakThen(getString(R.string.location_trainer_edit_not_found)) { finish() }
+            return
+        }
+
         if (hasCameraPermission()) {
             initializeTrainer()
         } else {
@@ -116,7 +144,17 @@ class LocationTrainerActivity : AppCompatActivity() {
     private fun initializeTrainer() {
         recognitionEngine = TextRecognitionEngine()
         setStatusText(getString(R.string.location_trainer_status_ready))
-        tts.runWhenReady { tts.speak(getString(R.string.location_trainer_intro)) }
+        val intro = if (isEditMode) {
+            getString(
+                R.string.location_trainer_edit_intro,
+                editingProfile!!.name,
+                editingProfile!!.referenceImagePaths.size,
+                maxCapturesThisSession
+            )
+        } else {
+            getString(R.string.location_trainer_intro)
+        }
+        tts.runWhenReady { tts.speak(intro) }
         startCamera()
     }
 
@@ -152,14 +190,14 @@ class LocationTrainerActivity : AppCompatActivity() {
         if (capturing.get()) return
         val engine = recognitionEngine ?: return
         val bitmap = latestBitmap.get()
-        if (bitmap == null) {
+        if (bitmap == null || bitmap.isRecycled) {
             tts.speak(getString(R.string.location_trainer_no_frame))
             return
         }
 
         capturing.set(true)
         setStatusText(getString(R.string.location_trainer_status_capturing))
-        val frameCopy = try {
+        val captureBitmap = try {
             bitmap.copy(Bitmap.Config.ARGB_8888, false)
         } catch (_: OutOfMemoryError) {
             capturing.set(false)
@@ -171,40 +209,79 @@ class LocationTrainerActivity : AppCompatActivity() {
             return
         }
         engine.recognize(
-            bitmap = frameCopy,
+            bitmap = captureBitmap,
             onResult = { raw ->
-                frameCopy.recycle()
-                capturing.set(false)
-                onOcrCaptured(raw, bitmap)
+                postWhenAlive {
+                    onCaptureReady(raw, captureBitmap)
+                    if (!captureBitmap.isRecycled) captureBitmap.recycle()
+                    capturing.set(false)
+                }
             },
             onError = {
-                frameCopy.recycle()
-                capturing.set(false)
-                sounds.play(SoundType.ACTION_ERROR)
-                setStatusText(getString(R.string.location_trainer_status_ready))
-                tts.speak(getString(R.string.location_trainer_recognition_error))
+                postWhenAlive {
+                    onCaptureReady("", captureBitmap)
+                    if (!captureBitmap.isRecycled) captureBitmap.recycle()
+                    capturing.set(false)
+                }
             }
         )
     }
 
-    private fun onOcrCaptured(raw: String, sourceBitmap: Bitmap) {
-        val tokens = LocationMatcher.tokenize(raw)
-        if (tokens.size < 2) {
-            tts.speak(getString(R.string.location_trainer_no_text))
-            setStatusText(getString(R.string.location_trainer_status_ready))
+    private fun onCaptureReady(raw: String, sourceBitmap: Bitmap) {
+        if (sourceBitmap.isRecycled) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(getString(R.string.location_trainer_recognition_error))
+            return
+        }
+        if (profileId.isBlank()) {
+            profileId = java.util.UUID.randomUUID().toString()
+        }
+        val visualHash = runCatching { VisualFingerprint.compute(sourceBitmap) }.getOrDefault("")
+        val existingCount = editingProfile?.referenceImagePaths?.size ?: 0
+        val thumbnailPath = saveThumbnail(profileId, existingCount + pendingCaptures.size, sourceBitmap)
+        pendingCaptures.add(
+            LocationCaptureDraft(
+                ocrText = raw,
+                visualHash = visualHash,
+                thumbnailPath = thumbnailPath
+            )
+        )
+
+        sounds.play(SoundType.ACTION_OK)
+        val count = pendingCaptures.size
+        if (count >= maxCapturesThisSession) {
+            setStatusText(getString(R.string.location_trainer_status_saving))
+            if (isEditMode) saveEditProfile() else promptForProfileName()
             return
         }
 
-        pendingOcrText = raw
-        setStatusText(getString(R.string.location_trainer_status_naming))
-        promptForProfileName(sourceBitmap)
+        val message = if (isEditMode) {
+            getString(R.string.location_trainer_edit_capture_added, count, maxCapturesThisSession)
+        } else {
+            getString(R.string.location_trainer_capture_added, count, NEW_CAPTURES_PER_SESSION)
+        }
+        setStatusText(message)
+        tts.speak(message)
     }
 
-    private fun promptForProfileName(sourceBitmap: Bitmap) {
+    private fun finalizeCapturesAndName() {
+        if (capturing.get()) return
+        if (pendingCaptures.isEmpty()) {
+            tts.speak(getString(R.string.location_trainer_no_capture_yet))
+            return
+        }
+        if (isEditMode) {
+            saveEditProfile()
+        } else {
+            setStatusText(getString(R.string.location_trainer_status_naming))
+            promptForProfileName()
+        }
+    }
+
+    private fun promptForProfileName() {
         if (!voiceInput.isAvailable()) {
             sounds.play(SoundType.ACTION_ERROR)
             tts.speak(getString(R.string.location_trainer_voice_unavailable))
-            pendingOcrText = null
             setStatusText(getString(R.string.location_trainer_status_ready))
             return
         }
@@ -212,25 +289,49 @@ class LocationTrainerActivity : AppCompatActivity() {
         voiceInput.listen(
             prompt = getString(R.string.location_trainer_name_prompt),
             speakFirst = { prompt, onDone -> tts.speakThen(prompt) { onDone() } },
-            onResult = { spoken -> saveProfile(spoken, sourceBitmap) },
+            onResult = { spoken -> saveProfile(spoken) },
             onError = {
                 sounds.play(SoundType.ACTION_ERROR)
                 tts.speak(getString(R.string.location_trainer_name_error))
-                pendingOcrText = null
                 setStatusText(getString(R.string.location_trainer_status_ready))
             }
         )
     }
 
-    private fun saveProfile(name: String, sourceBitmap: Bitmap) {
-        val ocrText = pendingOcrText
-        pendingOcrText = null
-        if (ocrText.isNullOrBlank()) {
+    private fun saveEditProfile() {
+        val profile = editingProfile ?: return
+        val captures = pendingCaptures.toList()
+        if (captures.isEmpty()) return
+
+        val saved = LocationProfileStore.appendCaptures(this, profile.id, captures)
+        if (saved == null) {
+            captures.mapNotNull { it.thumbnailPath }.forEach { deleteThumbnailFile(it) }
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(getString(R.string.location_trainer_save_error))
             setStatusText(getString(R.string.location_trainer_status_ready))
             return
         }
 
-        val draft = LocationProfileStore.buildProfileFromOcr(name, ocrText)
+        pendingCaptures.clear()
+        editingProfile = saved
+        sounds.play(SoundType.ACTION_OK)
+        val message = getString(
+            R.string.location_trainer_edit_saved,
+            saved.name,
+            saved.referenceImagePaths.size
+        )
+        setStatusText(message)
+        tts.speak(message)
+    }
+
+    private fun saveProfile(name: String) {
+        val captures = pendingCaptures.toList()
+        if (captures.isEmpty()) {
+            setStatusText(getString(R.string.location_trainer_status_ready))
+            return
+        }
+
+        val draft = LocationProfileStore.buildProfileFromCaptures(name, captures)
         if (draft == null) {
             sounds.play(SoundType.ACTION_ERROR)
             tts.speak(getString(R.string.location_trainer_save_error))
@@ -238,28 +339,29 @@ class LocationTrainerActivity : AppCompatActivity() {
             return
         }
 
-        val thumbnailPath = saveThumbnail(draft.id, sourceBitmap)
-        val profile = draft.copy(thumbnailPath = thumbnailPath)
+        val profile = draft.copy(id = profileId.ifBlank { draft.id })
         val saved = LocationProfileStore.add(this, profile)
         if (saved == null) {
-            deleteThumbnailFile(thumbnailPath)
+            captures.mapNotNull { it.thumbnailPath }.forEach { deleteThumbnailFile(it) }
             sounds.play(SoundType.ACTION_ERROR)
             tts.speak(getString(R.string.location_trainer_save_error))
             setStatusText(getString(R.string.location_trainer_status_ready))
             return
         }
 
+        pendingCaptures.clear()
+        profileId = ""
         sounds.play(SoundType.ACTION_OK)
         val message = getString(R.string.location_trainer_saved, saved.name)
         setStatusText(message)
         tts.speak(message)
     }
 
-    private fun saveThumbnail(profileId: String, bitmap: Bitmap): String? {
+    private fun saveThumbnail(profileId: String, index: Int, bitmap: Bitmap): String? {
         return try {
             val dir = File(filesDir, THUMBNAIL_DIR)
             if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, "$profileId.jpg")
+            val file = File(dir, "${profileId}_${System.currentTimeMillis()}_$index.jpg")
             FileOutputStream(file).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
             }
@@ -279,9 +381,16 @@ class LocationTrainerActivity : AppCompatActivity() {
 
     private fun finishTrainer() {
         voiceInput.cancel()
-        pendingOcrText = null
+        pendingCaptures.mapNotNull { it.thumbnailPath }.forEach { deleteThumbnailFile(it) }
+        pendingCaptures.clear()
+        profileId = ""
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen(getString(R.string.location_trainer_exit)) { finish() }
+        val exitMsg = if (isEditMode) {
+            getString(R.string.location_trainer_edit_exit)
+        } else {
+            getString(R.string.location_trainer_exit)
+        }
+        tts.speakThen(exitMsg) { finish() }
     }
 
     private fun setStatusText(text: String) {
@@ -374,8 +483,14 @@ class LocationTrainerActivity : AppCompatActivity() {
         private const val REQ_CAMERA = 7110
         private const val BUFFER_FRAME_INTERVAL_MS = 450L
         private const val THUMBNAIL_DIR = "location_thumbnails"
+        private const val NEW_CAPTURES_PER_SESSION = 10
+        const val EXTRA_EDIT_PROFILE_ID = "edit_profile_id"
 
         fun intent(context: Context): Intent =
             Intent(context, LocationTrainerActivity::class.java)
+
+        fun intentForEdit(context: Context, profileId: String): Intent =
+            Intent(context, LocationTrainerActivity::class.java)
+                .putExtra(EXTRA_EDIT_PROFILE_ID, profileId)
     }
 }

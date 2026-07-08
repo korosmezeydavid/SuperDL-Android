@@ -13,8 +13,14 @@ import androidx.core.content.ContextCompat
 import com.superdl.launcher.transit.OsmHelper
 import com.superdl.launcher.transit.TransitApiException
 import com.superdl.launcher.transit.TransitRoute
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 object NavigationHelper {
+
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "SuperDL-NavigationIO")
+    }
 
     fun speakCurrentLocation(
         context: Context,
@@ -161,17 +167,18 @@ object NavigationHelper {
         block: () -> T,
         onResult: (T) -> Unit
     ) {
-        Thread {
+        val mainHandler = Handler(Looper.getMainLooper())
+        ioExecutor.execute {
             try {
                 val result = block()
-                Handler(Looper.getMainLooper()).post { onResult(result) }
+                mainHandler.post { onResult(result) }
             } catch (e: TransitApiException) {
-                Handler(Looper.getMainLooper()).post { onError(e.message ?: "Navigáció hiba.") }
+                mainHandler.post { onError(e.message ?: "Navigáció hiba.") }
             } catch (_: Exception) {
-                Handler(Looper.getMainLooper()).post {
+                mainHandler.post {
                     onError("Navigáció lekérdezés sikertelen. Ellenőrizd az internetkapcsolatot.")
                 }
             }
-        }.start()
+        }
     }
 }

@@ -1,0 +1,22 @@
+Valódi bankjegy fotók hozzáadása a modell tanításához
+====================================================
+
+Ments ide fotókat a telefonról vagy kamerából, címlet szerinti mappába:
+
+  none/        – üres asztal, zseb, háttér (NEM bankjegy)
+  huf_500/     – 500 forintos
+  huf_1000/    – 1000 forintos
+  huf_2000/    – 2000 forintos
+  huf_5000/    – 5000 forintos
+  huf_10000/   – 10000 forintos
+  huf_20000/   – 20000 forintos
+
+Javaslat fotózáshoz:
+  - különböző fény (természetes, gyenge, vaku)
+  - különböző szög és távolság
+  - legalább 15–20 kép címletenként
+
+Újratanítás:
+  python tools/build_huf_banknote_model.py --dataset-dir tools/banknote_dataset --epochs 20
+
+Mappák (üresen is létrehozva, csak töltsd fel képekkel):

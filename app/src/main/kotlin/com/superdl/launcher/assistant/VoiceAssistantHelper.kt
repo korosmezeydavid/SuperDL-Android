@@ -1,8 +1,11 @@
 package com.superdl.launcher.assistant
 
+import android.content.Context
 import com.superdl.launcher.menu.MenuAction
 import com.superdl.launcher.menu.MenuItem
 import com.superdl.launcher.menu.MenuTree
+import com.superdl.launcher.voice.SpeechCorrections
+import com.superdl.launcher.voice.SpeechRecognitionResult
 import java.text.Normalizer
 import java.util.Locale
 
@@ -38,13 +41,96 @@ object VoiceAssistantHelper {
         else -> false
     }
 
-    fun interpret(raw: String): VoiceAssistantIntent {
-        val text = normalize(raw)
+    data class InterpretedCommand(
+        val intent: VoiceAssistantIntent,
+        val heard: String
+    )
+
+    fun interpret(raw: String, context: Context? = null): VoiceAssistantIntent =
+        interpretCommand(raw, context).intent
+
+    fun interpretCommand(raw: String, context: Context? = null): InterpretedCommand {
+        val text = SpeechCorrections.apply(raw)
+        val intent = interpretNormalized(text, context)
+        return InterpretedCommand(intent, text)
+    }
+
+    fun interpretBest(result: SpeechRecognitionResult, context: Context? = null): InterpretedCommand {
+        val candidates = buildCandidateList(result)
+        var best = InterpretedCommand(
+            VoiceAssistantIntent.Speak(unknownText()),
+            candidates.firstOrNull().orEmpty()
+        )
+        var bestScore = -1
+        for ((index, candidate) in candidates.withIndex()) {
+            val interpreted = interpretCommand(candidate, context)
+            val confidenceBoost = confidenceBoost(result.confidences, index)
+            val score = scoreIntent(interpreted.intent, interpreted.heard) + confidenceBoost
+            if (score > bestScore) {
+                bestScore = score
+                best = interpreted
+            }
+        }
+        return best
+    }
+
+    private fun buildCandidateList(result: SpeechRecognitionResult): List<String> {
+        val merged = linkedSetOf<String>()
+        result.hypotheses.forEach { hypothesis ->
+            merged.add(hypothesis)
+            merged.add(SpeechCorrections.apply(hypothesis))
+        }
+        return merged.filter { it.isNotBlank() }
+    }
+
+    private fun confidenceBoost(confidences: FloatArray?, index: Int): Int {
+        val confidence = confidences?.getOrNull(index) ?: return 0
+        return when {
+            confidence >= 0.85f -> 3
+            confidence >= 0.65f -> 2
+            confidence >= 0.45f -> 1
+            else -> 0
+        }
+    }
+
+    private fun scoreIntent(intent: VoiceAssistantIntent, text: String): Int = when (intent) {
+        is VoiceAssistantIntent.Speak -> when {
+            text.isBlank() -> 0
+            intent.message.startsWith("Nem értettem") -> 0
+            intent.message.startsWith("Nem hallottam") -> 1
+            else -> 8
+        }
+        is VoiceAssistantIntent.WebSearch -> 11 + text.length.coerceAtMost(20) / 10
+        is VoiceAssistantIntent.RunAction -> 12
+        is VoiceAssistantIntent.OpenExternalApp -> 13
+        is VoiceAssistantIntent.YoutubeSearch,
+        is VoiceAssistantIntent.BookSearch -> 13
+        is VoiceAssistantIntent.TransitRoute,
+        is VoiceAssistantIntent.NavWalkRoute -> 14
+        is VoiceAssistantIntent.CallContact -> 15
+    }
+
+    private fun interpretNormalized(text: String, context: Context? = null): VoiceAssistantIntent {
         if (text.isBlank()) {
             return VoiceAssistantIntent.Speak("Nem hallottam semmit. Mondd újra lassan.")
         }
 
+        if (context != null) {
+            if (ElenaWakeHelper.isWakeOnly(text, context)) {
+                return VoiceAssistantIntent.Speak(ElenaWakeHelper.wakeGreeting())
+            }
+            ElenaWakeHelper.stripWakePrefix(text, context)?.let { command ->
+                if (command.isBlank()) {
+                    return VoiceAssistantIntent.Speak(ElenaWakeHelper.wakeGreeting())
+                }
+                return interpretNormalized(command, context)
+            }
+        }
+
         if (isHelpRequest(text)) {
+            if (containsAny(text, "tudasbazis", "tudásbázis", "mit tudsz a programrol", "mit tudsz a programról")) {
+                return VoiceAssistantIntent.Speak(ElenaKnowledgeBase.topicListSummary(context))
+            }
             return VoiceAssistantIntent.Speak(helpText())
         }
 
@@ -84,6 +170,10 @@ object VoiceAssistantHelper {
             return VoiceAssistantIntent.RunAction(action)
         }
 
+        ElenaKnowledgeBase.findAnswer(text, context)?.let { answer ->
+            return VoiceAssistantIntent.Speak(answer)
+        }
+
         if (looksLikeWebSearch(text)) {
             return VoiceAssistantIntent.WebSearch(text)
         }
@@ -91,8 +181,17 @@ object VoiceAssistantHelper {
         return VoiceAssistantIntent.Speak(unknownText())
     }
 
+    fun unknownFeedback(heard: String): String {
+        val preview = heard.trim().take(80)
+        return if (preview.isBlank()) {
+            unknownText()
+        } else {
+            "Ezt hallottam: $preview. ${unknownText()}"
+        }
+    }
+
     fun helpText(): String =
-        "Hangos asszisztens. Amit tudok: pontos idő, napi üdvözlés, időjárás, hírek, akkumulátor, " +
+        "${ElenaWakeHelper.ASSISTANT_NAME}, a Super DL hangos asszisztense. Amit tudok: pontos idő, napi üdvözlés, időjárás, hírek, akkumulátor, " +
             "ébresztő beállítása és listázása, időzítő, gyógyszer emlékeztető, " +
             "üzenet küldés és olvasás, e-mail küldés és beállítás, hívás név szerint, hívásnapló, szám tárcsázás, " +
             "új névjegy, kedvenc hívás és törlés, " +
@@ -102,14 +201,16 @@ object VoiceAssistantHelper {
             "napi összefoglaló, bevásárlólista, e-mailek olvasása, " +
             "zseblámpa, számológép, Q R olvasó, pénzfelismerő, gyógyszerdoboz olvasó, címke olvasó, szöveg olvasó, folyamatos szövegolvasó, diktafon és diktafon beállítás, tanuló mód, G P S kitekintő, környezeti kitekintő, egyéni helyek, helyszín felismerő, arc kamera, G P S útvonal rögzítés, internet kereső, " +
             "értesítések, WiFi, Bluetooth, hangerő, csengőhang hangerő, néma mód, őrség beállítások, P I N zárolás, rejtett számok tiltása, " +
-            "S O S és S O S számok, T T S motor, külső alkalmazások, névjegy és jogi információk. " +
-            "Példák: hány óra van, hívd fel Anyát, útvonal a Deák térre, " +
+            "S O S és S O S számok, T T S motor, külső alkalmazások, névjegy és jogi információk, " +
+            "Elena figyelő, Elena tanítás, saját felébresztő mondat, hotspot, helyi tudásbázis. " +
+            "Kérdezhetsz tőlem: mi az a Super DL, hogyan működnek a gesztusok, S O S, PIN, navigáció. " +
+            "Példák: Szia ${ElenaWakeHelper.ASSISTANT_NAME}, hány óra van, hívd fel Anyát, útvonal a Deák térre, " +
             "ébresztő hét óra, üzenet küldés, pin zárolás, e-mail küldő beállítás, zene, könyvtár, " +
             "Messenger megnyitása, hogyan készül a loncsos káposzta."
 
     private fun unknownText(): String =
-        "Nem értettem. Próbáld így: idő, hívd fel és a név, útvonal a célállomásra, ébresztő, üzenet, zene, " +
-            "vagy mondd: segítség, hogy mit tudok."
+        "Nem értettem. Próbáld így: Szia ${ElenaWakeHelper.ASSISTANT_NAME}, idő, hívd fel és a név, " +
+            "útvonal a célállomásra, ébresztő, üzenet, zene, vagy mondd: segítség."
 
     private fun isHelpRequest(text: String): Boolean =
         containsAny(
@@ -122,18 +223,55 @@ object VoiceAssistantHelper {
             "parancsok",
             "sugo",
             "help",
-            "mit csinalsz"
+            "mit csinalsz",
+            "tudasbazis",
+            "tudásbázis",
+            "mit tudsz a programrol",
+            "mit tudsz a programról",
+            "mire jo ez az app",
+            "mire jó ez az app"
         )
 
+    private val CALL_TARGET_BLOCKLIST = listOf(
+        "hivasnaplo",
+        "hivas ertesites",
+        "hivas figyelmeztetes",
+        "hivas engedely",
+        "hivas szuro",
+        "kedvenc hivas",
+        "nevjegybol hivas",
+        "nev szerint hivas"
+    )
+
     private fun extractCallTarget(text: String): String? {
+        if (CALL_TARGET_BLOCKLIST.any { text.contains(it) }) return null
+
         val prefixes = listOf(
             "hivd fel",
             "hivj fel",
             "hivd meg",
             "hivj meg",
+            "felhivom",
+            "felhivjuk",
+            "felhivod",
+            "felhivja",
+            "hivom fel",
+            "hivom meg",
+            "hivom",
+            "hivjuk",
+            "hivod",
+            "hivja",
+            "telefonalok",
+            "telefonaljuk",
             "telefonalj",
             "telefonalj neki",
+            "telefonald meg",
+            "telefonald",
             "keresd fel",
+            "keresd telefonon",
+            "csorgass",
+            "csorogj",
+            "hivas",
             "hivd",
             "hivj"
         )
@@ -141,14 +279,48 @@ object VoiceAssistantHelper {
             val cleaned = cleanCallTarget(target)
             if (cleaned.length >= 2) return cleaned
         }
+
+        extractCallTargetFromSuffix(text)?.let { return it }
+
         return null
     }
+
+    private fun extractCallTargetFromSuffix(text: String): String? {
+        val patterns = listOf(
+            Regex("""(.+?)\s+hiv(?:as|asa|ast|ja|juk|od)"""),
+            Regex("""(.+?)\s+telefonal(?:as|asa|ast|ok|juk|od)""")
+        )
+        for (pattern in patterns) {
+            val match = pattern.find(text) ?: continue
+            val cleaned = cleanCallTarget(match.groupValues[1])
+            if (cleaned.length >= 2 && !isCallMetaWord(cleaned)) return cleaned
+        }
+        return null
+    }
+
+    private fun isCallMetaWord(value: String): Boolean =
+        value in setOf(
+            "hivas",
+            "telefon",
+            "telefonalas",
+            "nevjegy",
+            "kedvenc",
+            "szam",
+            "szamot"
+        )
 
     private fun cleanCallTarget(raw: String): String =
         raw.removePrefix("a ")
             .removePrefix("az ")
+            .removePrefix("egy ")
             .removeSuffix("t")
             .removeSuffix("t fel")
+            .removeSuffix("nak")
+            .removeSuffix("nek")
+            .removeSuffix("hoz")
+            .removeSuffix("hez")
+            .removeSuffix("hivas")
+            .removeSuffix("hivast")
             .trim()
 
     private fun matchMenuAction(text: String): MenuAction? {
@@ -170,9 +342,15 @@ object VoiceAssistantHelper {
         if (label.isBlank()) return 0
         if (text == label) return label.length + 4
         if (text.contains(label)) return label.length + 2
-        val words = label.split(" ").filter { it.length >= 4 }
-        val hits = words.count { text.contains(it) }
-        return if (hits >= 2) hits * 3 else words.count { text.contains(it) }
+        val words = label.split(" ").filter { it.isNotBlank() }
+        if (words.size == 1) {
+            val word = words.first()
+            if (text == word) return word.length + 5
+            if (text.contains(word) && word.length >= 3) return word.length + 3
+        }
+        val longWords = words.filter { it.length >= 4 }
+        val hits = longWords.count { text.contains(it) }
+        return if (hits >= 2) hits * 3 else longWords.count { text.contains(it) }
     }
 
     private fun matchKeywordAction(text: String): MenuAction? = when {
@@ -194,8 +372,13 @@ object VoiceAssistantHelper {
         containsAny(text, "s o s", "sos", "vesz", "veszhelyzet", "vészhelyzet") ->
             MenuAction.SOS
 
-        containsAny(text, "pontos ido", "hany ora", "mennyi az ido", "mennyi az ora", "ido", "ora") &&
+        containsAny(text, "pontos ido", "hany ora", "mennyi az ido", "mennyi az ora", "mennyi ido") &&
             !containsAny(text, "ebreszto", "idozito", "program", "belepes", "bekapcsolo") ->
+            MenuAction.TIME_NOW
+
+        containsAny(text, "ido", "ora") &&
+            !containsAny(text, "ebreszto", "idozito", "program", "belepes", "bekapcsolo", "idojaras", "naptar") &&
+            text.split(" ").size <= 3 ->
             MenuAction.TIME_NOW
 
         containsAny(text, "napi udvozles", "udvozles", "nevnap", "reggel") ->
@@ -258,11 +441,14 @@ object VoiceAssistantHelper {
         containsAny(text, "ebreszto", "ebresztes", "ebredj") ->
             MenuAction.ALARM_SET
 
-        containsAny(text, "uzenet kuldes", "uzenet kul", "sms kul", "irj uzenet", "sms iras", "sms kuldes") ->
+        containsAny(text, "uzenet kuldes", "uzenet kul", "sms kul", "irj uzenet", "sms iras", "sms kuldes", "kuldj uzenet", "kuldj sms") ->
             MenuAction.SMS_WRITE
 
-        containsAny(text, "uzenet olvas", "sms olvas", "olvasd az uzenet", "uzenetek") ->
+        containsAny(text, "uzenet olvas", "sms olvas", "olvasd az uzenet", "uzenetek", "olvasd az sms") ->
             MenuAction.SMS_READ
+
+        containsAny(text, "kimenő uzenet", "kimeno uzenet", "kuldott uzenet", "küldött üzenet", "elkuldott uzenet", "elküldött üzenet") ->
+            MenuAction.SMS_SENT_READ
 
         containsAny(text, "email import", "email cimek import", "email cim import") ->
             MenuAction.EMAIL_IMPORT
@@ -315,8 +501,11 @@ object VoiceAssistantHelper {
         containsAny(text, "tarcsaz", "szamot hiv", "szam beir", "billentyuzet") ->
             MenuAction.DIAL
 
-        containsAny(text, "nevjegy", "nevjegybol hivas", "nev szerint hivas") ->
+        containsAny(text, "nevjegybol hivas", "nev szerint hivas", "nevjegy hivas") ->
             MenuAction.CONTACTS
+
+        containsAny(text, "nevjegyzek", "nevjegy lista", "nevjegyek", "nevjegy szinkron") ->
+            MenuAction.CONTACT_BOOK
 
         containsAny(text, "hol vagyok", "hol vagy", "tartozkodasi hely", "hol vagyok most") ->
             MenuAction.NAV_WHERE
@@ -350,6 +539,9 @@ object VoiceAssistantHelper {
 
         containsAny(text, "megallo keres", "megallot keres") ->
             MenuAction.TRANSIT_STOP
+
+        containsAny(text, "kedvenc megallo", "kedvenc megallok", "mentett megallo") ->
+            MenuAction.TRANSIT_FAVORITES
 
         containsAny(text, "kozlekedes", "tomegkozlekedes", "busszal menj") ->
             MenuAction.TRANSIT_ROUTE
@@ -488,6 +680,9 @@ object VoiceAssistantHelper {
         containsAny(text, "wifi", "vifi", "wífi") ->
             MenuAction.WIFI_TOGGLE
 
+        containsAny(text, "hotspot", "hot spot", "megosztott internet", "internet megosztas", "wifi hotspot") ->
+            MenuAction.HOTSPOT_TOGGLE
+
         containsAny(text, "bluetooth", "kek fuggony") ->
             MenuAction.BT_TOGGLE
 
@@ -560,13 +755,31 @@ object VoiceAssistantHelper {
         containsAny(text, "kilepes launcher", "launcher valtas", "masik launcher") ->
             MenuAction.EXIT_LAUNCHER
 
+        containsAny(text, "elena figyelo be", "elena figyelo indit", "elena figyel", "elena hallgass") ->
+            MenuAction.ELENA_WAKE_LISTEN_ON
+
+        containsAny(text, "elena figyelo ki", "elena figyelo le", "elena figyelo stop", "elena ne figyelj") ->
+            MenuAction.ELENA_WAKE_LISTEN_OFF
+
+        containsAny(text, "elena figyelo", "elena figyelo allapot", "elena figyelo statusz") ->
+            MenuAction.ELENA_WAKE_LISTEN_TOGGLE
+
+        containsAny(text, "elena tanitas", "elena tanit", "sajat felebeszto", "sajat felebeszto mondat", "felebeszto tanitas") ->
+            MenuAction.ELENA_WAKE_TRAIN
+
+        containsAny(text, "sajat felebeszto mondatok", "elena mondatok", "mentett felebeszto") ->
+            MenuAction.ELENA_WAKE_CUSTOM_LIST
+
+        containsAny(text, "elena", "szia elena", "kerlek elena", "hello elena", "hallo elena") ->
+            MenuAction.VOICE_ASSISTANT
+
         containsAny(text, "hangos asszisztens", "asszisztens indit", "asszisztens indits") ->
             MenuAction.VOICE_ASSISTANT
 
         containsAny(text, "alapertelmezett asszisztens", "asszisztens beallit", "asszisztens beallitas", "oldalso gomb") ->
             MenuAction.ASSISTANT_DEFAULT_SETUP
 
-        containsAny(text, "asszisztens allapot", "asszisztens statusz", "ki az asszisztens") ->
+        containsAny(text, "asszisztens allapot", "asszisztens statusz", "ki az asszisztens", "ki az elena") ->
             MenuAction.ASSISTANT_DEFAULT_STATUS
 
         containsAny(text, "csengohang hangerő", "csengohang hangero", "emlekezteto hangerő", "emlekezteto hangero") ->
@@ -577,6 +790,9 @@ object VoiceAssistantHelper {
 
         containsAny(text, "hangok", "program hangjai", "hangok betanitasa") ->
             MenuAction.SOUND_TRAINING
+
+        containsAny(text, "swipe hangtema", "swipe hangtéma", "hangtema", "hangtéma", "gesztus hang") ->
+            MenuAction.SOUND_THEME_SELECT
 
         containsAny(text, "tanulo mod", "tanuló mód", "gesztus gyakorlas", "gesztusok gyakorlasa", "jatszoter", "játszótér", "betanulas", "betanulás") ->
             MenuAction.TRAINING_PLAYGROUND
@@ -619,6 +835,39 @@ object VoiceAssistantHelper {
 
         containsAny(text, "gps utvonal rogzites", "gps rekord", "utvonal felvetel", "utvonal rogzites") ->
             MenuAction.GPS_ROUTE_RECORD
+
+        containsAny(text, "milyen nap van", "milyen nap", "ma milyen nap", "het napja") ->
+            MenuAction.TIME_NOW
+
+        containsAny(text, "milyen datum", "mai datum", "ma hanyadika", "ma milyen datum") ->
+            MenuAction.TIME_NOW
+
+        containsAny(text, "nevjegy szinkron", "nevjegyek frissites", "nevjegy frissites") ->
+            MenuAction.CONTACT_SYNC
+
+        containsAny(text, "gyalog utvonal", "seta utvonal", "setalj ide") ->
+            MenuAction.NAV_WALK
+
+        containsAny(text, "youtube keres", "jutub keres", "videot keres") ->
+            MenuAction.YOUTUBE
+
+        containsAny(text, "program hang", "emlekezteto hang", "csengohang valasztas") ->
+            MenuAction.ALERT_SOUND_CALENDAR
+
+        containsAny(text, "sms beallitas", "uzenet app beallitas", "alapertelmezett uzenet") ->
+            MenuAction.SMS_DEFAULT_SETUP
+
+        containsAny(text, "sms app allapot", "uzenet app allapot") ->
+            MenuAction.SMS_DEFAULT_STATUS
+
+        containsAny(text, "telefon beallitas", "alapertelmezett telefon") ->
+            MenuAction.DIALER_DEFAULT_SETUP
+
+        containsAny(text, "t t s hang", "beszed hang", "hang valasztas") ->
+            MenuAction.TTS_ENGINE_SELECT
+
+        containsAny(text, "milyen hang", "milyen beszed hang") ->
+            MenuAction.TTS_ENGINE_READ
 
         else -> null
     }

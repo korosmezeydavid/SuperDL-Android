@@ -42,6 +42,22 @@ object GpsRadarMath {
         else -> "Fordulj balra."
     }
 
+    fun isAhead(absoluteBearing: Float, headingDegrees: Float, tolerance: Float = 45f): Boolean {
+        val relative = relativeBearing(absoluteBearing, headingDegrees)
+        return relative <= tolerance || relative >= 360f - tolerance
+    }
+
+    fun relativePositionLabel(relativeBearing: Float): String = when {
+        relativeBearing <= 25f || relativeBearing >= 335f -> "előtted"
+        relativeBearing in 26f..70f -> "jobbra előtted"
+        relativeBearing in 71f..110f -> "jobbra"
+        relativeBearing in 111f..160f -> "jobbra mögötted"
+        relativeBearing in 161f..199f -> "mögötted"
+        relativeBearing in 200f..249f -> "balra mögötted"
+        relativeBearing in 250f..289f -> "balra"
+        else -> "balra előtted"
+    }
+
     fun enrichPoi(
         raw: GpsPoiRaw,
         userLat: Double,

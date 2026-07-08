@@ -35,6 +35,7 @@ object GpsAccuracyRefiner {
         val startedAt = System.currentTimeMillis()
         var lastProgressAt = 0L
         var finished = false
+        var timeoutRunnable: Runnable? = null
         val timeoutMs = if (targetAccuracyM <= TARGET_ACCURACY_M) {
             TIMEOUT_MS_HIGH_PRECISION
         } else {
@@ -53,6 +54,8 @@ object GpsAccuracyRefiner {
         fun finish(timedOut: Boolean = false) {
             if (finished) return
             finished = true
+            timeoutRunnable?.let { handler.removeCallbacks(it) }
+            timeoutRunnable = null
             listener?.let { GpsLocationHelper.removeUpdates(context, it) }
             listener = null
             if (cancelled) return
@@ -98,10 +101,14 @@ object GpsAccuracyRefiner {
             }
         }
 
-        handler.postDelayed({ if (!cancelled) finish(timedOut = true) }, timeoutMs)
+        timeoutRunnable = Runnable { if (!cancelled) finish(timedOut = true) }
+        handler.postDelayed(timeoutRunnable!!, timeoutMs)
 
         return {
             cancelled = true
+            timeoutRunnable?.let { handler.removeCallbacks(it) }
+            timeoutRunnable = null
+            handler.removeCallbacksAndMessages(null)
             listener?.let { GpsLocationHelper.removeUpdates(context, it) }
             listener = null
         }

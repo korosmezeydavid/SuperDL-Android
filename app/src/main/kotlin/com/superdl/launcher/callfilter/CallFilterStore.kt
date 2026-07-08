@@ -9,22 +9,56 @@ object CallFilterStore {
     private const val KEY_BLACKLIST = "call_filter_blacklist"
     private const val KEY_WHITELIST = "call_filter_whitelist"
     private const val KEY_BLOCK_PRIVATE = "call_filter_block_private"
+    private const val KEY_MODE = "call_filter_mode"
 
-    fun isBlockPrivateEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_BLOCK_PRIVATE, false)
+    fun getMode(context: Context): CallFilterMode {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.contains(KEY_MODE)) {
+            val migrated = if (prefs.getBoolean(KEY_BLOCK_PRIVATE, false)) {
+                CallFilterMode.ACCEPT_ALL
+            } else {
+                CallFilterMode.ACCEPT_ALL
+            }
+            setMode(context, migrated)
+            return migrated
+        }
+        return CallFilterMode.fromId(prefs.getString(KEY_MODE, null))
+    }
 
-    fun setBlockPrivateEnabled(context: Context, enabled: Boolean) {
+    fun setMode(context: Context, mode: CallFilterMode) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
-            .putBoolean(KEY_BLOCK_PRIVATE, enabled)
+            .putString(KEY_MODE, mode.id)
+            .putBoolean(KEY_BLOCK_PRIVATE, mode == CallFilterMode.ACCEPT_ALL)
             .apply()
     }
 
-    fun toggleBlockPrivate(context: Context): Boolean {
-        val next = !isBlockPrivateEnabled(context)
-        setBlockPrivateEnabled(context, next)
+    fun cycleMode(context: Context): CallFilterMode {
+        val next = getMode(context).next()
+        setMode(context, next)
         return next
+    }
+
+    fun speakMode(context: Context): String = getMode(context).speakLabel
+
+    @Deprecated("Use getMode()")
+    fun isBlockPrivateEnabled(context: Context): Boolean =
+        getMode(context) == CallFilterMode.ACCEPT_ALL
+
+    @Deprecated("Use setMode()")
+    fun setBlockPrivateEnabled(context: Context, enabled: Boolean) {
+        if (enabled) setMode(context, CallFilterMode.ACCEPT_ALL)
+    }
+
+    @Deprecated("Use cycleMode()")
+    fun toggleBlockPrivate(context: Context): Boolean {
+        val next = if (getMode(context) == CallFilterMode.ACCEPT_ALL) {
+            CallFilterMode.CONTACTS_ONLY
+        } else {
+            CallFilterMode.ACCEPT_ALL
+        }
+        setMode(context, next)
+        return next == CallFilterMode.ACCEPT_ALL
     }
 
     fun getBlacklist(context: Context): List<String> = readList(context, KEY_BLACKLIST)
