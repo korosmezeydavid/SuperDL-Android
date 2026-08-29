@@ -1,0 +1,198 @@
+SUPERDL ANDROID — HIBATŰRÉS ÉS IZOLÁLT MEGHIBÁSODÁS
+================================================================================
+  >>> ELŐHÍVÓ JELSZÓ: "domino" <<<
+  Készült: 2026-08-10 | Állapot: FELTÉRKÉPEZÉS + TERV. Kód még nem módosult.
+
+  ALAPELV (a fejlesztő megfogalmazásában):
+    "Egy funkció meghibásodhat. A SuperDL nem."
+    "Bármi borulhat, de csak az boruljon."
+================================================================================
+
+
+0. A PROJEKT MÉRETE (mért adatok)
+--------------------------------------------------------------------------------
+  482 Kotlin fájl | ~75 400 sor | 26 deklarált szolgáltatás
+  1 boot-receiver (.alarm.BootReceiver)
+  2 kisegítő szolgáltatás (képernyőolvasó, PIN segéd) — ezek a rendszerhez
+    kötődnek, és FELOLDÁS ELŐTT is futhatnak
+
+
+1. AMI MÁR MOST VÉD (a jó hír)
+--------------------------------------------------------------------------------
+Nem nulláról indulunk. A meglévő védelmek:
+
+ a) GLOBÁLIS ÖSSZEOMLÁS-NAPLÓ (crash/CrashLogHandler.kt)
+    Minden elkapatlan kivételt fájlba ír (256 KB-ig), ÉS TOVÁBBADJA a rendszer
+    kezelőjének. Tehát naplóz, de NEM nyeli el a hibát.
+    HIÁNYZIK belőle: a felhasználó semmit nem hall, és nincs semmilyen
+    következmény (nincs "biztonságos mód", nincs komponens-letiltás).
+
+ b) KÉPERNYŐOLVASÓ HÁROMSZINTŰ RETESZE
+    - kézi ki/be kapcsoló
+    - vészleállítás
+    - HIBASZÁMLÁLÓ: három hiba után magától leáll, a menü elérhető marad
+    >>> EZ A MINTA. A feladat lényege: ezt az elvet terjeszteni ki.
+
+ c) HÍVÁS-VÉDELEM (call/CallPauseGuard.kt — ma épült)
+    Egységes: könyvolvasó, rádió, podcast, YouTube. Zene és hangoskönyv
+    hangfókusszal védett.
+
+ d) TTS WATCHDOG
+    A speakThen beragadása ellen már van időzítő-védelem (25. kör).
+
+ e) FELISMERŐK ÓVATOSSÁGA
+    A pénzfelismerő inkább HALLGAT, mint hogy tévedjen — ez is hibatűrés,
+    csak más értelemben.
+
+
+2. HIBADOMÉNEK (a tényleges kód alapján)
+--------------------------------------------------------------------------------
+A kód szerkezete szerint HÁROM gyűrű rajzolódik ki:
+
+  ┌─ 1. GYŰRŰ: A TÚLÉLŐ MAG (survival core) ─────────────────────────────┐
+  │  MainActivity gesztus-kezelés (4 irány)                              │
+  │  MenuTree + menü-megjelenítés                                        │
+  │  TtsManager (alap felolvasás)                                        │
+  │  AppFlow állapotgép + exitFlow (visszaút a menübe)                   │
+  │  Alkalmazás-indítás                                                  │
+  │  >>> EZ SOHA NEM ROMOLHAT EL. Ha ez megy, a telefon használható.     │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ 2. GYŰRŰ: RENDSZERHEZ KÖTŐDŐ SZOLGÁLTATÁSOK ────────────────────────┐
+  │  ScreenReaderService, KeyguardPinAccessibilityService                │
+  │  SuperInCallService, SuperCallScreeningService, SmsInboundService    │
+  │  AlarmService, TimerService, MedicationAlertService, CalendarAlarm   │
+  │  BootReceiver                                                        │
+  │  >>> ITT A LEGNAGYOBB A CRASH-LOOP KOCKÁZAT: ezek MAGUKTÓL indulnak  │
+  │      újra, akár feloldás előtt is.                                   │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ 3. GYŰRŰ: FUNKCIÓK (ezek nyugodtan eleshetnek) ─────────────────────┐
+  │  felismerők (pénz, OCR, szín, QR, környezet)                         │
+  │  média (zene, rádió, podcast, könyv, hangoskönyv, YouTube)           │
+  │  kommunikáció (e-mail/IMAP, SMS-küldés)                              │
+  │  navigáció/GPS (6 szolgáltatás!)                                     │
+  │  WiFi portál, diktafon, játékok, katalógus, asszisztens              │
+  └──────────────────────────────────────────────────────────────────────┘
+
+
+3. AZONOSÍTOTT EGYPONTOS HIBALEHETŐSÉGEK (single point of failure)
+--------------------------------------------------------------------------------
+Ezek azok a helyek, ahol EGY hiba az EGÉSZET viszi:
+
+ [SPOF-1] MainActivity mérete — ~15 800 sor EGY osztályban.
+   Minden folyamat (AppFlow) itt fut. Ha egy ág kivételt dob a
+   gesztus-kezelésben, az Activity ÖSSZEOMLIK, és a launcher eltűnik.
+   Vak felhasználónál ez a legrosszabb: nem marad felület.
+   KOCKÁZAT: NAGYON MAGAS. GYAKORISÁG: bármelyik funkció hibája elég hozzá.
+
+ [SPOF-2] TtsManager — MINDEN beszéd rajta megy át.
+   Ha a beszédmotor eltűnik (felhasználó törli, frissítés, hibás motor),
+   a SuperDL NÉMÁVÁ válik, és vakon használhatatlan.
+   Paradoxon: a hibajelzés maga is beszéd.
+
+ [SPOF-3] Boot-lánc — BootReceiver + kisegítő szolgáltatások.
+   Ha induláskor hibás állapotot töltenek vissza (sérült beállítás-fájl,
+   hibás JSON), akkor: indul -> összeomlik -> a rendszer újraindítja ->
+   megint összeomlik. VÉGTELEN CIKLUS, feloldás előtt, néma telefonon.
+   >>> EZ A LEGSÚLYOSABB FORGATÓKÖNYV.
+
+ [SPOF-4] Beállítás-fájlok írása — a JSON-alapú tárolók (ébresztők, naptár,
+   fókusz-szabályok, katalógus) KÖZVETLENÜL írnak.
+   Ha írás közben elfogy az akku vagy kilövik a folyamatot: FÉLKÉSZ fájl,
+   amit a következő induláskor nem lehet beolvasni -> lásd SPOF-3.
+
+ [SPOF-5] A képernyőolvasó a rendszer felületén dolgozik.
+   Ha beragad (mint a tanuló módnál TÖRTÉNT is), a felhasználó nem tudja
+   kezelni a telefont — még a SuperDL menüjét sem éri el.
+   RÉSZBEN JAVÍTVA: van vészleállítás és hibaszámláló, és a tanuló módból
+   már van kiút (négy koppintás).
+
+ [SPOF-6] Foreground szolgáltatások túlélése — 6 GPS-szolgáltatás, portál,
+   diktafon, Őrség. Ha ezek nem állnak le rendesen, akkumulátort esznek és
+   erőforrást fognak. Ez nem összeomlás, de a telefon HASZNÁLHATATLANNÁ
+   válásához vezethet (lemerülés).
+
+
+4. A TERV — HAT LÉPÉS, NÖVEKVŐ KOCKÁZATTAL
+--------------------------------------------------------------------------------
+
+>>> 1. LÉPÉS: GESZTUS-PAJZS (kockázat: ALACSONY, haszon: NAGYON NAGY)
+   A négy gesztus-kezelő és a menü-aktiválás köré EGY közös védőréteg:
+   minden funkció-hívás elszigetelve fut. Ha egy ág kivételt dob:
+     - a launcher NEM omlik össze
+     - a felhasználó ezt hallja: "Ez a funkció hibát észlelt, ezért leállt.
+       A Super DL tovább használható."
+     - visszatérés a főmenübe (exitFlow)
+     - a hiba naplózásra kerül
+   EZ EGYMAGÁBAN megszünteti az SPOF-1-et, és nem nyúl a működő kódhoz —
+   csak körbeveszi.
+
+>>> 2. LÉPÉS: BIZTONSÁGOS FÁJLÍRÁS (kockázat: ALACSONY)
+   Közös segéd: ideiglenes fájlba írunk, majd ÁTNEVEZZÜK. Így soha nem
+   keletkezik félkész fájl. Beolvasásnál: ha a fájl sérült, ELDOBJUK és
+   alapértelmezéssel indulunk — NEM omlunk össze.
+   Megszünteti az SPOF-4-et, és közvetve az SPOF-3 felét.
+
+>>> 3. LÉPÉS: INDULÁSI ŐR (crash-loop védelem) (kockázat: KÖZEPES)
+   Az alkalmazás induláskor beír egy "indulás folyamatban" jelzőt, és sikeres
+   indulás után törli. Ha induláskor azt látja, hogy az ELŐZŐ HÁROM indulás
+   nem fejeződött be:
+     - BIZTONSÁGOS MÓDBAN indul: csak a túlélő mag, minden opcionális
+       szolgáltatás kikapcsolva
+     - hangosan elmondja: "A Super DL biztonságos módban indult, mert
+       többször hibába futott. A telefon használható. A Beállításokban
+       visszakapcsolhatod a funkciókat."
+   Megszünteti az SPOF-3-at.
+
+>>> 4. LÉPÉS: BESZÉD-TARTALÉK (kockázat: KÖZEPES)
+   Ha a TtsManager nem tud megszólalni (nincs motor, hiba, időtúllépés):
+     - másik telepített beszédmotorral próbálkozik EGYSZER
+     - ha az sem megy: HANGJELZÉSEKKEL kommunikál (a meglévő hangkészletből),
+       és rezgéssel jelez
+     - a menüben marad egy pont: "Beszéd javítása"
+   Megszünteti az SPOF-2-t, indokolt komplexitással.
+
+>>> 5. LÉPÉS: KOMPONENS-MEGSZAKÍTÓ (circuit breaker) (kockázat: KÖZEPES)
+   A képernyőolvasó mintájára: minden NAGY funkcióhoz hibaszámláló.
+   Három hiba rövid időn belül -> a funkció ideiglenesen letiltva, a
+   felhasználó hangos tájékoztatást kap, a többi rész megy tovább.
+   Csak oda, ahol indokolt: felismerők, média-lejátszók, portál, GPS,
+   e-mail. NEM kell: menü, egyszerű beállítás-pontok.
+
+>>> 6. LÉPÉS: SZOLGÁLTATÁS-FELÜGYELET (kockázat: MAGAS)
+   A hosszan futó szolgáltatások (GPS, portál, diktafon) önellenőrzése és
+   biztonságos leállása. Ez a legkockázatosabb, mert működő kódhoz nyúl.
+   CSAK az 1-5. lépés bevált tesztelése UTÁN.
+
+
+5. AMIT NEM CSINÁLUNK
+--------------------------------------------------------------------------------
+ - NEM daraboljuk fel a MainActivity-t (nagy regressziós kockázat, kis haszon)
+ - NEM vezetünk be új keretrendszert vagy függőséget
+ - NEM teszünk try-catch blokkot mindenhová — a kivétel elnyelése NEM hibatűrés
+ - NEM változtatjuk meg a négy alapgesztust
+ - NEM refaktorálunk működő kódot esztétikai okból
+
+
+6. A NAGYTAKARITAS TESZTTERV BŐVÍTÉSE
+--------------------------------------------------------------------------------
+Új mérföld a hibakeresési tervbe (a 12. és 13. közé):
+
+  12/B. MÉRFÖLD — SZÁNDÉKOS HIBA (failure injection)
+   a) beszédmotor letiltása menet közben
+   b) engedély visszavonása futás közben (kamera, hely, névjegy)
+   c) sérült beállítás-fájl (félbevágott JSON) minden tárolónál
+   d) hálózat elvétele művelet közben (e-mail, rádió, katalógus, YouTube)
+   e) kamera lefoglalása másik alkalmazással
+   f) a folyamat kilövése (adb: am kill) minden nagy funkció közben
+   g) tele tárhely szimulálása
+   h) ugyanaz a komponens háromszor egymás után hibázik
+   i) BOOT-TESZT sérült beállítással: nem alakul-e ki végtelen ciklus
+   MINDEGYIKNÉL az ellenőrzés:
+     - a hibás funkció kiesett? RENDBEN
+     - a SuperDL többi része megy? KÖTELEZŐ
+     - a felhasználó vissza tud térni a menübe? KÖTELEZŐ
+     - HALLOTTA, mi történt? KÖTELEZŐ
+
+================================================================================

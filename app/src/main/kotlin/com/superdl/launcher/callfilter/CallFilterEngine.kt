@@ -23,6 +23,9 @@ object CallFilterEngine {
     ): Boolean {
         val normalized = phoneNumber?.let(CallFilterStore::normalizePhone).orEmpty()
 
+        // A FEHÉRLISTA MINDENT FELÜLÍR — az időzített fókuszt is.
+        // Aki rajta van, teljes Ne Zavarj alatt is átcsörög. Ez nem apróság:
+        // a családtag vagy az orvos hívása életbevágó lehet.
         if (normalized.isNotBlank() && CallFilterStore.isWhitelisted(context, normalized)) {
             return false
         }
@@ -30,7 +33,12 @@ object CallFilterEngine {
             return true
         }
 
-        return when (CallFilterStore.getMode(context)) {
+        // IDŐZÍTETT FÓKUSZ: ha épp érvényben van egy szabály (pl. este tíztől
+        // reggel hatig), az FELÜLÍRJA a kézzel beállított módot. Így nem kell
+        // esténként bekapcsolgatni, reggel meg kikapcsolni.
+        val mode = FocusScheduleStore.activeMode(context) ?: CallFilterStore.getMode(context)
+
+        return when (mode) {
             CallFilterMode.TOTAL_DND -> true
             CallFilterMode.PRIORITY_ONLY -> !CallContactLookup.isPriorityCaller(context, normalized)
             CallFilterMode.CONTACTS_ONLY -> {

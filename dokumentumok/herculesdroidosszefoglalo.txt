@@ -1,0 +1,250 @@
+ÖSSZEFOGLALÓ A HERCULESNEK — a super-dl.com/#android szakaszhoz
+================================================================================
+  Készült: 2026-08-16 | Forrás: a SuperDL Android tényleges állapota
+  Cél: ez alapján írja meg Hercules az oldal Android-részét.
+
+FONTOS A HANGNEMRŐL:
+Az oldal olvasói NAGYRÉSZT VAKOK, és képernyőolvasóval hallgatják. Ezért:
+ - rövid mondatok, kevés felsorolás-jel, semmi díszítés
+ - a lényeg ELÖL: ne kelljen három bekezdést végighallgatni a lényegért
+ - kerüld az angol szakszavakat, ahol van magyar megfelelő
+ - NE ígérj semmit, ami még nincs kész — a tesztelők bizalma a legfontosabb
+
+
+================================================================================
+1. MI EZ EGY MONDATBAN
+================================================================================
+A SuperDL Android egy teljes kezdőképernyő vak és gyengénlátó embereknek:
+a telefon egészét négy egyszerű mozdulattal lehet használni, és a program
+mindent felolvas.
+
+BŐVEBBEN, DE EGYSZERŰEN:
+A legtöbb telefon úgy lesz akadálymentes, hogy ráteszünk egy felolvasót egy
+látóknak tervezett felületre. A SuperDL fordítva készült: eleve VAKOKNAK
+tervezett kezdőképernyő, ahol nincs mit "megtalálni" a képernyőn — a menü
+lineáris, a mozdulatok mindenhol ugyanazok, és minden elhangzik.
+
+A NÉGY MOZDULAT (ezt érdemes kiemelni az oldalon):
+  fel és le — választás a menüben
+  jobbra — megnyitás, igen, megerősítés
+  balra — vissza, nem, mégse
+Ez a négy mozdulat a program EGÉSZÉBEN ugyanazt jelenti. Nincs kivétel.
+
+
+================================================================================
+2. HOL TARTUNK MOST — EZ A LEGFONTOSABB SZAKASZ
+================================================================================
+Írd meg őszintén, három lépésben:
+
+MI KÉSZÜLT EL:
+A program elkészült és működik. Több hónapos fejlesztés után átment egy
+teljes, tizenhat lépéses minőségi átvizsgáláson, amiben húsz hibát találtunk
+és javítottunk. Ezek között volt olyan, ami csak valódi használatban derül ki:
+például hogy a billentyűzet hangosan kimondta a jelszavakat, vagy hogy a
+program némán maradt bizonyos készülékeken.
+
+MI TÖRTÉNIK MOST:
+Indul a NYILVÁNOS TESZTELÉS. Ez nem formaság: a program eddig egyetlen
+készüléken készült, és a második telefon fél óra alatt két olyan hibát
+mutatott meg, amit hetekig nem vettünk észre. Sok készülék, sok ember, sok
+szokás — csak így derül ki, mi működik mindenhol.
+
+MI LESZ EZUTÁN:
+A tesztelők visszajelzései alapján javítunk, majd jön a nyilvános kiadás.
+A program ingyenes, és az is marad.
+
+
+================================================================================
+3. MIT TUD — FUNKCIÓK
+================================================================================
+Csoportosítva írd, mert így hallgatva is követhető.
+Ne sorold fel MINDET egy tömbben — az hallgatva átláthatatlan.
+
+TELEFON ÉS KAPCSOLATTARTÁS
+  Hívás névjegyből, hangból vagy számbillentyűzetről. Bejövő hívás fogadása
+  és elutasítása egyetlen mozdulattal. Hívásnapló. Névjegyek kezelése.
+  SMS írása és olvasása, diktálással is. E-mail: levelek letöltése és küldése.
+  Hívásszűrő: időzített nyugalom, amikor csak a fontos hívások csengetnek ki.
+
+IDŐ ÉS SZERVEZÉS
+  Ébresztők, ismétlődéssel és kihagyással. Időzítők. Naptár és programok.
+  Gyógyszer-emlékeztető kúra-követéssel. Bevásárlólista. Jegyzetek.
+
+OLVASÁS ÉS MÉDIA
+  Könyvolvasás: a program felolvassa a szöveges könyveket, könyvjelzővel,
+  lapozással, és külön beállítható hanggal.
+  Hangoskönyv. Zene a telefonról és a felhőből. Rádió, felvétellel.
+  Podcast, letöltéssel. YouTube: keresés, lejátszás, kedvencek.
+  Mindegyik elhallgat hívás közben, és megáll, ha kihúzod a fülhallgatót.
+
+FELISMERŐK
+  Szövegfelolvasás fényképről: gyógyszeres doboz, levél, felirat.
+  Színfelismerés. Tárgyfelismerés és környezetleírás. Q R kód olvasása.
+  Arcfelismerés a kamerakép leírásához.
+
+TÁJÉKOZÓDÁS
+  Hol vagyok. Környezetleírás: mi van körülöttem. Iránytű.
+  Tömegközlekedés: közeli megállók és menetrend. Útvonaltervezés.
+  Mentett helyek. Útvonal rögzítése és visszajátszása.
+
+SEGÍTSÉG ÉS BIZTONSÁG
+  S.O.S. hívás: több számot hív sorban, amíg valaki felveszi.
+  PIN segéd: a zárolt telefon feloldásában segít, hangosan.
+  Akkumulátor őrség. Profi diktafon. Telefonkereső.
+  WiFi fájlportál: a telefon tartalma elérhető a saját gépről, jelszóval védve.
+
+SAJÁT KÉPERNYŐOLVASÓ
+  Ez a program egyik legnagyobb része, érdemes külön kiemelni.
+  A SuperDL saját képernyőolvasót tartalmaz, ami NEM CSAK a SuperDL-ben, hanem
+  MINDEN MÁS ALKALMAZÁSBAN is felolvas — bankban, üzenetküldőben, boltban.
+  Tud: navigációs módokat (címsorok, hivatkozások, gombok, mezők),
+  részletességet (elem, mondat, szó, betű), folyamatos olvasást,
+  képfelolvasást, színfelismerést, névtelen gombok elnevezését,
+  szöveg másolását és beillesztését, és kijelölést.
+  Igen-nem kérdésnél és csörgő hívásnál is a megszokott jobbra-balra működik.
+  Tenyérrel letakarva azonnal elhallgat.
+
+SAJÁT BILLENTYŰZET
+  Mátrix billentyűzet: a képernyő bárhol megérinthető, a gombok az ujjad alá
+  igazodnak. Nem kell megkeresni semmit. Diktálás is.
+
+ELENA HANGASSZISZTENS
+  Hívószóra ébred, és parancsokat hajt végre: hívás, üzenet, ébresztő, zene.
+
+TANULÓ MÓD
+  Aki most ismerkedik a képernyőolvasóval, huszonhat órán át tanulhatja a
+  mozdulatokat, majd vizsgázhat belőlük. Osztályzatot is kap.
+
+
+================================================================================
+4. ADATVÉDELEM — EZT KÜLÖN SZAKASZBAN, HANGSÚLYOSAN
+================================================================================
+Ez a szakasz FONTOS: a program a felhasználó teljes digitális életét látja, és
+egy vak ember NEM TUDJA ELLENŐRIZNI, mi történik a háttérben. Ezért ki kell
+mondani. A programban is benne van, felolvasható formában.
+
+MONDD EL EZEKET:
+  A program a telefonon tárol mindent. Nem küld haza semmit.
+  Nincs benne reklám, nincs elemző kód, nincs követés. Nem tudjuk, hányan
+  használják, mit használnak belőle, vagy mikor.
+  Az e-mail jelszó titkosítva tárolódik, a telefonhoz kötött kulccsal.
+  A képernyőolvasó látja minden alkalmazás tartalmát — a banki alkalmazást is —,
+  de ebből SEMMIT nem jegyez fel és nem küld el. Csak felolvassa.
+  Ami kimegy a telefonról, az öt dolog, mindegyik csak kérésre: a helyzet a
+  térkép-szolgáltatásnak címkereséskor, a keresett szöveg a YouTube-nak és a
+  rádiónak, az e-mail adatok a saját szolgáltatónak, a diktált szöveg a telefon
+  felismerőjének, és frissítéskor a verziószám.
+  A teljes adatvédelmi tájékoztató a programban is meghallgatható:
+  Névjegy és jogi információk, Adatvédelmi tájékoztató.
+
+
+================================================================================
+5. A TESZTELÉS — HOGYAN LESZ
+================================================================================
+
+MIÉRT VAN SZÜKSÉG TESZTELŐKRE — ezt érdemes ŐSZINTÉN elmondani:
+A program eddig EGYETLEN telefonon készült. Amikor először feltettük egy
+másikra, fél óra alatt két olyan hiba derült ki, amit hetekig nem vettünk
+észre: az egyik miatt a program az első indításnál összeomlott volna minden
+új felhasználónál, a másik miatt NÉMA maradt volna azon a készüléken.
+Egyik sem a program hibája volt önmagában — egyszerűen másik gyártó, másik
+Android-verzió. Ezt csak sok emberrel lehet feltérképezni.
+
+KI JELENTKEZHET:
+Bárki, aki vak vagy gyengénlátó, és Android telefont használ. Nem kell hozzá
+műszaki tudás. Nem baj, ha valaki még csak most ismerkedik a telefonnal —
+sőt: pont az ő visszajelzése a legértékesebb, mert ő találkozik azzal, ami
+egy gyakorlott felhasználónak fel sem tűnik.
+
+MI KELL HOZZÁ:
+  Android telefon. Minél többféle, annál jobb.
+  Türelem: ez tesztverzió, előfordulhatnak hibák.
+  És annyi, hogy ha valami nem jó, azt JELEZZE.
+
+HOGYAN LEHET JELENTKEZNI:
+  [IDE KERÜL A JELENTKEZÉSI ŰRLAP LINKJE — Dávid adja meg]
+
+MIT KELL TUDNI ELŐRE — ezt írd meg, mert enélkül elakadnak:
+  1. A legelső beállításnál, amikor az engedélyeket kell megadni, még nem
+     szól a program. Ilyenkor a telefon saját felolvasóját, a TalkBacket
+     érdemes bekapcsolni — utána már a SuperDL beszél.
+  2. A tesztverzió a telefonra KÜLÖN települ. Ha valaki használja a windowsos
+     SuperDL-t vagy egy korábbi változatot, az megmarad.
+  3. Ha hibát talál, a Névjegy menüben van egy Hibajelentés küldése pont.
+     Elmondja a saját szavaival, mi történt, a program hozzáteszi a műszaki
+     adatokat, és elküldhető a saját levelezőjével, üzenetküldővel, vagy
+     elmenthető és később elküldhető. Nem kell hozzá jelszót beállítani.
+  4. A hibajelentés SEMMILYEN személyes adatot nem tartalmaz.
+
+MI NINCS BENNE A TESZTVERZIÓBAN — ezt is mondd meg, mert kérdezni fogják:
+  A BANKJEGYFELISMERŐ. Ez szándékos. Ennél a funkciónál a tévedés nem
+  kellemetlenség, hanem anyagi kár: aki vakon fizet, annak a program szavában
+  kell bíznia. Ezért a bankjegyfelismerő külön, hosszabb mérést kap, és csak
+  akkor kerül be, ha bizonyítottan megbízható.
+
+FIGYELMEZTETÉS, AMIT KI KELL MONDANI:
+  Ez tesztverzió. Ne használja senki EGYETLEN eszközként olyasmire, ahol a
+  hiba komoly bajt okozna: életmentő gyógyszer emlékeztetőjéhez, fontos
+  találkozóhoz vagy vészhelyzeti híváshoz tartson meg egy második megoldást is.
+
+
+================================================================================
+6. A TESZTELÉS SZAKASZAI — ha Dávid ütemezést is szeretne kiírni
+================================================================================
+Ezt csak akkor írd ki, ha Dávid megerősíti az időpontokat.
+
+  ELSŐ SZAKASZ — jelentkezés és telepítés
+    A jelentkezők megkapják a programot és a telepítési útmutatót.
+    Cél: mindenki el tudja indítani, és be tudja állítani.
+
+  MÁSODIK SZAKASZ — mindennapi használat
+    A tesztelők használják, ahogy egy hétköznap adódik. Nem kell külön
+    "tesztelni": pont az a hasznos, ami használat közben derül ki.
+
+  HARMADIK SZAKASZ — visszajelzések és javítás
+    A jelentések alapján javítunk, és frissítést küldünk.
+
+  UTÁNA — nyilvános kiadás.
+
+
+================================================================================
+7. AMIT NE ÍRJ LE
+================================================================================
+  - Ne ígérj konkrét kiadási dátumot.
+  - Ne írd, hogy "hibátlan" vagy "kész" — tesztverzió.
+  - Ne sorold fel a mérföldeket, a hibaszámokat vagy a fejlesztői részleteket
+    (ProGuard, APK, ADB) — ez nem a fejlesztőknek szól.
+  - Ne írd, hogy Play áruházban lesz: a terjesztés saját úton történik.
+  - Ne használd a "vakok és gyengénlátók számára is" fordulatot — ez a program
+    ELSŐSORBAN nekik készült, nem "is".
+
+
+================================================================================
+8. JAVASOLT SZERKEZET AZ OLDALON
+================================================================================
+Ebben a sorrendben, mert hallgatva ez a leglogikusabb:
+
+  1. Egy mondat: mi ez.
+  2. A négy mozdulat.
+  3. Hol tartunk: kész, most tesztelés indul, utána kiadás.
+  4. Jelentkezés a tesztre — LINK, jól láthatóan és jól hallhatóan.
+  5. Mit tud: a funkciók csoportosítva.
+  6. A képernyőolvasó külön kiemelve — ez a program legnagyobb értéke.
+  7. Adatvédelem.
+  8. Amit tudni kell a teszthez (a négy pont a 5. szakaszból).
+  9. Figyelmeztetés, hogy tesztverzió.
+ 10. Kapcsolat.
+
+CÍMJAVASLATOK a szakaszhoz:
+  "SuperDL Androidra — most indul a nyilvános tesztelés"
+  "A telefon, négy mozdulattal"
+  "Vakon is az egész telefon"
+
+
+================================================================================
+9. KAPCSOLAT
+================================================================================
+  Fejlesztő: Kőrösmezey Dávid Richárd
+  E-mail: korosmezey.david.richard@gmail.com
+  Weboldal: super-dl.com
+  A program ingyenes, és az is marad.

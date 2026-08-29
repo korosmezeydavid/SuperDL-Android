@@ -1,8 +1,49 @@
+# --- Android Studio / Gradle ---
 *.iml
 .gradle/
 /local.properties
 /.idea/
 /build/
 /app/build/
+.cxx/
+# minden alprojekt build-kimenete is (pl. dokumentumok/nitaplay/app/build)
+**/build/
+**/.gradle/
+**/local.properties
+
+# --- TITKOK: EZEK SOHA NEM MEHETNEK KI ---
+# FIGYELEM: 2026-08-29 elott ez a fajl hianyzo sorvegtores miatt hibas volt
+# ("*.keystoreapp/src/main/assets/ably_key.txt" egyetlen sorban), ezert sem az
+# alairo kulcs, sem az Ably-kulcs NEM volt kizarva. Ne ronts vissza rajta.
 keystore.properties
 *.keystore
+*.jks
+app/src/main/assets/ably_key.txt
+**/ably_key.txt
+*.pem
+*.p12
+secrets.properties
+
+# --- Build-kimenetek es naplok ---
+*.apk
+*.aab
+build_*.txt
+build_*_err.txt
+
+# --- Nagy, ujra eloallithato adathalmazok (nem forraskod) ---
+tools/banknote_yolo_dataset.zip
+tools/banknote_yolo_v2.zip
+tools/runs/
+tools/datasets/
+# bankjegy-tanito kepek (~1,25 GB, 10 000+ jpg) - adathalmaz, nem forraskod.
+# A lemezen maradnak; a Colab/Drive folyamat ujra eloallitja oket.
+tools/banknote_yolo/
+tools/banknote_dataset/
+tools/banknote_dataset_synth/
+*.zip
+# elore tanitott, ujraletoltheto YOLO alapmodell
+yolo11s.pt
+
+# --- Rendszer ---
+.DS_Store
+Thumbs.db

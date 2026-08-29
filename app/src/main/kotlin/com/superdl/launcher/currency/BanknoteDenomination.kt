@@ -15,5 +15,11 @@ enum class BanknoteDenomination(
     companion object {
         fun fromLabel(label: String): BanknoteDenomination? =
             entries.firstOrNull { it.labelKey == label }
+
+        /** A címlet értékéből ("500", "10000") enum. */
+        fun fromValue(value: String): BanknoteDenomination? {
+            val v = value.trim().toIntOrNull() ?: return null
+            return entries.firstOrNull { it.valueHuf == v }
+        }
     }
 }

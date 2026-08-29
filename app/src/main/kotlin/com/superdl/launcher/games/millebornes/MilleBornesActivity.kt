@@ -160,7 +160,7 @@ class MilleBornesActivity : AppCompatActivity() {
         val state = game.currentState()
         if (state?.winner != null) {
             playResultSound(state.winner == "Te")
-            tts.speak("A játék véget ért. Győztes: ${state.winner}. Jobbra swipe az újrakezdéshez.")
+            tts.speak("A játék véget ért. Győztes: ${state.winner}. Jobbra söprés az újrakezdéshez.")
             startGame()
             return
         }
@@ -188,7 +188,7 @@ class MilleBornesActivity : AppCompatActivity() {
     private fun checkWinner() {
         val winner = game.currentState()?.winner ?: return
         playResultSound(winner == "Te")
-        tts.speakAdd("Játék vége. Győztes: $winner. Jobbra swipe az újrakezdéshez.")
+        tts.speakAdd("Játék vége. Győztes: $winner. Jobbra söprés az újrakezdéshez.")
     }
 
     private fun playCardSound(card: MilleBornesCard?) {
@@ -269,7 +269,8 @@ class MilleBornesActivity : AppCompatActivity() {
     }
 
     private fun finishGame() {
-        tts.speakThen("Mille Bornes bezárva.") { finish() }
+        tts.speak("Mille Bornes bezárva.")
+        finish()
     }
 
     override fun onDestroy() {

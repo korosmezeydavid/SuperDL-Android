@@ -10,7 +10,12 @@ object DayInfoHelper {
         return if (namedayPart.isBlank()) datePart else "$datePart $namedayPart"
     }
 
+    /**
+     * @param context a telefon SAJÁT HELYZETÉHEZ kell — enélkül az időjárás
+     *        az internetkapcsolatból találgatna, és rossz várost mondana.
+     */
     fun fetchGreeting(
+        context: android.content.Context? = null,
         includeWeather: Boolean = true,
         onResult: (String) -> Unit
     ) {
@@ -20,6 +25,7 @@ object DayInfoHelper {
             return
         }
         WeatherHelper.fetch(
+            context = context,
             city = null,
             onResult = { weather -> onResult("$local ${weather.speakSummary()}") },
             onError = { onResult(local) }

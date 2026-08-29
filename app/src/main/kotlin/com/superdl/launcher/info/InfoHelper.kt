@@ -26,6 +26,37 @@ object InfoHelper {
         return "${batteryReport(context)} ${signalReport(context)}"
     }
 
+    /**
+     * Rövid állapotsor a főmenü szélén ("már a főmenüben vagy" után):
+     * pontos idő dátum nélkül, akku százalék, térerő százalékban (ha mérhető).
+     */
+    fun mainMenuStatusLine(context: Context): String {
+        val timeFmt = SimpleDateFormat("H' óra 'm' perc'", Locale("hu", "HU"))
+        val time = timeFmt.format(Date())
+        val battery = batteryReport(context)
+        val signal = signalPercentReport(context)
+        return listOf("$time.", battery, signal)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    }
+
+    /** Térerő százalékban (a 0–4 szintből számolva), vagy üres ha nem mérhető. */
+    fun signalPercentReport(context: Context): String {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            ?: return ""
+        if (tm.simState == TelephonyManager.SIM_STATE_ABSENT) return "Nincs SIM kártya."
+        val level: Int = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                tm.signalStrength?.level ?: -1
+            } else {
+                -1
+            }
+        } catch (_: Exception) {
+            -1
+        }
+        return if (level in 0..4) "Térerő ${level * 25} százalék." else ""
+    }
+
     fun batteryReport(context: Context): String {
         val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
         val level = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1

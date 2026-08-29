@@ -145,7 +145,8 @@ class LightDetectorActivity : AppCompatActivity() {
 
     private fun finishDetector() {
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen("Fénydetektor leállítva.") { finish() }
+        tts.speak("Fénydetektor leállítva.")
+        finish()
     }
 
     private fun hasCameraPermission(): Boolean =

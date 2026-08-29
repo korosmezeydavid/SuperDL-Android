@@ -52,12 +52,12 @@ object ElenaKnowledgeBase {
         Entry(
             id = "gestures",
             triggers = listOf(
-                "gesztusok", "swipe", "huzas", "húzás", "hogyan navigalok", "hogyan navigálok",
-                "fel le jobbra balra", "mit jelent a swipe"
+                "gesztusok", "söprés", "huzas", "húzás", "hogyan navigalok", "hogyan navigálok",
+                "fel le jobbra balra", "mit jelent a söprés"
             ),
-            answer = "A fő képernyőn: fel swipe előző elem, le swipe következő, jobbra swipe megnyitás vagy megerősítés, " +
-                "balra swipe vissza vagy kilépés. Folyamat közben ugyanígy: jobbra megerősít, balra mégse. " +
-                "Tanuló módban kilépéshez két gyors balra swipe kell.",
+            answer = "A fő képernyőn: fel söprés előző elem, le söprés következő, jobbra söprés megnyitás vagy megerősítés, " +
+                "balra söprés vissza vagy kilépés. Folyamat közben ugyanígy: jobbra megerősít, balra mégse. " +
+                "Tanuló módban kilépéshez két gyors balra söprés kell.",
             priority = 8
         ),
         Entry(
@@ -65,7 +65,7 @@ object ElenaKnowledgeBase {
             triggers = listOf(
                 "s o s", "sos", "veszhelyzet", "vészhelyzet", "sos szam", "sos hivas"
             ),
-            answer = "Az S O S vészjelzés: öt másodperces visszaszámlálás, balra swipe megszakítja. " +
+            answer = "Az S O S vészjelzés: öt másodperces visszaszámlálás, balra söprés megszakítja. " +
                 "Utána sorban hívja a beállított számokat, maximum négyet. " +
                 "Számok: Beállítások, S O S paraméterek. Mondd: S O S. Zárolt képernyőn is működik.",
             priority = 9
@@ -106,7 +106,7 @@ object ElenaKnowledgeBase {
                 "jegyzet", "jegyzetek", "sajat jegyzet", "hogyan mentek jegyzetet"
             ),
             answer = "A saját jegyzetek az Idő és Szervezés menüben vannak. Új jegyzet diktálással: mondd új jegyzet. " +
-                "Listázás: saját jegyzetek. Törlés: jegyzet törlése. Az internet kereső találatnál le swipe-pal " +
+                "Listázás: saját jegyzetek. Törlés: jegyzet törlése. Az internet kereső találatnál le söpréssel " +
                 "is menthetsz jegyzetet.",
             priority = 6
         ),
@@ -147,7 +147,7 @@ object ElenaKnowledgeBase {
                 "gyogyszer", "gyógyszer", "patika orangyal", "patika őrangyal", "emlekezteto", "emlékeztető"
             ),
             answer = "A Patika Őrangyal gyógyszer-emlékeztető. Új gyógyszer hozzáadása, listázás, törlés hanggal. " +
-                "Riasztáskor swipe menü: halasztás egy órával vagy bevétel megerősítése. Zárolt képernyőn is jelez.",
+                "Riasztáskor söprés menü: halasztás egy órával vagy bevétel megerősítése. Zárolt képernyőn is jelez.",
             priority = 6
         ),
         Entry(
@@ -178,7 +178,7 @@ object ElenaKnowledgeBase {
                 "diktalas megszakit", "diktálás megszakít", "mikrofon bezar", "mikrofon bezár",
                 "nem akarok diktalni", "nem akarok diktálni"
             ),
-            answer = "Bármely diktálás közben balra swipe megszakítja a felismerést és a felolvasást. " +
+            answer = "Bármely diktálás közben balra söprés megszakítja a felismerést és a felolvasást. " +
                 "Ez minden funkcióra érvényes: asszisztens, üzenet, e-mail, név, keresés és többi.",
             priority = 5
         ),
@@ -237,7 +237,7 @@ object ElenaKnowledgeBase {
                 "hivas bontas", "hívás bontás", "incall", "hivo kijelzo"
             ),
             answer = "Névjegyből hívás: diktáld a nevet, fel-le a találatok, jobbra a hívás. " +
-                "Hívás közben saját képernyő: felolvassa az állapotot. Balra swipe: hívás bontása.",
+                "Hívás közben saját képernyő: felolvassa az állapotot. Balra söprés: hívás bontása.",
             priority = 8
         ),
         Entry(
@@ -247,7 +247,7 @@ object ElenaKnowledgeBase {
                 "sms lepes", "sms lépés"
             ),
             answer = "SMS küldés: címzett diktálása, megerősítés, üzenet diktálása, küldés megerősítése. " +
-                "Balra swipe bármely lépésnél megszakít. Mondd: üzenet küldés.",
+                "Balra söprés bármely lépésnél megszakít. Mondd: üzenet küldés.",
             priority = 7
         ),
         Entry(
@@ -286,7 +286,7 @@ object ElenaKnowledgeBase {
                 "program hangjai", "hangok megismerese", "hangok megismerése", "milyen hang", "milyen sip"
             ),
             answer = "A Névjegy menüben: Program hangjainak megismerése. Nyolc hang kipróbálható magyarázattal: " +
-                "indítás, swipe irányok, siker, hiba, menü kattanás. Segít megjegyezni a visszajelzéseket.",
+                "indítás, söprés irányok, siker, hiba, menü kattanás. Segít megjegyezni a visszajelzéseket.",
             priority = 5
         ),
         Entry(

@@ -11,6 +11,7 @@ object HearingAidStore {
     private const val KEY_MID = "mid_gain"
     private const val KEY_TREBLE = "treble_gain"
     private const val KEY_BALANCE = "balance"
+    private const val KEY_MIC_SOURCE = "mic_source"
 
     @Volatile
     var isRunning: Boolean = false
@@ -25,7 +26,10 @@ object HearingAidStore {
             trebleGain = prefs.getFloat(KEY_TREBLE, 1.0f),
             balance = HearingAidSettings.BalanceMode.entries.getOrElse(
                 prefs.getInt(KEY_BALANCE, 1).coerceIn(0, 2)
-            ) { HearingAidSettings.BalanceMode.BOTH }
+            ) { HearingAidSettings.BalanceMode.BOTH },
+            micSource = HearingAidSettings.MicSource.entries.getOrElse(
+                prefs.getInt(KEY_MIC_SOURCE, 0).coerceIn(0, 2)
+            ) { HearingAidSettings.MicSource.AUTO }
         )
     }
 
@@ -38,6 +42,7 @@ object HearingAidStore {
             .putFloat(KEY_MID, settings.midGain)
             .putFloat(KEY_TREBLE, settings.trebleGain)
             .putInt(KEY_BALANCE, settings.balance.ordinal)
+            .putInt(KEY_MIC_SOURCE, settings.micSource.ordinal)
             .apply()
     }
 
@@ -48,6 +53,12 @@ object HearingAidStore {
 
     fun cycleBalance(current: HearingAidSettings.BalanceMode): HearingAidSettings.BalanceMode {
         val values = HearingAidSettings.BalanceMode.entries
+        val next = (current.ordinal + 1) % values.size
+        return values[next]
+    }
+
+    fun cycleMicSource(current: HearingAidSettings.MicSource): HearingAidSettings.MicSource {
+        val values = HearingAidSettings.MicSource.entries
         val next = (current.ordinal + 1) % values.size
         return values[next]
     }

@@ -27,6 +27,7 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
+    private var lastLoggedKeyguardState: String? = null
     private val workerThread = HandlerThread("SuperDL-A11yWorker").apply { start() }
     private val workerHandler = Handler(workerThread.looper)
 
@@ -52,6 +53,19 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // Napló: ebből derül ki, hogy a szolgáltatás elindul-e az ELSŐ FELOLDÁS
+        // ELŐTT (Direct Boot) is, vagy csak feloldás után. A userUnlocked=false
+        // azt jelenti, hogy még a titkosított, korlátozott fázisban vagyunk.
+        val unlocked = try {
+            val um = getSystemService(android.content.Context.USER_SERVICE) as android.os.UserManager
+            um.isUserUnlocked
+        } catch (_: Exception) {
+            null
+        }
+        android.util.Log.i(
+            "SDL_PINASSIST",
+            "onServiceConnected: felhasznalo feloldva=$unlocked, funkcio=${KeyguardPinSettings.isFeatureEnabled(this)}"
+        )
         AccessibilityAssistBridge.activeService = this
         configureServiceInfo()
         evaluateKeyguardState(force = true)
@@ -148,7 +162,19 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
     }
 
     private fun evaluateKeyguardState(force: Boolean = false) {
-        if (!KeyguardPinSettings.isFeatureEnabled(this)) {
+        val featureOn = KeyguardPinSettings.isFeatureEnabled(this)
+        // Diagnosztika CSAK állapotváltozáskor — a vizsgálat 350 ms-onként fut,
+        // minden körben naplózni fölösleges terhelés lenne.
+        val locked = try { KeyguardPinDetector.isKeyguardLocked(this) } catch (_: Exception) { null }
+        val stateKey = "$featureOn/$locked"
+        if (stateKey != lastLoggedKeyguardState) {
+            lastLoggedKeyguardState = stateKey
+            android.util.Log.i(
+                "SDL_PINASSIST",
+                "allapot valtozas: funkcio=$featureOn zarolva=$locked"
+            )
+        }
+        if (!featureOn) {
             overlay?.hide()
             credentialState = CredentialState.NONE
             pinAssistLocked = false
@@ -179,9 +205,21 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
 
         startKeyguardPolling()
         val root = KeyguardPinInjector.findKeyguardRoot(this)
+        // DIAGNOSZTIKA: megtaláltuk-e a zárolási képernyő ablakát, és minek
+        // ismertük fel? Ha a root null, a rendszer nem engedi látni a keyguardot;
+        // ha a felismert állapot nem PIN, akkor a képernyő szerkezete más.
+        android.util.Log.i(
+            "SDL_PINASSIST",
+            "kereses: keyguard ablak=${if (root != null) "megvan" else "NINCS"}"
+        )
         val state = if (root != null) {
             val analyzed = KeyguardPinDetector.analyzeRoot(root, this)
             val pinField = KeyguardPinDetector.findPinInputField(root)
+            android.util.Log.i(
+                "SDL_PINASSIST",
+                "felismeres: allapot=$analyzed, PIN-mezo=${if (pinField != null) "megvan" else "nincs"}, " +
+                    "vedett=${KeyguardPinDetector.isDeviceSecure(this)}"
+            )
             val resolved = if (analyzed == CredentialState.KEYGUARD_IDLE &&
                 KeyguardPinDetector.isDeviceSecure(this) &&
                 pinField != null

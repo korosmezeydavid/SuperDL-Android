@@ -17,7 +17,32 @@ object BookLibrary {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             scanMediaStore(context, found)
         }
+        // Hangoskönyvek: a bejárt gyökerekben minden hangfájlos MAPPA egy könyv.
+        AudiobookLibrary.collectInto(scanRoots(context), found)
         return found.values.sortedBy { it.title.lowercase() }
+    }
+
+    /** A bejárt gyökér-mappák (a hangoskönyv-felismeréshez is ezeket használjuk). */
+    private fun scanRoots(context: Context): List<File> {
+        val dirs = mutableListOf<File>()
+        listOfNotNull(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS),
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            context.getExternalFilesDir(null)?.let { File(it, "Books") }
+        ).forEach { dirs.add(it) }
+        @Suppress("DEPRECATION")
+        listOfNotNull(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            Environment.getExternalStoragePublicDirectory("Books")
+            // A ZENE MAPPA SZÁNDÉKOSAN KIMARADT.
+            // Korábban itt szerepelt, ezért a zenei fájlok "könyvként" is
+            // megjelentek a könyvtárban, és bekerültek a felolvasásba.
+            // Aki mégis onnan olvasna, a "Könyvmappa beállítása" ponttal
+            // bármikor hozzáadhatja.
+        ).forEach { dirs.add(it) }
+        BookStore.getCustomFolders(context).forEach { dirs.add(File(it)) }
+        return dirs.filter { it.exists() && it.isDirectory }
     }
 
     private fun scanCustomFolders(context: Context, found: LinkedHashMap<String, BookEntry>) {

@@ -10,7 +10,7 @@ enum class SoundTheme(
     DEFAULT(
         id = "default",
         label = "Alapértelmezett",
-        description = "Klasszikus sípoló swipe hangok."
+        description = "Klasszikus sípoló söprés hangok."
     ),
     CLICK_FLICK(
         id = "click_flick",
@@ -31,6 +31,11 @@ enum class SoundTheme(
         id = "gomb",
         label = "Gombnyomás",
         description = "Változatos gombnyomás hangok a gesztusokhoz."
+    ),
+    SCIFI(
+        id = "scifi",
+        label = "Sci-fi",
+        description = "Űrhajós, elektronikus hangeffektek. Hosszabb, dallamos indítóhang."
     );
 
     fun resIdFor(type: SoundType): Int = when (this) {
@@ -39,6 +44,7 @@ enum class SoundTheme(
         SWISH -> swishRes(type)
         KOPPANOS -> koppanosRes(type)
         GOMB -> gombRes(type)
+        SCIFI -> scifiRes(type)
     }
 
     fun previewSwipeTypes(): List<SoundType> = listOf(
@@ -86,6 +92,19 @@ enum class SoundTheme(
         SoundType.MENU_NAV -> R.raw.snd_gomb_nav
         SoundType.ACTION_OK -> R.raw.snd_gomb_ok
         else -> type.defaultResId
+    }
+
+    // Sci-fi téma: minden hangtípushoz saját effekt. A STARTUP a leghosszabb,
+    // dallamos indítóhang (a felhasználó kérése volt a hosszabb bekapcsolóhang).
+    private fun scifiRes(type: SoundType): Int = when (type) {
+        SoundType.STARTUP -> R.raw.snd_scifi_startup
+        SoundType.SWIPE_UP -> R.raw.snd_scifi_up
+        SoundType.SWIPE_DOWN -> R.raw.snd_scifi_down
+        SoundType.SWIPE_LEFT -> R.raw.snd_scifi_left
+        SoundType.SWIPE_RIGHT -> R.raw.snd_scifi_right
+        SoundType.MENU_NAV -> R.raw.snd_scifi_nav
+        SoundType.ACTION_OK -> R.raw.snd_scifi_ok
+        SoundType.ACTION_ERROR -> R.raw.snd_scifi_error
     }
 
     companion object {

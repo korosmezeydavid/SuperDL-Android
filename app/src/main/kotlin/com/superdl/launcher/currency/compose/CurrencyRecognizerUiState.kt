@@ -8,6 +8,9 @@ data class CurrencyRecognizerUiState(
     val hintText: String = "",
     val isScanning: Boolean = false,
     val isTwoStageEnabled: Boolean = false,
+    /** Prioritásos hibrid kaszkád (szín→OCR→opcionális YOLO) aktív. */
+    val cascadeMode: Boolean = false,
+    val yoloFallbackEnabled: Boolean = false,
     val pipelineMode: BanknotePipelineMode? = null,
     val detectionBox: RectF? = null,
     val showDetectionOverlay: Boolean = false,

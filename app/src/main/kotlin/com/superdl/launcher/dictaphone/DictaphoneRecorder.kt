@@ -48,8 +48,15 @@ class DictaphoneRecorder(
             return false
         }
 
+        // A hangforrás a "nyers felvétel" beállítástól függ: nyers módban a
+        // rendszer feldolgozatlan forrását kérjük, mert a szokásos mikrofon-
+        // forráson a készülék hardveresen is szűr, amit szoftverből nem lehet
+        // kikapcsolni.
+        val sourceChoice = DictaphoneAudioSource.resolve(appContext, config.rawCapture)
+        Log.i(TAG, "Felvetel hangforras: ${sourceChoice.label} (nyers=${sourceChoice.trulyRaw})")
+
         val record = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            sourceChoice.source,
             config.sampleRate.hz,
             channelConfig,
             encoding,
@@ -70,7 +77,12 @@ class DictaphoneRecorder(
             DictaphoneStore.setError("Nincs elég tárhely a felvételhez.")
             return false
         }
-        effects = DictaphoneAudioEffects.apply(record.audioSessionId, config.noiseSuppressionEnabled)
+        // Nyers módban SEMMILYEN effekt nem lehet aktív, akkor sem, ha a
+        // zajszűrés kapcsoló véletlenül be van kapcsolva.
+        effects = DictaphoneAudioEffects.apply(
+            record.audioSessionId,
+            config.noiseSuppressionEnabled && !config.rawCapture
+        )
 
         audioRecord = record
         isPaused = false

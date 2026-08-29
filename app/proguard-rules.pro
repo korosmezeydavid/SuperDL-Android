@@ -46,3 +46,8 @@
 -dontwarn javax.naming.directory.InitialDirContext
 -dontwarn javax.naming.directory.SearchControls
 -dontwarn javax.naming.directory.SearchResult
+
+# Tink KeysDownloader opcionalis Google HTTP kliense (nem hasznaljuk)
+-dontwarn com.google.api.client.http.HttpTransport
+-dontwarn com.google.api.client.http.javanet.NetHttpTransport$Builder
+-dontwarn com.google.api.client.http.javanet.NetHttpTransport

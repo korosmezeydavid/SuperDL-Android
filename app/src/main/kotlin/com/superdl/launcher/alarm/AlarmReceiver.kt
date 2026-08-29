@@ -3,17 +3,13 @@ package com.superdl.launcher.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.superdl.launcher.feedback.AlertSoundCategory
-import com.superdl.launcher.feedback.AlertSoundPlayer
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
-import com.superdl.launcher.tts.TtsEngineStore
-import java.util.Locale
 
+/**
+ * Az ébresztő időpontjában elindítja a valódi ébresztőhangot (AlarmService)
+ * és a riasztási képernyőt (AlarmAlertActivity), majd gondoskodik a
+ * következő alkalom beütemezéséről (ismétlődő ébresztőnél).
+ */
 class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
@@ -21,94 +17,78 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_LABEL = "label"
         const val EXTRA_HOUR = "hour"
         const val EXTRA_MINUTE = "minute"
-        private const val TTS_UTTERANCE_ID = "alarm_tts"
+        const val EXTRA_TONE_URI = "tone_uri"
+        const val EXTRA_SNOOZE_ENABLED = "snooze_enabled"
+        const val EXTRA_IS_SNOOZE = "is_snooze"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val pendingResult = goAsync()
         val appContext = context.applicationContext
-        val label = intent.getStringExtra(EXTRA_LABEL)?.takeIf { it.isNotBlank() } ?: "Ébresztő"
-        val hour = intent.getIntExtra(EXTRA_HOUR, -1)
-        val minute = intent.getIntExtra(EXTRA_MINUTE, -1)
-        val spokenLabel = if (hour >= 0 && minute >= 0) {
-            "$label. ${hour.toString().padStart(2, '0')} óra ${minute.toString().padStart(2, '0')} perc."
-        } else {
-            "$label."
-        }
-
-        vibrateAlarm(appContext)
-
-        AlertSoundPlayer.playOnce(appContext, AlertSoundCategory.ALARM_CLOCK)
-
-        val finish: () -> Unit = {
-            rescheduleAlarm(intent, appContext)
-            pendingResult.finish()
-        }
-
-        val enginePackage = TtsEngineStore.getSelectedPackage(appContext)
-        var tts: TextToSpeech? = null
-        val listener = TextToSpeech.OnInitListener { status ->
-            if (status != TextToSpeech.SUCCESS) {
-                tts?.shutdown()
-                finish()
-                return@OnInitListener
-            }
-            val engine = tts ?: run {
-                finish()
-                return@OnInitListener
-            }
-            engine.setLanguage(Locale("hu", "HU"))
-            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (utteranceId == TTS_UTTERANCE_ID) {
-                        engine.shutdown()
-                        finish()
-                    }
-                }
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) {
-                    if (utteranceId == TTS_UTTERANCE_ID) {
-                        engine.shutdown()
-                        finish()
-                    }
-                }
-            })
-            engine.speak("$spokenLabel Ébresztő!", TextToSpeech.QUEUE_FLUSH, null, TTS_UTTERANCE_ID)
-        }
-        tts = if (enginePackage.isNullOrBlank()) {
-            TextToSpeech(appContext, listener)
-        } else {
-            TextToSpeech(appContext, listener, enginePackage)
-        }
-    }
-
-    private fun rescheduleAlarm(intent: Intent, context: Context) {
         val alarmId = intent.getIntExtra(EXTRA_ALARM_ID, -1)
-        if (alarmId >= 0) {
-            AlarmStore.getAll(context).firstOrNull { it.id == alarmId }?.let { entry ->
-                AlarmScheduler.schedule(context, entry)
+        val label = intent.getStringExtra(EXTRA_LABEL)?.takeIf { it.isNotBlank() } ?: "Ébresztő"
+        val toneUri = intent.getStringExtra(EXTRA_TONE_URI)
+        val snoozeEnabled = intent.getBooleanExtra(EXTRA_SNOOZE_ENABLED, true)
+        val isSnooze = intent.getBooleanExtra(EXTRA_IS_SNOOZE, false)
+
+        // 0) KIHAGYÁS: ha erre az ébresztőre van érvényben kihagyás, most NEM
+        // szólalunk meg — csak "elhasználunk" egyet a számlálóból, és
+        // beütemezzük a következő alkalmat. Így nem kell kézzel ki-, majd
+        // visszakapcsolni az ébresztőt (pl. ha pénteken és hétfőn nem kell
+        // dolgozni). A számláló magától elfogy, és utána újra megszólal.
+        if (!isSnooze && alarmId >= 0) {
+            val entry = AlarmStore.getAll(appContext).firstOrNull { it.id == alarmId }
+            if (entry != null && entry.skipRemaining > 0) {
+                val left = AlarmStore.consumeSkip(appContext, alarmId)
+                android.util.Log.i(
+                    "SDL_ALARM",
+                    "Ebreszto KIHAGYVA (id=$alarmId), hatralevo kihagyas: $left"
+                )
+                // SZÁNDÉKOSAN NÉMA: a kihagyás lényege, hogy NE történjen
+                // semmi. Egy bemondás pont azt rontaná el, amiért a
+                // felhasználó bekapcsolta.
+                // A kihagyások ÁLLAPOTA a menüből kérdezhető le
+                // ("Kihagyott ébresztők"), hogy vakon is ellenőrizhető legyen.
+                AlarmScheduler.scheduleNextOccurrence(
+                    appContext,
+                    entry.copy(skipRemaining = left)
+                )
+                return
             }
         }
-    }
 
-    private fun vibrateAlarm(context: Context) {
-        val pattern = longArrayOf(0, 500, 300, 500, 300)
+        // 1) Valódi, fokozódó ébresztőhang indítása (foreground service).
+        val soundIntent = Intent(appContext, AlarmService::class.java).apply {
+            putExtra(AlarmService.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmService.EXTRA_LABEL, label)
+            putExtra(AlarmService.EXTRA_TONE_URI, toneUri)
+        }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                vm.defaultVibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                appContext.startForegroundService(soundIntent)
             } else {
-                @Suppress("DEPRECATION")
-                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator.vibrate(pattern, -1)
-                }
+                appContext.startService(soundIntent)
             }
         } catch (_: Exception) {
+        }
+
+        // 2) Riasztási képernyő (bemondja a nevet, szundi/leállítás gesztusok).
+        val alertIntent = Intent(appContext, AlarmAlertActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(AlarmAlertActivity.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmAlertActivity.EXTRA_LABEL, label)
+            putExtra(AlarmAlertActivity.EXTRA_TONE_URI, toneUri)
+            putExtra(AlarmAlertActivity.EXTRA_SNOOZE_ENABLED, snoozeEnabled)
+        }
+        try {
+            appContext.startActivity(alertIntent)
+        } catch (_: Exception) {
+        }
+
+        // 3) A következő alkalom beütemezése (szundi-riasztásnál nem kell).
+        if (!isSnooze && alarmId >= 0) {
+            AlarmStore.getAll(appContext).firstOrNull { it.id == alarmId }?.let { entry ->
+                AlarmScheduler.scheduleNextOccurrence(appContext, entry)
+            }
         }
     }
 }

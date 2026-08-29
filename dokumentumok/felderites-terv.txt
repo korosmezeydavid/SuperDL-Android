@@ -1,0 +1,972 @@
+KÉPERNYŐOLVASÓ — FELDERÍTÉS ÉRINTÉSSEL ÉS DINAMIKUS FELÜLETEK
+================================================================================
+  >>> ELŐHÍVÓ JELSZÓ: "felderites" <<<
+  Készült: 2026-08-19 | Állapot: TERV, kód még nem készült
+  Cél: a képernyőolvasó legyen több, mint egy TalkBack-másolat
+================================================================================
+
+
+===============================================================================
+1. A MOSTANI HIÁNY — MIÉRT KELL A FELDERÍTÉS
+===============================================================================
+
+A mostani olvasó LINEÁRIS: fel-le söpréssel lépkedsz elemről elemre. Ez sok
+esetben jobb, mint a tapogatás — de van, amikor rossz:
+
+  - Egy 40 elemes weboldalon a 35. gombig 35 söprés.
+  - Egy térbeli elrendezésnél (számbillentyűzet, naptár-rács, zongorabillentyű)
+    a lineáris sorrend értelmetlen.
+  - Ha valaki már TUDJA, hol van a gomb (mert korábban megjegyezte), akkor
+    fölösleges végiglépkednie.
+
+A TalkBacknek van tapintásos felderítése. Nekünk NINCS. Ez most hiány.
+
+DE: nem elég lemásolni. A tapintásos felderítés a TalkBackben azt mondja meg,
+MI van az ujjad alatt — azt viszont NEM, hogy HOL VAGY a képernyőn. Az ember
+elveszik: "valahol középen tapogatok, de nem tudom, a felső vagy az alsó
+felén".
+
+>>> ITT TUDUNK TÖBBET ADNI. Lásd a 3. pontot. <<<
+
+
+===============================================================================
+2. A FELDERÍTÉS MŰKÖDÉSE (a fejlesztő terve alapján)
+===============================================================================
+
+BEKAPCSOLÁS
+  Egy ujjadat ráteszed a kijelzőre, és 3 másodpercig NYOMVA TARTOD.
+  Hangjelzés + rövid bemondás: "Felderítés."
+
+  MIÉRT 3 MÁSODPERC: az ennél rövidebb véletlenül is összejön (zsebből
+  előhúzás, telefon megfogása). Ennyi ideig viszont csak szándékosan tartod.
+
+  ÜTKÖZÉS-VIZSGÁLAT: a mostani rendszerben az egyujjas hosszú nyomás
+  SZABAD (a hosszú nyomás a "le majd jobbra" mozdulaton van). Tehát nincs
+  ütközés — DE a tanuló módot és a szövegkijelölést külön ellenőrizni kell.
+
+PÁSZTÁZÁS
+  Az ujjad a kijelzőn marad, és mozgatod. Ahogy elemre érsz, a program
+  BEMONDJA az elem nevét. Ha üres helyen vagy, csak halk kattanás.
+
+  FONTOS RÉSZLET: a bemondás FÉLBESZAKÍTHATÓ. Ha gyorsan mozogsz, ne
+  torlódjon fel öt elem neve — mindig az AKTUÁLIS szóljon.
+
+FELENGEDÉS
+  Ahol felengeded az ujjad, oda ugrik a fókusz.
+  Bemondás: "Fókusz: [elem neve]".
+  Innentől a megszokott mozdulatok működnek: JOBBRA a megnyomás,
+  fel-le a szomszédos elemekhez.
+
+  MIÉRT NEM AZONNAL AKTIVÁL: mert vakon a felengedés helye BIZONYTALAN.
+  Ha azonnal megnyomnánk, a felhasználó véletlenül törölne, küldene,
+  vásárolna. A kétlépcsős megoldás (odaugrás, majd külön megnyomás) itt
+  nem lassítás, hanem BIZTONSÁG.
+
+KILÉPÉS
+  A felengedéssel magától véget ér — nincs külön kilépő mozdulat.
+  Ha semmit nem talált (üres helyen engedted fel): "Nincs itt elem",
+  és a fókusz marad, ahol volt.
+
+
+===============================================================================
+3. AMITŐL TÖBB LESZ, MINT A TALKBACK — A TÉRHANGZÁS
+===============================================================================
+
+>>> EZ A LEGFONTOSABB ÖTLET AZ EGÉSZ TERVBEN <<<
+
+Pásztázás közben ne csak azt mondjuk meg, MI van az ujjad alatt, hanem azt is,
+HOL VAGY a képernyőn. Két, már működő eszközzel:
+
+  FÜGGŐLEGES HELYZET = HANGMAGASSÁG
+    A képernyő tetején magasabb, az alján mélyebb a kísérőhang.
+    Ez MÁR MŰKÖDIK: a listákhoz épített kétoktávos pittyegés pontosan ezt
+    csinálja (playPercent). Csak át kell irányítani az ujj helyzetére.
+
+  VÍZSZINTES HELYZET = BAL-JOBB FÜL
+    A hang a bal fülben szól, ha a képernyő bal oldalán vagy, és jobbra
+    csúszik, ahogy jobbra mozogsz.
+    A SoundPool ezt tudja: a play() külön bal és jobb hangerőt kér.
+    NEM kell hozzá új könyvtár.
+
+MIT AD EZ A GYAKORLATBAN:
+  Fülhallgatóval a felhasználó ÉRZI a képernyő térképét. Két-három
+  pásztázás után tudja, hogy "a küldés gomb jobbra lent van" — és
+  legközelebb egyenesen odanyúl.
+
+  Ez az, amit egy látó ember csinál: RÁNÉZ és odanyúl. Eddig ez vakon
+  nem volt lehetséges.
+
+MEGJEGYZÉS: hangszóróból is működik (a magasság igen, az oldal kevésbé),
+de fülhallgatóval az igazi. Ezt a súgóban meg kell említeni.
+
+
+===============================================================================
+4. DINAMIKUS FELÜLETEK — A MOSTANI GYENGE PONT
+===============================================================================
+
+A fejlesztő felvetése: hogyan reagál az olvasó egy FOLYAMATOSAN FRISSÜLŐ
+felületen? Ez valós kérdés, és a mostani megoldás gyenge.
+
+MI TÖRTÉNIK MOST:
+  A képernyő minden változásakor megjelöljük az elemlistát elavultnak
+  (nodesStale = true), és a következő művelet újraolvassa az egészet.
+
+HOL FÁJ EZ:
+  a) CSEVEGŐ ALKALMAZÁS: érkezik egy üzenet, a lista átrendeződik.
+     A mi mutatónk a 7. elemre mutat — de az már NEM ugyanaz az elem.
+     A felhasználó "ugrál", és nem érti, miért.
+
+  b) ÉLŐ ADÁS, LEJÁTSZÓ, TÖLTÉSJELZŐ: másodpercenként többször változik.
+     Folyamatosan újraolvassuk a teljes elemfát — ez processzort és
+     akkumulátort eszik, és a program lassúnak érződik.
+
+  c) ÓRA A KÉPERNYŐN: percenként változik, fölöslegesen újraolvastat.
+
+  d) AUTOMATIKUS FELOLVASÁS: ha be van kapcsolva, egy folyamatosan frissülő
+     képernyőn újra és újra megszólalhat.
+
+>>> NÉGY JAVASOLT MEGOLDÁS <<<
+
+[D1] TORLÓDÁS-GÁTLÁS (a legfontosabb, és a legegyszerűbb)
+  Ne minden változásra reagáljunk. Ha egy másodpercen belül tíz változás
+  érkezik, elég EGYSZER újraolvasni a végén.
+  Gyakorlatban: a jelölés után várunk 300-400 ezredmásodpercet, és ha közben
+  újabb változás jön, a várakozás újraindul. Csak a csend után olvasunk.
+  HASZON: a processzor-terhelés töredékére esik, és a program gyorsabbnak
+  érződik. KOCKÁZAT: alacsony.
+
+[D2] A FÓKUSZ HORGONYZÁSA — hogy ne ugráljon
+  Ma a fókuszt SORSZÁM tartja ("a 7. elem"). Ha a lista átrendeződik, a 7.
+  elem már más. Helyette az ELEM AZONOSÍTÓJÁHOZ kellene kötni: a rendszerbeli
+  azonosító és a felirat együtt.
+  Újraolvasás után megkeressük UGYANAZT az elemet, és oda állunk vissza.
+  Ha eltűnt: a legközelebbi megmaradt elemre, és ezt JELEZZÜK is
+  (halk hang, nem bemondás).
+  HASZON: csevegőben, levelezőben, hírfolyamban nem veszíted el a helyed.
+  KOCKÁZAT: közepes — ez a navigáció szívéhez nyúl, alapos teszt kell.
+
+[D3] AZ ANDROID SAJÁT JELZÉSEINEK TISZTELETE (élő területek)
+  Az Android ismeri az "élő terület" fogalmát: az alkalmazás megmondhatja,
+  hogy egy rész változása FONTOS (félbeszakíthat), UDVARIAS (várjon a sorára),
+  vagy LÉNYEGTELEN (ne szóljon).
+  Ma ezt NEM nézzük. Pedig ingyen van: a jól megírt alkalmazások (bank,
+  levelező) helyesen jelölik.
+  HASZON: a lényeges változásokat megkapja a felhasználó, a zajt nem.
+  KOCKÁZAT: alacsony.
+
+[D4] "NYUGTALAN KÉPERNYŐ" FELISMERÉSE
+  Ha egy képernyő tartósan, sűrűn változik (élő adás, mérőóra, játék), a
+  program vegye észre, és EGYSZER mondja meg:
+    "Ez a képernyő folyamatosan frissül. A felolvasás csendesebb módra váltott."
+  Ilyenkor: nincs automatikus felolvasás, ritkább újraolvasás, és csak akkor
+  szólunk, ha a felhasználó kér valamit.
+  A felhasználó tudja, mi történik — nem azt hiszi, elromlott.
+  HASZON: pont a legidegesítőbb helyzetet oldja meg.
+  KOCKÁZAT: alacsony.
+
+
+===============================================================================
+5. TOVÁBBI PRÉMIUM ÖTLETEK — sorrendben, haszon szerint
+===============================================================================
+
+[P1] KÉPERNYŐ-ÖSSZEFOGLALÓ ÉRKEZÉSKOR                    HASZON: NAGYON NAGY
+  Amikor új képernyőre érkezel, egy MONDATBAN kapj térképet:
+    "Bejelentkezés. 2 beviteli mező, 3 gomb, 1 hivatkozás."
+  Ma azonnal az első elem hangzik el — de a felhasználó nem tudja, MEKKORA a
+  képernyő, és mit keressen rajta.
+  Ez az, amit egy látó ember fél másodperc alatt lát.
+  Kikapcsolható legyen (a részletesség-beállításban).
+
+[P2] OKOS ELSŐ FÓKUSZ                                     HASZON: NAGY
+  Ne mindig a bal felső sarokra álljunk, hanem oda, ahol a DOLOG van:
+  az első kitöltetlen mezőre, vagy a fő gombra.
+  Egy bejelentkezésnél ez 5-6 söprést spórol MINDEN alkalommal.
+
+[P3] FIGYELŐ PONT — "szólj, ha ez megváltozik"            HASZON: NAGY
+  Kijelölsz egy elemet, és megkéred a programot, hogy figyelje.
+  Ha megváltozik, szól.
+  Mire jó: rendelés állapota, sorszám a váróban, élő eredmény, letöltés,
+  BKK-járat érkezése. Ma ehhez percenként vissza kell nézni.
+  Ilyen egyetlen képernyőolvasóban sincs.
+
+[P4] ŰRLAP-KALAUZ                                         HASZON: NAGY
+  Egy űrlapon (regisztráció, banki átutalás) végigvezet:
+    "3 kitöltendő mező. Első: e-mail cím. Diktáld be."
+  Mező végén ellenőriz: "Ez nem tűnik e-mail címnek. Újra?"
+  A hibás kitöltés vakon a leggyakoribb bosszúság.
+
+[P5] MIT MONDTÁL AZ ELŐBB? — visszahallgatás               HASZON: KÖZEPES
+  Az utolsó 10 bemondás visszahallgatható, lépkedve.
+  Ma csak az UTOLSÓ mondat ismételhető meg. Ha valaki elkalandozott vagy
+  megszólították, elveszett az információ.
+
+[P6] ALKALMAZÁSONKÉNTI EMLÉKEZET                          HASZON: KÖZEPES
+  Minden alkalmazáshoz megjegyzi a beállításokat: navigációs mód,
+  részletesség, tempó. A bankban lassabb és részletesebb, a csevegőben
+  gyorsabb.
+  RÉSZBEN MEGVAN: az elnevezett gombok már alkalmazásonként tárolódnak.
+
+[P7] ELNEVEZÉSEK MEGOSZTÁSA                               HASZON: KÖZEPES
+  A névtelen gombok elnevezését ma mindenki magának csinálja meg.
+  Ha ezek exportálhatók és megoszthatók lennének, EGY ember munkája
+  MINDENKINEK segítene ("a magyar netbank gombkészlete").
+  Ez közösségi érték — és a tesztelői körrel pont most lehetne elkezdeni.
+
+[P8] TÉRHANGZÁS A LISTÁKBAN IS                            HASZON: KISEBB
+  A kétoktávos pittyegés már jelzi a lista helyzetét. A bal-jobb
+  térhangzás használható a beágyazott listáknál ("almenüben vagy").
+
+
+===============================================================================
+6. JAVASOLT SORREND
+===============================================================================
+
+>>> A HELYZET (2026-08-19, a fejlesztő pontosítása): <<<
+A tesztelők MÉG NEM kapták meg a programot — ez egyelőre csak a fejlesztő
+saját telefonján fut, fejlesztői változatban. A tesztelők bevárása is
+húzódik, nem tolonganak.
+
+EZ MEGVÁLTOZTATJA A SORRENDET. Az eredeti terv óvatosságból későbbre tette a
+mélyre nyúló munkákat — de PONT FORDÍTVA helyes:
+
+  A kockázatos, alapokat érintő munkákat MOST kell elvégezni, amíg a hibáknak
+  EGYETLEN elszenvedője van, aki ráadásul érti is, mi történik.
+
+  Ha a tesztelők már használják, akkor lesz igazán drága egy elrontott
+  navigáció — mert akkor a bizalom sérül, és azt nehéz visszaszerezni.
+
+  Vagyis: a mostani csend nem várakozás, hanem LEHETŐSÉG.
+
+ELSŐ KÖR — a mély munkák, MOST, amíg lehet
+  D2 fókusz horgonyzása      — a navigáció szíve, de most a legolcsóbb
+  FELDERÍTÉS ÉRINTÉSSEL      — új érintés-kezelés, alapos teszt kell
+  TÉRHANGZÁS                 — a felderítéssel együtt van értelme
+  D1 torlódás-gátlás         — az egész olvasót gyorsítja
+
+MÁSODIK KÖR — a látványos, kis kockázatú tételek
+  P1 képernyő-összefoglaló
+  D4 nyugtalan képernyő
+  D3 élő területek
+  P2 okos első fókusz
+
+HARMADIK KÖR — a tesztelők visszajelzései UTÁN
+  P3 figyelő pont
+  P4 űrlap-kalauz
+  P7 elnevezések megosztása  — ehhez ÉPP a tesztelői kör kell
+
+>>> MI MARADJON MÉGIS KÉSŐBBRE <<<
+Amint a tesztelők megkapják a programot, a fenti szabály MEGFORDUL: onnantól
+csak az alacsony kockázatú tételekhez nyúlunk, és minden mély változtatás
+külön kört és külön tesztelést kap.
+
+Vagyis a kérdés nem az, hogy MIT csinálunk, hanem hogy MIKORRA marad idő.
+Ezért érdemes most nekiállni.
+
+
+===============================================================================
+7. GESZTUSOK SZEMÉLYRE SZABÁSA — és a csapda, amit el kell kerülni
+===============================================================================
+
+A FEJLESZTŐ FELVETÉSE: legyen átírható minden mozdulat, aki akarja.
+
+A CSAPDA:
+Egy látó felhasználó, ha átír egy billentyűparancsot és elfelejti, RÁNÉZ a
+menüre és megtalálja. Vakon ez nem megy. Ha valaki átírja a mozdulatokat,
+majd egy hónap múlva elfelejti, mit hova tett, akkor a saját telefonjában
+ragad benne — és MI SEM tudunk segíteni neki telefonon, mert nálunk a
+"söpörj jobbra" tanács már nem érvényes rá.
+
+Ráadásul a tanuló mód (26 óra + vizsga) FIX mozdulatokat tanít. Ha a
+felhasználó átírta őket, az iskola hazudik neki.
+
+>>> A MEGOLDÁS: NE SZABAD ÁTÍRÁS LEGYEN, HANEM PROFILOK <<<
+
+[G1] GESZTUS-PROFILOK                                    HASZON: NAGYON NAGY
+
+  "SUPER DL ALAP" — a mostani. Ez marad az alapértelmezés.
+
+  "TALKBACK-SZERŰ" — >>> EZ A LEGÉRTÉKESEBB ÖTLET AZ EGÉSZ LISTÁBAN <<<
+    Aki évek óta TalkBacket használ, annak a keze MÁSHOZ SZOKOTT: nála a
+    jobbra söprés a KÖVETKEZŐ ELEM, nem a megnyomás, és a megnyomás a
+    dupla koppintás.
+    Ma ez az egyetlen legnagyobb akadály az átállásban: nem az, hogy a
+    SuperDL rossz, hanem hogy a keze mást csinál, mint amit gondol.
+    Egy TalkBack-szerű profillal az átállás AZONNALI.
+    Ez nem kényelmi funkció — ez a BELÉPÉSI KÜSZÖB lebontása.
+
+  "EGYSZERŰSÍTETT" — csak a négy alapmozdulat, semmi több ujjas.
+    Kinek: aki most kezdi, akinek remeg a keze, vagy akinek a kijelzője
+    nem érzékeli megbízhatóan a három-négy ujjas érintést (olcsóbb
+    készülékek — ez valós, a Braille-billentyűzetet pont ezért kellett
+    elhagyni).
+
+  "SAJÁT" — itt lehet szabadon átírni, DE a következő védelmekkel.
+
+[G2] A SZABAD ÁTÍRÁS VÉDELMEI                            KÖTELEZŐ, ha G1 készül
+
+  a) A NÉGY ALAPMOZDULAT nem tüntethető el. Áthelyezhető, de valahol
+     LENNIE KELL — különben a felhasználó kizárja magát a saját telefonjából.
+     Ha valaki olyat állítana be, amitől nincs kiút, a program NEM engedi,
+     és megmondja, miért.
+
+  b) "MI EZ A MOZDULAT?" — egy próbamód, ahol bármit megcsinálsz, és a
+     program megmondja, mit csinálna. (A tanuló mód szabad gyakorlása pont
+     ilyen volt — ezt kellene visszahozni, most már értelmesen.)
+
+  c) "OLVASD FEL A MOZDULATAIMAT" — a saját beállításod bármikor
+     meghallgatható, egyben.
+
+  d) VISSZAÁLLÍTÁS ALAPRA — egyetlen ponttal, bármikor.
+
+  e) A TANULÓ MÓD KÖVESSE A PROFILT: ha valaki TalkBack-szerű profilt
+     használ, Elena AZT tanítsa. Különben az iskola hazudik.
+
+
+===============================================================================
+8. TOVÁBBI ÖTLETEK — a felhasználó ÉLETHELYZETEIBŐL
+===============================================================================
+
+Ezek nem "még egy funkció" ötletek. Abból indultam ki, HOL és HOGYAN
+használja valaki ezt a telefont.
+
+[E1] FÜLHALLGATÓ-GOMBOS VEZÉRLÉS — a telefon a zsebben marad
+                                                          HASZON: NAGYON NAGY
+  Ma a fülhallgató gombja a lejátszást vezérli. De MIÉRT ne vezérelhetné
+  magát az olvasót is?
+    egy koppintás = következő elem
+    két koppintás = megnyomás
+    hosszú nyomás = hol vagyok
+  MIÉRT ÓRIÁSI: az utcán, buszon, esőben, télen kesztyűben a telefon
+  ELŐVÉTELE maga a nehézség. Ha a zsebben maradhat, az nem kényelem,
+  hanem BIZTONSÁG is — nem villantod ki a telefonod a Nyugatinál.
+  Ilyen tudtommal EGYETLEN képernyőolvasóban sincs.
+
+[E2] REZGÉS-MINTÁZATOK                                    HASZON: NAGY
+  Ma hanggal jelezzük az elem típusát. Zajban (busz, utca, piac) ez elvész.
+  Rezgéssel viszont ÉRZED:
+    gomb = egy rövid    hivatkozás = két rövid
+    címsor = hosszú     szélén vagy = dupla erős
+    kapcsoló BE = emelkedő, KI = ereszkedő
+  Fülhallgató nélkül, zajban ez a KÜLÖNBSÉG a használható és a
+  használhatatlan között.
+
+[E3] EGYKEZES MÓD                                         HASZON: NAGY
+  Amikor a másik kezedben fehér bot, bevásárlószatyor vagy lufi van.
+  Ilyenkor a több ujjas mozdulatok kivitelezhetetlenek.
+  Egykezes módban minden fontos parancs elérhető EGY ujjal — a ritkábbak
+  összetett mozdulatokkal (fel-majd-jobbra), nem több ujjal.
+
+[E4] ZAJOS KÖRNYEZET FELISMERÉSE                          HASZON: KÖZEPES
+  A mikrofon megméri a környezeti zajt, és a program magától
+  alkalmazkodik: hangosabb, lassabb beszéd, több rezgés.
+  Ha kimész a buszra, nem kell semmit állítanod.
+  ADATVÉDELEM: csak a HANGERŐT mérjük, felvétel NEM készül. Ezt ki kell
+  mondani, különben joggal gyanakszanak.
+
+[E5] "NYOMD MEG A KÜLDÉS GOMBOT" — hangparancs a képernyőn
+                                                          HASZON: NAGY
+  Ma van hangos keresés (két ujjal dupla koppintás), ami MEGTALÁLJA az
+  elemet. A következő lépés: rögtön meg is nyomja, ha egyértelmű.
+  "Nyomd meg a küldést" — és kész. Egy űrlap végén ez tíz söprést spórol.
+
+[E6] MŰVELET-NAPLÓ — "mit csináltam az előbb?"            HASZON: KÖZEPES
+  Az utolsó 10 művelet visszahallgatható: mit nyomtál meg, hova léptél.
+  Vakon a leggyakoribb kérdés: "most mi történt?" — főleg, ha valami
+  váratlanul megváltozott.
+
+[E7] BRAILLE-KIJELZŐ TÁMOGATÁS                            HASZON: NAGY, de NAGY MUNKA
+  Az Android tud Bluetooth Braille-kijelzőt kezelni. Aki ilyet használ,
+  annak ez nem extra, hanem az elsődleges felület.
+  Magyarországon kevesen vannak, de akinek van, annak MINDENT jelent.
+  Nagy munka — a tesztelői kör után érdemes megkérdezni, van-e rá igény.
+
+[E8] KESZTYŰS / NEDVES KIJELZŐ MÓD                        HASZON: KÖZEPES
+  Télen kesztyűben, esőben a kijelző pontatlanul érzékel.
+  Ilyenkor: nagyobb tűréshatárok, hosszabb időzítések, kevesebb
+  többujjas mozdulat.
+  Sok telefonban van "kesztyűs mód" — ezt fel lehet ismerni, vagy
+  külön kapcsolóval bekapcsolni.
+
+
+===============================================================================
+9. AMIT ÉN A LEGFONTOSABBNAK TARTOK — HÁROM DOLOG
+===============================================================================
+
+Ha csak hármat lehetne megcsinálni ebből az egész listából:
+
+  1. TALKBACK-SZERŰ PROFIL (G1)
+     Mert ez nem funkció, hanem AJTÓ. Minden más csak azoknak ér valamit,
+     akik már bejöttek rajta.
+
+  2. FÜLHALLGATÓ-GOMBOS VEZÉRLÉS (E1)
+     Mert ez olyan élethelyzetet old meg, amit MÁS NEM OLD MEG.
+     A telefon zsebben maradhat.
+
+  3. REZGÉS-MINTÁZATOK (E2)
+     Mert olcsó megcsinálni, és zajban a különbség az, hogy egyáltalán
+     használható-e a program.
+
+
+===============================================================================
+10. HELYESBÍTÉS ÉS FINOMÍTÁS (2026-08-19, a fejlesztő észrevételei)
+===============================================================================
+
+>>> A FÜLHALLGATÓ-GOMBOS VEZÉRLÉST TÚLLŐTTEM — HELYESBÍTÉS <<<
+
+A fejlesztő észrevétele: a telefon vezérléséhez ELŐ KELL VENNI a telefont,
+mert a feloldáshoz ujjlenyomat vagy arcfelismerés kell. A "zsebben marad"
+ígéret tehát önmagának mond ellent.
+
+EZ IGAZ, és az eredeti megfogalmazás túlzó volt. Pontosítás:
+
+  AMI NEM MŰKÖDIK: a telefon FELOLDÁSA és a felület BEJÁRÁSA zsebből.
+  Feloldani muszáj kézzel, és egy zárolt telefonon nincs is mit bejárni.
+
+  AMI VISZONT VALÓS: a MÁR ELINDÍTOTT tevékenység FOLYTATÁSA.
+  Elindítod a könyvet, a podcastot vagy a navigációt, zsebre teszed —
+  és onnantól a fülhallgató gombjaival:
+    szünet és folytatás, következő és előző fejezet,
+    "hol tartok", "hol vagyok" (navigációnál), az utolsó mondat ismétlése.
+
+  Ez NEM helyettesíti a telefon vezérlését. Kiegészíti — pontosan abban a
+  helyzetben, amikor az ember MEGY valahova, és a keze foglalt.
+
+  RÉSZBEN MÁR KÉSZ IS: a könyvolvasó és a lejátszók már reagálnak a
+  fülhallgató lejátszás-szünet gombjára. A bővítés tehát nem új rendszer,
+  hanem a meglévő kiterjesztése — így olcsó is.
+
+  TANULSÁG: az "ilyen egyetlen olvasóban sincs" lelkesedés elfedte, hogy a
+  funkció egy ELLENŐRIZETLEN feltevésre épült. A helyes sorrend: előbb
+  végiggondolni az élethelyzetet, aztán lelkesedni.
+
+>>> UGYANEZ A KESZTYŰS MÓDRA <<<
+A fejlesztő hasonlata pontos: a kesztyűs mód olyan, mint "kesztyű egy
+kezetlennek", ha közben az alapfeltétel nem teljesül. Az ötlet marad, de
+NEM önálló funkcióként, hanem a többujjas mozdulatok tűréshatárának
+állíthatóságaként — ami az EGYSZERŰSÍTETT profilban amúgy is benne van.
+
+
+>>> "CSIRIBÍ" — MINDEN VISSZAÁLL ALAPRA (a fejlesztő ötlete) <<<   HASZON: NAGY
+
+Egy szó, és minden gesztus-beállítás visszaáll az alapértelmezettre.
+Nem ragadsz benne a saját telefonodban.
+
+MIÉRT KIVÁLÓ EZ AZ ÖTLET, ÉS MIÉRT PONT SZÓ:
+  Ha valaki elrontotta a MOZDULATAIT, akkor egy MOZDULATTAL indított
+  visszaállítás elérhetetlen lehet — épp azt rontotta el, amivel elérné.
+  Egy KIMONDOTT szó viszont a gesztusoktól FÜGGETLEN úton érkezik.
+  Ez nem játékosság: ez a menekülési út helyes tervezése.
+
+HÁROM, EGYMÁSTÓL FÜGGETLEN ÚT kell (mert ha egy elromlik, legyen másik):
+  1. HANGGAL: Elena hívószó, majd "csiribí". Gesztusoktól független.
+  2. HANGERŐGOMBOKKAL: a két hangerőgomb együtt, öt másodpercig.
+     Fizikai gombok — se gesztus, se beszéd nem kell hozzá.
+  3. MENÜBŐL: Beállítások, ha épp odatalál.
+
+MIT ÁLLÍT VISSZA: a gesztus-profilt és minden átírt mozdulatot.
+MIT NEM: a névjegyeket, ébresztőket, könyvjelzőket, Elena hangjait.
+A visszaállítás CSAK a vezérlésre vonatkozik — az adatokhoz nem nyúl.
+Ezt a megerősítéskor KI IS MONDJA, hogy senki ne féljen tőle.
+
+MEGERŐSÍTÉS: "Visszaállítom az alapértelmezett mozdulatokat. Az adataid
+megmaradnak. Jobbra a megerősítéshez." — de a megerősítés MINDHÁROM úton
+elfogadható legyen, ne csak söpréssel.
+
+
+>>> A MÓDOSÍTOTT GESZTUSOK MEGTEKINTÉSE (a fejlesztő ötlete) <<<   HASZON: NAGY
+
+Ahogy a számítógépen megnézheted a létrehozott billentyűparancsokat, itt is
+meg lehessen hallgatni a saját beállításodat.
+
+KÉT NÉZET KELL, mert két külön kérdés van:
+  a) "MIT ÍRTAM ÁT?" — csak az ELTÉRÉSEK, röviden:
+     "Három eltérés az alaptól. Jobbra söprés: következő elem.
+      Dupla koppintás: megnyomás. Két ujjal fel: hol vagyok."
+     Ez a gyakori kérdés, és rövid.
+
+  b) "MONDD EL AZ ÖSSZESET" — a teljes térkép, csoportosítva
+     (egy ujjal, két ujjal, három ujjal, koppintások).
+     Ez hosszú, de néha kell.
+
+ÉS EGY HARMADIK, AMI A LEGHASZNOSABB:
+  c) "MI EZ A MOZDULAT?" — próbamód. Megcsinálsz egy mozdulatot, és
+     megmondja, mit csinálna. Semmi nem történik.
+     Ez oldja meg azt, amit sem az a), sem a b) nem: amikor nem tudod,
+     hogyan HÍVJÁK azt, amit a kezed csinál.
+
+
+===============================================================================
+11. PRÉMIUM ÖTLETEK — MÁSODIK KÖR
+===============================================================================
+
+===============================================================================
+[A] A LEGFONTOSABB: KÉPERNYŐ-FELISMERÉS — a hozzáférhetetlen alkalmazások
+===============================================================================
+
+[A1] "OLVASD FEL, AMIT LÁTSZ"                        HASZON: A LEGNAGYOBB
+
+A PROBLÉMA, AMIT MEGOLD:
+A képernyőolvasó abból dolgozik, amit az alkalmazás ELÁRUL magáról. Csakhogy
+rengeteg alkalmazás semmit nem árul el:
+  - a gombok névtelenek (a fejlesztő nem címkézte fel őket)
+  - az egész felületet saját maga rajzolja (játékok, bizonyos banki appok,
+    utazási appok, kioszk-felületek)
+  - képként jelenít meg szöveget (menük, plakátok, PDF-nézők)
+
+Ilyenkor a mi olvasónk is néma marad — és nem azért, mert rossz, hanem mert
+NINCS MIT felolvasnia. A felhasználó ezt úgy éli meg, hogy "ez az alkalmazás
+nem használható". Ez ma a legnagyobb akadály a vak telefonhasználatban.
+
+A MEGOLDÁS:
+Ha az elemfa üres vagy névtelen, KÉSZÍTSÜNK KÉPET a képernyőről, és
+ismerjük fel, ami rajta van:
+  - a SZÖVEGET betűfelismeréssel (ez már megvan: ML Kit, magyarul is)
+  - az IKONOKAT alakfelismeréssel (vissza-nyíl, hamburger-menü, X, kuka,
+    szív, megosztás, keresés — kb. 30 gyakori ikon lefedi a világ nagy részét)
+  - a helyzetükből SORREND és ELRENDEZÉS
+
+Ezután ugyanúgy lehet rajta lépkedni és felderíteni, mintha az alkalmazás
+rendesen lenne megírva. A megnyomás pedig a KOORDINÁTA alapján történik
+(a kisegítő szolgáltatás tud a képernyő adott pontjára koppintani).
+
+MIÉRT HIÁNYPÓTLÓ:
+A TalkBacknek van hasonlója ("képernyő-felismerés"), DE: nem minden készüléken
+érhető el, és a MAGYAR szöveggel gyengén boldogul.
+Egy MAGYAR NYELVŰ képernyő-felismerés Magyarországon EGYEDÜLÁLLÓ lenne.
+
+MIÉRT MEGVALÓSÍTHATÓ NÁLUNK:
+  - a képfelolvasás MÁR MŰKÖDIK (a három ujjas dupla koppintás használja)
+  - a képkészítés joga MEGVAN (kisegítő szolgáltatás, Android 11-től)
+  - a koordináta-alapú koppintás MEGVAN (dispatchGesture)
+Vagyis nem új rendszer kell, hanem a MEGLÉVŐ három összekötése.
+
+ADATVÉDELMI KÖTELEZETTSÉG:
+A képernyőkép a legérzékenyebb adat, ami létezik — banki egyenleg,
+magánüzenet, jelszó. KÖTELEZŐ:
+  - a kép SOHA nem hagyja el a telefont, minden feldolgozás HELYBEN történik
+  - a kép a felismerés után AZONNAL törlődik, nem tárolódik
+  - az adatvédelmi tájékoztatóban külön szakaszt kap
+  - a felhasználó KÉRÉSÉRE indul, nem magától
+
+[A2] IKONOK MAGYARUL                                  HASZON: NAGY
+  Az [A1] része, de önmagában is értékes. A leggyakoribb ikonok magyar
+  nevet kapnak: "vissza", "menü", "bezárás", "törlés", "megosztás",
+  "kedvelés", "keresés", "beállítások".
+  Ma ezek helyett annyi hangzik el: "gomb" — vagy semmi.
+
+
+===============================================================================
+[B] GYENGÉNLÁTÓKNAK — akikről eddig kevesebb szó esett
+===============================================================================
+
+A SuperDL erősen VAK-központú. A gyengénlátók viszont MÁS igényűek: ők
+LÁTNAK, csak keveset vagy rosszul. Nekik nem felolvasás kell elsősorban,
+hanem NAGYÍTÁS és KONTRASZT.
+
+[B3] KAMERÁS NAGYÍTÓ                                  HASZON: NAGY
+  A telefon kamerája nagyítóként. DE a kulcs nem a nagyítás — az minden
+  telefonban van. A kulcs a MEREVÍTÉS:
+    Készíts képet, és utána azon nagyíts és mozogj.
+    Mert kézben tartva remeg, és épp az olvasás nem megy tőle.
+  Plusz: kontrasztnövelés, színinvertálás (fehér alapon fekete helyett
+  fekete alapon fehér — sokaknak ez OLVASHATÓBB), sárga-kék szűrő,
+  lámpa bekapcsolása.
+  MIRE JÓ: ártábla a boltban, gyógyszer adagolása, számla, étlap, buszjegy.
+
+[B4] SAJÁT FELÜLET NAGYBETŰVEL ÉS KONTRASZTTAL        HASZON: KÖZEPES
+  A SuperDL saját menüje ma egységes megjelenésű. Állítható betűméret
+  (a nagyon nagyig) és kontraszt-témák (fekete-sárga, fekete-fehér,
+  fordított) sokaknak elérhetővé tennék a felületet FELOLVASÁS NÉLKÜL is.
+  Ez a gyengénlátóknak fontosabb, mint bármi más.
+
+
+===============================================================================
+[C] A MINDENNAPOK — apró dolgok, amik sokat számítanak
+===============================================================================
+
+[C1] GYÓGYSZERDOBOZ-OLVASÓ                            HASZON: NAGY
+  Nem általános betűfelismerés, hanem CÉLZOTT: a dobozról megkeresi és
+  kiemelten mondja a NEVET, a HATÓANYAG mennyiségét és a LEJÁRATI DÁTUMOT.
+  Ma a felhasználó végighallgat egy fél oldalnyi apró betűt, hogy megtudja,
+  jó-e még a gyógyszer.
+  A lejárati dátum felismerése külön logika (dátum-alakzatok keresése) —
+  de pont ez teszi hasznossá.
+
+[C2] LEVÉL- ÉS CSEKKOLVASÓ                            HASZON: NAGY
+  Postai küldeménynél a kérdés nem az, hogy mi van benne, hanem hogy
+  KITŐL JÖTT és FONTOS-E. A felismerés keresse a feladót, az összeget és
+  a határidőt, és ezt mondja elöl.
+
+[C3] RUHA SZÍNE ÉS MINTÁJA                            HASZON: KÖZEPES
+  A színfelismerés megvan. A minta (csíkos, kockás, pöttyös, egyszínű)
+  felismerése és a színek KOMBINÁCIÓJÁNAK megítélése ("ez a kettő nem
+  illik össze") gyakorlati segítség öltözködésnél.
+
+[C4] MEGBÍZOTT SEGÍTŐ — egy koppintással                HASZON: NAGY
+  Beállítasz 1-3 embert (családtag, barát). Ha valamit nem tudsz
+  eldönteni, egy ponttal fényképet küldesz neki a megszokott csatornán
+  (üzenetküldő), előre megírt szöveggel: "Szia, meg tudod mondani, mi ez?"
+  NEM új szolgáltatás, NEM önkéntes-hálózat — a MEGLÉVŐ kapcsolataidat
+  teszi egy mozdulattal elérhetővé.
+  Ez azért jó, mert a legtöbb kérdésre a család úgyis válaszol — csak ma
+  öt lépés, amíg a fotó eljut hozzá.
+
+
+===============================================================================
+[D] TANULÁS ÉS ÖNÁLLÓSÁG
+===============================================================================
+
+[D5] GYAKORLÓ HOMOKOZÓ                                HASZON: KÖZEPES
+  A tanuló mód a MOZDULATOKAT tanítja. De a félelem nem a mozdulattól van,
+  hanem attól, hogy "elrontok valamit egy banki alkalmazásban".
+  Egy homokozó, ahol HAMIS képernyők vannak (banki átutalás, jegyvásárlás,
+  űrlap), és a hiba semmibe nem kerül — ez önbizalmat ad.
+  Ez a tanuló mód természetes folytatása.
+
+
+===============================================================================
+12. HA CSAK HÁRMAT LEHETNE — A MÁSODIK KÖRBŐL
+===============================================================================
+
+  1. KÉPERNYŐ-FELISMERÉS (A1 + A2)
+     Mert ez nem egy funkciót ad hozzá, hanem HOZZÁFÉRHETŐVÉ TESZ olyan
+     alkalmazásokat, amik ma egyszerűen használhatatlanok. Magyar nyelven
+     ez egyedülálló lenne.
+
+  2. KAMERÁS NAGYÍTÓ MEREVÍTÉSSEL (B3)
+     Mert a gyengénlátók ma a SuperDL-ből kimaradnak — pedig sokkal
+     többen vannak, mint a teljesen vakok.
+
+  3. MEGBÍZOTT SEGÍTŐ (C4)
+     Mert olcsó megcsinálni, és pont azt a helyzetet oldja meg, amikor a
+     technika NEM tud segíteni: amikor emberi szem kell.
+
+
+===============================================================================
+13. GYENGÉNLÁTÓ MÓD — teljes terv
+===============================================================================
+
+A fejlesztő felvetése: a SuperDL ne csak vakoknak legyen a legfőbb társa,
+hanem gyengénlátóknak is — saját felülettel, ahol a beszéd korlátozható
+vagy kikapcsolható.
+
+>>> A LEGFONTOSABB, AMIT ELÖLJÁRÓBAN TUDNI KELL <<<
+
+A GYENGÉNLÁTÁS NEM "KEVESEBB VAKSÁG". Egészen más igény.
+És ami még fontosabb: A GYENGÉNLÁTÓK SEM EGYFORMÁK.
+
+A leggyakoribb tévedés, amit szinte minden program elkövet:
+  "gyengénlátó = mindent nagyobbra".
+
+EZ EGYES ESETEKBEN PONT ROSSZ:
+
+  IDŐSKORI MAKULA-BETEGSÉG (a látótér KÖZEPE hiányzik)
+    Nagy betű kell, ERŐS kontraszt, és a fontos dolog NE középen legyen.
+    Ők a szemük szélével olvasnak.
+
+  ZÖLDHÁLYOG és RETINITIS PIGMENTOSA (CSŐLÁTÁS, a szélek hiányoznak)
+    >>> ITT A NAGYÍTÁS ÁRT. <<<
+    Aki egy szívószálon át lát, annak a hatalmas betűből EGYSZERRE EGY
+    BETŰ fér a látóterébe — és elveszik. Neki KISEBB, SŰRŰBB elrendezés
+    kell, hogy több férjen bele egy pillantásba.
+
+  SZÜRKEHÁLYOG és FÉNYÉRZÉKENYSÉG
+    Nem méret a kérdés, hanem FÉNY. Nekik a fehér háttér VAKÍT.
+    Sötét alap, meleg színek, alacsony fényerő.
+
+  SZEMREZGÉS (nystagmus)
+    Nekik a MOZGÁS a rossz: az animációk, a görgetés, a csúszkálás.
+    Állókép kell, lapozás görgetés helyett.
+
+KÖVETKEZTETÉS: nem EGY beállítás kell, hanem PROFILOK — és olyan
+beállítási mód, ami nem feltételezi, hogy a felhasználó el tudja olvasni
+a beállításokat.
+
+
+===============================================================================
+13.1 A BEÁLLÍTÁS PARADOXONA — és a megoldása
+===============================================================================
+
+A PROBLÉMA: hogyan állítson be valaki egy felületet, amit épp azért kell
+beállítania, mert nem látja jól?
+
+Ha a beállítás-képernyő apró betűs, akkor nem tudja használni. Ha eleve
+óriási, akkor a csőlátóknak rossz. Kör.
+
+A MEGOLDÁS: LÁTÁS-VARÁZSLÓ, ami BESZÉL, és MINTÁKAT MUTAT.
+
+  1. A varázsló elmondja HANGOSAN, mi történik. Vagyis a felolvasás
+     BEKAPCSOLVA indul, akkor is, ha a végén ki lesz kapcsolva.
+
+  2. Megmutat egy szövegmintát, és megkérdezi:
+     "Látod ezt a szöveget? Jobbra igen, balra nem."
+     Ha nem: nagyobbat mutat. Ha igen: megpróbál KISEBBET is —
+     mert a legkisebb OLVASHATÓ méret a jó, nem a legnagyobb.
+     (Ez a csőlátóknál dönt.)
+
+  3. Ugyanez a kontraszt-témákra: végigmutat néhányat, és a felhasználó
+     választ. Nem elmagyarázzuk, hanem MEGMUTATJUK.
+
+  4. A végén: "Szeretnéd, hogy közben beszéljek is?" — és itt lehet
+     kikapcsolni vagy korlátozni.
+
+Ez a varázsló ÖNMAGÁBAN nagyobb érték, mint a beállítások összessége.
+Enélkül a legjobb beállítások is elérhetetlenek maradnak.
+
+
+===============================================================================
+13.2 MIT ÁLLÍTSON A GYENGÉNLÁTÓ MÓD
+===============================================================================
+
+BETŰ
+  Méret: több fokozat, a nagyon kicsitől a nagyon nagyig.
+  Vastagság: a VÉKONY betű a leggyakoribb hiba a mai felületeken.
+    Legyen félkövér vagy vastag változat.
+  Betűtípus: talp nélküli, nagy "x-magasságú" betűk a jók.
+    Érdemes felkínálni az Atkinson Hyperlegible-t: kifejezetten
+    gyengénlátóknak tervezték, ingyenes, és a hasonló alakú betűket
+    (nagy i, kis L, egyes szám) SZÁNDÉKOSAN eltérőre formálja.
+    Diszlexiához külön típus is adható.
+  Betűköz és sorköz: a szűk sorköz összefolyik. Állítható legyen.
+
+SZÍN ÉS KONTRASZT — témák, nem csak "sötét mód"
+  fehér alapon fekete (alap)
+  fekete alapon fehér (a legtöbben ezt kérik)
+  FEKETE ALAPON SÁRGA — a klasszikus gyengénlátó-kedvenc, nem véletlenül
+  sárga alapon fekete
+  krém alapon sötétkék (fényérzékenyeknek kellemes)
+  MINDEGYIK ellenőrzött, ERŐS kontraszttal. Semmi szürke a szürkén.
+
+FÓKUSZ-JELÖLÉS — ez a leggyakrabban elfelejtett dolog
+  Ahol éppen jársz, legyen VASTAG, SZÍNES keret körülötte.
+  A gyengénlátók leggyakoribb panasza nem az, hogy nem látják a szöveget,
+  hanem hogy ELVESZTIK, hol tartanak. Egy 4-6 képpont vastag, feltűnő
+  színű keret ezt megoldja.
+  Legyen állítható a vastagsága és a színe.
+
+MOZGÁS
+  Animációk kikapcsolása. Görgetés helyett LAPOZÁS.
+  Semmi automatikusan eltűnő üzenet — vagy ha mégis, hosszabb ideig.
+
+FÉNY
+  A képernyő fényereje a témával együtt állítható legyen.
+  Fényérzékenyeknek a sötét téma + alacsony fényerő + meleg szín a jó.
+
+ELRENDEZÉS
+  Kevesebb elem egy képernyőn (a csőlátóknak ez segít).
+  Nagy érintési felületek — a pontos célzás nehéz.
+  A fontos dolog NE a képernyő közepén legyen (makula-betegségnél a
+  közép hiányzik).
+
+
+===============================================================================
+13.3 A BESZÉD KORLÁTOZÁSA — a fejlesztő kérése
+===============================================================================
+
+Nem ki-be kapcsoló kell, hanem FOKOZATOK. Aki lát valamit, annak a
+folyamatos beszéd IDEGESÍTŐ — de a teljes csend meg elbizonytalanító.
+
+  1. TELJES — mint most. (vakoknak)
+  2. RÖVID — csak az elem neve, magyarázat nélkül.
+  3. CSAK KÉRÉSRE — magától hallgat; egy mozdulattal kérdezhetsz.
+  4. CSAK HANGJELZÉSEK — nincs beszéd, de a kattanások, a kapcsoló-hangok
+     és a helyzetjelző pittyegés megmaradnak. Sokaknak EZ a tökéletes:
+     látják, mi van, de a visszajelzés jólesik.
+  5. TELJES CSEND.
+
+ÉS EGY KÜLÖN ÖTLET, AMI CSAK GYENGÉNLÁTÓKNÁL ÉRTELMES:
+  "CSAK AMIT NEM LÁTOK" — a program csak azt olvassa fel, ami a beállított
+  méretnél KISEBB betűvel jelenik meg. Az apró betűs részt felolvassa, a
+  nagy címeket nem, mert azokat úgyis látja.
+  Ez pontosan a gyengénlátó valódi igénye: nem mindent akar hallani,
+  csak azt, ami elérhetetlen a szemének.
+
+
+===============================================================================
+13.4 AZ ÖKOSZISZTÉMA — a fejlesztő gondolata
+===============================================================================
+
+A beállítás EGY PROFIL legyen, ami az egész SuperDL-világra érvényes:
+Windows és Android, és a jövőbeli modulok is.
+
+  - egyszer állítod be, és mindenhol ugyanaz
+  - átvihető: a WiFi portálon vagy fájlként exportálható-importálható
+  - ha valaki új telefont vesz, nem kell elölről kezdenie
+  - és — ami a legfontosabb — egy SEGÍTŐ is beállíthatja neki
+    (a látó családtag beállítja a maga gépén, és átküldi a profilt)
+
+Ez utóbbi sokat számít: az első beállítás gyakran nem egyedül történik.
+
+
+===============================================================================
+13.5 A ROMLÓ LÁTÁS — amiről kevesen beszélnek
+===============================================================================
+
+Aki későbbi életében veszíti el a látását, annak nem egy állapota van,
+hanem egy ÚTJA. Ami ma jó neki, jövőre kevés lesz.
+
+A gyengénlátó mód ezt KÖVESSE:
+  - a beállítások bármikor újrahangolhatók, a varázsló újra lefuttatható
+  - legyen ÁTMENET a vak mód felé: ha valaki egyre több felolvasást kér,
+    a program felajánlhatja a tanuló módot ("szeretnéd megtanulni a
+    mozdulatokat, hogy képernyő nélkül is menjen?")
+  - ez NEM tolakodó, és NEM ijesztő módon: felajánlás, egyszer, és
+    ha nemet mond, többé nem kérdezünk
+
+MIÉRT FONTOS EZ:
+Aki most veszíti el a látását, annak a legnehezebb a váltás pillanata.
+Ha ugyanaz a program végigkíséri — előbb nagyított felülettel, aztán
+felolvasással, végül teljes vak móddal —, akkor nem kell MINDENT elölről
+tanulnia akkor, amikor amúgy is a legnehezebb neki.
+
+Ez az, amit egyetlen mai megoldás sem csinál: ott vagy vak vagy, vagy
+gyengénlátó, és a kettő között át kell szokni egy másik világba.
+
+
+===============================================================================
+13.6 MEGVALÓSÍTÁSI SORREND
+===============================================================================
+
+ELŐSZÖR (kevés munka, nagy haszon):
+  betűméret és vastagság a saját menüben
+  4-5 kontraszt-téma
+  vastag fókusz-keret
+  a beszéd öt fokozata
+
+UTÁNA:
+  látás-varázsló (ez teszi elérhetővé a fentieket)
+  animáció-mentesítés, lapozás
+  kamerás nagyító merevítéssel
+
+KÉSŐBB:
+  profil-export és -import (ökoszisztéma)
+  "csak amit nem látok" felolvasás
+  átmenet-felajánlás a vak mód felé
+
+
+===============================================================================
+14. A BESZÉD FINOMHANGOLÁSA — "csinos extrák", amik sokat számítanak
+===============================================================================
+
+[V1] HANGSZEREPEK — más hang más információhoz      HASZON: NAGY
+     (a fejlesztő ötlete, kiterjesztve)
+
+  A PROBLÉMA: ma minden UGYANAZON a hangon szól. A képernyő tartalma, a
+  program saját üzenete, a hibajelzés, a mozdulat-útmutató — mind egyforma.
+  A felhasználónak a SZÖVEGBŐL kell kitalálnia, hogy amit hall, az az
+  alkalmazásból jött-e, vagy a SuperDL mondja neki.
+
+  Ez fárasztó, és félreértésekhez vezet: "a bank azt mondta, hogy nincs
+  hálózat" — nem, a program mondta.
+
+  A MEGOLDÁS: SZEREPENKÉNT MÁS HANG.
+    TARTALOM      — ami a képernyőn van (fő hang)
+    A PROGRAM SZAVA — útmutatók, tippek, megerősítések (második hang)
+    FIGYELMEZTETÉS  — hiba, veszély, "nem sikerült" (harmadik hang)
+    IDÉZET          — csevegőben a MÁSIK ember üzenete
+
+  A felhasználó egy pillanat alatt tudja, KI beszél hozzá — anélkül, hogy
+  végighallgatná.
+
+  KÉT SZINTEN VALÓSÍTHATÓ MEG:
+    a) KÜLÖN BESZÉDMOTOR szerepenként (a fejlesztő javaslata): az egyiket
+       az eSpeak, a másikat a Google mondja. A leghatározottabb különbség.
+       KOCKÁZAT: nem mindenkinél van két motor telepítve; és két motor
+       párhuzamos futtatása több memória.
+    b) UGYANAZ A MOTOR, MÁS HANGSZÍNNEL: eltérő hangmagasság és tempó.
+       Ez MINDEN készüléken működik, és ingyen van.
+    JAVASLAT: alapból (b), és aki akarja, választhat külön motort (a).
+
+[V2] KIEJTÉSI SZÓTÁR                                HASZON: NAGYON NAGY
+
+  Ez talán a legalulértékeltebb ötlet az egész listában.
+
+  A magyar beszédmotorok RENDSZERESEN félremondanak dolgokat:
+    a program saját nevét, a rövidítéseket, az idegen neveket,
+    a mértékegységeket, a márkaneveket.
+  A "kb." esetét már megtaláltuk a nagytakarításban — de az csak EGY volt
+  a sok közül, és csak a MI szövegeinkben. A képernyőn megjelenő idegen
+  szövegeken semmilyen hatalmunk nincs.
+
+  A MEGOLDÁS: a felhasználó MEGTANÍTHASSA a programot.
+    "Ha ezt látod: <szó>, így mondd ki: <ahogy hangzik>"
+  Beállítás menüből, vagy — és ez a jobb — MENET KÖZBEN:
+  hallasz egy rosszul kimondott szót, egy mozdulattal megjavítod.
+
+  ÉS AMI IGAZÁN ÉRTÉKESSÉ TESZI: a szótár MEGOSZTHATÓ.
+  Ha valaki összeállítja a magyar banki és hivatali szavak kiejtését,
+  azt MINDENKI használhatja. Ugyanaz a közösségi logika, mint a
+  gomb-elnevezéseknél — és a tesztelői körrel pont most lehet elkezdeni.
+
+[V3] AUTOMATIKUS NYELVVÁLTÁS                        HASZON: NAGY
+
+  A magyar beszédmotor az angol szöveget ÉRTHETETLENÜL mondja ki.
+  Márpedig magyar képernyőkön RENGETEG angol van: alkalmazásnevek,
+  hibaüzenetek, dalcímek, menüpontok, e-mailek.
+
+  A megoldás: ha a program angol (vagy német, szlovák) szövegrészt ismer
+  fel, arra a részre VÁLTSON nyelvet, majd váltson vissza.
+  A felismerés egyszerű módszerekkel is jól működik (jellegzetes
+  betűkapcsolatok, gyakori szavak).
+
+  Ez a különbség aközött, hogy egy angol nyelvű levelet "meg lehet
+  hallgatni" vagy "értelmetlen hangzavar".
+
+[V4] SÜRGŐSSÉGI HANG                                HASZON: KÖZEPES
+  A tényleg fontos üzenetek (lemerülő akkumulátor, ébresztő, bejövő hívás,
+  S.O.S.) MÁS, jól felismerhető hangon szóljanak — ne kelljen
+  végighallgatni, hogy tudd, fontos-e.
+
+[V5] BESZÉDSEBESSÉG MENET KÖZBEN                    HASZON: KÖZEPES
+  Hosszú szöveg olvasása közben a hangerőgombokkal állítható legyen a
+  tempó, anélkül hogy ki kellene lépni a menübe.
+  Gyakorlott felhasználók nagyon gyorsan hallgatnak — de egy nehéz
+  bekezdésnél lassítanának.
+
+[V6] RÖVIDÍTÉSEK ÉS SZÁMOK OKOS KEZELÉSE            HASZON: KÖZEPES
+  "Ft", "km/h", "db", "kb.", "stb.", "dr.", "u.", "krt." — ezeket a
+  program oldja fel, mielőtt kimondaná.
+  Ugyanígy: telefonszám számjegyenként, ár pénznemmel, dátum rendesen.
+  RÉSZBEN MEGVAN (a számbeviteli mezőknél), de a KÉPERNYŐRŐL olvasott
+  szövegre még nem.
+
+[V7] HANGKÉSZLET-TÉMÁK                              HASZON: KISEBB, de kedves
+  A kattanások, pittyegések cserélhető készletekben: diszkrét, klasszikus,
+  zenei. Kis munka, és sokat ad a program "sajátjának" érzéséhez.
+
+[V8] FÜLHALLGATÓ-FELISMERÉS                         HASZON: KÖZEPES
+  Ha fülhallgató van bedugva: bátrabban beszélhet, részletesebben, mert
+  senki más nem hallja.
+  Ha nincs: rövidebben, halkabban — nyilvános helyen ez adatvédelem is.
+  Automatikusan váltson, ne kelljen állítgatni.
+
+
+===============================================================================
+15. TOVÁBBI EXTRÁK — vak használathoz
+===============================================================================
+
+[X1] KEDVENC MŰVELETEK — személyes gyorsmenü        HASZON: NAGY
+  Egy mozdulat, és megnyílik a SAJÁT listád: azok a dolgok, amiket naponta
+  csinálsz. Anyát felhívni, a kedvenc rádiót elindítani, a bevásárlólistát
+  megnyitni, megnézni, mikor jön a busz.
+  Ma ezekhez 3-5 menüszint kell. Ez az, amit egy látó ember a
+  kezdőképernyőre kitesz — nekünk hangban kell megadni.
+
+[X2] "MI TÖRTÉNT, AMÍG NEM FIGYELTEM?"              HASZON: KÖZEPES
+  Egy ponttal összefoglalva: hány üzenet, hány hívás, mi az időjárás,
+  mennyi az akku, mi a következő program.
+  RÉSZBEN MEGVAN (napi összefoglaló) — de ez a rövid, bármikor
+  lekérdezhető változat.
+
+[X3] IDŐ- ÉS AKKU-JELZÉS DISZKRÉTEN                 HASZON: KISEBB
+  Állítható időnként halk hangjelzés az órával vagy az akku állapotával.
+  Nem beszéd — csak egy diszkrét jelzés, ami nem szakít félbe semmit.
+
+[X4] ISMÉTLŐDŐ MŰVELET RÖGZÍTÉSE                    HASZON: NAGY, de KOCKÁZATOS
+  Rögzítesz egy lépéssorozatot, és később egy paranccsal lejátszod.
+  Például: megnyitni a banki appot, belépni, egyenleget lekérdezni.
+  KOCKÁZAT: ha a felület megváltozik, a felvétel ROSSZ helyre kattinthat.
+  Banki alkalmazásnál ez elfogadhatatlan.
+  CSAK erős biztosítékokkal: minden lépésnél ellenőrzés, hogy tényleg az
+  van-e ott, amit vártunk — és ha nem, azonnali megállás.
+  KÉSŐBBRE.

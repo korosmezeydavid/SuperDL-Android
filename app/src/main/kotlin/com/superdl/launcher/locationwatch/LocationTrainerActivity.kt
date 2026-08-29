@@ -390,7 +390,8 @@ class LocationTrainerActivity : AppCompatActivity() {
         } else {
             getString(R.string.location_trainer_exit)
         }
-        tts.speakThen(exitMsg) { finish() }
+        tts.speak(exitMsg)
+        finish()
     }
 
     private fun setStatusText(text: String) {

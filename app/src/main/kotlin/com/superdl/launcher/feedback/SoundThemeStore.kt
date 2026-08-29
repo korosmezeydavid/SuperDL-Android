@@ -22,6 +22,6 @@ object SoundThemeStore {
 
     fun speakCurrent(context: Context): String {
         val theme = get(context)
-        return "Swipe hangtéma: ${theme.label}. ${theme.description}"
+        return "Söpörj hangtéma: ${theme.label}. ${theme.description}"
     }
 }

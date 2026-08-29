@@ -37,13 +37,22 @@ object BanknoteColorVerifier {
 
     private data class HueRange(val center: Float, val tolerance: Float)
 
+    /**
+     * A tartományok a [com.superdl.launcher.currency.trainer.BanknoteBuiltinColorReference]
+     * mért Hue-középpontjaival egyeznek. Eltérés esetén a classifier AGREE/DISAGREE
+     * ellentmondott a hybrid szín-útvonalnak → téves elutasítás vagy hamis egyetértés.
+     *
+     * 500 barnás-vörös ~12°, 1000 kék ~200°, 2000 drapp ~36°,
+     * 5000 zöld ~108°, 10000 lila ~318°, 20000 zöldes-drapp ~75°.
+     */
     private fun expectedHueRange(denomination: BanknoteDenomination): HueRange = when (denomination) {
-        BanknoteDenomination.HUF_500 -> HueRange(32f, 28f)
-        BanknoteDenomination.HUF_1000 -> HueRange(215f, 30f)
-        BanknoteDenomination.HUF_2000 -> HueRange(22f, 24f)
-        BanknoteDenomination.HUF_5000 -> HueRange(62f, 28f)
-        BanknoteDenomination.HUF_10000 -> HueRange(330f, 32f)
-        BanknoteDenomination.HUF_20000 -> HueRange(168f, 30f)
+        // Összhangban a BanknoteBuiltinColorReference / Stage1 HUF HSV tartományaival.
+        BanknoteDenomination.HUF_500 -> HueRange(12f, 18f)
+        BanknoteDenomination.HUF_1000 -> HueRange(200f, 32f)
+        BanknoteDenomination.HUF_2000 -> HueRange(36f, 22f)
+        BanknoteDenomination.HUF_5000 -> HueRange(108f, 32f)
+        BanknoteDenomination.HUF_10000 -> HueRange(318f, 40f)
+        BanknoteDenomination.HUF_20000 -> HueRange(75f, 24f)
     }
 
     private fun dominantHue(bitmap: Bitmap): Float? {

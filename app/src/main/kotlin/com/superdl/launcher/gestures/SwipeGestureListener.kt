@@ -10,7 +10,9 @@ class SwipeGestureListener(
     private val onSwipeUp: () -> Unit,
     private val onSwipeDown: () -> Unit,
     private val onSwipeRight: () -> Unit,
-    private val onSwipeLeft: () -> Unit
+    private val onSwipeLeft: () -> Unit,
+    private val onLongPress: (() -> Unit)? = null,
+    private val onDoubleTap: (() -> Unit)? = null
 ) : GestureDetector.SimpleOnGestureListener() {
 
     companion object {
@@ -21,6 +23,15 @@ class SwipeGestureListener(
     val detector = GestureDetector(context, this)
 
     override fun onDown(e: MotionEvent): Boolean = true  // kötelező true!
+
+    override fun onLongPress(e: MotionEvent) {
+        onLongPress?.invoke()
+    }
+
+    override fun onDoubleTap(e: MotionEvent): Boolean {
+        onDoubleTap?.invoke()
+        return onDoubleTap != null
+    }
 
     override fun onFling(
         e1: MotionEvent?,
@@ -34,13 +45,13 @@ class SwipeGestureListener(
         val diffY = e2.y - e1.y
 
         return if (abs(diffX) > abs(diffY)) {
-            // Vízszintes swipe
+            // Vízszintes söprés
             if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
                 if (diffX > 0) onSwipeRight() else onSwipeLeft()
                 true
             } else false
         } else {
-            // Függőleges swipe
+            // Függőleges söprés
             if (abs(diffY) > SWIPE_THRESHOLD && abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
                 if (diffY > 0) onSwipeDown() else onSwipeUp()
                 true

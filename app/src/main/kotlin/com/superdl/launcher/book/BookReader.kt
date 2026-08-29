@@ -5,7 +5,7 @@ import com.superdl.launcher.tts.TtsManager
 
 class BookReader(
     private val context: Context,
-    private val tts: TtsManager,
+    private var tts: TtsManager,
     private val onProgress: (chunkIndex: Int, totalChunks: Int, charOffset: Int) -> Unit,
     private val onFinished: () -> Unit,
     private val onError: (String) -> Unit
@@ -21,6 +21,15 @@ class BookReader(
 
     val isActive: Boolean get() = running
     val isPaused: Boolean get() = paused
+
+    /**
+     * A felolvasó hang CSERÉJE menet közben.
+     * Akkor kell, ha a felhasználó átállította a könyvolvasó saját hangját —
+     * így nem kell újraindítani az alkalmazást.
+     */
+    fun attachTts(newTts: TtsManager) {
+        tts = newTts
+    }
 
     fun currentCharOffset(): Int =
         chunkOffsets.getOrNull(chunkIndex) ?: 0

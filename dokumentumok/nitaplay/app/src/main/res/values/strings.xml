@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NitaPlay</string>
+    <string name="notification_channel">Lejátszás</string>
+    <string name="notification_playing">Most szól</string>
+</resources>

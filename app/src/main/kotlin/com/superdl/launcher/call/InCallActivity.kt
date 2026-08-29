@@ -116,7 +116,7 @@ class InCallActivity : AppCompatActivity() {
         }
 
         if (phone.isBlank()) {
-            tts.speakThen("Érvénytelen telefonszám.") { finishCallUi() }
+            speakAndFinishCall("Érvénytelen telefonszám.")
             return
         }
 
@@ -131,12 +131,12 @@ class InCallActivity : AppCompatActivity() {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
                     != PackageManager.PERMISSION_GRANTED
                 ) {
-                    tts.speakThen("Hívás engedély szükséges.") { finishCallUi() }
+                    speakAndFinishCall("Hívás engedély szükséges.")
                     return
                 }
                 tts.speakThen("Hívás indítása: $displayName.") {
                     if (!CallHelper.placeCall(this, phone)) {
-                        tts.speakThen("Hívás indítása sikertelen.") { finishCallUi() }
+                        speakAndFinishCall("Hívás indítása sikertelen.")
                     } else {
                         callStarted = true
                         placedAt = SystemClock.elapsedRealtime()
@@ -204,15 +204,34 @@ class InCallActivity : AppCompatActivity() {
     }
 
     private fun toggleSpeaker() {
-        speakerOn = !speakerOn
-        CallHelper.setSpeakerphone(this, speakerOn)
-        tts.speak(if (speakerOn) "Kihangosítás bekapcsolva." else "Kihangosítás kikapcsolva.")
+        val requested = !speakerOn
+        val ok = CallHelper.setSpeakerphone(this, requested)
+        // NEM feltételezzük a sikert: csak akkor mondjuk bekapcsoltnak, ha a
+        // rendszer tényleg átállította. Korábban a képernyő "bekapcsolva"-t
+        // mondott akkor is, ha valójában semmi nem történt.
+        speakerOn = if (ok) requested else CallHelper.isSpeakerphoneOn(this)
+        if (ok) {
+            tts.speak(if (speakerOn) "Kihangosítás bekapcsolva." else "Kihangosítás kikapcsolva.")
+        } else {
+            tts.speak(
+                "A kihangosítást nem sikerült átállítani. Ehhez a Super DL-nek " +
+                    "alapértelmezett telefon alkalmazásnak kell lennie."
+            )
+        }
     }
 
     private fun toggleMicMute() {
-        micMuted = !micMuted
-        CallHelper.setMicrophoneMute(this, micMuted)
-        tts.speak(if (micMuted) "Mikrofon némítva." else "Mikrofon visszakapcsolva.")
+        val requested = !micMuted
+        val ok = CallHelper.setMicrophoneMute(this, requested)
+        micMuted = if (ok) requested else CallHelper.isMicrophoneMuted(this)
+        if (ok) {
+            tts.speak(if (micMuted) "Mikrofon némítva." else "Mikrofon visszakapcsolva.")
+        } else {
+            tts.speak(
+                "A mikrofont nem sikerült némítani. Ehhez a Super DL-nek " +
+                    "alapértelmezett telefon alkalmazásnak kell lennie."
+            )
+        }
     }
 
     private fun openControlsPanel() {
@@ -301,7 +320,7 @@ class InCallActivity : AppCompatActivity() {
             if (elapsed < IDLE_GRACE_MS) return
             stopDurationUpdates()
             unregisterPhoneListener()
-            tts.speakThen("A hívás nem jött létre.") { finishCallUi() }
+            speakAndFinishCall("A hívás nem jött létre.")
             return
         }
         stopDurationUpdates()
@@ -313,7 +332,7 @@ class InCallActivity : AppCompatActivity() {
         val duration = formatDuration(currentDurationSeconds())
         tvStatus.text = getString(R.string.call_status_ended)
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen("Hívás vége. Időtartam: $duration.") { finishCallUi() }
+        speakAndFinishCall("Hívás vége. Időtartam: $duration.")
     }
 
     private fun onUserEndRequest() {
@@ -536,6 +555,34 @@ class InCallActivity : AppCompatActivity() {
         tts.shutdown()
         if (::sounds.isInitialized) sounds.release()
         super.onDestroy()
+    }
+
+    /**
+     * Bemondja az üzenetet, majd bezárja a hívás-képernyőt.
+     *
+     * BIZTONSÁGI HÁLÓ: korábban a bezárás KIZÁRÓLAG a beszéd befejezésének
+     * visszajelzésére várt (speakThen { finishCallUi() }). Ha az a visszajelzés
+     * elmaradt — megszakadt beszéd, elveszett jelzés, néma TTS —, a képernyő
+     * OTT RAGADT a hívás után, és csak balra söpréssel lehetett kilépni.
+     * Most egy időzítő is bezár, ha a beszéd nem jelentkezik időben. Akármelyik
+     * ág fut le előbb, a bezárás CSAK EGYSZER történik meg.
+     */
+    private fun speakAndFinishCall(message: String, timeoutMs: Long = 4000L) {
+        var closed = false
+        val closeOnce = {
+            if (!closed) {
+                closed = true
+                finishCallUi()
+            }
+        }
+        try {
+            tts.speakThen(message) { closeOnce() }
+        } catch (e: Exception) {
+            android.util.Log.w("SDL_CALL", "TTS hiba a hivas vegen: ${e.message}")
+            closeOnce()
+            return
+        }
+        handler.postDelayed({ closeOnce() }, timeoutMs)
     }
 
     private fun finishCallUi() {

@@ -20,7 +20,8 @@ data class NewsFeed(
 data class RssItem(
     val title: String,
     val description: String,
-    val source: String
+    val source: String,
+    val link: String = ""
 ) {
     fun speakPreview(): String {
         val preview = description.ifBlank { title }
@@ -121,6 +122,7 @@ object RssHelper {
             var inItem = false
             var title = ""
             var description = ""
+            var link = ""
 
             while (event != XmlPullParser.END_DOCUMENT && items.size < maxItems) {
                 when (event) {
@@ -129,8 +131,19 @@ object RssHelper {
                             inItem = true
                             title = ""
                             description = ""
+                            link = ""
                         }
                         "title" -> if (inItem) title = parser.nextText().stripTags().trim()
+                        "link" -> if (inItem && link.isBlank()) {
+                            // Atom: <link href="..."/> ; RSS: <link>...</link>
+                            val href = parser.getAttributeValue(null, "href")
+                            if (!href.isNullOrBlank()) {
+                                link = href.trim()
+                            } else {
+                                val textLink = parser.nextText().trim()
+                                if (textLink.isNotBlank()) link = textLink
+                            }
+                        }
                         "description", "summary", "content" ->
                             if (inItem && description.isBlank()) {
                                 description = parser.nextText().stripTags().trim()
@@ -138,7 +151,7 @@ object RssHelper {
                     }
                     XmlPullParser.END_TAG -> if (parser.name.lowercase() in listOf("item", "entry")) {
                         if (title.isNotBlank()) {
-                            items.add(RssItem(title, description, source))
+                            items.add(RssItem(title, description, source, link))
                         }
                         inItem = false
                     }

@@ -145,7 +145,7 @@ class MedicationAlertActivity : AppCompatActivity() {
     private fun speakActionHint() {
         if (!ttsReady) return
         tts?.speak(
-            "${actions[actionIndex].label}. Swipe fel-le választás, jobbra végrehajtás, balra bezárás.",
+            "${actions[actionIndex].label}. Söpörj fel-le választás, jobbra végrehajtás, balra bezárás.",
             TextToSpeech.QUEUE_ADD,
             null,
             "medication_alert_hint_${System.currentTimeMillis()}"

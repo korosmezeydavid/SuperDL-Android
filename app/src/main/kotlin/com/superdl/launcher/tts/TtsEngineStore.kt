@@ -9,14 +9,27 @@ object TtsEngineStore {
     private const val KEY_VOICE = "tts_voice_name"
 
     fun getSelectedPackage(context: Context): String? {
-        val pkg = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_ENGINE, null)
+        // DIRECT BOOT: az első feloldás előtt a beállítás-tároló titkosított,
+        // ilyenkor a kiolvasás IllegalStateException-t dob. Ez korábban megölte a
+        // TTS-t (és vele a PIN segéd hangját) a bekapcsolás utáni PIN-képernyőn.
+        // Hiba esetén null-t adunk -> az ALAPÉRTELMEZETT beszédmotor indul, ami
+        // titkosítás alatt is elérhető.
+        val pkg = try {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_ENGINE, null)
+        } catch (_: Exception) {
+            null
+        }
         return pkg?.takeIf { it.isNotBlank() }
     }
 
     fun getSelectedVoiceName(context: Context): String? {
-        val voice = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_VOICE, null)
+        val voice = try {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_VOICE, null)
+        } catch (_: Exception) {
+            null
+        }
         return voice?.takeIf { it.isNotBlank() }
     }
 

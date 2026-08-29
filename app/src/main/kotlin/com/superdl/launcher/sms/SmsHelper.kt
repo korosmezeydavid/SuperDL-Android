@@ -1,10 +1,12 @@
 package com.superdl.launcher.sms
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -39,14 +41,52 @@ object SmsHelper {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
 
+    /**
+     * SMS küldése.
+     *
+     * FONTOS (miért íródott át):
+     * Korábban egyetlen sendTextMessage hívás ment, darabolás nélkül. Egy SMS-be
+     * 160 karakter fér — DE ÉKEZETES MAGYAR SZÖVEGNÉL CSAK 70, mert olyankor a
+     * telefon másik karakterkódolásra vált. Egy diktált mondat ezt könnyen
+     * túllépi, és a hosszabb üzenet ilyenkor CSENDBEN ELVESZETT: a kimenő
+     * mappában látszott, de a hálózatra nem ment ki.
+     *
+     * Most: a rendszerrel daraboljuk az üzenetet, és több részes küldést
+     * használunk, ha kell. Ráadásul KÉRÜNK VISSZAJELZÉST a küldésről, így ha a
+     * hálózat elutasítja, arról tudomást szerzünk (SmsSendReceiver).
+     */
     fun send(context: Context, phone: String, message: String): Boolean {
-        val trimmedPhone = phone.trim()
+        val trimmedPhone = normalizePhoneForSms(phone)
         val trimmedMessage = message.trim()
         if (trimmedPhone.isBlank() || trimmedMessage.isBlank()) return false
         return try {
             val manager = context.getSystemService(SmsManager::class.java)
                 ?: @Suppress("DEPRECATION") SmsManager.getDefault()
-            manager.sendTextMessage(trimmedPhone, null, trimmedMessage, null, null)
+
+            val parts = manager.divideMessage(trimmedMessage)
+            Log.i(
+                "SDL_SMS",
+                "SMS küldés: ${trimmedMessage.length} karakter, ${parts.size} rész, " +
+                    "szám hossza=${trimmedPhone.length}, kezdete=${trimmedPhone.take(4)}"
+            )
+
+            if (parts.size > 1) {
+                val sentIntents = ArrayList<PendingIntent>(parts.size)
+                val deliveryIntents = ArrayList<PendingIntent>(parts.size)
+                for (i in parts.indices) {
+                    sentIntents.add(buildSentIntent(context, i, parts.size))
+                    deliveryIntents.add(buildDeliveredIntent(context, i, parts.size))
+                }
+                manager.sendMultipartTextMessage(
+                    trimmedPhone, null, parts, sentIntents, deliveryIntents
+                )
+            } else {
+                manager.sendTextMessage(
+                    trimmedPhone, null, trimmedMessage,
+                    buildSentIntent(context, 0, 1),
+                    buildDeliveredIntent(context, 0, 1)
+                )
+            }
             storeMessage(context, trimmedPhone, trimmedMessage, Telephony.Sms.MESSAGE_TYPE_SENT)
             true
         } catch (e: Exception) {
@@ -54,6 +94,69 @@ object SmsHelper {
             false
         }
     }
+
+    /**
+     * A telefonszám előkészítése küldéshez.
+     *
+     * MIÉRT KELL: a diktált vagy névjegyből vett szám gyakran tartalmaz
+     * SZÓKÖZT, KÖTŐJELET vagy ZÁRÓJELET ("+36 30 123-4567"). A hálózat az ilyet
+     * elfogadhatja — a küldés "sikeresnek" látszik —, de NEM KÉZBESÍTI.
+     * Ez pontosan az a tünet, amikor a rendszer szerint elment, mégsem érkezik meg.
+     *
+     * Csak a számjegyeket és a vezető pluszt tartjuk meg.
+     */
+    fun normalizePhoneForSms(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        val hasPlus = trimmed.startsWith("+")
+        val digits = trimmed.filter { it.isDigit() }
+        return if (hasPlus) "+$digits" else digits
+    }
+
+    /**
+     * A küldés eredményét kérő jelzés. Enélkül az app nem tudja meg, hogy a
+     * hálózat átvette-e az üzenetet — csak annyit lát, hogy elindította.
+     */
+    private fun buildSentIntent(context: Context, index: Int, total: Int): PendingIntent {
+        val intent = Intent(ACTION_SMS_SENT).apply {
+            setPackage(context.packageName)
+            putExtra(EXTRA_PART_INDEX, index)
+            putExtra(EXTRA_PART_TOTAL, total)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            System.currentTimeMillis().toInt() + index,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /**
+     * KÉZBESÍTÉSI visszajelzés kérése.
+     *
+     * A küldés-visszajelzés csak annyit mond, hogy a telefon ÁTADTA a hálózatnak.
+     * Ez akkor is "sikeres", ha az üzenet végül nem jut el a címzetthez (rossz
+     * szám, kikapcsolt készülék, hálózati elutasítás). A kézbesítés-visszajelzés
+     * mondja meg, hogy TÉNYLEG MEGÉRKEZETT-e — enélkül vakon repülünk.
+     */
+    private fun buildDeliveredIntent(context: Context, index: Int, total: Int): PendingIntent {
+        val intent = Intent(ACTION_SMS_DELIVERED).apply {
+            setPackage(context.packageName)
+            putExtra(EXTRA_PART_INDEX, index)
+            putExtra(EXTRA_PART_TOTAL, total)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            (System.currentTimeMillis().toInt() + index) * 2 + 1,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    const val ACTION_SMS_SENT = "com.superdl.launcher.SMS_SENT"
+    const val ACTION_SMS_DELIVERED = "com.superdl.launcher.SMS_DELIVERED"
+    const val EXTRA_PART_INDEX = "part_index"
+    const val EXTRA_PART_TOTAL = "part_total"
 
     fun messageExists(
         context: Context,

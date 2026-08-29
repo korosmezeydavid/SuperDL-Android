@@ -1,0 +1,372 @@
+GRATULÁLUNK — LEVÉL A SUPERDL ANDROID TESZTELŐINEK
+================================================================================
+  Készült: 2026-08-18
+  Küldendő: azoknak, akik jelentkeztek és felvettük velük a kapcsolatot
+
+MEGJEGYZÉS DÁVIDNAK (ezt a részt NE küldd el):
+Ez a levél hosszú, és ez szándékos. A tesztelők HALLGATNI fogják, nem olvasni,
+és a felolvasót bármikor megállíthatják. Ezért inkább legyen benne minden,
+mint hogy háromszor kelljen visszakérdezniük.
+A szerkezet szándékos: ünnepélyes eleje, gyakorlatias közepe, biztató vége.
+A telepítési rész SZÁNDÉKOSAN nagyon apró lépésekre van bontva — aki már
+tudja, átugorja, aki nem, annak életmentő.
+================================================================================
+
+
+Kedves Tesztelőm!
+
+Gratulálok — és köszönöm.
+
+Nem udvariasságból írom ezt. Amikor néhány hete elkezdtem gondolkodni azon,
+hogy kinek merem odaadni ezt a programot, nem "felhasználókra" gondoltam.
+Munkatársakra gondoltam. Emberekre, akik nélkül ez sosem lesz igazán jó.
+
+Te most ezek közé tartozol.
+
+Három-négy hónap munkája van ebben a programban. Volt olyan hét, hogy hajnali
+kettőkor is ezen dolgoztam, és volt olyan nap, hogy egyetlen sort sem írtam,
+csak hallgattam, ahogy felolvas valamit, és nem tetszett, ahogy mondja.
+
+Most eljutottunk oda, hogy a kezedbe adhatom.
+
+
+===============================================================================
+ELŐSZÖR IS: MI EZ?
+===============================================================================
+
+A SuperDL Android nem egy alkalmazás a telefonodon. Ez maga a TELEFON.
+
+Ha bekapcsolod, ez lesz a kezdőképernyőd. És innentől az egész telefonodat
+NÉGY MOZDULATTAL kezelheted:
+
+    FEL és LE — választás a menüben
+    JOBBRA — megnyitás, igen, megerősítés
+    BALRA — vissza, nem, mégse
+
+Ez a négy mozdulat a program MINDEN pontján ugyanazt jelenti. Nincs kivétel,
+nincs külön szabály sehol. Ha ezt a négyet megtanultad, mindent tudsz.
+
+És minden elhangzik. Nem kell megkeresned semmit a képernyőn.
+
+
+===============================================================================
+MIT TUD?
+===============================================================================
+
+Sokat. Ezért csoportokba szedtem, hogy hallgatva is követhető legyen.
+Nyugodtan állítsd meg a felolvasót bármelyiknél.
+
+TELEFONÁLÁS ÉS ÜZENETEK
+  Hívás névjegyből, hangból vagy számbillentyűzetről.
+  Bejövő hívás fogadása jobbra, elutasítása balra söpréssel.
+  SMS írása és olvasása, diktálással is.
+  E-mail: levelek letöltése és küldése.
+  Hívásszűrő: időzített nyugalom, amikor csak a fontosak csengetnek ki.
+
+IDŐ ÉS SZERVEZÉS
+  Ébresztők ismétlődéssel. Időzítők. Naptár.
+  Gyógyszer-emlékeztető, kúra-követéssel.
+  Bevásárlólista, jegyzetek.
+
+OLVASÁS ÉS MÉDIA
+  Könyvolvasás: felolvassa a szöveges könyveket, könyvjelzővel.
+  Hangoskönyv. Zene a telefonról és a felhőből.
+  Rádió, felvétellel. Podcast. YouTube.
+
+FELISMERŐK
+  Szöveg felolvasása fényképről: gyógyszeres doboz, levél, felirat.
+  Színfelismerés. Tárgyfelismerés. QR-kód.
+
+TÁJÉKOZÓDÁS
+  Hol vagyok. Mi van körülöttem. Iránytű.
+  Közeli megállók és menetrend. Útvonaltervezés. Mentett helyek.
+
+BIZTONSÁG
+  S.O.S. hívás: több számot hív sorban, amíg valaki felveszi.
+  PIN segéd: segít feloldani a zárolt telefont.
+  Akkumulátor őrség. Diktafon. Telefonkereső.
+  WiFi portál: a telefon tartalma elérhető a saját gépedről.
+
+ÉS A LEGNAGYOBB: A SAJÁT KÉPERNYŐOLVASÓ
+  Ez nem csak a SuperDL-ben olvas fel, hanem MINDEN MÁS ALKALMAZÁSBAN is.
+  A bankban. A Messengerben. A boltban.
+  Van benne navigációs mód (címsorok, gombok, mezők), részletesség
+  (elem, mondat, szó, betű), folyamatos olvasás, képfelolvasás,
+  másolás és beillesztés.
+  Tenyérrel letakarva azonnal elhallgat.
+
+PLUSZ
+  Elena hangasszisztens, aki a hívószavára ébred.
+  Saját billentyűzet, ami az ujjad alá igazodik.
+  És egy TANULÓ MÓD, ahol 26 órán át gyakorolhatod a mozdulatokat,
+  a végén vizsgával. Osztályzatot is kapsz. :)
+
+
+===============================================================================
+A TELEPÍTÉS — LÉPÉSRŐL LÉPÉSRE
+===============================================================================
+
+Most jön a gyakorlati rész. Nagyon apró lépésekre bontottam. Ha te már
+gyakorlott vagy, nyugodtan ugord át — ha nem, akkor kövesd sorban, és
+minden menni fog.
+
+>>> A LEGFONTOSABB, AMIT ELŐRE TUDNOD KELL <<<
+
+A SuperDL saját képernyőolvasót hoz magával. DE amíg fel nem telepítetted és
+be nem állítottad, addig még nem tud beszélni.
+
+Ezért az ELSŐ BEÁLLÍTÁSHOZ kell egy segítség. Kétféle lehet:
+
+  1. Kérj meg egy LÁTÓ ismerőst, hogy üljön melléd tíz percre.
+  2. Vagy kapcsold be a telefonod saját felolvasóját, a TALKBACKET,
+     és csináld végig azzal.
+
+Ez nem hiba, és nem is a SuperDL sajátossága. Minden képernyőolvasónál így
+van: valamivel be kell kapcsolni az elsőt. Ha egyszer megvan, többé nem kell.
+
+Én magam is TalkBackkel adtam meg az engedélyeket, amikor először feltettem
+egy új telefonra.
+
+
+--- 1. LÉPÉS: A KÜLSŐ TELEPÍTÉS ENGEDÉLYEZÉSE ---------------------------------
+
+A SuperDL nem a Play áruházból jön, hanem közvetlenül tőlem. Ezért a telefonod
+először nem fogja engedni a telepítést — ez normális, és így is van rendjén.
+
+Amit tenned kell:
+
+  a) Töltsd le a fájlt, amit kaptál. A neve valami ilyesmi:
+     SuperDL-1.55.0-release.apk
+     Ez a Letöltések mappába kerül.
+
+  b) Nyisd meg a Fájlok alkalmazást, keresd meg a Letöltések mappát,
+     és lépj rá a fájlra.
+
+  c) A telefon meg fog kérdezni valamit. Nagyjából ezt:
+     "Ismeretlen alkalmazások telepítése — a biztonság érdekében a telefonod
+     nem telepíthet ismeretlen forrásból származó alkalmazásokat."
+     Ilyenkor van egy BEÁLLÍTÁSOK gomb. Nyomd meg.
+
+  d) A megnyíló ablakban van egy kapcsoló:
+     "Engedélyezés ebből a forrásból" vagy "Engedélyezés a Fájlok
+     alkalmazásnak". Kapcsold BE.
+
+  e) Lépj vissza, és nyomd meg újra a fájlt.
+
+  f) Most már megkérdezi: TELEPÍTED? Nyomd meg a TELEPÍTÉS gombot.
+
+  g) Amikor kész, ne nyomd meg a MEGNYITÁS gombot még. Előbb a következő
+     lépés jön.
+
+MEGJEGYZÉS: a telefonod gyártójától függően a szövegek kicsit mások lehetnek,
+de a lényeg mindenhol ugyanez.
+
+
+--- 2. LÉPÉS: AZ ENGEDÉLYEK MEGADÁSA ------------------------------------------
+
+Indítsd el a SuperDL-t. Most sok engedélyt fog kérni egymás után.
+
+Ez ijesztően hangzik, de van rá oka: a SuperDL nem egy játék, hanem az egész
+telefonodat kezeli. Ha nem kapja meg az engedélyt a névjegyekhez, nem tud
+hívást indítani. Ha nem kapja meg a mikrofont, nem tudsz diktálni.
+
+MINDEGYIKNÉL az ENGEDÉLYEZÉS vagy IGEN gombot válaszd.
+
+Amit kérni fog, és miért:
+  Telefon és hívásnapló — hogy tudj telefonálni
+  Névjegyek — hogy név szerint hívhass
+  SMS — hogy tudj üzenetet írni és olvasni
+  Mikrofon — a diktáláshoz és Elenához
+  Kamera — a felismerőkhöz
+  Helymeghatározás — a navigációhoz és a megállókhoz
+  Naptár — a programjaidhoz
+  Értesítések — hogy szólni tudjon
+  Fizikai aktivitás — a lépésszámlálóhoz
+
+Ha valamelyiket nem szeretnéd megadni, megteheted — akkor csak az az egy
+funkció nem fog működni, a többi igen. Később bármikor megadhatod.
+
+
+--- 3. LÉPÉS: A KÉPERNYŐOLVASÓ BEKAPCSOLÁSA -----------------------------------
+
+Ez a legfontosabb lépés. Ettől fog a SuperDL beszélni.
+
+  a) Menj a telefon BEÁLLÍTÁSOK alkalmazásába.
+  b) Keresd meg a KISEGÍTŐ LEHETŐSÉGEK (vagy Akadálymentesítés) pontot.
+  c) Ott keresd meg a SUPER DL KÉPERNYŐOLVASÓ nevű szolgáltatást.
+  d) Lépj rá, és kapcsold BE.
+  e) A telefon figyelmeztetni fog, hogy ez a szolgáltatás látja a képernyő
+     tartalmát. Ez igaz — és ez kell is ahhoz, hogy felolvassa neked.
+     Nyomd meg az ENGEDÉLYEZÉS gombot.
+
+UGYANITT kapcsold be a SUPER DL RENDSZER PIN SEGÉD nevű szolgáltatást is.
+Ez akkor segít, amikor a lezárt telefonodat kell feloldanod.
+
+
+--- 4. LÉPÉS: A SUPERDL LEGYEN A KEZDŐKÉPERNYŐ --------------------------------
+
+  a) Nyomd meg a telefon HOME gombját (vagy csúsztass felfelé alulról).
+  b) A telefon megkérdezi, melyik alkalmazást használd kezdőképernyőnek.
+  c) Válaszd a SUPER DL-t, és nyomd meg a MINDIG gombot.
+
+Ha nem kérdezi meg magától:
+  Beállítások — Alkalmazások — Alapértelmezett alkalmazások —
+  Kezdőképernyő alkalmazás — Super DL
+
+
+--- 5. LÉPÉS: A BILLENTYŰZET (nem kötelező) -----------------------------------
+
+Ha a SuperDL saját billentyűzetét szeretnéd használni:
+  Beállítások — Rendszer — Nyelvek és bevitel — Képernyő-billentyűzet —
+  Billentyűzetek kezelése — Super DL Mátrix billentyűzet BEKAPCSOL
+
+Ezt nyugodtan hagyd későbbre. Előbb szokd meg a programot.
+
+
+===============================================================================
+AZ ELSŐ NAP — MIT CSINÁLJ ELŐSZÖR?
+===============================================================================
+
+Ne akard mindent megtanulni egyszerre. Javaslom ezt a sorrendet:
+
+  1. Söpörj fel-le a főmenüben, és hallgasd végig, mi van benne.
+     Semmit nem tudsz elrontani. Balra söpréssel mindig visszajössz.
+
+  2. Menj a NÉVJEGY ÉS JOGI INFORMÁCIÓK menübe, és hallgasd meg az
+     ALKALMAZÁSRÓL pontot. Röviden elmondja, mit tud a program.
+
+  3. Ugyanitt van a PROGRAM HANGJAINAK MEGISMERÉSE. Ez megtanítja, melyik
+     hang mit jelent — nagyon sokat segít később.
+
+  4. Ha a képernyőolvasót is használni akarod más alkalmazásokban, keresd
+     meg a GESZTUSOK TANULÁSA pontot:
+     Beállítások — Haladó és technikai — Képernyőolvasó és billentyűzet —
+     Gesztusok tanulása — Órák Elena tanárnővel.
+     Huszonhat óra, a saját tempódban. Nem kell egyszerre.
+
+  5. Aztán csak használd. Telefonálj, hallgass zenét, állíts be ébresztőt.
+     Ahogy egy hétköznap adódik.
+
+EGY DOLOG, AMIT ÉRDEMES TUDNI AZ ELEJÉN:
+Ha a program valamiért NÉMA marad, van rá megoldás:
+  Beállítások — Hang és beszéd — Beszéd hangcsatornája
+Ez átvált egy másik hangcsatornára. Egyes telefonokon az egyik működik,
+a másik nem. Ha némán indul, próbáld ezt.
+
+
+===============================================================================
+HA HIBÁT TALÁLSZ — EZ A LEGFONTOSABB RÉSZ
+===============================================================================
+
+Ne szépítsd. Ne gondold, hogy "biztos én rontottam el". Ne hallgasd el, mert
+kellemetlen. A hibád nekem AJÁNDÉK — abból tudom, mit kell javítani.
+
+Beépítettem egy hibajelentőt, ami nagyon egyszerű:
+
+  Névjegy és jogi információk — HIBAJELENTÉS KÜLDÉSE
+
+Mi történik ilyenkor:
+  1. A program megkérdezi, mi történt. Te elmondod a SAJÁT SZAVAIDDAL.
+     Például: "a beszéd elnémult, miután feloldottam a telefont".
+     Nem kell szakszavakat használni. Ahogy elmondanád egy barátodnak.
+
+  2. A program hozzáteszi a műszaki adatokat: milyen telefon, melyik verzió,
+     mi van bekapcsolva. Ezeket neked nem kell tudnod.
+
+  3. Aztán választhatsz, hogyan küldöd el:
+     - a saját leveleződdel (Gmail vagy amit használsz) — NEM kell jelszót
+       beállítanod, csak elküldöd a kész levelet
+     - vagy Messengerrel, WhatsApppal — ahogy neked kényelmes
+     - vagy elmentheted, és később elküldöd
+
+FONTOS: a hibajelentés SEMMILYEN személyes adatot nem tartalmaz.
+Nincs benne névjegy, üzenet, helyzet, jelszó. Csak a program állapota és
+amit te elmondtál.
+
+ÉS HA A PROGRAM ANNYIRA ROSSZUL MŰKÖDIK, hogy a hibajelentőt sem éred el:
+hívj fel, vagy írj. Az elérhetőségem a levél végén.
+
+
+===============================================================================
+AMIT TUDNOD KELL — ŐSZINTÉN
+===============================================================================
+
+EZ TESZTVERZIÓ. Ez nem formaság.
+
+Kérlek, NE HASZNÁLD EGYETLEN ESZKÖZKÉNT olyasmire, ahol a hiba komoly bajt
+okozna. Konkrétan:
+  - életmentő gyógyszer emlékeztetőjéhez tarts meg egy másik megoldást is
+  - fontos találkozóhoz állíts be egy második ébresztőt máshol
+  - vészhelyzeti híváshoz ne csak erre támaszkodj
+
+Nem azért mondom, mert nem bízom benne. Azért, mert az elmúlt hetekben
+találtam benne olyan hibákat, amikre magamtól sosem gondoltam volna.
+Például a billentyűzet HANGOSAN KIMONDTA A JELSZAVAKAT — a boltban, a
+buszon, bárki hallhatta volna. Ez már javítva van. De ki tudja, mi van még.
+
+Épp ezért vagy itt te.
+
+AMI NINCS BENNE:
+A bankjegyfelismerő SZÁNDÉKOSAN kimaradt a tesztverzióból. Kész van, működik.
+De ennél a funkciónál a tévedés nem kellemetlenség, hanem PÉNZ. Amíg nem
+tudom bizonyítani, hogy soha nem téved, addig nem adom oda senkinek.
+Külön, hosszabb mérést fog kapni.
+
+MÉG VALAMI:
+Ha eddig is használtad a SuperDL-t Windowson vagy egy korábbi Android
+változatot, az MEGMARAD. Ez a tesztverzió külön települ, és külön adatokkal
+dolgozik. Nem ír felül semmit.
+
+
+===============================================================================
+ADATVÉDELEM — MERT JOGOD VAN TUDNI
+===============================================================================
+
+A SuperDL a telefonodon tárol mindent. Nem küld haza semmit.
+Nincs benne reklám, nincs elemzés, nincs követés. NEM TUDOM, hányan
+használjátok, mit használtok belőle, vagy mikor.
+
+A képernyőolvasó látja minden alkalmazásod tartalmát — a bankit is,
+a magánüzeneteidet is. És SEMMIT nem jegyez fel belőle. Csak felolvassa neked.
+
+Az e-mail jelszavad titkosítva tárolódik, a telefonodhoz kötött kulccsal.
+
+Ami kimegy a telefonról, az öt dolog, mindegyik csak ha te kéred:
+a helyzeted a térkép-szolgáltatásnak, amikor címet keresel; a keresett szöveg
+a YouTube-nak és a rádiónak; az e-mail fiókod adatai a saját szolgáltatódnak;
+a diktált szöveg a telefon felismerőjének; és frissítéskor a verziószám.
+
+A teljes tájékoztatót meg is hallgathatod a programban:
+Névjegy és jogi információk — Adatvédelmi tájékoztató.
+
+
+===============================================================================
+ÉS VÉGÜL
+===============================================================================
+
+Tudom, hogy amit kérek, az idő. A te időd.
+
+Nem tudom megfizetni. A SuperDL ingyenes, és az is marad — nem azért
+csinálom, hogy pénzt keressek vele.
+
+Amit adhatok: hogy meghallgatlak. Hogy amit mondasz, azt tényleg beépítem.
+Hogy ez a program a végén nem az enyém lesz, hanem a MIÉNK.
+
+Az elmúlt hetekben rengeteget javítottunk rajta. De minden egyes komoly hiba
+ugyanúgy derült ki: valaki használta, és valami nem stimmelt. Nem
+kódolvasással. HASZNÁLATTAL.
+
+Ezért vagy itt.
+
+Köszönöm, hogy igent mondtál.
+
+Nyugodtan keress bármikor — ha elakadsz, ha kérdésed van, vagy ha csak
+elmondanád, mit gondolsz róla.
+
+Szeretettel:
+Kőrösmezey Dávid Richárd
+
+  E-mail: korosmezey.david.richard@gmail.com
+  Weboldal: super-dl.com
+
+  Ha bármi gond van, ne szenvedj vele. Szólj. Ezért csináljuk. 🎈

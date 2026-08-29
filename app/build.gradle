@@ -17,8 +17,8 @@ android {
         applicationId "com.superdl.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 100
-        versionName "1.54.9"
+        versionCode 101
+        versionName "1.55.0"
     }
 
     signingConfigs {
@@ -36,15 +36,36 @@ android {
         }
     }
 
+    buildFeatures {
+        // A saját fordítási kapcsolókhoz (pl. FEATURE_MONEY_RECOGNIZER).
+        buildConfig true
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
             debuggable true
+            // A PÉNZFELISMERŐ csak a fejlesztői változatban érhető el.
+            // A fejlesztő döntése: amíg nincs 100 százalékig biztos, hogy SOHA
+            // nem mond téves címletet, addig NEM kerül a tesztelők kezébe.
+            // Egy téves összeg vak embernél valódi anyagi kárt okoz — ez nem
+            // olyan hiba, amit "majd a teszt kiszűr".
+            buildConfigField "boolean", "FEATURE_MONEY_RECOGNIZER", "true"
+            // A HIBATŰRÉS PRÓBÁJA a fejlesztői és a TESZT változatban látszik.
+            buildConfigField "boolean", "FEATURE_FAILURE_TEST", "true"
         }
         release {
             minifyEnabled true
             shrinkResources true
             debuggable false
+            // A tesztverzióban KIKAPCSOLVA. Egy sor átírásával visszakapcsolható,
+            // amikor a fejlesztő késznek ítéli.
+            buildConfigField "boolean", "FEATURE_MONEY_RECOGNIZER", "false"
+            // Az ÉLES változatból KIMARAD: egy átlagos felhasználó soha nem
+            // nézné meg, csak zsúfolná a menüt. A tesztidőszakban viszont
+            // hasznos, hogy a tesztelők is meggyőződhessenek a hibatűrésről —
+            // a teszt-csomagot ezért a fejlesztői változatból adjuk ki.
+            buildConfigField "boolean", "FEATURE_FAILURE_TEST", "false"
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
@@ -83,6 +104,9 @@ android {
 }
 
 dependencies {
+    // Titkosított tárolás érzékeny adatokhoz (pl. e-mail jelszó):
+    // a kulcsot az eszköz hardveres kulcstárolója (Keystore) védi.
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
     implementation platform('androidx.compose:compose-bom:2024.02.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-tooling-preview'

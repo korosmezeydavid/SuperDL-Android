@@ -1,0 +1,152 @@
+SUPERDL MODUL-BOLT — TERVEZET
+================================================================================
+  >>> ELŐHÍVÓ JELSZÓ: "bolt" <<<
+  Készült: 2026-08-04 | Állapot: MEGTERVEZVE, a megvalósítás még nem kezdődött
+================================================================================
+
+
+1. A DÖNTÉS
+--------------------------------------------------------------------------------
+A fejlesztő döntése: a SuperDL NEM megy a Google Play-re, cserébe SAJÁT
+modul-boltot kap, ahonnan VALÓDI PROGRAMOK tölthetők le — nem csak adatok.
+
+Az indoklás a fejlesztő szavaival: "inkább kizárok egyet, hogy beengedjek tizet".
+Ugyanezt az utat járja a Commentary Screen Reader és a Synaptic is: nincsenek
+Play-en, mégis működnek és élnek.
+
+MÁSODIK, LEGALÁBB ILYEN FONTOS ELV:
+Az ALAPFELSZERELTSÉG maradjon karcsú. Ami nem kell mindenkinek, az legyen
+LETÖLTHETŐ, ne beépített. Mindenkinek másra van szüksége — a bolt pont ezt
+oldja meg, és közben az alkalmazás nem hízik.
+
+
+2. HÁROM SZINT — MI HOVA KERÜL
+--------------------------------------------------------------------------------
+
+  A) A SUPERDL MAGJA (mindig ott van)
+     Amit egy vak felhasználó a telefon alapvető használatához igényel:
+     hívás, üzenet, e-mail, naptár, ébresztő, zene, könyv, navigáció,
+     pénzfelismerő, képernyőolvasó, billentyűzet, portál.
+     ÚJ FUNKCIÓ CSAK AKKOR kerül ide, ha a felhasználók TÖBBSÉGÉNEK kell.
+
+  B) ADAT-MODULOK (a mostani katalógus — MÁR MŰKÖDIK)
+     Kvíz, szójáték, rádiócsomag, útmutató, receptek, hangkészlet, szövegtár.
+     A "motor" a magban van, a tartalom jön kívülről. Kicsi, gyors, biztonságos.
+
+  C) PROGRAM-MODULOK (ÚJ — ez a bolt lényege)
+     Önálló alkalmazások: lépésszámláló, időjárás, speciális eszközök, játékok.
+     Külön telepítés, de a SuperDL-en BELÜL jelennek meg és onnan indulnak.
+
+
+3. HOGYAN MŰKÖDIK A PROGRAM-MODUL — A KULCS
+--------------------------------------------------------------------------------
+Minden program-modul ÖNÁLLÓ ANDROID ALKALMAZÁS, de a SuperDL-hez tartozónak
+jelenti magát.
+
+  1. A modul a manifestjében megad egy különleges jelzést
+     (pl. egy "com.superdl.MODULE" nevű intent-szűrőt és egy leíró blokkot:
+     modul neve, kategóriája, verziója, mit tud).
+  2. A SuperDL indításkor VÉGIGNÉZI a telepített alkalmazásokat, és megkeresi
+     ezt a jelzést.
+  3. A megtalált modulokat BETESZI A SAJÁT MENÜJÉBE — a modul által megadott
+     kategóriába (Eszközök, Játékok, Média...).
+  4. A felhasználónak úgy tűnik, mintha a SuperDL része lenne: ugyanott indul,
+     ugyanabban a rendszerben mozog.
+
+MIÉRT ÍGY, ÉS NEM FUTÁSIDEJŰ KÓD-BETÖLTÉSSEL:
+A kód-betöltés (dex/APK futtatása az appon belül) ADNÁ ugyanezt az élményt, DE:
+  - ha valaki hozzáfér a tárolóhoz vagy a fiókhoz, AUTOMATIKUSAN kódot
+    futtathat MINDEN felhasználó telefonján — ez a valódi rémálom
+  - a rendszer aláírás-ellenőrzése kimarad
+  - egy vak felhasználó nem tudja ellenőrizni, mi települ
+A külön alkalmazás esetén a TELEPÍTÉST A RENDSZER végzi, aláírás-ellenőrzéssel,
+és a felhasználó tudatos lépésével. Ugyanaz az élmény, töredék kockázattal.
+
+
+4. BIZTONSÁG — EZ NEM ALKU TÁRGYA
+--------------------------------------------------------------------------------
+Saját bolt esetén a felelősség a fejlesztőé. Ezért:
+
+  4.1 ALÁÍRÁS-ELLENŐRZÉS
+      Minden modult a SuperDL SAJÁT KULCSÁVAL kell aláírni. A SuperDL telepítés
+      UTÁN ellenőrzi az aláírást, és CSAK akkor veszi fel a menübe, ha egyezik.
+      Enélkül bárki tehetne fel álmodult egy hasonló nevű tárolóra.
+
+  4.2 A KATALÓGUS HITELESSÉGE
+      A katalógus-fájl mellé kerül egy ellenőrző összeg (hash) minden modulhoz.
+      A SuperDL letöltés után ELLENŐRZI — ha nem egyezik, nem telepít.
+
+  4.3 A FELHASZNÁLÓ MINDIG DÖNT
+      A SuperDL SOHA nem telepít magától. Elmondja, mi az, mekkora, mit tud,
+      és a telepítést a felhasználó indítja.
+
+  4.4 ELTÁVOLÍTHATÓSÁG
+      Minden modul egy mozdulattal eltávolítható a SuperDL menüjéből is.
+
+  4.5 A MAG SOHA NEM FÜGG A MODULOKTÓL
+      Ha egy modul hibás vagy hiányzik, a SuperDL ATTÓL MÉG teljesen működik.
+      A modul csak hozzáad, soha nem vesz el.
+
+
+5. A TELEPÍTÉS AKADÁLYA — ŐSZINTÉN
+--------------------------------------------------------------------------------
+Play nélkül a felhasználónak engedélyeznie kell az "ismeretlen forrásból"
+telepítést. Ez vak felhasználónak ELSŐRE NEHÉZ lépés — pont annak, akinek a
+legnehezebb segítséget kérni hozzá.
+
+AMI SEGÍT: MÁR VAN SAJÁT KÉPERNYŐOLVASÓNK. A SuperDL végig tudja vezetni a
+felhasználót a rendszer párbeszédein — ez pontosan az a helyzet, amire az
+olvasót építettük. Ezt KÜLÖN TESZTELNI KELL a nyilvános teszt során.
+
+TERV: egy "Modul telepítése" varázsló, ami
+  - elmondja, mi fog történni és miért
+  - megnyitja a szükséges rendszerbeállítást
+  - megvárja, amíg megvan, és visszajelez
+  - csak utána indítja a telepítést
+
+
+6. A BOLT SZERKEZETE (a tárolóban)
+--------------------------------------------------------------------------------
+  mobil-katalogus.json     — az adat-modulok (MÁR MŰKÖDIK)
+  program-katalogus.json   — a program-modulok (ÚJ)
+  modulok/                 — adat-modulok kategóriánként (MÁR MŰKÖDIK)
+  programok/               — a modul-alkalmazások telepítőfájljai
+
+  Egy program-modul bejegyzése:
+    id, nev, kategoria, verzio, verziokod, leiras,
+    csomagnev      — hogy a SuperDL felismerje, ha már telepítve van
+    fajl           — a telepítő címe
+    meret, hash    — méret és ellenőrző összeg
+    minAlkalmazasVerzio
+
+MEGJEGYZÉS: a telepítőfájlok NAGYOK. Ezeket NEM a git-tárolóba tesszük, hanem
+GitHub Release-be vagy a super-dl.com oldalra — különben a tároló hízik.
+
+
+7. MEGVALÓSÍTÁSI SORREND
+--------------------------------------------------------------------------------
+ 1. A modul-jelzés szabványának rögzítése (mit írjon a modul a manifestjébe)
+ 2. MODUL-FELISMERŐ a SuperDL-ben: telepített modulok megtalálása, aláírás-
+    ellenőrzés, felvétel a menübe
+    >>> INNENTŐL MÁR MŰKÖDIK: kézzel telepített modul megjelenik a menüben
+ 3. Program-katalógus letöltése és böngészése (a meglévő katalógus-kliens
+    bővítése)
+ 4. Letöltés + hash-ellenőrzés + telepítés indítása
+ 5. "Modul telepítése" varázsló az engedélyekhez
+ 6. Frissítés-figyelés a modulokra is
+ 7. Eltávolítás a SuperDL menüjéből
+ 8. ELSŐ PÉLDA-MODUL megépítése (javaslat: lépésszámláló) — ez bizonyítja,
+    hogy a lánc végig működik
+
+
+8. AMIT MEG KELL BESZÉLNI, MIELŐTT NEKIKEZDÜNK
+--------------------------------------------------------------------------------
+  - Mi legyen az ELSŐ program-modul? (a lépésszámláló jó jelölt: kicsi,
+    hasznos, és minden láncszemet kipróbál)
+  - Hol legyenek a telepítőfájlok: GitHub Release vagy super-dl.com?
+  - Kell-e a moduloknak SAJÁT ikonja és neve a telefon alkalmazáslistájában,
+    vagy csak a SuperDL-en belül jelenjenek meg?
+  - Mi történjen, ha a felhasználó a SuperDL-t eltávolítja: maradjanak a
+    modulok, vagy szóljunk, hogy nélküle nem használhatók?
+
+================================================================================

@@ -52,6 +52,17 @@ class BanknoteClassifierEngine private constructor(
         // ── Stage 1 + 2: detect → crop → classify ──────────────────────────
         runTwoStage(bitmap, applyColorCheck)?.let { return it }
 
+        // FONTOS: ha van működő YOLO-detektor, BÍZUNK BENNE. Ha ő nem talált
+        // bankjegyet, akkor tényleg nincs a képen — NEM esünk fallbackbe.
+        // A fallback-lánc (középső/teljes kép → régi classifier) volt a
+        // "behallucinálás" oka: a classifier az üres asztalt vagy a kezet is
+        // megpróbálta címletnek nézni, mert nincs "nincs itt semmi" opciója.
+        // A YOLO-detektor viszont TUDJA, mikor nincs bankjegy — ezt tiszteljük.
+        if (detector != null) return null
+
+        // Csak akkor jövünk ide, ha EGYÁLTALÁN NINCS detektor (a modell nem
+        // töltődött be). Ilyenkor marad a régi, classifier-alapú fallback.
+
         // ── Fallback: center ROI (simulates user holding bill in frame) ───
         BanknoteBitmapCropper.centerRoi(bitmap)?.let { roi ->
             try {
@@ -89,23 +100,51 @@ class BanknoteClassifierEngine private constructor(
     }
 
     /**
-     * Cross-check YOLO class vs classifier. Mismatch at high confidence → abstain.
+     * A YOLO-detektor és a classifier összeegyeztetése.
+     *
+     * FONTOS: a saját betanított YOLO-detektor bizonyítottan pontosabb, mint a
+     * régi classifier (gépi teszten 0.9+ minden címletre). Ha a YOLO magabiztos,
+     * AZ Ő CÍMLETE NYER. A classifier csak akkor dönt, ha a YOLO bizonytalan.
+     *
+     * YOLO-domináns esetben a secondBest/none mezőket nullázzuk, hogy a
+     * classifier margin ne tiltsa le a helyes YOLO-döntést (isReliable).
      */
     private fun reconcileStages(
         detection: BanknoteDetection,
         classification: BanknoteClassificationResult
     ): BanknoteClassificationResult? {
         val yoloDenomination = detection.denomination
-        if (yoloDenomination != null && yoloDenomination != classification.denomination) {
-            val yoloStrong = detection.confidence >= STAGE_AGREE_MIN_CONF
-            val clsStrong = classification.confidence >= STAGE_AGREE_MIN_CONF
-            if (yoloStrong && clsStrong) return null
+        val yoloStrong = detection.confidence >= STAGE_AGREE_MIN_CONF
+
+        // A YOLO magabiztos és van érvényes címlete → az ő szava dönt.
+        if (yoloDenomination != null && yoloStrong) {
+            val colorVerdict = if (classification.denomination == yoloDenomination) {
+                classification.colorVerdict
+            } else {
+                // Classifier más címletet tippelt: a crop színét a YOLO címletre
+                // ellenőrizzük újra a hívó oldalon nem lehetséges itt bitmap nélkül,
+                // ezért NEUTRAL — a DISAGREE a classifier saját címletére vonatkozott.
+                BanknoteColorVerifier.Verdict.NEUTRAL
+            }
+            return classification.copy(
+                denomination = yoloDenomination,
+                confidence = detection.confidence,
+                secondBestConfidence = 0f,
+                noneConfidence = 0f,
+                colorVerdict = colorVerdict,
+                detectionConfidence = detection.confidence,
+                pipelineMode = BanknotePipelineMode.TWO_STAGE,
+                detectionBox = RectF(detection.boundingBox),
+                yoloDominant = true
+            )
         }
 
+        // A YOLO bizonytalan: marad a classifier címlete (a régi viselkedés).
         return classification.copy(
             detectionConfidence = detection.confidence,
             pipelineMode = BanknotePipelineMode.TWO_STAGE,
-            detectionBox = RectF(detection.boundingBox)
+            detectionBox = RectF(detection.boundingBox),
+            yoloDominant = false
         )
     }
 
@@ -132,7 +171,13 @@ class BanknoteClassifierEngine private constructor(
     }
 
     companion object {
-        private const val STAGE_AGREE_MIN_CONF = 0.62f
+        // Leszállítva 0.62 -> 0.45. A napló megmutatta: a saját YOLO-detektor
+        // a helyes címletet gyakran 0.55-0.60 conf-fal adja (pl. 500-as: 0.59),
+        // ami a régi 0.62 küszöb ALATT volt -> ezért a YOLO szava NEM döntött,
+        // és a képkockánként ugráló classifier nyert (500-asra hol 500, hol 2000,
+        // hol 10000). 0.45-tel a megbízható YOLO-találat dönt, a classifier csak
+        // valóban bizonytalan YOLO esetén szól bele.
+        private const val STAGE_AGREE_MIN_CONF = 0.45f
         private const val DETECTOR_EVERY_N_FRAMES = 2
         private const val DETECTION_CACHE_MS = 450L
 

@@ -28,6 +28,7 @@ class HearingAidActivity : AppCompatActivity() {
 
     private enum class SettingField(val label: String) {
         POWER("Bekapcsolás"),
+        MIC_SOURCE("Mikrofon forrás"),
         MASTER("Fő erősítés"),
         MIC("Mikrofon erősítés"),
         BASS("Mély hang"),
@@ -114,6 +115,9 @@ class HearingAidActivity : AppCompatActivity() {
         }
         settings = when (val field = SettingField.entries[settingIndex]) {
             SettingField.POWER -> settings
+            SettingField.MIC_SOURCE -> settings.copy(
+                micSource = HearingAidStore.cycleMicSource(settings.micSource)
+            )
             SettingField.MASTER -> settings.copy(
                 masterGain = HearingAidStore.adjustGain(settings.masterGain, delta)
             )
@@ -135,7 +139,14 @@ class HearingAidActivity : AppCompatActivity() {
         }
         HearingAidStore.save(this, settings)
         if (HearingAidStore.isRunning) {
-            HearingAidService.updateSettings(this)
+            // A mikrofon-forrás váltásához újra kell indítani a felvételt;
+            // a többi beállítás menet közben is frissíthető.
+            if (SettingField.entries[settingIndex] == SettingField.MIC_SOURCE) {
+                HearingAidService.stop(this)
+                HearingAidService.start(this)
+            } else {
+                HearingAidService.updateSettings(this)
+            }
         }
         refreshUi()
         speakCurrentSetting()
@@ -160,6 +171,7 @@ class HearingAidActivity : AppCompatActivity() {
         val field = SettingField.entries[settingIndex]
         val value = when (field) {
             SettingField.POWER -> if (HearingAidStore.isRunning) "bekapcsolva" else "kikapcsolva"
+            SettingField.MIC_SOURCE -> settings.micSource.speakHu()
             SettingField.MASTER -> "${(settings.masterGain * 100).toInt()} százalék"
             SettingField.MIC -> "${(settings.micGain * 100).toInt()} százalék"
             SettingField.BASS -> "${(settings.bassGain * 100).toInt()} százalék"
@@ -176,6 +188,7 @@ class HearingAidActivity : AppCompatActivity() {
         val field = SettingField.entries[settingIndex]
         val value = when (field) {
             SettingField.POWER -> if (running) "BE" else "KI"
+            SettingField.MIC_SOURCE -> settings.micSource.speakHu()
             SettingField.MASTER -> "${(settings.masterGain * 100).toInt()}%"
             SettingField.MIC -> "${(settings.micGain * 100).toInt()}%"
             SettingField.BASS -> "${(settings.bassGain * 100).toInt()}%"
@@ -187,7 +200,8 @@ class HearingAidActivity : AppCompatActivity() {
     }
 
     private fun finishAid() {
-        tts.speakThen("Hallás erősítő bezárva.") { finish() }
+        tts.speak("Hallás erősítő bezárva.")
+        finish()
     }
 
     private fun hasMicPermission(): Boolean =

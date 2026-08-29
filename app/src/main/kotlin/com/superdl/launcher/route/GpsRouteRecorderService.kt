@@ -55,7 +55,8 @@ class GpsRouteRecorderService : Service() {
             PatrolAnnouncer.announce(
                 this,
                 "Útvonal rögzítés elindult: ${GpsRouteSession.recordingName}.",
-                withBeep = true
+                withBeep = true,
+                critical = true
             )
         }
         return START_STICKY

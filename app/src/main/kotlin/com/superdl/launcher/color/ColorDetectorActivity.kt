@@ -59,7 +59,7 @@ class ColorDetectorActivity : AppCompatActivity() {
             },
             onSwipeDown = {
                 sounds.play(SoundType.SWIPE_DOWN)
-                tts.speak("Tartsd a telefont a felület felé, kb. 20–30 centire. Lassan mozgasd, ha több pontot szeretnél mérni.")
+                tts.speak("Tartsd a telefont a felület felé, körülbelül 20–30 centire. Lassan mozgasd, ha több pontot szeretnél mérni.")
             },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
@@ -87,7 +87,7 @@ class ColorDetectorActivity : AppCompatActivity() {
     private fun startDetector() {
         tts.speakThen(
             "Színfelismerő bekapcsolva. Mutasd a kamerának a felületet. " +
-                "A program felolvassa a domináns színt. Jobbra swipe: ismétlés. Balra: kilépés."
+                "A program felolvassa a domináns színt. Jobbra söprés: ismétlés. Balra: kilépés."
         ) {
             val providerFuture = ProcessCameraProvider.getInstance(this)
             providerFuture.addListener({
@@ -141,7 +141,8 @@ class ColorDetectorActivity : AppCompatActivity() {
 
     private fun finishDetector() {
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen("Színfelismerő leállítva.") { finish() }
+        tts.speak("Színfelismerő leállítva.")
+        finish()
     }
 
     private fun hasCameraPermission(): Boolean =

@@ -132,8 +132,11 @@ class CurrencyRecognizerActivity : ComponentActivity() {
                 viewModel.events.collect { event ->
                     if (event == null) return@collect
                     when (event) {
-                        is CurrencyRecognizerViewModel.FrameEvent.Announce ->
+                        is CurrencyRecognizerViewModel.FrameEvent.Announce -> {
+                            // QUEUE_FLUSH: megszakít mindent, egy stabil final eredmény.
+                            // Nincs speakThen, nincs sorba állítás — flicker/hurok ellen.
                             tts.speak(event.speech)
+                        }
                         is CurrencyRecognizerViewModel.FrameEvent.SpeakAdd ->
                             tts.speakAdd(event.speech)
                         CurrencyRecognizerViewModel.FrameEvent.PlayWorkingTick -> {
@@ -196,7 +199,11 @@ class CurrencyRecognizerActivity : ComponentActivity() {
         scanning.set(false)
         viewModel.stopScanning()
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen(getString(R.string.currency_exit)) { finish() }
+        // Gesztus-kilépés: speak + azonnali finish — NE speakThen { finish() }.
+        // MIÉRT: a speakThen a TTS BEFEJEZÉSE után hív finish-t; ha a user közben
+        // újra söpör, a még élő Activity újra lefuttatja, és a mondat 3-4x elhangzik.
+        tts.speak(getString(R.string.currency_exit))
+        finish()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -211,7 +218,7 @@ class CurrencyRecognizerActivity : ComponentActivity() {
                     finishRecognizer()
                 } else {
                     lastBackPressAt = now
-                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+                    tts.speak(getString(R.string.currency_back_again))
                 }
                 return true
             }
@@ -282,9 +289,16 @@ class CurrencyRecognizerActivity : ComponentActivity() {
                 latestBitmap.getAndSet(null)?.recycle()
                 System.gc()
                 postWhenAlive { handleFrameMemoryFailure() }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SDL_CASH",
+                    "Frame analyze hiba: ${e.javaClass.simpleName}: ${e.message}"
+                )
             } finally {
-                imageProxy.close()
+                try {
+                    imageProxy.close()
+                } catch (_: Exception) {
+                }
             }
         }
     }

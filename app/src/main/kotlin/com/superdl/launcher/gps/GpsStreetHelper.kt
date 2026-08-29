@@ -155,12 +155,13 @@ object GpsStreetHelper {
     }
 
     private fun fetchCurrentStreetFromNominatim(latitude: Double, longitude: Double): String? {
-        val url =
-            "https://nominatim.openstreetmap.org/reverse?lat=$latitude&lon=$longitude" +
+        // Stabilizált: több Nominatim-tükör + újrapróbálkozás.
+        val json = GpsNetworkClient.getWithFailover(GpsNetworkClient.NOMINATIM_MIRRORS) { base ->
+            "$base/reverse?lat=$latitude&lon=$longitude" +
                 "&format=json&accept-language=hu&zoom=19&addressdetails=1"
+        } ?: return null
         return try {
-            val json = JSONObject(fetchText(url))
-            val address = json.optJSONObject("address") ?: return null
+            val address = JSONObject(json).optJSONObject("address") ?: return null
             address.optString("road")
                 .ifBlank { address.optString("pedestrian") }
                 .ifBlank { address.optString("footway") }

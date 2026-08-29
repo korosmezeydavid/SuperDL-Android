@@ -179,7 +179,7 @@ class UnoActivity : AppCompatActivity() {
             pendingWildCardIndex = handIndex
             wildColorIndex = 0
             refreshUi()
-            tts.speak("Válassz színt. Fel-le, majd jobbra swipe.")
+            tts.speak("Válassz színt. Fel-le, majd jobbra söprés.")
             return
         }
         val msg = game.playHumanCard(handIndex)
@@ -210,7 +210,7 @@ class UnoActivity : AppCompatActivity() {
         } else {
             gameSounds.play(GameSoundType.GAME_LOSE)
         }
-        tts.speakAdd("Játék vége. Győztes: $winner. Jobbra swipe az újrakezdéshez.")
+        tts.speakAdd("Játék vége. Győztes: $winner. Jobbra söprés az újrakezdéshez.")
     }
 
     private fun speakCurrentCard() {
@@ -253,7 +253,8 @@ class UnoActivity : AppCompatActivity() {
     }
 
     private fun finishGame() {
-        tts.speakThen("UNO bezárva.") { finish() }
+        tts.speak("UNO bezárva.")
+        finish()
     }
 
     override fun onDestroy() {

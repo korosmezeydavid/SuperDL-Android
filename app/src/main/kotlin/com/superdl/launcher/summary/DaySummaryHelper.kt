@@ -40,8 +40,12 @@ object DaySummaryHelper {
         }.start()
 
         // Időjárás
+        // A beállított város ERŐSEBB — ha a felhasználó megadott egyet, azt
+        // kérdezzük. Ha nem, a telefon SAJÁT HELYZETÉT használjuk, nem a
+        // hálózat találgatását.
         val city = WeatherCityStore.get(context)
         WeatherHelper.fetch(
+            context = context,
             city = city,
             onResult = { info ->
                 parts.add("Időjárás: ${info.speakSummary()}")

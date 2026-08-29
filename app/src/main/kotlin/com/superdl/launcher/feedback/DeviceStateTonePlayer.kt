@@ -35,8 +35,12 @@ object DeviceStateTonePlayer {
                 DeviceStateEvent.BATTERY_FULL -> playSequence(
                     listOf(880 to 80, 1175 to 80, 1568 to 80, 1976 to 140)
                 )
-                DeviceStateEvent.SCREEN_OFF -> playBurst(280, 110)
-                DeviceStateEvent.SCREEN_ON -> playBurst(1175, 95)
+                DeviceStateEvent.SCREEN_OFF ->
+                    if (context != null) playRawSound(context, com.superdl.launcher.R.raw.snd_screen_lock)
+                    else playBurst(280, 110)
+                DeviceStateEvent.SCREEN_ON ->
+                    if (context != null) playRawSound(context, com.superdl.launcher.R.raw.snd_screen_unlock)
+                    else playBurst(1175, 95)
             }
         }
     }
@@ -53,6 +57,18 @@ object DeviceStateTonePlayer {
 
     private fun playBurst(freq: Int, durationMs: Int) {
         audioExecutor.execute { playBurstSync(freq, durationMs) }
+    }
+
+    /** Egy raw hangfájl lejátszása (képernyőzár/feloldás egyedi hangjai). */
+    private fun playRawSound(context: Context, resId: Int) {
+        try {
+            val mp = android.media.MediaPlayer.create(context.applicationContext, resId)
+            if (mp != null) {
+                mp.setOnCompletionListener { it.release() }
+                mp.start()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     fun playBurstSync(freq: Int, durationMs: Int) {

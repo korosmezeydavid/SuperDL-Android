@@ -247,13 +247,15 @@ class CardTrainerActivity : AppCompatActivity() {
         sounds.play(SoundType.ACTION_OK)
         val message = getString(R.string.card_trainer_saved, saved.name)
         setStatusText(message)
-        tts.speakThen(message) { finish() }
+        tts.speak(message)
+        finish()
     }
 
     private fun finishTrainer() {
         voiceInput.cancel()
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speakThen(getString(R.string.card_trainer_exit)) { finish() }
+        tts.speak(getString(R.string.card_trainer_exit))
+        finish()
     }
 
     private fun setStatusText(text: String) {

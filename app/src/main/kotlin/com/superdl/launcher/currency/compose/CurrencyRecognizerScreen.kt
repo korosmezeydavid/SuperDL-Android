@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,13 +21,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.superdl.launcher.R
 import com.superdl.launcher.camera.CameraStabilityHelper
 import com.superdl.launcher.gestures.SwipeGestureListener
 
@@ -38,13 +44,21 @@ fun CurrencyRecognizerScreen(
     onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val previewDesc = stringResource(R.string.currency_preview_desc)
+    val statusSpoken = uiState.statusText.ifBlank { uiState.fatalError.orEmpty() }
+    val screenTitle = stringResource(R.string.currency_title)
+
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .semantics {
+                contentDescription = screenTitle
+            },
         color = Color.Black
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             CurrencyStatusBar(
-                statusText = uiState.statusText.ifBlank { uiState.fatalError.orEmpty() },
+                statusText = statusSpoken,
                 onExit = onExit
             )
 
@@ -52,12 +66,22 @@ fun CurrencyRecognizerScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .semantics {
+                        contentDescription = previewDesc
+                    }
             ) {
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics {
+                            contentDescription = previewDesc
+                        },
                     factory = { ctx ->
                         PreviewView(ctx).also { previewView ->
                             CameraStabilityHelper.configurePreviewView(previewView)
+                            previewView.contentDescription = previewDesc
+                            previewView.importantForAccessibility =
+                                android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES
                             previewView.setOnTouchListener { _, event ->
                                 onTouchEvent(event)
                             }
@@ -65,6 +89,7 @@ fun CurrencyRecognizerScreen(
                         }
                     },
                     update = { previewView ->
+                        previewView.contentDescription = previewDesc
                         previewView.setOnTouchListener { _, event ->
                             onTouchEvent(event)
                         }
@@ -83,6 +108,9 @@ fun CurrencyRecognizerScreen(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(12.dp)
+                            .semantics {
+                                contentDescription = uiState.hintText
+                            }
                     )
                 }
             }
@@ -95,6 +123,9 @@ private fun CurrencyStatusBar(
     statusText: String,
     onExit: () -> Unit
 ) {
+    val exitLabel = stringResource(R.string.currency_exit_button)
+    val exitDesc = stringResource(R.string.currency_exit_desc)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -108,28 +139,37 @@ private fun CurrencyStatusBar(
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(end = 96.dp)
+                .padding(end = 104.dp)
                 .semantics {
+                    heading()
                     liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive
                     contentDescription = statusText
                 }
         )
+        // Minimum 48dp touch target (WCAG / Material accessibility).
         Button(
             onClick = onExit,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
+                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                 .semantics {
-                    contentDescription = "Kilépés a pénzfelismerőből"
+                    contentDescription = exitDesc
+                    role = Role.Button
                 }
         ) {
-            Text("Kilépés")
+            Text(exitLabel)
         }
     }
 }
 
 @Composable
 private fun DetectionOverlay(box: RectF) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    // Dekoratív — TalkBack ne olvassa (importantForAccessibility false a Canvas-en).
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .semantics { /* decorative */ }
+    ) {
         val stroke = Stroke(width = 3.dp.toPx())
         val left = box.left.coerceIn(0f, 1f) * size.width
         val top = box.top.coerceIn(0f, 1f) * size.height

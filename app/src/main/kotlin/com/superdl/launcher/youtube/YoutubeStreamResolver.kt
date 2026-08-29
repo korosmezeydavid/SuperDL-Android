@@ -41,9 +41,44 @@ object YoutubeStreamResolver {
     )
 
     private val INNERTUBE_CLIENTS = listOf(
-        InnerTubeClient("ANDROID", "19.09.37", "3", ANDROID_USER_AGENT),
+        // ANDROID_VR — 2026-ban EZ AZ EGYETLEN kliens, ami MŰKÖDIK.
+        //
+        // MIÉRT: a YouTube bevezette a "származás-igazoló" jelzőt (PO token).
+        // Enélkül a legtöbb kliens lejátszási címei 403-as hibával elutasítanak
+        // — ezért nem működött se az Android, se a Web, se az iOS kliens.
+        // Az ANDROID_VR (Oculus Quest) kliens EGYELŐRE mentesül a követelmény
+        // alól. Ezt a NewPipe, a yt-dlp és a többi nyílt lejátszó is így oldja meg.
+        //
+        // FIGYELEM: ha ez egyszer elromlik, a naplóban 403-as hibák lesznek —
+        // akkor kell új klienst keresni.
+        InnerTubeClient(
+            "ANDROID_VR", "1.60.19", "28",
+            "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+        ) {
+            put("deviceMake", "Oculus")
+            put("deviceModel", "Quest 3")
+            put("osName", "Android")
+            put("osVersion", "12L")
+            put("androidSdkVersion", 32)
+        },
+        // JAVÍTVA: az ANDROID kliens HIÁNYOS kérésre 400-as hibát ad. A YouTube
+        // megköveteli az androidSdkVersion mezőt — enélkül elutasítja.
+        InnerTubeClient("ANDROID", "19.09.37", "3", ANDROID_USER_AGENT) {
+            put("androidSdkVersion", 33)
+            put("osName", "Android")
+            put("osVersion", "13")
+        },
         InnerTubeClient("WEB", "2.20241120.01.00", "1"),
-        InnerTubeClient("IOS", "19.09.3", "5", "com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)"),
+        InnerTubeClient(
+            "IOS", "19.09.3", "5",
+            "com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)"
+        ) {
+            // Az iOS kliens is megköveteli az eszköz-adatokat.
+            put("deviceMake", "Apple")
+            put("deviceModel", "iPhone14,3")
+            put("osName", "iOS")
+            put("osVersion", "15.6.0.19G71")
+        },
         InnerTubeClient("TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0", "85") {
             put("thirdParty", JSONObject().put("embedUrl", "https://www.youtube.com/"))
         },
@@ -52,12 +87,24 @@ object YoutubeStreamResolver {
         }
     )
 
-    /** Piped + Invidious only – gyors, nem nyit külső YouTube appot. */
+    /**
+     * A SuperDL-en BELÜLI lejátszáshoz használható címek.
+     *
+     * KORÁBBAN csak a Piped és az Invidious tükör-kiszolgálókat kérdeztük meg —
+     * azok viszont gyakran nem elérhetők, ezért maradt üresen a lista. Most a
+     * MŰKÖDŐ InnerTube klienst is megkérdezzük, közvetlenül a YouTube-tól.
+     */
     fun resolveInAppStreamUrls(videoId: String): List<String> {
         if (videoId.isBlank()) return emptyList()
         val urls = linkedSetOf<String>()
-        resolveFromPipedInstances(videoId)?.let { urls += it }
-        resolveFromInvidiousInstances(videoId)?.let { urls += it }
+        for (client in INNERTUBE_CLIENTS.take(2)) {
+            resolveFromInnerTube(videoId, client)?.let { urls += it }
+            if (urls.isNotEmpty()) break
+        }
+        if (urls.isEmpty()) {
+            resolveFromPipedInstances(videoId)?.let { urls += it }
+            resolveFromInvidiousInstances(videoId)?.let { urls += it }
+        }
         return prioritizeVideoUrls(urls.toList())
     }
 
@@ -176,12 +223,33 @@ object YoutubeStreamResolver {
         }
         return useConnection(connection) {
             it.outputStream.use { stream -> stream.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+            // NAPLÓZÁS: pontosan lássuk, melyik kliens mit válaszol.
+            android.util.Log.i(
+                "SDL_YOUTUBE",
+                "InnerTube ${client.clientName}: HTTP ${it.responseCode}"
+            )
             if (it.responseCode !in 200..299) return@useConnection null
             val body = it.inputStream.bufferedReader().use { reader -> reader.readText() }
-            val streaming = JSONObject(body).optJSONObject("streamingData") ?: return@useConnection null
+            val root = JSONObject(body)
+            val status = root.optJSONObject("playabilityStatus")?.optString("status")
+            val streaming = root.optJSONObject("streamingData")
+            if (streaming == null) {
+                android.util.Log.w(
+                    "SDL_YOUTUBE",
+                    "${client.clientName}: NINCS streamingData, allapot=$status"
+                )
+                return@useConnection null
+            }
             val urls = mutableListOf<String>()
             streaming.optJSONArray("formats")?.let { pickInnerTubeProgressiveUrls(it) }?.let { urls += it }
             streaming.optJSONArray("adaptiveFormats")?.let { pickInnerTubeAdaptiveUrls(it) }?.let { urls += it }
+            android.util.Log.i(
+                "SDL_YOUTUBE",
+                "${client.clientName}: allapot=$status, " +
+                    "progressziv=${streaming.optJSONArray("formats")?.length() ?: 0}, " +
+                    "adaptiv=${streaming.optJSONArray("adaptiveFormats")?.length() ?: 0}, " +
+                    "HASZNALHATO CIM=${urls.size}"
+            )
             urls.takeIf { urls -> urls.isNotEmpty() }
         }
     }

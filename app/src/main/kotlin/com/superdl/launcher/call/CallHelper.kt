@@ -264,45 +264,22 @@ object CallHelper {
         }
     }
 
-    fun setSpeakerphone(context: Context, enabled: Boolean): Boolean {
-        return try {
-            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            @Suppress("DEPRECATION")
-            audio.isSpeakerphoneOn = enabled
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
+    /**
+     * Kihangosítás. A tényleges munkát a CallAudioController végzi, ami
+     * több módszert is ismer — az elavult AudioManager-es kapcsoló ugyanis
+     * Android 12 fölött már nem működik megbízhatóan.
+     */
+    fun setSpeakerphone(context: Context, enabled: Boolean): Boolean =
+        CallAudioController.setSpeakerphone(context, enabled)
 
-    fun isSpeakerphoneOn(context: Context): Boolean {
-        return try {
-            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            @Suppress("DEPRECATION")
-            audio.isSpeakerphoneOn
-        } catch (_: Exception) {
-            false
-        }
-    }
+    /** A kihangosítás VALÓS állapota (amit a rendszer jelent). */
+    fun isSpeakerphoneOn(context: Context): Boolean = CallAudioController.speakerOn
 
-    fun setMicrophoneMute(context: Context, muted: Boolean): Boolean {
-        return try {
-            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            audio.isMicrophoneMute = muted
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
+    fun setMicrophoneMute(context: Context, muted: Boolean): Boolean =
+        CallAudioController.setMicrophoneMute(context, muted)
 
-    fun isMicrophoneMuted(context: Context): Boolean {
-        return try {
-            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            audio.isMicrophoneMute
-        } catch (_: Exception) {
-            false
-        }
-    }
+    /** A némítás VALÓS állapota. */
+    fun isMicrophoneMuted(context: Context): Boolean = CallAudioController.muted
 
     fun restoreDefaultAudioRoute(context: Context) {
         IncomingCallRinger.stop(context)

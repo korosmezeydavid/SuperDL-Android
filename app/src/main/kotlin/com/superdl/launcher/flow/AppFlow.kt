@@ -55,6 +55,11 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    data class ContactLetterBrowse(
+        val groups: List<com.superdl.launcher.contacts.ContactLetterIndex.LetterGroup>,
+        val index: Int
+    ) : AppFlow()
+
     data class ContactContextMenu(
         val items: List<com.superdl.launcher.contacts.ContactBookItem>,
         val contactIndex: Int,
@@ -75,10 +80,154 @@ sealed class AppFlow {
 
     object AlarmAwaitTime : AppFlow()
     data class AlarmAwaitLabel(val hour: Int, val minute: Int) : AppFlow()
+    data class AlarmRepeatBrowse(
+        val hour: Int,
+        val minute: Int,
+        val label: String,
+        val options: List<com.superdl.launcher.alarm.AlarmRepeatType>,
+        val index: Int
+    ) : AppFlow()
     data class AlarmConfirm(val hour: Int, val minute: Int, val label: String) : AppFlow()
     data class AlarmListBrowse(val alarms: List<AlarmEntry>, val index: Int, val deleteMode: Boolean = false) : AppFlow()
     data class AlarmDeleteConfirm(val alarm: AlarmEntry, val alarms: List<AlarmEntry>, val index: Int) : AppFlow()
+    /** Kvíz: melyik letöltött kérdéssort játsszuk. */
+    data class QuizPick(
+        val sets: List<com.superdl.launcher.games.quiz.QuizSet>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * Kvíz játék. Fel-le: válaszok között lépkedés, jobbra: válasz beadása,
+     * balra: kilépés.
+     */
+    data class QuizPlay(
+        val set: com.superdl.launcher.games.quiz.QuizSet,
+        val questionIndex: Int,
+        val answerIndex: Int,
+        val score: Int
+    ) : AppFlow()
+
+    /**
+     * Alkalmazás-kategóriák böngészése ("Zene és hang", "Játékok", ...).
+     * Innen lehet belépni egy kategória alkalmazásaiba.
+     */
+    data class AppCategoryPick(
+        val groups: List<Pair<com.superdl.launcher.apps.AppCategory, List<com.superdl.launcher.apps.ExternalApp>>>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * Egyéni fókusz létrehozása lépésről lépésre.
+     * Lépések: 0 = szűrési mód, 1 = mely napokon, 2 = kezdés, 3 = vég, 4 = mentés.
+     */
+    data class FocusWizard(
+        val step: Int,
+        val mode: com.superdl.launcher.callfilter.CallFilterMode,
+        val dayPreset: Int,
+        val startMinute: Int,
+        val endMinute: Int
+    ) : AppFlow()
+
+    /**
+     * Hibajelentés: a kész szöveg, és a küldési mód választása.
+     * 0 = saját levelező, 1 = megosztás, 2 = mentés fájlba
+     */
+    data class BugReportSend(val report: String, val index: Int) : AppFlow()
+
+    /** Kihagyások törlésének megerősítése. */
+    object AlarmSkipClearConfirm : AppFlow()
+
+    /** Biztonságos mód bekapcsolásának megerősítése. */
+    object SafeModeConfirm : AppFlow()
+
+    /**
+     * Beszédmotor választása a PROGRAM SAJÁT ÜZENETEIHEZ (név, csomagnév).
+     * Az első elem mindig a "nincs külön motor" lehetőség.
+     */
+    data class RoleEnginePick(
+        val engines: List<Pair<String, String>>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Beszédmotor választása a könyvolvasóhoz (név, csomagnév). */
+    data class BookEnginePick(
+        val engines: List<Pair<String, String>>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Lépésszámláló élő mérés: lépések és sebesség. */
+    data class StepsLive(val steps: Int, val speedMps: Float) : AppFlow()
+
+    /**
+     * Akasztófa játék. Fel-le: betű választása az ábécéből,
+     * jobbra: tipp, balra: kilépés.
+     */
+    data class Hangman(
+        val state: com.superdl.launcher.games.hangman.HangmanState,
+        val letterIndex: Int
+    ) : AppFlow()
+
+    /** Frissítés felajánlása: jobbra letöltés és telepítés, balra mégse. */
+    data class UpdateOffer(
+        val info: com.superdl.launcher.catalog.UpdateChecker.UpdateInfo
+    ) : AppFlow()
+
+    /** Telepített program-modulok böngészése és indítása. */
+    data class ModuleBrowse(
+        val modules: List<com.superdl.launcher.store.SuperDlModule>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Időzített fókusz-szabályok böngészése és ki/bekapcsolása. */
+    data class FocusListBrowse(
+        val schedules: List<com.superdl.launcher.callfilter.FocusSchedule>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Katalógus: előbb CSOPORTOT választunk, csak utána modult. */
+    data class CatalogCategoryPick(
+        val groups: List<Pair<com.superdl.launcher.catalog.CatalogCategory, List<com.superdl.launcher.catalog.CatalogModule>>>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Katalógus: elérhető modulok böngészése és letöltése. */
+    data class CatalogBrowse(
+        val modules: List<com.superdl.launcher.catalog.CatalogModule>,
+        val index: Int
+    ) : AppFlow()
+
     data class CalendarBrowse(val events: List<com.superdl.launcher.calendar.CalendarEvent>, val index: Int) : AppFlow()
+
+    /** Naptár-választó: melyik naptárba kerüljenek a felvett programok. */
+    data class CalendarTargetPick(
+        val calendars: List<com.superdl.launcher.calendar.CalendarHelper.CalendarInfo>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * Ébresztések kihagyása — 1. lépés: melyik ébresztőket érintse.
+     * Fel-le: navigálás, jobbra: kijelölés váltása, balra: tovább / kilépés.
+     */
+    data class AlarmSkipPick(
+        val alarms: List<com.superdl.launcher.alarm.AlarmEntry>,
+        val index: Int,
+        val selected: Set<Int>
+    ) : AppFlow()
+
+    /**
+     * Ébresztések kihagyása — 2. lépés: hány következő alkalmat hagyjon ki.
+     * Fel-le: darabszám, jobbra: mentés, balra: vissza a kijelöléshez.
+     */
+    data class AlarmSkipCount(
+        val alarms: List<com.superdl.launcher.alarm.AlarmEntry>,
+        val selected: Set<Int>,
+        val count: Int
+    ) : AppFlow()
+    data class CalendarPick(
+        val events: List<com.superdl.launcher.calendar.CalendarEvent>,
+        val index: Int,
+        val purpose: com.superdl.launcher.CalendarPickPurpose
+    ) : AppFlow()
     data class CalendarWeekBrowse(val days: List<com.superdl.launcher.calendar.CalendarDayGroup>, val index: Int) : AppFlow()
     object CalendarAwaitTitle : AppFlow()
     data class CalendarAwaitDate(val title: String) : AppFlow()
@@ -191,6 +340,7 @@ sealed class AppFlow {
         val slot: Int
     ) : AppFlow()
     data class MusicBrowse(val tracks: List<com.superdl.launcher.music.MusicTrack>, val index: Int) : AppFlow()
+    data class RadioBrowse(val stations: List<com.superdl.launcher.radio.RadioStation>, val index: Int) : AppFlow()
     object CalculatorAwaitInput : AppFlow()
     object WeatherAwaitCity : AppFlow()
     data class EmailSmtpPickAccount(
@@ -305,6 +455,11 @@ sealed class AppFlow {
         val page: Int = 0,
         val hasMore: Boolean = false
     ) : AppFlow()
+    data class NewsArticleReading(
+        val newsFlow: NewsBrowse,
+        val title: String,
+        val body: String
+    ) : AppFlow()
     data class NewsFeedManageBrowse(
         val feeds: List<com.superdl.launcher.news.NewsFeed>,
         val index: Int
@@ -345,6 +500,24 @@ sealed class AppFlow {
     data class TransitRouteBrowse(
         val route: com.superdl.launcher.transit.TransitRoute,
         val index: Int
+    ) : AppFlow()
+
+    object TrainAwaitStation : AppFlow()
+    data class TrainBrowse(
+        val stations: List<com.superdl.launcher.train.TrainStation>,
+        val index: Int,
+        val title: String = "Állomások",
+        val radiusMode: com.superdl.launcher.train.TrainHelper.StationRadiusMode =
+            com.superdl.launcher.train.TrainHelper.StationRadiusMode.NEAR
+    ) : AppFlow()
+    data class TrainContextMenu(
+        val stations: List<com.superdl.launcher.train.TrainStation>,
+        val stationIndex: Int,
+        val actions: List<com.superdl.launcher.train.TrainContextAction>,
+        val actionIndex: Int,
+        val title: String = "Állomások",
+        val radiusMode: com.superdl.launcher.train.TrainHelper.StationRadiusMode =
+            com.superdl.launcher.train.TrainHelper.StationRadiusMode.NEAR
     ) : AppFlow()
 
     object VoiceAssistantAwaitQuestion : AppFlow()
@@ -577,6 +750,18 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    data class SavedPoiContextMenu(
+        val saved: List<com.superdl.launcher.gps.SavedPoi>,
+        val poiIndex: Int,
+        val actions: List<com.superdl.launcher.gps.SavedPoiContextAction>,
+        val actionIndex: Int
+    ) : AppFlow()
+
+    data class SavedPoiVoiceRecording(
+        val saved: List<com.superdl.launcher.gps.SavedPoi>,
+        val poiIndex: Int
+    ) : AppFlow()
+
     object DictaphoneRecording : AppFlow()
 
     data class DictaphoneSettingsBrowse(
@@ -640,6 +825,43 @@ sealed class AppFlow {
 
     object MedicationAwaitName : AppFlow()
 
+    data class MedicationTimeOfDayBrowse(
+        val name: String,
+        val options: List<com.superdl.launcher.medication.MedicationTimeOfDay>,
+        val selected: Set<com.superdl.launcher.medication.MedicationTimeOfDay>,
+        val index: Int
+    ) : AppFlow()
+
+    object MedicationAwaitCourseDays : AppFlow()
+
+    object MedicationSearchAwaitName : AppFlow()
+
+    // ==================== Podcast ====================
+    object PodcastLoading : AppFlow()
+    object PodcastSearchAwaitQuery : AppFlow()
+    data class PodcastListBrowse(
+        val podcasts: List<com.superdl.launcher.podcast.Podcast>,
+        val index: Int,
+        val title: String
+    ) : AppFlow()
+    data class PodcastEpisodeBrowse(
+        val podcast: com.superdl.launcher.podcast.Podcast,
+        val episodes: List<com.superdl.launcher.podcast.PodcastEpisode>,
+        val index: Int
+    ) : AppFlow()
+    data class PodcastEpisodeMenu(
+        val podcast: com.superdl.launcher.podcast.Podcast,
+        val episodes: List<com.superdl.launcher.podcast.PodcastEpisode>,
+        val episodeIndex: Int,
+        val actionIndex: Int
+    ) : AppFlow()
+    data class PodcastCountryBrowse(val index: Int) : AppFlow()
+    object MedicationSearchLoading : AppFlow()
+    data class MedicationSearchResult(
+        val title: String,
+        val fullText: String
+    ) : AppFlow()
+
     data class MedicationCycleBrowse(
         val name: String,
         val hour: Int,
@@ -678,6 +900,30 @@ sealed class AppFlow {
     ) : AppFlow()
 
     object LauncherExitConfirm : AppFlow()
+
+    /**
+     * Beállítás varázsló: végigvezet a hiányzó engedélyeken.
+     *
+     * MIÉRT LISTA + INDEX: ugyanaz a minta, mint a MedicationListBrowse-nál —
+     * fel-le söprés a tételek között, jobbra a megadás. A `requirements` a
+     * HIÁNYZÓ tételek listája, a felmérés pillanatában.
+     */
+    data class SetupWizardBrowse(
+        val requirements: List<com.superdl.launcher.setup.SetupRequirements.Requirement>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * A varázsló megvárja, hogy a felhasználó visszatérjen a rendszerképernyőről.
+     *
+     * MIÉRT KELL KÜLÖN ÁLLAPOT: a szerepkör- és rendszerbeállítás-kérések másik
+     * Activity-ben futnak. Amikor visszatérünk, újra kell mérni az állapotot —
+     * enélkül a varázsló azt hinné, hogy még mindig hiányzik.
+     */
+    data class SetupWizardAwaitReturn(
+        val requirement: com.superdl.launcher.setup.SetupRequirements.Requirement
+    ) : AppFlow()
+
 
     object GpsRouteRecordingActive : AppFlow()
 

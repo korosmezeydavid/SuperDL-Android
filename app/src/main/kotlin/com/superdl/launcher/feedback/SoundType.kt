@@ -14,22 +14,22 @@ enum class SoundType(
     ),
     SWIPE_UP(
         R.raw.snd_swipe_up,
-        "Swipe fel",
+        "Söpörj fel",
         "Felfelé húzás. Menüben előző elem, folyamatban felfelé lépkedés."
     ),
     SWIPE_DOWN(
         R.raw.snd_swipe_down,
-        "Swipe le",
+        "Söpörj le",
         "Lefelé húzás. Menüben következő elem, folyamatban lefelé lépkedés."
     ),
     SWIPE_LEFT(
         R.raw.snd_swipe_left,
-        "Swipe balra",
+        "Söpörj balra",
         "Balra húzás. Visszalépés, megszakítás, kilépés."
     ),
     SWIPE_RIGHT(
         R.raw.snd_swipe_right,
-        "Swipe jobbra",
+        "Söpörj jobbra",
         "Jobbra húzás. Kiválasztás, megerősítés, végrehajtás."
     ),
     ACTION_OK(

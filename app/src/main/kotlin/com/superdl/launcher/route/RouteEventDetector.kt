@@ -9,21 +9,32 @@ import kotlin.math.abs
 class RouteEventDetector {
 
     companion object {
-        private const val TURN_THRESHOLD_DEG = 35f
-        private const val SLIGHT_TURN_THRESHOLD_DEG = 20f
+        private const val TURN_THRESHOLD_DEG = 40f
+        private const val SLIGHT_TURN_THRESHOLD_DEG = 25f
         private const val U_TURN_THRESHOLD_DEG = 150f
-        private const val MIN_SEGMENT_METERS = 4
+        private const val MIN_SEGMENT_METERS = 8
         private const val CROSSING_RADIUS_M = 12
         private const val CROSSING_FETCH_INTERVAL_MS = 12_000L
+
+        // Kanyar-simítás: hány szegmens irányát átlagoljuk, és mekkora
+        // minimális távolság kell két rögzített kanyar között (GPS-zaj szűrése).
+        private const val BEARING_SMOOTHING_WINDOW = 3
+        private const val MIN_DISTANCE_BETWEEN_TURNS_M = 15
     }
 
     private var lastBearing: Float? = null
+    private val recentBearings = ArrayDeque<Float>()
+    private var lastTurnLat: Double? = null
+    private var lastTurnLon: Double? = null
     private val announcedCrossingKeys = mutableSetOf<String>()
     private var lastCrossingFetchAt = 0L
     private var cachedCrossings: List<CrossingPoint> = emptyList()
 
     fun reset() {
         lastBearing = null
+        recentBearings.clear()
+        lastTurnLat = null
+        lastTurnLon = null
         announcedCrossingKeys.clear()
         lastCrossingFetchAt = 0L
         cachedCrossings = emptyList()
@@ -53,7 +64,6 @@ class RouteEventDetector {
                     longitude = location.longitude,
                     timestampMs = timestampMs
                 )?.let(events::add)
-                lastBearing = bearing
             }
         }
 
@@ -81,7 +91,19 @@ class RouteEventDetector {
         longitude: Double,
         timestampMs: Long
     ): RouteEvent? {
-        val previous = lastBearing ?: return null
+        // Az előző haladási irány a simított (átlagolt) irány, nem egyetlen
+        // zajos szegmens. Így a GPS-ingadozás nem okoz hamis kanyarokat.
+        val previous = smoothedBearing()
+
+        // Az aktuális szegmens irányát hozzáadjuk a simító ablakhoz.
+        recentBearings.addLast(bearing)
+        while (recentBearings.size > BEARING_SMOOTHING_WINDOW) {
+            recentBearings.removeFirst()
+        }
+        lastBearing = bearing
+
+        if (previous == null) return null
+
         val delta = bearingDelta(previous, bearing)
         val absDelta = abs(delta)
         val type = when {
@@ -94,12 +116,37 @@ class RouteEventDetector {
             absDelta >= SLIGHT_TURN_THRESHOLD_DEG -> RouteEventType.TURN_SLIGHT
             else -> return null
         }
+
+        // Ne rögzítsünk két kanyart túl közel egymáshoz (GPS-zaj szűrése).
+        val prevLat = lastTurnLat
+        val prevLon = lastTurnLon
+        if (prevLat != null && prevLon != null) {
+            val distSinceLastTurn = GpsRadarMath.distanceMeters(prevLat, prevLon, latitude, longitude)
+            if (distSinceLastTurn < MIN_DISTANCE_BETWEEN_TURNS_M) return null
+        }
+        lastTurnLat = latitude
+        lastTurnLon = longitude
+
         return RouteEvent(
             type = type,
             latitude = latitude,
             longitude = longitude,
             timestampMs = timestampMs
         )
+    }
+
+    /** A legutóbbi néhány szegmens átlagolt iránya (kör-átlag fokban). */
+    private fun smoothedBearing(): Float? {
+        if (recentBearings.isEmpty()) return null
+        var sinSum = 0.0
+        var cosSum = 0.0
+        for (b in recentBearings) {
+            val rad = Math.toRadians(b.toDouble())
+            sinSum += kotlin.math.sin(rad)
+            cosSum += kotlin.math.cos(rad)
+        }
+        val avg = Math.toDegrees(kotlin.math.atan2(sinSum, cosSum)).toFloat()
+        return (avg + 360f) % 360f
     }
 
     private fun detectCrossing(

@@ -347,18 +347,12 @@ object GpsOverpassHelper {
     }
 
     private fun fetchPost(url: String, formBody: String): String {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.connectTimeout = 15_000
-        connection.readTimeout = 15_000
-        connection.doOutput = true
-        connection.setRequestProperty("User-Agent", USER_AGENT)
-        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-        connection.outputStream.use { it.write(formBody.toByteArray(Charsets.UTF_8)) }
-        if (connection.responseCode !in 200..299) {
-            throw GpsRadarException("OpenStreetMap lekérdezés sikertelen.")
-        }
-        return connection.inputStream.bufferedReader().readText()
+        // Stabilizált: több Overpass-tükör + újrapróbálkozás. Az url paramétert
+        // már figyelmen kívül hagyjuk (a tükröket a GpsNetworkClient adja), hogy
+        // a meglévő hívások változtatás nélkül működjenek.
+        return GpsNetworkClient.postWithFailover(
+            GpsNetworkClient.OVERPASS_MIRRORS, formBody
+        ) ?: throw GpsRadarException("OpenStreetMap lekérdezés sikertelen.")
     }
 }
 

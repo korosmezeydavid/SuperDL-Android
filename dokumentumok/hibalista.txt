@@ -1,0 +1,946 @@
+SUPERDL — HIBALISTA
+================================================================================
+A "nagytakaritas" hibakeresés találatai. Formátum:
+
+  [mérföld/lépés] SÚLYOSSÁG | terület | leírás
+       Reprodukció: ...
+       Javítva: igen / nem / részben (dátum)
+
+SÚLYOSSÁG:
+  SÚLYOS  = összeomlás, adatvesztés, téves pénzcímlet, beragadás
+  KÖZEPES = a funkció nem működik, de van kerülőút
+  KISEBB  = szöveghiba, kényelmetlenség
+================================================================================
+
+
+1. MÉRFÖLD — ALAPOZÁS (2026-08-01)
+--------------------------------------------------------------------------------
+
+[M1a] RENDBEN | build | Tiszta build (clean + assembleDebug) SIKERES, 8 perc 33
+      másodperc, 46 feladat. Fordítási HIBA nincs.
+
+[M1b] KISEBB | fordítási figyelmeztetések | Összesen 80 darab. Megoszlás:
+      - 19 db  elavult AccessibilityNodeInfo.obtain hívás
+      - 12 db  fölösleges biztonságos hívás (?.) nem-null értéken
+      - 8 db   soha nem használt paraméter
+      - 3 db   névárnyékolás (SwipeGestureListener, KeyguardPinDetector,
+               YoutubeStreamResolver) — ÁTNÉZVE, egyik sem okoz hibás működést
+      - 2 db   soha nem olvasott értékadás (UnoGame, NewsFeedStore) — ÁTNÉZVE,
+               csak fölösleges sor, nem logikai hiba
+      - a többi elavult rendszerhívás (systemUiVisibility stb.)
+      ÉRTÉKELÉS: egyik sem jelent működési kockázatot. A takarításuk KOZMETIKAI,
+      a kiadás NEM függ tőle. A 16. mérföldnél érdemes rájuk visszatérni.
+      Javítva: nem (nem szükséges)
+
+[M1c] FÜGGŐBEN | összeomlás-napló | A telefon lecsatlakozott az ellenőrzés
+      közben. Pótolandó: run-as com.superdl.launcher.debug cat files/crash_log.txt
+      Javítva: —
+
+[M1d] RENDBEN | naplózás | Egységes naplózó szűrő elkészítve:
+      tools/naplo.ps1 — minden SDL_ címkét figyel egyszerre.
+
+[M1e] RENDBEN | hibalista | Ez a fájl létrejött.
+
+
+2. MÉRFÖLD — INDULÁS ÉS ÉLETCIKLUS (2026-08-07)
+--------------------------------------------------------------------------------
+
+[M1c] KÖZEPES | pénzfelismerő | MEGTALÁLT ÖSSZEOMLÁS a régi naplóban
+      (2026-07-19): BanknoteYoloDetector — a modell kimenete [1, 10, 8400]
+      alakú, a program viszont lapos [1, 84000] tömbbe akarta másolni.
+      TensorFlow alak-ütközés, az egész felismerő leállt tőle.
+      ÁLLAPOT: A JELENLEGI KÓDBAN MÁR JAVÍTVA — a program 3D buffert használ,
+      és a lapos tömböt csak UTÓLAG tölti fel. A júliusi napló a régi kódból
+      származik. Visszamérendő a 7. mérföldnél, éles használatban.
+      Javítva: igen (korábbi körben)
+
+[M2a] RENDBEN | indulás | Hideg indítás (teljes leállítás után): sikeres,
+      összeomlás nélkül. A felület azonnal válaszolt.
+
+[M2b] KÖZEPES | engedélyek | 43 engedély megadva, 3 hiányzik:
+      - SYSTEM_ALERT_WINDOW (sötét mód): a rendszer a launcher-szerepkörön
+        keresztül ADJA, ezért működik. NEM hiba.
+      - REQUEST_INSTALL_PACKAGES (frissítés telepítése): a felhasználónak
+        EGYSZER engedélyeznie kell. A program végigvezeti rajta. Rendben.
+      - ACTIVITY_RECOGNITION: >>> VALÓDI HIBA <<< A manifestben szerepelt, de
+        futásidőben SOHA nem kértük el. Enélkül a lépésszámláló olyan
+        telefonokon SEM működne, ahol van érzékelő.
+      Javítva: IGEN — bekerült a futásidejű engedélykérésbe (Android 10+).
+
+[M2e] RENDBEN | életciklus | Háttérbe kerülés (kezdőképernyő gomb) és
+      visszatérés: állapot megmarad, összeomlás nincs.
+
+[M2f] RENDBEN | memória | Nyugalmi memóriahasználat: 58 MB (PSS).
+      Ez egy 300+ funkciós alkalmazásnál kifejezetten alacsony.
+
+[M2c] RENDBEN | szolgáltatások | Három szolgáltatás fut a háttérben, mind
+      indokolt: értesítés-figyelő, Akku Őrjárat, készülék-állapot hangjelzések.
+      Nincs felesleges futó szolgáltatás.
+
+FÜGGŐBEN, KÉZI TESZTET IGÉNYEL (a fejlesztő telefonján):
+  [M2c] Újraindítás utáni automatikus szolgáltatás-indulás
+  [M2d] DIRECT BOOT: bekapcsolás utáni PIN segéd feloldás ELŐTT
+  [M2f] Kis memóriájú helyzet: a rendszer kilövi a folyamatot, visszatéréskor
+        helyreáll-e
+
+
+RENDKÍVÜLI TALÁLAT — PIN SEGÉD NEM JELENIK MEG (2026-08-07)
+--------------------------------------------------------------------------------
+
+[M2d] SÚLYOS | PIN segéd / kisegítő szolgáltatások | A felhasználó újraindítás
+      után NEM a PIN segédet kapta, hanem a néma rendszer-PIN-billentyűzetet,
+      és TalkBackkel kellett feloldania a telefont.
+
+  MEGÁLLAPÍTOTT TÉNYEK (mérés a készüléken):
+   - enabled_accessibility_services = null, accessibility_enabled = 0
+     >>> EGYETLEN kisegítő szolgáltatás sem futott, se a PIN segéd, se az olvasó
+   - MINDKÉT szolgáltatás TELEPÍTVE van és lekérdezhető (pm query-services)
+   - a rendszer kisegítő-listájában (dumpsys accessibility) viszont NEM
+     szerepelt a PIN segéd — ezért nem találta a beállításokban sem
+   - Android 13, a "korlátozott beállítások" engedélyezve (nem ez okozta)
+
+  MEGOLDÁS/ÁLLAPOT:
+   - ADB-vel közvetlenül bekapcsolva MINDKETTŐ: a rendszer ELFOGADTA, és a
+     PIN segéd azonnal jelentkezett (SDL_PINASSIST: onServiceConnected).
+     Tehát a szolgáltatás MŰKÖDIK — csak a beállítások listájából hiányzott.
+   - VALÓSZÍNŰ OK: a kisegítő szolgáltatások listája kiürült (rendszer-frissítés
+     vagy az alkalmazás újratelepítése után az Android néha eldobja őket),
+     és a PIN segéd a listában sem jelent meg újra.
+   - GYANÚS TÉNYEZŐ, TOVÁBB VIZSGÁLANDÓ: az alkalmazás ÚJRATELEPÍTÉSE (adb
+     install -r) minden alkalommal eldobhatja az engedélyezett kisegítő
+     szolgáltatásokat. A nyilvános tesztnél ez a FRISSÍTÉSEKNÉL is előfordulhat!
+     >>> A 16. mérföldnél KÖTELEZŐEN ellenőrizni: frissítés után megmarad-e a
+         PIN segéd és a képernyőolvasó bekapcsolt állapota.
+
+  JAVÍTÁSOK EBBEN A KÖRBEN:
+   1. A KÉPERNYŐOLVASÓ mostantól directBootAware — feloldás ELŐTT is futhat.
+      Eddig nem indulhatott el a zárolási képernyőn, csak a PIN segéd.
+   2. A képernyőolvasó ZÁROLT telefonon is BESZÉL, ha épp a PIN-kód beírása
+      látszik. Eddig teljesen elhallgatott (az értesítések védelme miatt) —
+      most a PIN-képernyő KIVÉTEL, mert ott nincs értesítés, viszont néma
+      telefonnal nem lehet kódot beírni. Így ha a PIN segéd nem megy,
+      az olvasó a TARTALÉK.
+   3. ÚJ MENÜPONT: Beállítások > Haladó > "Kisegítő szolgáltatások állapota" —
+      megmondja, mi van bekapcsolva, és rögtön megnyitja a beállítást.
+  Javítva: igen (a listából hiányzás oka még vizsgálandó)
+
+
+════════════════════════════════════════════════════════════════════════════════
+ÚJRAKEZDÉS — 1-2. MÉRFÖLD MÁSODSZOR (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+INDOK: az első futtatás (08-07) óta 31 forrásfájl változott, KÖZTÜK AZ INDULÁSI
+ÚTVONAL (SuperDlApplication, StartupGuard). A hibatűrési munka (gesztus-pajzs,
+háttérszál-elszigetelés, indulási őr, beszéd-tartalék, komponens-megszakító)
+pont azokat a területeket érintette, amiket az 1-2. mérföld mért.
+A fejlesztő döntése: kezdjük elölről, ne maradjon benne hiba.
+
+[M1a-2] RENDBEN | build | Tiszta build (clean + assembleDebug): SIKERES,
+      2 perc 35 másodperc. Fordítási HIBA: nulla.
+
+[M1b-2] KISEBB | figyelmeztetések | 87 darab (a korábbi 80-ról nőtt — kb. 500
+      új sor került be). Átnézve a KOCKÁZATOS típusok:
+      - 2 ÚJ figyelmeztetés a saját új kódunkban, MINDKETTŐ JAVÍTVA:
+        * MainActivity: fölösleges null-ellenőrzés (a feltétel mindig igaz volt)
+        * StartupGuard: nem használt változó
+      - a többi a korábbról ismert kozmetikai halmaz (nem használt paraméterek,
+        elavult rendszerhívások, névárnyékolás) — működési kockázatot NEM jelent
+      Javítva: igen (a sajátjaink)
+
+[M2a-2] RENDBEN | hideg indítás | Teljes leállítás után tiszta indulás,
+      összeomlás nélkül. Az indulási őr naplója igazolja a teljes ciklust:
+      "indulas kezdodik (elozo felbemaradt: 0)" -> "indulas sikeres, szamlalo
+      nullazva". Tehát az ÚJ védelem is helyesen fut.
+
+[M2b-2] RENDBEN | engedélyek | Az ACTIVITY_RECOGNITION (lépésszámláló) MÁR
+      MEGADVA — a 08-07-i javítás bevált. Két engedély hiányzik, mindkettő
+      szándékosan: SYSTEM_ALERT_WINDOW (a rendszer a launcher-szerepkörön át
+      adja) és REQUEST_INSTALL_PACKAGES (a felhasználó adja meg egyszer,
+      frissítéskor).
+
+[M2e-2] RENDBEN | életciklus | Háttérbe kerülés és visszatérés: összeomlás
+      nélkül, állapot megmarad.
+
+[M2f-2] MEGVIZSGÁLVA | memória | 58 MB-ról 103 MB-ra nőtt az első méréshez
+      képest. GYANÚS VOLT, EZÉRT KÜLÖN MÉRTÜK:
+      - három mérés 20 másodpercenként: 103589 / 103473 / 103339 KB
+      - a memória NEM NŐ, hanem picit csökken -> NEM SZIVÁRGÁS
+      MAGYARÁZAT: 08-07-én EGYETLEN kisegítő szolgáltatás sem futott (akkor
+      derült ki, hogy kikapcsoltak). Most a képernyőolvasó ÉS a PIN segéd is
+      fut, UGYANABBAN a folyamatban, plusz a beszédmotor betöltve.
+      ÉRTÉKELÉS: a magasabb alap indokolt, nem hiba. A tizenötödik mérföldnél
+      (olcsó készülék) viszont VISSZAMÉRENDŐ, mert ott a memória szűkösebb.
+
+[M2-ÚJ] RENDBEN | hibatűrés bizonyítva | A gesztus-pajzs ÉLESBEN elkapott két
+      szándékos hibát (napló: "gesztus-hiba (jobbra söprés), sorszam=1 / 2"),
+      és a program mindkétszer futott tovább. Az indulási őr a folyamat
+      kilövése után tisztán visszahozta a programot.
+
+KÖVETKEZŐ: 3. MÉRFÖLD — a képernyőolvasó (12 lépés). Ez a legterjedelmesebb,
+és azóta SOK változott benne (párbeszédek, hívások, kapcsoló-hangok, tanuló
+mód, PIN-képernyő kivétel) — tehát különösen indokolt.
+
+MEGJEGYZÉS: a PÉNZFELISMERŐ tesztelése (7a-b lépés) EGYELŐRE KIMARAD.
+A fejlesztő döntése: a funkció a kiadási változatból ki van kapcsolva, és
+KÜLÖN, önálló tesztelést kap, amikor eljön az ideje.
+
+
+════════════════════════════════════════════════════════════════════════════════
+3. MÉRFÖLD — KÉPERNYŐOLVASÓ (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MÓDSZER: teljes kód-átvizsgálás (a telepítés a fejlesztő kérésére elhalasztva
+a teljes kör végéig). A képernyőolvasó 2100 sor, és az utóbbi napokban sokat
+változott — ezért a static ellenőrzés most különösen indokolt.
+
+[M3-1] SÚLYOS | KÉT ELLENTMONDÓ DÖNTÉS ugyanarról
+    A "fusson-e most az olvasó" kérdés KÉT külön helyen dőlt el:
+      - shouldRunInCurrentApp() — tudta a launcher-szabályt (a saját
+        felületünkön csak akkor hallgatunk, ha MI vagyunk a kezdőképernyő),
+        a tanuló módot és a zárolást
+      - onForegroundAppChanged() — EZEKET NEM TUDTA, saját szabályt használt
+    KÖVETKEZMÉNY: az egyik bekapcsolta, a másik kikapcsolta az olvasót —
+    a felhasználó számára kiszámíthatatlan viselkedés. Aki CSAK a
+    képernyőolvasót használja (saját launcherrel), annál a SuperDL saját
+    felületén némult volna el, pedig azt korábban KIFEJEZETTEN javítottuk.
+    Javítva: igen — egyetlen döntési pont maradt.
+
+[M3-2] SÚLYOS | FELSZABADÍTOTT ELEMEK a szűrt listában
+    A clearNodes() felszabadította a rendszer-elemeket, DE a szűrt lista
+    (filtered) ugyanazokra az elemekre mutatott tovább. Mivel a kód
+    NAGYRÉSZT a szűrt listából dolgozik, egy rosszul időzített hívás
+    FELSZABADÍTOTT elemhez nyúlt volna — kiszámíthatatlan viselkedés,
+    összeomlás. Rejtett hiba: csak bizonyos időzítésnél jelentkezik.
+    Javítva: igen — a szűrt lista is ürül.
+
+[M3-3] KÖZEPES | KIJELÖLÉS MÓD BERAGADÁSA
+    A kijelölés-mód soha nem állt vissza magától. Ha a felhasználó közben
+    alkalmazást váltott, a mód BENT MARADT — és a fel-le söprés nem lépkedett
+    többé az elemek között, hanem egy már nem létező szövegmezőt próbált
+    kijelölni. A felhasználó számára ez "beragadásnak" tűnt volna.
+    Javítva: igen — alkalmazás-váltáskor megszűnik.
+
+[M3-4] KÖZEPES | ÉRTESÍTÉS BELESZÓLT A HÍVÁSBA
+    Az érkező értesítéseket az olvasó akkor is bemondta, ha épp CSÖRGÖTT a
+    telefon vagy BESZÉLGETÉS folyt. Zavaró, és a másik fél is hallhatta.
+    Javítva: igen — hívás alatt és csörgéskor hallgat.
+
+[M3-5] RENDBEN | gesztus-ütközés | A teljes gesztus-térkép ellenőrizve
+    (31 hozzárendelés). NINCS ütközés. A két ujjas jobbra-balra a navigációs
+    mód váltása maradt; az új funkciók (beillesztés, kijelölés) szabad
+    gesztusokat kaptak. Az egyujjas dupla koppintás SZÁNDÉKOSAN szabad
+    (TalkBack-megszokás: ott az az aktiválás).
+
+[M3-6] RENDBEN | build | Fordítás a javítások után: sikeres, hiba nélkül.
+
+FÜGGŐBEN — KÉZI TESZTET IGÉNYEL (telepítés után):
+  a) a négy alapgesztus minden módban és részletességen
+  b) mind a hat navigációs mód weboldalon ÉS natív alkalmazásban
+  c) önműködő görgetés hosszú listában (ÚJ)
+  d) értesítés bemondása más alkalmazásban (ÚJ)
+  e) tenyérrel némítás, zsebben is (ÚJ — a zsebbe tett telefon NE némuljon el
+     tartósan)
+  f) másolás, beillesztés, kijelölés (ÚJ)
+  g) képfelolvasás, színfelismerés, elnevezés
+  h) billentyűzet-ütközés: külső appban szövegmezőbe állás
+  i) hívás fogadása/elutasítása az olvasóból
+  j) 30+ perces használat: nem lassul-e, nem nő-e a memória
+
+
+════════════════════════════════════════════════════════════════════════════════
+4. MÉRFÖLD — BILLENTYŰZET ÉS SZÖVEGBEVITEL (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+
+[M4-1] SÚLYOS — ADATVÉDELMI | JELSZÓ HANGOSAN KIMONDVA
+    A mátrix billentyűzet MINDEN beírt karaktert hangosan kimondott — ez vakon
+    nélkülözhetetlen, DE jelszómezőben pont ez a baj: a boltban, a buszon, az
+    orvosi váróban BÁRKI HALLJA a jelszót, a banki kódot, a PIN-t.
+    A billentyűzet SEHOL nem vizsgálta a mező típusát.
+
+    NÉGY helyen szivárgott ki:
+      1. pörgetés közben (a betűk felolvasása gomb-csúsztatáskor)
+      2. beíráskor (a véglegesített karakter kimondása)
+      3. diktáláskor ("Beírva: <a teljes szöveg>")
+      4. a SZÖVEGTÁRBAN (a mentett szövegek tartalmának bemondása — ott
+         jelszó vagy számlaszám is lehet)
+
+    JAVÍTVA mind a négy helyen:
+      - jelszómezőben a karakter helyett RÖVID HANG szól (a pörgetést a hangok
+        SZÁMÁBÓL követi a felhasználó — a bevitel használható marad)
+      - diktálásnál csak annyi hangzik el: "Beírva."
+      - a szövegtárban csak a HELY SORSZÁMA, a tartalom nem
+    A felismerés mind a négy jelszó-mezőtípusra kiterjed (szöveges, látható
+    jelszó, webes jelszó, szám-PIN).
+    Javítva: igen
+
+[M4-2] RENDBEN | beállítások azonnali hatása | ELLENŐRIZVE: a gombtávolság és
+    a pörgetési sebesség MINDEN ujj-lehelyezéskor frissül a beállításokból,
+    tehát a változtatás azonnal érvényes — nem kell újraindítani.
+
+[M4-3] RENDBEN | diktálás hibatűrése | A hangbevitel hiánya és a felismerés
+    hibája is kezelve van, érthető magyar üzenettel.
+
+[M4-4] RENDBEN | build | Fordítás a javítás után: sikeres.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) kalibráció a képernyő minden részén, sarkokban is
+  b) minden gomb minden karaktere, nagybetű-mód, írásjelek
+  c) két ujjas parancsok: törlés, új sor, bezárás (csípés), súgó
+  d) diktálás: központozás, ékezetek, hosszú mondat, szóköz-illesztés
+  e) négy fokozat mindkét beállításban
+  f) váltás másik billentyűzetre és vissza (három ujj)
+  g) >>> JELSZÓMEZŐ-PRÓBA: nyiss meg egy banki vagy e-mail bejelentkezést,
+     és GYŐZŐDJ MEG RÓLA, hogy a billentyűzet NEM mondja ki a karaktereket
+
+
+════════════════════════════════════════════════════════════════════════════════
+5. MÉRFÖLD — KOMMUNIKÁCIÓ (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MÓDSZER: kód-átvizsgálás, kiemelt figyelemmel az ADATVÉDELEMRE — a 4. mérföld
+jelszó-találata megmutatta, hogy egy vak-first program hangos visszajelzései
+komoly kockázatot jelenthetnek nyilvános helyen.
+
+[M5-1] RENDBEN | e-mail jelszó tárolása | ELLENŐRIZVE: az SmtpConfigStore
+    EncryptedSharedPreferences-t használ, eszközhöz kötött főkulccsal.
+    A jelszó NEM olvasható ki a beállítás-fájlból. Ez jó megoldás.
+
+[M5-2] RENDBEN | e-mail diagnosztika | A hibakereső napló a jelszóból CSAK A
+    HOSSZÁT írja ki ("Jelszó hossza: 12 karakter"), a tartalmát nem — és
+    figyelmeztet, ha szóközt tartalmaz (gyakori elgépelés). Tudatos, jó
+    döntés: segít a hibakeresésben anélkül, hogy kiszivárogtatna.
+
+[M5-3] RENDBEN | érkező SMS naplózása | Az SmsInboundHandler CSAK a feladót és
+    az üzenet HOSSZÁT naplózza, a TARTALMÁT NEM. Ez fontos: a naplófájl a
+    WiFi portálon keresztül elérhető lehet, és egy banki kód vagy magánüzenet
+    ott maradna. Helyesen van megírva.
+
+[M5-4] RENDBEN | érkező SMS felolvasása | Az SMS NEM olvasódik fel magától
+    érkezéskor. Ez helyes: egy vak felhasználó zsebében lévő telefon nem
+    mondhatja be hangosan a banki egyszeri kódot vagy egy magánüzenetet.
+    A felhasználó KÉRÉSRE olvassa el őket.
+
+[M5-5] RENDBEN | telefonszám bemondása | Van számjegyenkénti bemondó
+    (CallHelper), és a bejövő hívásnál ez fut — így a szám megjegyezhető és
+    visszamondható. A számbeviteli mezők saját, célzott bemondókat használnak
+    (idő, összeg, dátum, ár), ami pontosabb, mint az általános felolvasás.
+
+[M5-6] RENDBEN | hívás-kezelés | A korábbi körökben már javítva és MÉRÉSSEL
+    igazolva: kihangosítás és némítás a Telecom úton (az elavult módszer
+    Android 12 fölött nem működött), hívás fogadása/elutasítása a
+    képernyőolvasóból, hívás alatti szünet minden lejátszóban.
+
+ÖSSZEGZÉS: ez a mérföld TALÁLAT NÉLKÜL zárult — a kommunikációs rész
+adatvédelmi szempontból jól van megírva. A 4. mérföld jelszó-hibája után ez
+megnyugtató: az ottani hiba a billentyűzet sajátja volt, nem rendszerszintű
+figyelmetlenség.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) hívás indítása névjegyből, hangból, számbillentyűzetről
+  b) bejövő hívás: fogadás, elutasítás, hangposta
+  c) kihangosítás és némítás VALÓDI hívás közben (az ADB-s mérés nem elég)
+  d) SMS küldése diktálással és billentyűzetről, hosszú (több részes) is
+  e) SMS olvasása, válasz, továbbítás
+  f) e-mail: fiók beállítása, levelek letöltése, küldés, csatolmány
+  g) e-mail hálózat nélkül: érthető hibaüzenet-e
+
+
+════════════════════════════════════════════════════════════════════════════════
+6. MÉRFÖLD — IDŐ ÉS SZERVEZÉS (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: egy elmulasztott ébresztő kellemetlen, egy elmulasztott
+GYÓGYSZER-emlékeztető viszont egészségügyi kockázat. Android 12 óta a pontos
+időzítés KÜLÖN ENGEDÉLYT igényel — enélkül a rendszer akár órákkal is
+késleltetheti az ébresztést, energiatakarékosságból.
+
+[M6-1] RENDBEN | pontos időzítés | ELLENŐRIZVE: MIND A HÁROM időzítő rendszer
+    (ébresztő, naptár-emlékeztető, gyógyszer) a pontos időzítést használja,
+    és mindhárom UGYANAZON a közös segéden keresztül (AlarmScheduler).
+    Ez azért jó, mert egy helyen van megoldva, nem háromféleképpen.
+
+[M6-2] RENDBEN | tartalék engedély nélkül | Ha a pontos időzítés engedélye
+    hiányzik, a program NEM omlik össze és NEM marad némán:
+      - átvált pontatlan időzítésre (jobb későn, mint soha)
+      - a SecurityException is kezelve van, dupla tartalékkal
+      - a függvény VISSZAJELZI, hogy pontos lett-e
+    Ez pontosan a "biztonságos meghibásodás" elve, amit a dominó-tervben
+    rögzítettünk — és itt már a munka előtt is így volt megírva.
+
+[M6-3] RENDBEN | a felhasználó ÉRTESÜL a pontatlanságról | Ellenőrizve
+    mindkét kényes helyen:
+      - GYÓGYSZER: a mentés után jelzi, ha az emlékeztető késhet
+      - NAPTÁR: "Figyelem: pontos ébresztő engedély hiányzik, az emlékeztető
+        késhet."
+    Ez fontos: a felhasználó tudja, hogy nem hagyatkozhat rá teljesen, és
+    megkeresheti az engedélyt.
+
+[M6-4] RENDBEN | ismétlődő ébresztők | Az AlarmReceiver a megszólalás UTÁN
+    azonnal újraütemezi a következő alkalmat (scheduleNextOccurrence) — így
+    egy ismétlődő ébresztő nem "kopik el" egyetlen megszólalás után.
+
+[M6-5] RENDBEN | újraindítás utáni helyreállítás | A BootReceiver bekötve, és
+    az indulás után a MainActivity is újraütemez mindent (ébresztők,
+    naptár-emlékeztetők, gyógyszerek, időzítők).
+    MEGJEGYZÉS: BIZTONSÁGOS MÓDBAN ez KIMARAD — ez tudatos döntés (akkor a cél
+    a puszta használhatóság), de a felhasználónak tudnia kell róla.
+    >>> KÉZI TESZTEN ELLENŐRIZENDŐ: biztonságos módban tényleg nem szólalnak
+        meg az emlékeztetők, és ezt a program elmondja-e.
+
+ÖSSZEGZÉS: a mérföld TALÁLAT NÉLKÜL zárult. Az időzítés az egyik legjobban
+megírt része a programnak — közös segéd, tartalék, és a felhasználó
+tájékoztatása is megvan.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) ébresztő beállítása hanggal és menüből, ismétlődő is
+  b) ébresztő megszólalása KÉPERNYŐ KIKAPCSOLVA, telefon zsebben
+  c) szundi, leállítás, több ébresztő egyszerre
+  d) időzítő: hangos indítás ("három perc"), lejárat, több párhuzamos
+  e) gyógyszer-emlékeztető: felvétel, megszólalás, "bevettem" nyugtázás, kúra vége
+  f) naptár: esemény felvétele, emlékeztető megszólalása, szinkron a Google-lel
+  g) ÚJRAINDÍTÁS után: minden emlékeztető megmarad-e
+  h) BIZTONSÁGOS MÓDBAN: az emlékeztetők valóban kimaradnak-e, és szól-e róla
+
+
+════════════════════════════════════════════════════════════════════════════════
+7. MÉRFÖLD — FELISMERŐK (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MEGJEGYZÉS: a PÉNZFELISMERŐ tesztelése a fejlesztő döntése alapján KIMARAD —
+külön, önálló tesztkört kap. A kiadási változatból ki van kapcsolva.
+Itt a szövegfelolvasó, a QR-olvasó, az arckamera és a tárgyfelismerő szerepel.
+
+[M7-1] KÖZEPES | QR-OLVASÓ: kétszeresen védtelen volt
+    a) A KAMERA MEGSZERZÉSE nem volt védve. Ha másik alkalmazás foglalja a
+       kamerát (nagyon gyakori: videohívás, fényképező app a háttérben), a
+       hívás kivételt dob — HÁTTÉRSZÁLON. Az ilyen hiba alapból az EGÉSZ
+       programot viszi; a mostani háttérszál-elszigetelés ugyan elkapná, de
+       a felhasználó némán, magyarázat nélkül maradna.
+    b) A KÓD FELDOLGOZÁSA sem volt védve. Az elemzés háttérszálon fut, egy
+       hibás vagy sérült kód kivétele megölte volna a felismerő szálat — a
+       kamerakép élne tovább, de a felismerés csendben leállna.
+    JAVÍTVA: mindkettő. Kamerahiba esetén érthető üzenet: "A kamera most nem
+    érhető el. Lehet, hogy másik alkalmazás használja."
+
+[M7-2] RENDBEN | kamera elengedése | ELLENŐRIZVE mind a négy felismerőnél
+    (szövegfelolvasó, QR, arckamera, pénzfelismerő): a kamera unbindAll-lal
+    elengedve, az elemző szál leállítva. Ez fontos: ha a kamera bennragadna,
+    utána SEMMILYEN alkalmazás nem tudná használni, és a telefont újra
+    kellene indítani.
+
+[M7-3] RENDBEN | kamerahiba a többi felismerőnél | A szövegfelolvasó, az
+    arckamera és a pénzfelismerő MIND védve indítja a kamerát, és mind
+    ELMONDJA hangosan, ha nem sikerült. Az arckamera ráadásul hangjelzést is
+    ad, és 1,2 másodperc után biztonságosan kilép — nem hagyja a felhasználót
+    egy használhatatlan képernyőn.
+
+[M7-4] RENDBEN | engedély-ellenőrzés | Mindegyik felismerő ellenőrzi a
+    kamera-engedélyt indulás előtt, és érthetően kéri, ha hiányzik.
+
+[M7-5] RENDBEN | memóriahiba kezelése | Az arckamerában külön kezelő van a
+    képkocka-memória hibájára (handleFrameMemoryFailure) — ez olcsó
+    készüléken valódi eset.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) szövegfelolvasó: nyomtatott lap, gyógyszerdoboz, kézírás, rossz fényben
+  b) QR-olvasó: bolti kód, névjegy-kód, wifi-kód, SÉRÜLT/gyűrött kód
+  c) arckamera: hány arc, merre, távolság
+  d) tárgyfelismerő és környezetleírás
+  e) >>> KAMERA-FOGLALTSÁG PRÓBA: indíts videohívást, és közben nyisd meg a
+     felismerőt — érthető üzenetet kapsz-e, vagy néma marad
+  f) engedély visszavonása futás közben
+  g) 10 perc folyamatos használat: melegszik-e, lassul-e
+
+
+════════════════════════════════════════════════════════════════════════════════
+8. MÉRFÖLD — MÉDIA (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+
+[M8-1] SÚLYOS | FÜLHALLGATÓ KIHÚZÁSA: EGYIK lejátszó sem állt le
+    Ha kihúzod a fülhallgatót (vagy megszakad a Bluetooth-kapcsolat), az
+    Android átváltja a hangot A HANGSZÓRÓRA, és teljes hangerőn szól tovább.
+    Buszon, váróban, munkahelyen kellemetlen — vak felhasználónál külön baj,
+    mert nem tud egy pillantással a szünet gombra nyúlni.
+    MIND AZ ÖT lejátszó érintett volt: zene, hangoskönyv, rádió, podcast,
+    YouTube. A hangfókusz ezt NEM fedi le: kihúzáskor nem veszítünk fókuszt.
+    JAVÍTVA: közös megoldás (HeadphoneUnplugGuard), mind az öt lejátszóba
+    bekötve. Csak SZÜNETELTET, nem állít le — visszadugva folytatható.
+
+[M8-2] KÖZEPES | HANGFÓKUSZ hiánya három lejátszóban
+    A rádió, a podcast és a YouTube NEM kért hangfókuszt. Ha közben megszólalt
+    egy másik alkalmazás (navigáció bemondja a kanyart, hangüzenet érkezik),
+    a kettő EGYMÁSRA BESZÉLT — és vakon pont az veszett el, amit hallani
+    kellett volna. A zene és a hangoskönyv eddig is kérte.
+    JAVÍTVA: közös megoldás (AudioFocusGuard), a három lejátszóba bekötve.
+    Fontos részlet: CSAK akkor folytat magától, ha a fókuszvesztés miatt állt
+    meg — ha a felhasználó nyomott szünetet, marad állva.
+
+[M8-3] RENDBEN | hívás alatti szünet | A korábbi körben javítva mind az öt
+    lejátszóban, közös megoldással (CallPauseGuard).
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) >>> FÜLHALLGATÓ-PRÓBA: indíts zenét fülhallgatóval, és HÚZD KI —
+     el kell hallgatnia, NEM szabad a hangszóróból szólnia. Mind az ötnél.
+  b) Bluetooth-fülhallgató kikapcsolása lejátszás közben (ugyanaz az eset)
+  c) hangfókusz: indíts rádiót, majd egy másik alkalmazásban hangüzenetet
+  d) zene: lejátszási módok, hangszínprofil, tekerés, folytatás
+  e) rádió: kedvencek, felvétel, hálózat elvesztése lejátszás közben
+  f) podcast: letöltés, pozíció-mentés, offline lejátszás
+  g) YouTube: keresés, lejátszás, kedvencek, folytatás, Bluetooth-gombok
+  h) könyv és hangoskönyv: lapozás, könyvjelző, saját hang
+
+════════════════════════════════════════════════════════════════════════════════
+FEJLESZTŐI HIBA — SAJÁT MAGAM ELLENI FELJEGYZÉS (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+A 8. mérföld közben az AI (Claude) a mentések gyorsítására PowerShell-lel írt
+Kotlin-fájlokat. Ezzel NÉGY fájl kódolása megsérült (a magyar ékezetek
+elromlottak): PodcastPlayerActivity, YoutubePlayerActivity, MusicPlayerActivity,
+AudiobookPlayerActivity.
+
+Ez a projekt SAJÁT SZABÁLYÁNAK megszegése volt — a fejlesztési napló kezdettől
+tiltja a PowerShell-es fájlírást pontosan emiatt.
+
+A javítás közben git-visszaállítás történt a YoutubePlayerActivity fájlon, ami
+egy RÉGI állapotot hozott vissza, és ELVESZETT kb. 300 sor aznapi munka:
+a 152-es hiba javítása, a gesztus-átvétel, a pozíció-mentés, a kedvencek,
+a Bluetooth-vezérlés és a hívás-védelem.
+
+HELYREÁLLÍTÁS: a lejátszó teljes egészében újraírva (567 sor), MINDEN elveszett
+funkcióval. Ellenőrizve: mind a 13 funkció megvan, a kódolás mind a 482 fájlban
+rendben, a fordítás hibátlan.
+
+TANULSÁG, AMI MOSTANTÓL KÖTELEZŐ:
+ 1. Kotlin-fájl KIZÁRÓLAG a szerkesztő eszközzel módosítható. A PowerShell-es
+    írás gyorsabb, de az ára itt 300 sor volt.
+ 2. Git-visszaállítás CSAK azután, hogy megnéztük, MIKORI az az állapot.
+ 3. A tools/fix_enc.py szkript megmarad — ha mégis megsérülne egy fájl,
+    azzal helyreállítható.
+
+
+════════════════════════════════════════════════════════════════════════════════
+9. MÉRFÖLD — NAVIGÁCIÓ ÉS KÖZLEKEDÉS (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: ez az a terület, ahol a felhasználó IDEGEN HELYEN, EGYEDÜL,
+gyakran gyenge térerővel használja a programot. Itt egy félrevezető üzenet
+nem kellemetlenség, hanem valódi baj.
+
+[M9-1] KÖZEPES | HÁLÓZAT NÉLKÜL FÉLREVEZETŐ VOLT MINDEN
+    Egyetlen navigációs vagy közlekedési funkció sem ellenőrizte ELŐRE, hogy
+    van-e internetkapcsolat. Ami ilyenkor történt:
+      - "Hol vagyok": 20 másodperc várakozás, majd "ismeretlen cím"
+      - Helykeresés: hosszú várakozás, majd "Nem találtam helyet: X"
+        >>> EZ A LEGROSSZABB: a felhasználó azt hiszi, NINCS ilyen hely,
+            pedig csak nincs térerő
+      - Megállók és menetrend: ugyanígy
+    A felhasználó — aki épp az utcán áll — azt hiszi, a program romlott el.
+
+    JAVÍTVA: közös hálózat-ellenőrző (NetworkHelper), bekötve mind a négy
+    kényes helyre. Mostantól AZONNAL és ÉRTHETŐEN válaszol, és megmondja azt
+    is, MI MŰKÖDIK NÉLKÜLE:
+      - "Nincs internetkapcsolat, ezért a helykeresés most nem lehetséges.
+         A mentett helyeid és az iránytű internet nélkül is működnek."
+      - a "hol vagyok" a KOORDINÁTÁKAT hálózat nélkül is megadja (GPS),
+        csak a címet nem — ezt meg is mondja
+    ÓVATOSSÁG: ha a hálózat állapota nem állapítható meg, INKÁBB MEGPRÓBÁLJUK.
+    Jobb egy hosszabb várakozás, mint egy hamis "nincs internet" üzenet.
+
+[M9-2] RENDBEN | GPS-szolgáltatások leállása | ELLENŐRIZVE mind az ötnél
+    (radar, iránytű, környezet, útvonal-rögzítő, útvonal-vezető): a
+    helyfigyelés és az érzékelők leállnak. Ez fontos: egy bennragadt
+    GPS-figyelés ÉSZREVÉTLENÜL meríti le a telefont — és a lemerült telefon
+    ugyanolyan használhatatlan, mint egy összeomlott program.
+
+[M9-3] RENDBEN | térkép-szolgáltatás hibatűrése | A korábbi körben javítva:
+    az OsmHelper minden válasza védve van, hibás vagy üres adatnál üres
+    eredményt ad, nem omlik össze.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) "Hol vagyok" kültéren és beltéren, gyenge jelnél
+  b) >>> REPÜLŐS ÜZEMMÓD PRÓBA: kapcsold be, és próbáld a helykeresést,
+     a megállókat és a "hol vagyok"-ot — érthető üzenetet kapsz-e AZONNAL
+  c) helykeresés hanggal, mentett helyek, útvonal indítása
+  d) megállók a közelben, menetrend, járat követése
+  e) iránytű: forgatás közben megnevezi-e a helyeket
+  f) útvonal-rögzítés, majd visszajátszás
+  g) >>> AKKUMULÁTOR-PRÓBA: 30 perc navigáció után mennyit fogyott, és
+     leálltak-e a szolgáltatások kilépés után (Beállítások > Akkumulátor)
+
+
+════════════════════════════════════════════════════════════════════════════════
+10. MÉRFÖLD — WIFI PORTÁL (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: a portál a telefon belsejét nyitja meg egy hálózaton — üzenetek,
+névjegyek, fényképek, hangfelvételek, naptár. Ha ez rosszul van védve, az nem
+kényelmetlenség, hanem adatvédelmi incidens. Ráadásul a felhasználó gyakran
+IDEGEN hálózaton kapcsolja be (rokonnál, munkahelyen, kávézóban).
+
+[M10-1] SÚLYOS — BIZTONSÁGI | KORLÁTLAN PIN-TALÁLGATÁS
+    A portál négyjegyű PIN-nel védett — ez önmagában rendben van, mert vakon
+    ennyi mondható be és gépelhető be kényelmesen. DE nem volt SEMMILYEN
+    védelem a találgatás ellen: bárki, aki ugyanazon a hálózaton van,
+    KORLÁTLANUL próbálkozhatott.
+
+    MIT JELENT EZ A GYAKORLATBAN: egy egyszerű szkript másodpercek alatt
+    végigpróbálja mind a tízezer lehetőséget. Utána megnyílik az üzenetek, a
+    névjegyek, a fényképek és a hangfelvételek — sőt SMS-t is lehet küldeni a
+    telefonról. Egy közös wifin (kollégium, munkahely, kávézó) ez valós
+    kockázat, nem elméleti.
+
+    JAVÍTVA: tíz hibás kísérlet után a portál ÖT PERCRE LEZÁR. A zárolás
+    minden útvonalra érvényes, nem csak a belépő oldalra. Sikeres belépésnél
+    a számláló nullázódik.
+    A zárolt oldal SZÁNDÉKOSAN nem árulja el, hány próbálkozás volt vagy
+    mennyi van hátra — aki jogosulatlanul próbálkozik, ne kapjon segítséget.
+    A naplóba viszont bekerül, hogy a fejlesztő lássa.
+
+[M10-2] RENDBEN | mappán kívüli kilépés | ELLENŐRIZVE: a fájlnév-tisztító
+    kiszűri a ".." részeket és az útvonal-elválasztókat, és korlátozza a
+    hosszt. Így egy elkészített kérés NEM tud kilépni a megosztott mappákból
+    a telefon többi fájljához. Ez a webes kiszolgálók klasszikus támadási
+    módja — jó, hogy eleve védve volt.
+
+[M10-3] RENDBEN | belső fájlok elzárása | A portál NEM szolgálja ki az
+    alkalmazás belső mappáját. Fontos következmény: az Elena-hangok és a
+    beállítás-fájlok (köztük a titkosított e-mail jelszó) NEM érhetők el
+    a portálról.
+
+[M10-4] RENDBEN | médiafájlok korlátozása | A hang-letöltés csak HÁROM
+    engedélyezett mappát enged (diktafon, rádiófelvételek, hangjegyzetek) —
+    nem a teljes tárhelyet.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) portál be- és kikapcsolása, a cím és a PIN bemondása
+  b) >>> TALÁLGATÁS-PRÓBA: írj be tízszer rossz PIN-t — le kell zárnia,
+     és öt perc után újra engednie
+  c) fájlfeltöltés géppel, nagy fájl is
+  d) letöltés: fotók, diktafon-felvételek, rádiófelvételek
+  e) SMS küldése és névjegy-felvétel a portálról
+  f) a portál viselkedése, ha közben megszakad a wifi
+  g) >>> a portál MARADJON BEKAPCSOLVA telepítés után is (ismert buktató:
+     a kiszolgáló túléli az újratelepítést, ezért ki-be kell kapcsolni)
+
+
+════════════════════════════════════════════════════════════════════════════════
+11. MÉRFÖLD — ASSZISZTENS (2026-08-12)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: az ébresztőszó-figyelő FOLYAMATOSAN hallgat a háttérben. Ami itt
+elromlik, az nem egy képernyőn látszik, hanem az AKKUMULÁTORON — és a
+felhasználó csak annyit vesz észre, hogy reggelre lemerült a telefon.
+
+[M11-1] SÚLYOS | VÉGTELEN ÚJRAPRÓBÁLKOZÁS az ébresztőszó-figyelőben
+    A figyelő hiba után MINDIG újraindult, korlátlanul. Ha a felismerő
+    TARTÓSAN elromlik — nincs hálózat, elveszett a mikrofon-engedély, másik
+    alkalmazás foglalja a mikrofont —, ez végtelen ciklussá vált:
+    próbálkozás -> hiba -> 2,2 másodperc -> próbálkozás -> hiba...
+
+    Ez pontosan az a fajta hiba, amit a dominó-terv "crash-loop" néven
+    azonosított, csak itt nem összeomlás formájában: a program fut, működik,
+    csak közben ÉSZREVÉTLENÜL fogyasztja az akkut. Vak felhasználónál ez
+    komoly: a lemerült telefon ugyanolyan használhatatlan, mint egy
+    összeomlott program — csak nincs figyelmeztetés.
+
+    JAVÍTVA, három szinten:
+      1. HIBASZÁMLÁLÓ: nyolc egymás utáni hiba után a figyelés LEÁLL
+      2. NÖVEKVŐ VÁRAKOZÁS: minden hibánál tovább várunk, így egy átmeneti
+         zavar sem terheli sűrű próbálkozással
+      3. HANGOS TÁJÉKOZTATÁS: "Az Elena hívószó figyelése leállt, mert
+         többször hibába futott. A Beállításokban újra bekapcsolhatod."
+    Sikeres felismerésnél a számláló nullázódik — egy elszórt hiba nem számít.
+
+[M11-2] RENDBEN | mikrofon elengedése | ELLENŐRIZVE: a hangbevitel mind a
+    megszakításnál, mind a leállításnál elengedi a felismerőt. Fontos: ha a
+    mikrofon bennragadna, utána SEMMILYEN alkalmazás nem tudná használni —
+    se hívás, se diktálás, se másik asszisztens.
+
+[M11-3] RENDBEN | időkorlátok | A hangbevitelben több időzítő is véd a
+    beragadás ellen (beszéd-időtúllépés, újraindítási késleltetés).
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) "Elena" hívószó felismerése különböző távolságból és zajban
+  b) parancsok: hívás, üzenet, ébresztő, zene, alkalmazásindítás
+  c) >>> HIBA-PRÓBA: kapcsold repülős üzemmódba, és hagyd a figyelést
+     bekapcsolva 10 percig — le kell állnia, és SZÓLNIA róla
+  d) mikrofon-engedély visszavonása futás közben
+  e) másik alkalmazás foglalja a mikrofont (hangfelvétel, hívás)
+  f) >>> AKKUMULÁTOR: 8 óra bekapcsolt figyelés éjszaka, mennyit fogyaszt
+  g) a figyelés túléli-e a képernyő kikapcsolását
+
+
+════════════════════════════════════════════════════════════════════════════════
+12. MÉRFÖLD — RENDSZER ÉS AKKUMULÁTOR (2026-08-14)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: az akkumulátor-hibák NEM LÁTSZANAK. A program fut, minden
+működik — a felhasználó csak annyit vesz észre, hogy reggelre lemerült a
+telefon. Vak felhasználónál ez ugyanolyan súlyos, mint egy összeomlás:
+a lemerült telefon használhatatlan, és nincs figyelmeztetés.
+
+[M12-1] KÖZEPES | A WIFI PORTÁL ÉBRENTARTÓJA IDŐKORLÁT NÉLKÜL FUTOTT
+    Hat helyen használunk ébrentartót. Ötnek VAN időkorlátja — a portálénak
+    NEM volt. Ez pont a legveszélyesebb hely: a többi ébrentartó másodpercekig
+    él (ébresztő megszólalása, SMS fogadása), a portál viszont ÓRÁKIG futhat.
+
+    KOCKÁZAT: ha a portál leállítása bármiért elmarad — összeomlás, a rendszer
+    kilövi a folyamatot, vagy a felhasználó egyszerűen elfelejti kikapcsolni —,
+    az ébrentartó ÖRÖKKÉ fut, és a telefon nem tud elaludni. Egy éjszaka alatt
+    lemeríti az akkut, teljesen észrevétlenül.
+
+    JAVÍTVA: négy órás időkorlát. Ez bőven elég bármilyen fájlátvitelhez, és
+    ha valaki tovább használná, a portál ki- és bekapcsolásával megújítható.
+
+[M12-2] RENDBEN | ébrentartók egyensúlya | MÉRÉS a készüléken: kettő
+    megszerzett, kettő elengedett — NINCS bennragadt ébrentartó. A
+    gyógyszer-ébresztés ma reggel 8-kor pontosan így viselkedett: megszerezte,
+    majd 2,5 másodperc múlva elengedte.
+
+[M12-3] RENDBEN | ébrentartók elengedése kódszinten | Mind a hat helyen
+    megvan az elengedés, és mindegyik védve van kivétel ellen.
+
+[M12-4] RENDBEN | futó szolgáltatások | A korábbi mérés szerint három
+    szolgáltatás fut nyugalmi állapotban, mind indokolt. Nincs felesleges
+    háttérfolyamat.
+
+[M12-5] MEGJEGYZÉS az ébresztő-ügyhöz ("realarm"): a mai mérés szerint ÖT
+    ébresztő van beütemezve a rendszerben, és a gyógyszer-emlékeztető ma
+    reggel MEGSZÓLALT. Ez megerősíti a korábbi következtetést: az ütemezés
+    és a megszólalás gépezete MŰKÖDIK. A hiba tehát vagy egyedi ébresztőkhöz
+    kötődik, vagy a gyártói energiakezeléshez.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) >>> ÉJSZAKAI PRÓBA: este 100%-ról reggelig, minden szolgáltatás
+     bekapcsolva — mennyit fogyaszt? (Beállítások > Akkumulátor > SuperDL)
+  b) ugyanez BIZTONSÁGOS MÓDBAN, összehasonlításképp
+  c) portál 1 óra bekapcsolva, majd kikapcsolás — leáll-e az ébrentartó
+  d) >>> a 4 órás időkorlát után a portál MARADJON MŰKÖDŐKÉPES (csak a
+     telefon alhat el közben)
+  e) Elena-figyelés 8 óra éjszaka (a 11. mérföldnél is szerepel)
+  f) GPS-navigáció 30 perc, majd kilépés — leáll-e minden
+  g) memória 30+ perces vegyes használat után (a 2. mérföldnél 103 MB volt)
+
+
+════════════════════════════════════════════════════════════════════════════════
+13. MÉRFÖLD — ADATVÉDELMI ÁTVIZSGÁLÁS (2026-08-14)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KÖTELEZŐ: a SuperDL a felhasználó teljes digitális életét látja —
+üzenetek, névjegyek, helyzet, hangfelvételek, jelszavak, és a képernyőolvasón
+keresztül MINDEN MÁS ALKALMAZÁS TARTALMA is. Egy vak felhasználó ráadásul nem
+tudja "megnézni", mi történik a háttérben: teljes mértékben bíznia kell.
+
+[M13-1] KÖZEPES | AZ S.O.S. NAPLÓZTA A HÍVOTT SZÁMOT
+    A vészhívás minden hívott számot beírt a naplóba ("Hívás: +36...").
+    MIÉRT SÚLYOSABB, MINT ELSŐRE TŰNIK: a vészhelyzeti kapcsolatok köre
+    érzékeny adat — megmutatja, KI a bizalmasa, kit hív bajban. A naplófájlok
+    hibakereséskor kikerülhetnek a telefonról.
+    JAVÍTVA: a szám helyett csak a SORSZÁM kerül naplóba ("1. kapcsolat"),
+    ami a hibakereséshez ugyanúgy elég.
+
+[M13-2] RENDBEN | a KÉPERNYŐOLVASÓ nem naplóz tartalmat
+    ELLENŐRIZVE minden naplózási pont: az olvasó SEMMIT nem ír ki abból, amit
+    a képernyőn lát. Ez a legfontosabb pont az egész átvizsgálásban — az
+    olvasó látja a banki alkalmazást, a magánüzeneteket, a jelszavakat.
+    Csak technikai állapotot naplóz (mód, hiba, kapcsolódás).
+
+[M13-3] RENDBEN | SMS és e-mail | (az 5. mérföldön részletesen)
+    Az érkező SMS-ből csak a feladó és a HOSSZ kerül naplóba, a tartalom nem.
+    Az e-mail jelszó titkosítva tárolódik, a diagnosztika csak a hosszát írja.
+
+[M13-4] RENDBEN | összeomlás-napló | Csak technikai adatot tartalmaz
+    (időbélyeg, szál neve, hívási lánc) — felhasználói adatot nem.
+
+[M13-5] RENDBEN | NINCS KÖVETÉS | A program NEM tartalmaz semmilyen
+    elemző-, hirdetés- vagy követőkódot. Nincs Firebase, nincs Crashlytics,
+    nincs Facebook SDK. Az összeomlás-napló HELYBEN marad a telefonon.
+    Ez ma ritkaság, és kimondottan érték.
+
+[M13-6] RENDBEN | külső címek | 14 külső szolgáltatás, MIND konkrét
+    funkcióhoz tartozik: YouTube, térkép (OpenStreetMap, Overpass),
+    MÁV, rádió, podcast, időjárás, hírek. Egyik sem elemzés vagy követés.
+
+[M13-7] ELFOGADHATÓ | a helyzet elküldése | A cím- és megálló-lekérdezéshez
+    a koordinátákat el KELL küldeni a térkép-szolgáltatásnak — enélkül a
+    funkció nem működhet. Ellenőrizve: a helyzet CSAK ezekre a célokra megy
+    ki, máshova nem. A nyilvános teszt előtt ezt az adatvédelmi
+    tájékoztatóban is le kell írni.
+
+>>> ELVI MEGÁLLAPÍTÁS <<<
+A program adatvédelmi hozzáállása JÓ: helyben tárol, nem követ, nem küld
+haza semmit. A talált hibák egyediek voltak (S.O.S. napló, korábban a
+billentyűzet jelszó-kimondása), nem rendszerszintű figyelmetlenség.
+
+FÜGGŐBEN — A NYILVÁNOS TESZT ELŐTT KÖTELEZŐ:
+  a) ADATVÉDELMI TÁJÉKOZTATÓ megírása magyarul, egyszerű nyelven:
+     mit tárol, mi megy ki a telefonról, mi marad helyben
+  b) a tájékoztató legyen FELOLVASHATÓ a programból (Névjegy menü)
+  c) a naplófájlok tartalmának ellenőrzése ÉLES használat után
+     (adb: run-as ... cat files/*.log) — nem szivárgott-e be valami
+  d) a WiFi portál naplója: mi látszik ott, ha valaki megnyitja
+
+
+════════════════════════════════════════════════════════════════════════════════
+14. MÉRFÖLD — SZÖVEGEK ÉS KÖVETKEZETESSÉG (2026-08-14)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT SZÁMÍT: vakon a SZÖVEG maga a felület. Ami látó felhasználónál csak
+stílus kérdése, az itt használhatóság: egy rosszul kiejtett rövidítés vagy egy
+elmaradt mozdulat-leírás valódi akadály.
+
+[M14-1] KISEBB | RÖVIDÍTÉSEK, amiket a felolvasó betűzve mond
+    Öt helyen szerepelt "kb." a bemondott szövegben. A beszédmotor ezt
+    "ká bé"-nek olvassa, nem "körülbelül"-nek — a felhasználó pedig egy
+    értelmetlen hangsort hall a pontosság vagy a távolság közepén.
+    Érintett: GPS-pontosság (2 hely), útvonal-távolság, ébresztő hátralévő
+    ideje (2 hely), színfelismerő távolság-útmutató.
+    JAVÍTVA mind az öt helyen: "körülbelül".
+    A többi gyanús rövidítés (stb., pl., ill., db) NEM fordult elő bemondott
+    szövegben — csak megjegyzésekben, ami nem hangzik el.
+
+[M14-2] RENDBEN | NINCS fejlesztői zsargon a bemondott szövegben
+    Átvizsgálva minden felolvasott szöveg: nem szerepel benne kivétel-név,
+    hibakód, HTTP-állapot, "null", "token", "intent" vagy hasonló. A
+    hibaüzenetek emberi nyelven szólnak. Ez a mesterprompt egyik kifejezett
+    követelménye volt.
+
+[M14-3] RENDBEN | technikai hibaüzenet nem szivárog | Sehol nem olvassuk fel
+    a rendszer saját hibaüzenetét (e.message) — mindenütt saját, magyar
+    megfogalmazás van.
+
+[M14-4] MEGVIZSGÁLVA, DE SZÁNDÉKOSAN NEM JAVÍTVA | kétféle megfogalmazás
+    A gesztus-leírás két alakban él: "Söpörj jobbra..." (44 hely) és
+    "Jobbra söprés..." (52 hely). Az egységesítés 96 szöveg átírását
+    jelentené.
+    DÖNTÉS: NEM írjuk át. Indoklás:
+      - a JELENTÉS mindkét alakban azonos és egyértelmű
+      - 96 szöveg átírása valódi elgépelési kockázat, haszon nélkül
+      - a mesterprompt kifejezetten tiltja a működő kód esztétikai
+        átírását ("Ne refaktorálj működő kódot pusztán esztétikai okból")
+      - az új részletesség-beállítás amúgy is lehetővé teszi, hogy a
+        gyakorlott felhasználó teljesen kikapcsolja ezeket
+    Ha később mégis egységesítenénk, azt EGY körben, alapos újrateszteléssel
+    kell tenni — nem menet közben.
+
+[M14-5] RENDBEN | megerősítések | A törlés- és küldés-megerősítések MIND
+    tartalmazzák a mozdulatot ("Söpörj jobbra a törléshez, söprés balra a
+    mégséhez"), és mind visszamondják, MIT törölnénk. Egy helyen (SMS-törlés)
+    a mozdulat külön mondatban jön, de elhangzik.
+
+FÜGGŐBEN — KÉZI TESZT (telepítés után):
+  a) végighallgatni a főmenüt és minden almenüt: érthető-e minden pont
+  b) a javított "körülbelül" szövegek: GPS-pontosság, ébresztő, szín
+  c) hosszú szövegek: nem vágja-e el a felolvasó
+  d) számok kiejtése: telefonszám, összeg, dátum, idő
+  e) idegen szavak és nevek: alkalmazásnevek, rádióállomások
+
+
+════════════════════════════════════════════════════════════════════════════════
+15. MÉRFÖLD — TÖBB KÉSZÜLÉK  >>> ELHALASZTVA <<<
+════════════════════════════════════════════════════════════════════════════════
+A fejlesztő döntése (2026-08-14): jelenleg csak egy tesztkészülék áll
+rendelkezésre (Ulefone Armor 24, Android 13). A több készülékes viselkedést
+maga a NYILVÁNOS TESZT fogja igazolni — ez az egyik fő célja.
+
+AMIT A TESZTELŐKTŐL KÜLÖN KÉRDEZNI KELL:
+  - milyen készülék és Android-verzió
+  - a képernyőolvasó több ujjas mozdulatai működnek-e (olcsóbb kijelzőkön
+    a 3-4 ujjas érintés megbízhatatlan lehet — a Braille-billentyűzetet
+    pontosan ezért kellett elhagyni)
+  - van-e lépésérzékelő (a fejlesztő készülékén NINCS)
+  - a gyártói energiakezelés nem alvasztja-e el a programot (ébresztők!)
+  - memóriahasználat gyengébb készüléken (itt 103 MB volt)
+
+════════════════════════════════════════════════════════════════════════════════
+16. MÉRFÖLD — KIADÁSI CSOMAG (2026-08-14)
+════════════════════════════════════════════════════════════════════════════════
+MIÉRT KIEMELT: a kiadási változat MÁSHOGY ÉPÜL, mint amit eddig teszteltünk.
+A kód tömörítve és átnevezve kerül bele — ami név alapján működik (modell-
+betöltés, felismerők, rendszer-szolgáltatások), az EL IS TÖRHET tőle. Ezt
+csak a valódi kiadási csomagon lehet ellenőrizni.
+
+[M16-1] RENDBEN | a kiadási csomag ELKÉSZÜLT
+    Aláírt kiadási APK: SuperDL-1.55.0-release.apk, 170,4 MB.
+    A kód-tömörítés (R8) lefutott, hiba nélkül. Fordítási idő 2 perc 8 mp.
+
+[M16-2] RENDBEN | ALÁÍRÁS érvényes
+    Ellenőrizve az apksigner eszközzel: v2 és v3 aláírási séma is érvényes.
+    Ez fontos a saját terjesztéshez: az Android csak érvényesen aláírt
+    csomagot telepít, és a FRISSÍTÉS is csak azonos aláírással megy.
+
+[M16-3] RENDBEN | ProGuard-szabályok | Átnézve: a teljes saját kód védve
+    (-keep com.superdl.launcher.**), és külön védve minden név alapján
+    működő könyvtár: TensorFlow (bankjegy-felismerő), ML Kit (QR és
+    szövegfelolvasó), CameraX, beszédfelismerés, valamint a manifestben
+    hivatkozott fogadók és szolgáltatások.
+
+[M16-4] FONTOS FELISMERÉS | a kiadási változat KÜLÖN csomagnéven fut
+    Fejlesztői: com.superdl.launcher.debug — Kiadási: com.superdl.launcher
+    KÖVETKEZMÉNY: a kettő EGYSZERRE telepíthető ugyanarra a telefonra.
+    Ez a teszthez előny (a fejlesztői példány megmarad), DE:
+      >>> A KÉT PÉLDÁNY KÜLÖN ADATOKKAL fut. Az ébresztők, névjegyek,
+          beállítások, Elena-hangok NEM kerülnek át automatikusan.
+      >>> A KISEGÍTŐ SZOLGÁLTATÁSOKAT (képernyőolvasó, PIN segéd) a kiadási
+          példánynál ÚJRA engedélyezni kell.
+    Ezt a tesztelőknek is meg kell írni, különben azt hiszik, elveszett
+    minden.
+
+FÜGGŐBEN — KÖTELEZŐ A KIADÁS ELŐTT (kézi teszt a kiadási csomaggal!):
+  a) >>> A KIADÁSI VÁLTOZAT TELEPÍTÉSE és VÉGIGPRÓBÁLÁSA. A tömörítés
+     eltörhet olyat, ami a fejlesztői változatban működik. KIEMELTEN:
+       - képernyőolvasó (kisegítő szolgáltatás, név alapján indul)
+       - PIN segéd
+       - QR- és szövegfelolvasó (ML Kit)
+       - mátrix billentyűzet (beviteli szolgáltatás)
+       - WiFi portál
+       - ébresztők és emlékeztetők (fogadók)
+  b) ELLENŐRIZNI, hogy a PÉNZFELISMERŐ tényleg NEM látszik a menüben
+  c) ELLENŐRIZNI, hogy a "Hibatűrés próbája" NEM látszik
+  d) FRISSÍTÉSI PRÓBA: telepíteni a kiadási változatot, majd fölé egy
+     újabbat — megmaradnak-e az adatok ÉS a kisegítő szolgáltatások
+     (ez a 08-07-i találat: az újratelepítés kikapcsolta őket)
+  e) a 170 MB méret felülvizsgálata: a bankjegy-modell 36 MB — érdemes-e
+     a pénzfelismerővel együtt kihagyni a teszt-csomagból
+
+
+════════════════════════════════════════════════════════════════════════════════
+A KIADÁSI VÁLTOZAT ELSŐ ÉLES PRÓBÁJA — MÁSODIK KÉSZÜLÉKEN (2026-08-15)
+════════════════════════════════════════════════════════════════════════════════
+KÉSZÜLÉK: Cat / Doogee S62 Pro, Android 11
+(a fejlesztői készülék Ulefone Armor 24, Android 13 — tehát MÁS gyártó,
+MÁS Android-verzió, és ami a legfontosabb: TELJESEN FRISS TELEPÍTÉS)
+
+>>> AZ ELSŐ INDÍTÁS AZONNAL ÖSSZEOMLOTT <<<
+
+[M17-1] SÚLYOS | ENGEDÉLY NÉLKÜLI NÉVJEGY-HOZZÁFÉRÉS AZ ELSŐ INDULÁSKOR
+    A hiba: java.lang.SecurityException — a névjegy-szolgáltató megnyitása
+    READ_CONTACTS engedély nélkül, HÁTTÉRSZÁLON (Thread-3).
+
+    MIÉRT NEM DERÜLT KI EDDIG: a fejlesztő telefonján az engedélyek RÉGEN
+    meg vannak adva. A névjegy-szinkron ott mindig sikerült. Friss
+    telepítésnél viszont — vagyis MINDEN ÚJ FELHASZNÁLÓNÁL — a program az
+    ELSŐ INDÍTÁSKOR összeomlott volna, mielőtt bármit tehetett volna.
+
+    Ez a legrosszabb fajta hiba: pont azt a felhasználót érinti, aki még
+    semmit nem tud a programról, és nem tudja, mit rontott el.
+
+    JAVÍTVA: a névjegy-szinkron és a naptár-emlékeztetők újraütemezése CSAK
+    akkor fut, ha az engedély már megvan.
+
+[M17-2] SÚLYOS | A HÁTTÉRSZÁL-VÉDELEM TÚL KÉSŐN TELEPÜLT
+    A dominó-terv keretében épített háttérszál-elszigetelés CSAK A FELOLDÁS
+    UTÁN települt (initAfterUnlock). Egy KORÁBBAN hibázó háttérszál tehát
+    védtelen maradt — és Androidon egy háttérhiba az EGÉSZ folyamatot megöli.
+
+    Vagyis a védelem pont akkor hiányzott, amikor a legnagyobb szükség lett
+    volna rá: az első indulásnál. Ez a mostani összeomlásnál élesben is
+    megmutatkozott.
+
+    JAVÍTVA: az elszigetelés MOST a legelső lépések között települ, még a
+    feloldás előtt. A naplózás továbbra is később indul (fájlt ír, ahhoz kell
+    a tároló) — de a naplóírás hibája nem akadályozza az elszigetelést.
+    Emellett kivédve a KÉTSZERES telepítés is, ami kezelő-láncot épített volna.
+
+>>> TANULSÁG <<<
+Egy MÁSODIK KÉSZÜLÉK és egy FRISS TELEPÍTÉS többet mutatott meg fél óra
+alatt, mint két nap kódolvasás. A kézi teendők listáján nem véletlenül az
+"A1. A kiadási változat végigpróbálása" az első pont.
+
+MÉG ELLENŐRIZENDŐ AZ ÚJ KÉSZÜLÉKEN (a javítások után):
+  [ ] friss telepítés után elindul-e összeomlás nélkül
+  [ ] végigmegy-e az engedélykérés
+  [ ] a képernyőolvasó bekapcsolható-e (kiadási változatban, tömörített kóddal!)
+  [ ] a PIN segéd megjelenik-e
+  [ ] a mátrix billentyűzet választható-e
+  [ ] QR- és szövegfelolvasó elindul-e
+  [ ] a pénzfelismerő NEM látszik (ki van kapcsolva a kiadásban)
+  [ ] a "Hibatűrés próbája" NEM látszik

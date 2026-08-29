@@ -163,7 +163,78 @@ object CalendarHelper {
         return "$intro $body"
     }
 
+    /** Egy naptár adatai a választáshoz és az állapot-felolvasáshoz. */
+    data class CalendarInfo(
+        val id: Long,
+        val displayName: String,
+        val accountName: String,
+        val accountType: String,
+        val isPrimary: Boolean
+    ) {
+        /** Szinkronizál-e a felhővel (Google, Exchange stb.)? */
+        val syncs: Boolean get() = !accountType.equals("LOCAL", true)
+
+        fun speakSummary(): String {
+            val where = if (syncs) "szinkronizál: $accountName" else "csak ezen a telefonon"
+            return "$displayName, $where"
+        }
+    }
+
+    /**
+     * Az ÍRHATÓ naptárak listája.
+     * A szinkronizálók (Google) kerülnek előre, mert azokat várja a felhasználó.
+     */
+    fun getWritableCalendars(context: Context): List<CalendarInfo> {
+        val out = mutableListOf<CalendarInfo>()
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.IS_PRIMARY
+        )
+        val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?"
+        val args = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
+        try {
+            context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI, projection, selection, args, null
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    out.add(
+                        CalendarInfo(
+                            id = c.getLong(0),
+                            displayName = c.getString(1) ?: "Névtelen naptár",
+                            accountName = c.getString(2) ?: "",
+                            accountType = c.getString(3) ?: "",
+                            isPrimary = c.getInt(4) == 1
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("SDL_CALENDAR", "naptar-lista hiba: ${e.message}")
+        }
+        // A szinkronizáló (felhős) naptárak előre; azon belül az elsődleges.
+        return out.sortedWith(
+            compareByDescending<CalendarInfo> { it.syncs }
+                .thenByDescending { it.isPrimary }
+        )
+    }
+
     fun getWritableCalendarId(context: Context): Long? {
+        // 1. A FELHASZNÁLÓ választása mindent felülír.
+        CalendarPreferenceStore.getChosenCalendarId(context)?.let { chosen ->
+            if (getWritableCalendars(context).any { it.id == chosen }) return chosen
+        }
+        // 2. Különben a SZINKRONIZÁLÓ naptárat választjuk — enélkül a program a
+        //    helyi "PC Sync" naptárba írna, ami sehova nem szinkronizál, és a
+        //    felvett események nem jelennének meg a Google Naptárban.
+        getWritableCalendars(context).firstOrNull { it.syncs }?.let { return it.id }
+        // 3. Végső tartalék: a régi logika (bármelyik írható naptár).
+        return legacyWritableCalendarId(context)
+    }
+
+    private fun legacyWritableCalendarId(context: Context): Long? {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
             CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
@@ -350,7 +421,7 @@ object CalendarHelper {
         } else {
             " Ismétlés: ${recurrence.speakSummary()}."
         }
-        return "Új program: $dayLabel. ${speakEvent(event)}.$recurrenceText Mentem a naptárba? Swipe jobbra a mentéshez, swipe balra a mégsehez."
+        return "Új program: $dayLabel. ${speakEvent(event)}.$recurrenceText Mentem a naptárba? Söpörj jobbra a mentéshez, söprés balra a mégsehez."
     }
 
     fun speakEditEventConfirm(
@@ -365,7 +436,7 @@ object CalendarHelper {
         } else {
             "Ismétlés: ${recurrence.speakSummary()}."
         }
-        return "Módosított program: ${speakEvent(event)}. $recurrenceText Mentem? Swipe jobbra a mentéshez, swipe balra a mégsehez."
+        return "Módosított program: ${speakEvent(event)}. $recurrenceText Mentem? Söpörj jobbra a mentéshez, söprés balra a mégsehez."
     }
 
     fun speakAlarmPrompt(event: CalendarEvent): String =

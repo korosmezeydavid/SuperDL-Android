@@ -30,6 +30,7 @@ class GpsSurroundingsService : Service() {
     private var compass: CompassProvider? = null
     private var locationListener: LocationListener? = null
     private var announcedIntro = false
+    private val poiProximityWatcher = SavedPoiProximityWatcher(this)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,6 +54,7 @@ class GpsSurroundingsService : Service() {
         compass?.stop()
         compass = null
         locationListener = null
+        poiProximityWatcher.reset()
         GpsRadarStore.surroundingsMonitoringActive = false
         super.onDestroy()
     }
@@ -60,6 +62,9 @@ class GpsSurroundingsService : Service() {
     private fun handleLocationUpdate(location: Location) {
         val heading = compass?.heading() ?: GpsRadarStore.lastHeading
         GpsRadarStore.lastHeading = heading
+
+        // Mentett helyek hangjegyzeteinek automatikus lejátszása odaéréskor.
+        poiProximityWatcher.onLocation(location)
 
         val cached = GpsRadarStore.streetContext
         if (cached != null) {
@@ -87,6 +92,13 @@ class GpsSurroundingsService : Service() {
     }
 
     private fun announceMessages(messages: List<String>) {
+        // FONTOS: a hálózati lekérdezés közben a felhasználó kiléphetett. A
+        // bemondás előtt ellenőrizzük, hogy még aktív-e a figyelő — különben a
+        // főmenüben is "beragadva" mondaná az utcaneveket/kereszteződéseket.
+        if (!GpsRadarStore.surroundingsMonitoringActive) {
+            stopSelf()
+            return
+        }
         messages.forEach { message ->
             PatrolAnnouncer.announce(this, message, withBeep = false)
         }

@@ -11,7 +11,16 @@ data class LegalSection(
 
 object LegalTexts {
 
-    const val APP_VERSION = "1.28.0"
+    /**
+     * A VERZIÓSZÁM a build.gradle-ből jön, NEM kézzel írjuk ide.
+     *
+     * JAVÍTVA (2026-08-16): itt korábban egy KÉZZEL beírt "1.54.9" állt,
+     * miközben a program már 1.55.0 volt. A felhasználó tehát ROSSZ
+     * verziószámot hallott a Névjegyben — és pont ez az az adat, amit egy
+     * hibajelentésnél elsőként kérdeznénk tőle.
+     */
+    val APP_VERSION: String get() = com.superdl.launcher.BuildConfig.VERSION_NAME
+
     const val DEVELOPER_NAME = "Kőrösmezey Dávid"
     const val DEVELOPER_EMAIL = "korosmezey.david.richard@gmail.com"
     const val APP_FULL_NAME = "Super Digital Launcher"
@@ -22,8 +31,17 @@ object LegalTexts {
 
     fun aboutApp(): String = """
         $APP_FULL_NAME, röviden $APP_SHORT_NAME.
-        Vak és gyengénlátó felhasználók számára készült Android launcher.
-        Gesztusokkal és hanggal vezérelhető: hívás, üzenet, ébresztő, időzítő, profi diktafon, G P S kitekintő, környezeti kitekintő, S.O.S., hírek, YouTube, könyvolvasás, akkumulátor őrség, PIN zárolás és tömegközlekedés.
+        Vak és gyengénlátó felhasználók számára készült Android kezdőképernyő.
+        Négy mozdulattal vezérelhető: fel és le a választáshoz, jobbra a megnyitáshoz,
+        balra a visszalépéshez.
+        Telefonálás, üzenetek, e-mail, névjegyek, naptár, ébresztő, időzítő,
+        gyógyszer-emlékeztető és bevásárlólista.
+        Saját képernyőolvasó, ami a többi alkalmazásban is felolvas, saját
+        billentyűzet, és Elena hangasszisztens.
+        Zene, rádió, podcast, YouTube, könyvolvasás és hangoskönyv.
+        Felismerők: szöveg, szín, tárgyak, Q R kód.
+        Navigáció, tömegközlekedés, iránytű és környezetleírás.
+        Profi diktafon, S.O.S. hívás, akkumulátor őrség, PIN segéd és WiFi fájlportál.
         Verzió: $APP_VERSION.
     """.trim().replace(Regex("\\s+"), " ")
 
@@ -39,36 +57,69 @@ object LegalTexts {
 
     fun privacyPolicy(): List<LegalSection> = listOf(
         LegalSection(
-            "Bevezetés",
-            "A $APP_FULL_NAME ($APP_SHORT_NAME) tiszteletben tartja a magánéletet. " +
-                "Ez az alkalmazás elsősorban a készüléken fut, és nem üzemeltet saját felhőszerverét."
+            "Röviden",
+            "A $APP_SHORT_NAME a telefonodon tárolja az adataidat. Nem küld rólad " +
+                "semmit sehova, nem figyeli a szokásaidat, és nem tartalmaz reklámot " +
+                "vagy követőkódot. Ami kimegy a telefonról, az csak az, ami egy adott " +
+                "funkció működéséhez kell — például egy címkereséshez a helyzeted. " +
+                "A következő szakaszokban ezt pontosan elmondom."
         ),
         LegalSection(
-            "Milyen adatokhoz fér hozzá",
-            "Az alkalmazás a működéséhez szükséges Android engedélyeket használ: telefonhívás, névjegyek, " +
-                "SMS, e-mail, helymeghatározás, mikrofon, értesítések, naptár, kamera a zseblámpához, és Bluetooth/WiFi beállítások. " +
-                "Ezeket kizárólag a kért funkciókhoz használja, például híváshoz, üzenetküldéshez, e-mailhez, S.O.S.-hoz vagy közeli megállók felolvasásához."
+            "Mit tárol a telefonodon",
+            "Névjegyeket, üzeneteket, jegyzeteket, ébresztőket, naptárt, " +
+                "gyógyszer-emlékeztetőket, mentett helyeket, bevásárlólistát, " +
+                "hangfelvételeket és fényképeket. Ezek mind a telefonodon maradnak. " +
+                "Ha törlöd a programot, ezek is törlődnek, ezért érdemes időnként " +
+                "mentened őket a WiFi portálon keresztül."
         ),
         LegalSection(
-            "Hol tárolódnak az adatok",
-            "Az S.O.S. telefonszámok, ébresztők és egyéb beállítások a telefonon, helyi tárolóban maradnak. " +
-                "Az alkalmazás nem gyűjt személyes adatokat marketing célra, és nem értékesít adatot harmadik félnek."
+            "Jelszavak",
+            "Ha e-mail fiókot állítasz be, a jelszó titkosítva tárolódik, a " +
+                "telefonhoz kötött kulccsal. Más alkalmazás nem fér hozzá, és a " +
+                "WiFi portálon sem érhető el. A hibakereső napló csak a jelszó " +
+                "hosszát jegyzi fel, a tartalmát soha."
         ),
         LegalSection(
-            "Külső szolgáltatások",
-            "Egyes funkciók internetes szolgáltatásokat használnak, például a BKK FUTÁR nyílt adatait, " +
-                "OpenStreetMapot, YouTube-ot, hírforrásokat vagy böngészőt. " +
-                "Ezekre a szolgáltatásokra a saját adatvédelmi szabályaik vonatkoznak."
+            "Mi megy ki a telefonról",
+            "Öt dolog, mindegyik csak akkor, ha te kéred. Egy: a helyzeted a " +
+                "térkép-szolgáltatásnak, amikor címet vagy megállót keresel — enélkül " +
+                "nem tudná megmondani, hol vagy. Kettő: a keresett szöveg a " +
+                "YouTube-nak, a rádiónak, a podcastnak. Három: az e-mail fiókod adatai " +
+                "a saját levelezőszolgáltatódnak. Négy: a diktált szöveg a telefon " +
+                "beszédfelismerőjének. Öt: frissítés-ellenőrzéskor a program " +
+                "verziószáma. Ezekre a szolgáltatásokra a saját adatvédelmi szabályaik " +
+                "vonatkoznak."
         ),
         LegalSection(
-            "Értesítések olvasása",
-            "Ha engedélyezed, az alkalmazás az értesítéseket helyben dolgozza fel és felolvassa. " +
-                "Az értesítések tartalma nem kerül külső szerverre."
+            "Mi nem megy ki soha",
+            "Az üzeneteid, a névjegyeid, a jegyzeteid, a fényképeid, a " +
+                "hangfelvételeid és a jelszavaid. A képernyőolvasó látja minden " +
+                "alkalmazásod tartalmát — a banki alkalmazást, a magánüzeneteket is —, " +
+                "de ebből semmit nem jegyez fel és nem küld el. Csak felolvassa neked. " +
+                "Ugyanígy az értesítéseket is helyben dolgozza fel."
         ),
         LegalSection(
-            "Felhasználói jogok",
-            "Az engedélyeket bármikor visszavonhatod az Android beállításaiban. " +
-                "Az alkalmazás eltávolításával a hozzá tartozó helyi beállítások is törlődnek."
+            "Nincs követés",
+            "A program nem tartalmaz semmilyen elemző, hirdetési vagy követőkódot. " +
+                "Nem tudjuk, hányan használják, mit használsz belőle, vagy mikor. " +
+                "Ha a program hibába fut, a hibajelentés a telefonodon marad — csak " +
+                "akkor jut el hozzánk, ha te magad elküldöd."
+        ),
+        LegalSection(
+            "A WiFi portál",
+            "Amikor bekapcsolod, a telefonod adatai elérhetők ugyanarról a " +
+                "wifi-hálózatról, négyjegyű kóddal védve. Tíz hibás próbálkozás után " +
+                "lezár. Fontos: idegen hálózaton — kávézóban, munkahelyen — csak addig " +
+                "hagyd bekapcsolva, amíg tényleg használod."
+        ),
+        LegalSection(
+            "Engedélyek",
+            "A program sok engedélyt kér, mert sok mindent tud. Mindegyik egy konkrét " +
+                "funkcióhoz kell: a mikrofon a diktáláshoz és Elenához, a kamera a " +
+                "felismerőkhöz, a helyzet a navigációhoz, a névjegyek és az üzenetek a " +
+                "telefonáláshoz. Bármelyiket megtagadhatod vagy visszavonhatod az " +
+                "Android beállításaiban — akkor csak az adott funkció nem működik, a " +
+                "többi igen. Az alkalmazás eltávolításával a helyi adatok is törlődnek."
         ),
         LegalSection(
             "Kapcsolat",
@@ -78,6 +129,16 @@ object LegalTexts {
     )
 
     fun termsOfUse(): List<LegalSection> = listOf(
+        LegalSection(
+            "Ez egy TESZTVERZIÓ",
+            "A $APP_SHORT_NAME jelenleg nyilvános tesztelés alatt áll. Ez azt jelenti, hogy " +
+                "előfordulhatnak hibák, és egyes funkciók még változhatnak. " +
+                "NE HASZNÁLD EGYETLEN ESZKÖZKÉNT olyasmire, ahol a hiba komoly bajt okozna: " +
+                "életmentő gyógyszer bevételéhez, fontos találkozóhoz vagy vészhelyzeti " +
+                "híváshoz tarts meg egy második megoldást is. " +
+                "Ha hibát találsz, a Névjegy menü Hibajelentés küldése pontjával jelezheted — " +
+                "ez a legtöbb segítség, amit adhatsz."
+        ),
         LegalSection(
             "Általános feltételek",
             "A $APP_SHORT_NAME használatával elfogadod, hogy az alkalmazást saját felelősségedre használod. " +

@@ -16,12 +16,47 @@ data class ExternalApp(
 object ExternalAppHelper {
 
     fun warningMessage(): String =
-        "Figyelem! Az itt lévő alkalmazások nem a Super DL részei. " +
-            "A Super DL nem olvassa fel a tartalmukat. " +
-            "Swipe fel-le választás, jobbra megnyitás, balra vissza."
+        "Itt a telefonra telepített többi alkalmazás található. " +
+            "Ha a Super DL képernyőolvasó be van kapcsolva, ezeket is kezelheted vele. " +
+            "Söpörj fel-le választás, jobbra megnyitás, balra vissza."
 
-    fun assistantLaunchWarning(): String =
-        "Külső alkalmazás. A Super DL nem olvassa fel a tartalmát."
+    /**
+     * Mit mondjunk külső alkalmazás indításakor.
+     *
+     * A régi szöveg ("a Super DL nem olvassa fel a tartalmát") MÁR NEM IGAZ,
+     * mióta van saját képernyőolvasó. Most az állapottól függően tájékoztatunk:
+     * ha az olvasó készen áll, bekapcsoljuk; ha nincs engedélyezve, elmondjuk,
+     * hol lehet. Aki a megszokott képernyőolvasóját használná, bármikor
+     * kikapcsolhatja a beállításokban.
+     */
+    fun assistantLaunchWarning(context: Context): String {
+        val enabledInSystem = isScreenReaderEnabledInSystem(context)
+        val enabledInApp = com.superdl.launcher.screenreader.ScreenReaderPrefs.isEnabled(context)
+        return when {
+            enabledInSystem && enabledInApp ->
+                "Külső alkalmazás. A Super DL képernyőolvasó bekapcsol, hogy kezelni tudd."
+            enabledInSystem ->
+                "Külső alkalmazás. Bekapcsolom neked a Super DL képernyőolvasót. " +
+                    "A beállításokban bármikor kikapcsolhatod, ha a megszokott programodat használnád."
+            else ->
+                "Külső alkalmazás. A Super DL képernyőolvasót előbb engedélyezned kell " +
+                    "a beállításokban, a Haladó és technikai menüben."
+        }
+    }
+
+    /** Engedélyezve van-e a Super DL képernyőolvasó a rendszer kisegítő beállításaiban? */
+    fun isScreenReaderEnabledInSystem(context: Context): Boolean {
+        val expected = com.superdl.launcher.screenreader.ScreenReaderService::class.java.name
+        return try {
+            val enabled = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ).orEmpty()
+            enabled.split(':').any { it.substringAfter('/', it).trim() == expected }
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     fun findByName(context: Context, query: String): ExternalApp? {
         val normalized = normalizeName(query)

@@ -44,7 +44,11 @@ class SosService : Service() {
     private suspend fun callSequentially(numbers: List<String>) {
         for (number in numbers) {
             if (number.isBlank()) continue
-            Log.d("SOS", "Hívás: $number")
+            // ADATVÉDELEM: a hívott SZÁM NEM kerül naplóba — a vészhelyzeti
+            // kapcsolatok köre érzékeny adat (ki a bizalmasa, kit hív bajban).
+            // A naplófájlok a hibakereséskor kikerülhetnek a telefonról.
+            // A sorszám elég a hibakereséshez.
+            Log.d("SOS", "Hivas inditasa a(z) ${numbers.indexOf(number) + 1}. kapcsolathoz")
             CallHelper.launchInCall(this, number, "S.O.S.")
             delay(CALL_TIMEOUT_MS)
         }

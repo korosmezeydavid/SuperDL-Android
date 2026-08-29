@@ -183,7 +183,7 @@ class FaceCameraActivity : AppCompatActivity() {
                     finishCamera()
                 } else {
                     lastBackPressAt = now
-                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra söpörj.")
                 }
             }
         })
@@ -442,6 +442,21 @@ class FaceCameraActivity : AppCompatActivity() {
         takePhotoInternal()
     }
 
+    /** Fotó-készítés hangja: a saját exponáló "katt" (snd_camera_shutter). */
+    private fun playCameraShutter() {
+        try {
+            val mp = android.media.MediaPlayer.create(applicationContext, R.raw.snd_camera_shutter)
+            if (mp != null) {
+                mp.setOnCompletionListener { it.release() }
+                mp.start()
+            } else {
+                sounds.play(SoundType.SWIPE_RIGHT)
+            }
+        } catch (_: Exception) {
+            sounds.play(SoundType.SWIPE_RIGHT)
+        }
+    }
+
     private fun takePhotoInternal() {
         val capture = imageCapture ?: run {
             tts.speak(getString(R.string.face_camera_photo_error))
@@ -468,7 +483,7 @@ class FaceCameraActivity : AppCompatActivity() {
                     if (isFinishing || isDestroyed) return
                     lastSavedPhotoUri = outputFileResults.savedUri
                     lastSavedPhotoName = fileName
-                    sounds.play(SoundType.SWIPE_RIGHT)
+                    playCameraShutter()
                     val message = getString(R.string.face_camera_photo_saved, fileName)
                     setStatusText(message)
                     tts.speak(message)

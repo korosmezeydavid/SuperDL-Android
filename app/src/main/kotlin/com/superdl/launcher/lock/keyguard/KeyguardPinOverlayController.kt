@@ -19,6 +19,8 @@ import com.superdl.launcher.input.NumberPadItem
 import com.superdl.launcher.input.NumberPadKey
 import com.superdl.launcher.tts.TtsManager
 
+private const val TAG_OVERLAY = "SDL_PINASSIST"
+
 class KeyguardPinOverlayController(
     private val service: AccessibilityService,
     private val onAction: (OverlayAction, (Boolean) -> Unit) -> Unit,
@@ -145,8 +147,45 @@ class KeyguardPinOverlayController(
     }
 
     private fun ensureResources() {
-        if (tts == null) tts = TtsManager(service)
-        if (sounds == null) sounds = SoundFeedback(service)
+        // DIRECT BOOT (első bekapcsolás, feloldás előtt):
+        // a TtsManager és a SoundFeedback a beállításait a szokásos tárolóból
+        // olvassa, ami ilyenkor MÉG TITKOSÍTVA van -> IllegalStateException, és
+        // a teljes kisegítő szolgáltatás összeomlott (a rendszer újraindította,
+        // majd 30 percre elhalasztotta). Ezért hibánál eszköz-védett környezettel
+        // próbálkozunk, ami titkosítás alatt is elérhető; ha az sem megy, a
+        // billentyűzet hang nélkül, de MŰKÖDVE jelenik meg.
+        if (tts == null) {
+            tts = try {
+                TtsManager(service)
+            } catch (e: Exception) {
+                android.util.Log.w(TAG_OVERLAY, "TTS szokasos tarolobol nem indult: ${e.message}")
+                try {
+                    TtsManager(deviceProtected())
+                } catch (e2: Exception) {
+                    android.util.Log.w(TAG_OVERLAY, "TTS eszkoz-vedettel sem: ${e2.message}")
+                    null
+                }
+            }
+        }
+        if (sounds == null) {
+            sounds = try {
+                SoundFeedback(service)
+            } catch (e: Exception) {
+                android.util.Log.w(TAG_OVERLAY, "Hangok szokasos tarolobol nem indultak: ${e.message}")
+                try {
+                    SoundFeedback(deviceProtected())
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    /** Titkosítás alatt is elérhető környezet (Direct Boot). */
+    private fun deviceProtected(): android.content.Context = try {
+        service.createDeviceProtectedStorageContext() ?: service
+    } catch (_: Exception) {
+        service
     }
 
     private fun attachOverlay() {

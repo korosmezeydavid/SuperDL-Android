@@ -21,8 +21,21 @@ object MedicationScheduler {
     fun scheduleAndReport(context: Context, entry: MedicationReminder): Boolean {
         if (!entry.enabled) return false
         if (!isSchedulable(entry)) return false
+        // Ha a kúra (pl. antibiotikum 7 nap) már lejárt, nem ütemezünk többet,
+        // és kikapcsoljuk az emlékeztetőt, hogy magától leálljon.
+        if (entry.isCourseExpired()) {
+            MedicationStore.setEnabled(context, entry.id, false)
+            cancel(context, entry.id)
+            return false
+        }
         val triggerAt = nextTriggerMillis(entry)
         if (triggerAt <= 0L) return false
+        // A következő riasztás túllépné a kúra végét? Akkor ez volt az utolsó.
+        if (entry.courseEndMillis != null && triggerAt > entry.courseEndMillis) {
+            MedicationStore.setEnabled(context, entry.id, false)
+            cancel(context, entry.id)
+            return false
+        }
         val intent = Intent(context, MedicationAlarmReceiver::class.java).apply {
             putExtra(MedicationAlarmReceiver.EXTRA_REMINDER_ID, entry.id)
             putExtra(MedicationAlarmReceiver.EXTRA_HOUR, entry.hour)

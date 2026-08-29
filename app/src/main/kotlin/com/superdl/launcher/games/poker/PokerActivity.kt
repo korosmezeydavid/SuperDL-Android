@@ -156,7 +156,7 @@ class PokerActivity : AppCompatActivity() {
         tts.speak(msg.trim())
         if (game.currentState()?.phase == PokerGame.Phase.FINISHED) {
             playRoundResultSound()
-            tts.speakAdd("Kör vége. Jobbra swipe az új körhöz.")
+            tts.speakAdd("Kör vége. Jobbra söprés az új körhöz.")
         }
     }
 
@@ -199,7 +199,8 @@ class PokerActivity : AppCompatActivity() {
     }
 
     private fun finishGame() {
-        tts.speakThen("Póker bezárva.") { finish() }
+        tts.speak("Póker bezárva.")
+        finish()
     }
 
     override fun onDestroy() {

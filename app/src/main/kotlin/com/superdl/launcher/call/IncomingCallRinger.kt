@@ -55,7 +55,7 @@ object IncomingCallRinger {
                 ensureNotificationChannel(appContext)
             }
             postIncomingNotification(appContext, phone, name)
-            startRingtone(appContext)
+            startRingtone(appContext, phone)
             startVibration(appContext)
         }
     }
@@ -72,14 +72,27 @@ object IncomingCallRinger {
         }
     }
 
-    private fun startRingtone(context: Context) {
+    private fun startRingtone(context: Context, phone: String = "") {
         if (mediaPlayer?.isPlaying == true) return
 
         val manager = context.getSystemService(AudioManager::class.java) ?: return
         audioManager = manager
         savedAudioMode = manager.mode
 
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        // Először a névjegyhez rendelt EGYÉNI csengőhangot keressük.
+        // Vakon ez a leggyorsabb azonosítás: a hangból tudod, ki keres,
+        // meg sem kell érintened a telefont.
+        val customUri = if (phone.isNotBlank()) {
+            com.superdl.launcher.contacts.ContactRingtoneStore
+                .getForPhone(context, phone)
+                ?.uri
+                ?.let { android.net.Uri.parse(it) }
+        } else {
+            null
+        }
+
+        val uri = customUri
+            ?: com.superdl.launcher.sound.RingtonePreferenceStore.getRingtoneUri(context)
             ?: RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE)
             ?: return
 
@@ -142,7 +155,7 @@ object IncomingCallRinger {
     }
 
     private fun startFallbackRingtone(context: Context, useAlarmStream: Boolean) {
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        val uri = com.superdl.launcher.sound.RingtonePreferenceStore.getRingtoneUri(context)
             ?: RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE)
         val attributes = if (useAlarmStream) {
             AudioAttributes.Builder()

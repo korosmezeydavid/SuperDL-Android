@@ -155,13 +155,33 @@ class QrScanActivity : AppCompatActivity() {
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+            // A KAMERA MEGSZERZÉSE IS ELBUKHAT: ha másik alkalmazás foglalja,
+            // vagy a rendszer megtagadja. Eddig ez a hívás VÉDETLEN volt, és
+            // egy háttérszálon dobott hiba az egész programot vitte volna.
+            val cameraProvider = try {
+                cameraProviderFuture.get()
+            } catch (e: Exception) {
+                android.util.Log.w("SDL_QR", "kamera nem elerheto: ${e.message}")
+                runOnUiThread {
+                    tts.speak(
+                        "A kamera most nem érhető el. Lehet, hogy másik alkalmazás " +
+                            "használja. Zárd be azt, és próbáld újra."
+                    )
+                }
+                return@addListener
+            }
             val preview = CameraStabilityHelper.buildLightPreview(previewView.surfaceProvider)
             val analysis = CameraStabilityHelper.buildLightImageAnalysis()
                 .build()
                 .also {
                     it.setAnalyzer(cameraExecutor, QrAnalyzer { value ->
-                        onCodeDetected(value)
+                        // AZ ELEMZÉS HÁTTÉRSZÁLON FUT: egy hibás képkocka
+                        // kivétele itt a szálat ölné meg — vele a felismerést.
+                        try {
+                            onCodeDetected(value)
+                        } catch (e: Exception) {
+                            android.util.Log.w("SDL_QR", "kod feldolgozas hiba: ${e.message}")
+                        }
                     })
                 }
             imageAnalysis = analysis
@@ -193,7 +213,7 @@ class QrScanActivity : AppCompatActivity() {
             actionMode = true
             previewView.visibility = View.GONE
             tvStatus.text = actions.first().label
-            tts.speakThen("Kód beolvasva. $spokenValue. ${actions.size} művelet. Swipe fel-le választás, jobbra végrehajtás, balra vissza.") {
+            tts.speakThen("Kód beolvasva. $spokenValue. ${actions.size} művelet. Söpörj fel-le választás, jobbra végrehajtás, balra vissza.") {
                 speakCurrentAction()
             }
         }

@@ -14,13 +14,13 @@ object TrainingCurriculum {
         add(
             TrainingStep.Explain(
                 "Super DL tanuló mód. Itt végigmegyünk a program összes funkcióján, semmi nem indul el élesben. " +
-                    "Kilépés: két gyors balra swipe. Jobbra swipe: következő rész."
+                    "Kilépés: két gyors balra söprés. Jobbra söprés: következő rész."
             )
         )
         add(
             TrainingStep.Explain(
-                "Négy gesztus: swipe fel előző, swipe le következő, swipe jobbra kiválasztás és megerősítés, " +
-                    "swipe balra vissza és mégse. Diktálásnál is balra szakít meg. Megerősítéshez elég a jobbra swipe."
+                "Négy gesztus: söprés fel előző, söprés le következő, söprés jobbra kiválasztás és megerősítés, " +
+                    "söprés balra vissza és mégse. Diktálásnál is balra szakít meg. Megerősítéshez elég a jobbra söprés."
             )
         )
 
@@ -46,7 +46,7 @@ object TrainingCurriculum {
         )
         add(
             TrainingStep.Explain(
-                "Kész vagy! A tanuló módot bármikor újraindíthatod a Névjegy menüből. Kilépés: két gyors balra swipe."
+                "Kész vagy! A tanuló módot bármikor újraindíthatod a Névjegy menüből. Kilépés: két gyors balra söprés."
             )
         )
     }
@@ -57,7 +57,7 @@ object TrainingCurriculum {
         successText: String
     ): TrainingStep.Practice =
         TrainingStep.Practice(
-            instruction = "Gyakoroljuk a főmenü navigációt! Keresd meg: $target. Ha megvan, swipe jobbra!",
+            instruction = "Gyakoroljuk a főmenü navigációt! Keresd meg: $target. Ha megvan, söprés jobbra!",
             choices = mainItems.map { it.label },
             correctIndex = mainItems.indexOfFirst { it.label == target }.coerceAtLeast(0),
             successText = successText
@@ -67,23 +67,23 @@ object TrainingCurriculum {
         val toolsSection = MenuTree.root.first { it.id == "tools" }
         val choices = toolsSection.children.filter { child -> !isBackItem(child) }.map { it.label }
         return TrainingStep.Practice(
-            instruction = "Gyakoroljuk az Eszközök menüt! Keresd meg: $PRACTICE_COLOR. Swipe fel-le, majd jobbra ha megvan!",
+            instruction = "Gyakoroljuk az Eszközök menüt! Keresd meg: $PRACTICE_COLOR. Söpörj fel-le, majd jobbra ha megvan!",
             choices = choices,
             correctIndex = choices.indexOfFirst { it == PRACTICE_COLOR }.coerceAtLeast(0),
-            successText = "Jó! A színfelismerő kamerával felolvassa a domináns színt. Jobbra swipe ismétli, balra kilép."
+            successText = "Jó! A színfelismerő kamerával felolvassa a domináns színt. Jobbra söprés ismétli, balra kilép."
         )
     }
 
     private fun dictaphoneFeaturesExplain(): TrainingStep.Explain =
         TrainingStep.Explain(
-            "Profi Diktafon: Eszközök, Profi Diktafon, Mentett felvételek. Válassz felvételt, jobbra swipe a műveletekhez. " +
+            "Profi Diktafon: Eszközök, Profi Diktafon, Mentett felvételek. Válassz felvételt, jobbra söprés a műveletekhez. " +
                 "Lejátszás, e-mail küldés, Bluetooth vagy más app megosztás, és felvétel törlése is elérhető."
         )
 
     private fun describeSection(item: MenuItem): String {
         val features = collectFeatures(item)
         return if (features.isEmpty()) {
-            "Főmenü: ${item.label}. Jobbra swipe az indításhoz."
+            "Főmenü: ${item.label}. Jobbra söprés az indításhoz."
         } else {
             "Főmenü: ${item.label}. Funkciók: $features."
         }

@@ -1,8 +1,17 @@
 package com.superdl.launcher.currency
 
+import com.superdl.launcher.currency.cascade.BanknoteCascadeConfig
+
+/**
+ * Multi-frame temporal consistency.
+ *
+ * Minimum [BanknoteCascadeConfig.TEMPORAL_REQUIRED] egymást követő azonos
+ * megbízható eredmény kell a TTS megszólalása előtt — flicker és téves
+ * villanások elkerülése.
+ */
 class BanknoteConsensusFilter(
-    private val windowSize: Int = 4,
-    private val requiredAgreements: Int = 3
+    private val windowSize: Int = BanknoteCascadeConfig.TEMPORAL_WINDOW,
+    private val requiredAgreements: Int = BanknoteCascadeConfig.TEMPORAL_REQUIRED
 ) {
     private val recent = ArrayDeque<BanknoteClassificationResult?>(windowSize)
 
@@ -22,15 +31,17 @@ class BanknoteConsensusFilter(
 
         if (recent.size < windowSize) return null
 
-        val reliable = recent.filterNotNull()
-        if (reliable.size < requiredAgreements) return null
+        // Szigorú: az ablak utolsó requiredAgreements eleme MIND ugyanaz a címlet
+        // és nem null — nem elég a majority vote, ha közben null/más villan.
+        val tail = recent.toList().takeLast(requiredAgreements)
+        if (tail.any { it == null }) return null
 
-        val counts = reliable.groupingBy { it.denomination }.eachCount()
-        val winner = counts.maxByOrNull { it.value } ?: return null
-        if (winner.value < requiredAgreements) return null
+        val denoms = tail.map { it!!.denomination }
+        val winner = denoms.first()
+        if (denoms.any { it != winner }) return null
 
-        return reliable
-            .filter { it.denomination == winner.key }
+        return tail
+            .filterNotNull()
             .maxByOrNull { it.confidence }
     }
 

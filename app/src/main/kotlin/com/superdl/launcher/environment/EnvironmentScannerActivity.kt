@@ -58,6 +58,16 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     private var imageAnalysis: ImageAnalysis? = null
     private var lastBackPressAt = 0L
 
+    // Egyesített mód: megnyitáskor pillanatkép ("Mi van előttem?"), a
+    // folyamatos figyelés (régi Kitekintő) le söpréssel kapcsolható be-ki.
+    private var snapshotMode = true
+    private var continuousEnabled = false
+    private val snapshotActive = AtomicBoolean(false)
+    private val snapshotDeadline = AtomicLong(0L)
+    private val snapshotBest = AtomicReference<List<DetectionResult>>(emptyList())
+    private var lastSummary: String? = null
+    private var snapshotHintGiven = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_environment_scanner)
@@ -73,15 +83,15 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             context = this,
             onSwipeUp = {
                 sounds.play(SoundType.SWIPE_UP)
-                repeatLastDetection()
+                repeatSnapshotSummary()
             },
             onSwipeDown = {
                 sounds.play(SoundType.SWIPE_DOWN)
-                tts.speakAdd(getString(R.string.env_scanner_help))
+                toggleContinuousWatch()
             },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
-                announceCenteredObject(flush = true)
+                startSnapshot()
             },
             onSwipeLeft = { finishScanner() }
         )
@@ -103,7 +113,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
                     finishScanner()
                 } else {
                     lastBackPressAt = now
-                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra söpörj.")
                 }
             }
         })
@@ -169,10 +179,37 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             return
         }
 
+        if (snapshotMode) {
+            tts.runWhenReady {
+                tts.speak("Mi van előttem. Tartsd a telefont magad elé, egy pillanat.")
+            }
+            setStatusText("Mi van előttem?")
+            startCamera()
+            setScanningEnabled(true)
+            startSnapshot(announce = false)
+            return
+        }
+
         tts.runWhenReady { tts.speak(getString(R.string.env_scanner_intro)) }
         setStatusText(getString(R.string.env_scanner_status_ready))
         startCamera()
         setScanningEnabled(true)
+    }
+
+    /** Folyamatos figyelés (a régi Kitekintő-mód) be-ki kapcsolása le söpréssel. */
+    private fun toggleContinuousWatch() {
+        continuousEnabled = !continuousEnabled
+        debouncer.clear()
+        if (continuousEnabled) {
+            setStatusText("Folyamatos figyelés")
+            tts.speak(
+                "Folyamatos figyelés bekapcsolva. Mozgasd lassan a kamerát, " +
+                    "és bemondom amit látok. Le söprés: kikapcsolás."
+            )
+        } else {
+            setStatusText("Mi van előttem?")
+            tts.speak("Folyamatos figyelés kikapcsolva. Jobbra söprés: új pillanatkép.")
+        }
     }
 
     private fun startCamera() {
@@ -214,13 +251,17 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         if (enabled) {
             btnScanToggle.text = getString(R.string.env_scanner_stop)
             btnScanToggle.contentDescription = getString(R.string.env_scanner_stop_desc)
-            setStatusText(getString(R.string.env_scanner_status_scanning))
-            tts.speak(getString(R.string.env_scanner_status_scanning))
+            if (!snapshotMode) {
+                setStatusText(getString(R.string.env_scanner_status_scanning))
+                tts.speak(getString(R.string.env_scanner_status_scanning))
+            }
         } else {
             btnScanToggle.text = getString(R.string.env_scanner_start)
             btnScanToggle.contentDescription = getString(R.string.env_scanner_start_desc)
-            setStatusText(getString(R.string.env_scanner_status_paused))
-            tts.speak(getString(R.string.env_scanner_status_paused))
+            if (!snapshotMode) {
+                setStatusText(getString(R.string.env_scanner_status_paused))
+                tts.speak(getString(R.string.env_scanner_status_paused))
+            }
         }
     }
 
@@ -230,6 +271,13 @@ class EnvironmentScannerActivity : AppCompatActivity() {
 
     private fun onDetections(detections: List<DetectionResult>) {
         latestDetections.set(detections)
+        // Aktív pillanatkép elsőbbséget kap; utána a folyamatos figyelés,
+        // ha be van kapcsolva; különben csendben maradunk.
+        if (snapshotActive.get()) {
+            handleSnapshotDetections(detections)
+            return
+        }
+        if (!continuousEnabled) return
         val visible = detections.filter { it.category !in mutedCategories }
         if (visible.isEmpty()) {
             postWhenAlive {
@@ -258,6 +306,75 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         postWhenAlive {
             tts.speakAdd(announcement)
         }
+    }
+
+    // ==================== "MI VAN ELŐTTEM?" PILLANATKÉP ====================
+
+    /** Új pillanatkép indítása: rövid ideig figyel, majd egyben elmondja a jelenetet. */
+    private fun startSnapshot(announce: Boolean = true) {
+        snapshotBest.set(emptyList())
+        snapshotDeadline.set(0L) // az első feldolgozott képkockától számoljuk az ablakot
+        snapshotActive.set(true)
+        if (announce) {
+            tts.speak("Pillanatkép. Egy másodperc.")
+        }
+        setStatusText("Figyelek…")
+    }
+
+    /**
+     * A pillanatkép-ablak alatt a "leggazdagabb" képkockát tartjuk meg
+     * (legtöbb találat; egyenlőségnél a magasabb össz-bizonyosság), mert
+     * egyetlen kimerevített kockából a legpontosabb az összkép – a képkockák
+     * összefésülése duplázná ugyanazt a tárgyat.
+     */
+    private fun handleSnapshotDetections(detections: List<DetectionResult>) {
+        if (!snapshotActive.get()) return
+        val now = System.currentTimeMillis()
+        if (snapshotDeadline.get() == 0L) {
+            snapshotDeadline.set(now + SNAPSHOT_WINDOW_MS)
+        }
+
+        val currentBest = snapshotBest.get()
+        val better = when {
+            detections.size > currentBest.size -> true
+            detections.size == currentBest.size && detections.isNotEmpty() ->
+                detections.sumOf { it.confidence.toDouble() } >
+                    currentBest.sumOf { it.confidence.toDouble() }
+            else -> false
+        }
+        if (better) snapshotBest.set(detections)
+
+        if (now >= snapshotDeadline.get()) {
+            finishSnapshot()
+        }
+    }
+
+    private fun finishSnapshot() {
+        if (!snapshotActive.compareAndSet(true, false)) return
+        val best = snapshotBest.get()
+        val summary = SceneSummarizer.summarize(best)
+        lastSummary = summary
+        val hint = if (!snapshotHintGiven) {
+            snapshotHintGiven = true
+            " Jobbra söprés vagy hangerőgomb: új pillanatkép. " +
+                "Le söprés: folyamatos figyelés. Fel: ismétlés. Balra: kilépés."
+        } else {
+            ""
+        }
+        postWhenAlive {
+            tvLastDetection.text = summary
+            setStatusText("Mi van előttem?")
+            tts.speak(summary + hint)
+        }
+    }
+
+    private fun repeatSnapshotSummary() {
+        val summary = lastSummary
+        if (summary.isNullOrBlank()) {
+            tts.speak("Még nincs pillanatkép. Söpörj jobbra egy újhoz.")
+            return
+        }
+        tts.speak(summary)
     }
 
     private fun announceCenteredObject(flush: Boolean) {
@@ -311,7 +428,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 if (event?.repeatCount == 0) {
-                    announceCenteredObject(flush = true)
+                    startSnapshot()
                 }
                 return true
             }
@@ -406,5 +523,9 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     companion object {
         private const val REQ_CAMERA = 7103
         private const val FRAME_INTERVAL_MS = 200L
+        private const val SNAPSHOT_WINDOW_MS = 1600L
+
+        /** Ha igaz, az activity "Mi van előttem?" pillanatkép-módban indul. */
+        const val EXTRA_SNAPSHOT_MODE = "snapshot_mode"
     }
 }

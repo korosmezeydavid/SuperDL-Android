@@ -53,7 +53,8 @@ object MedicationStore {
         hour: Int,
         minute: Int,
         cycleType: MedicationCycleType,
-        weekDays: Set<Int>
+        weekDays: Set<Int>,
+        courseEndMillis: Long? = null
     ): MedicationReminder? {
         val reminders = getAll(context).toMutableList()
         if (reminders.size >= MAX_REMINDERS) return null
@@ -67,11 +68,33 @@ object MedicationStore {
             minute = minute,
             cycleType = cycleType,
             weekDays = normalizedDays,
-            enabled = true
+            enabled = true,
+            courseEndMillis = courseEndMillis
         )
         reminders.add(entry)
         saveAll(context, reminders)
         return entry
+    }
+
+    /**
+     * Több napszakot vesz fel egyszerre ugyanahhoz a gyógyszerhez (pl. reggel,
+     * dél, este). Minden napszakból külön emlékeztető lesz, azonos névvel és
+     * kúra-véggel. A sikeresen felvett emlékeztetőket adja vissza.
+     */
+    fun addMultipleTimes(
+        context: Context,
+        name: String,
+        times: List<Pair<Int, Int>>,
+        cycleType: MedicationCycleType,
+        weekDays: Set<Int>,
+        courseEndMillis: Long? = null
+    ): List<MedicationReminder> {
+        val added = mutableListOf<MedicationReminder>()
+        for ((h, m) in times) {
+            val entry = add(context, name, h, m, cycleType, weekDays, courseEndMillis)
+            if (entry != null) added.add(entry)
+        }
+        return added
     }
 
     fun delete(context: Context, id: Int): MedicationReminder? {
@@ -80,6 +103,17 @@ object MedicationStore {
         reminders.removeAll { it.id == id }
         saveAll(context, reminders)
         return removed
+    }
+
+    /** Egy emlékeztető be- vagy kikapcsolása (pl. lejárt kúránál automatikusan). */
+    fun setEnabled(context: Context, id: Int, enabled: Boolean): MedicationReminder? {
+        val reminders = getAll(context).toMutableList()
+        val index = reminders.indexOfFirst { it.id == id }
+        if (index < 0) return null
+        val updated = reminders[index].copy(enabled = enabled)
+        reminders[index] = updated
+        saveAll(context, reminders)
+        return updated
     }
 
     fun logIngestion(context: Context, reminders: List<MedicationReminder>) {
@@ -146,6 +180,7 @@ object MedicationStore {
                 }
             }
             val cycleType = parseCycleType(obj.optString("cycleType", MedicationCycleType.DAILY.name))
+            val courseEnd = if (obj.has("courseEndMillis")) obj.optLong("courseEndMillis") else null
             MedicationReminder(
                 id = obj.getInt("id"),
                 name = obj.optString("name", ""),
@@ -153,7 +188,8 @@ object MedicationStore {
                 minute = obj.getInt("minute"),
                 cycleType = cycleType,
                 weekDays = weekDays,
-                enabled = obj.optBoolean("enabled", true)
+                enabled = obj.optBoolean("enabled", true),
+                courseEndMillis = courseEnd
             )
         } catch (e: Exception) {
             Log.w(TAG, "Skipping corrupted medication reminder entry", e)
@@ -182,6 +218,7 @@ object MedicationStore {
                 put("cycleType", entry.cycleType.name)
                 put("weekDays", JSONArray(entry.weekDays.toList()))
                 put("enabled", entry.enabled)
+                entry.courseEndMillis?.let { put("courseEndMillis", it) }
             })
         }
         JsonPrefsHelper.saveJsonArray(

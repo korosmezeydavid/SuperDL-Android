@@ -1,0 +1,253 @@
+NITAPLAY — ZENELEJÁTSZÓ SPECIFIKÁCIÓ
+================================================================================
+Ez a dokumentum önálló: bármelyik beszélgetésbe bevihető, és megérthető belőle
+a teljes alkalmazás — mit tud, hogyan épül fel, és hogyan nézzen ki.
+
+KINEK KÉSZÜL: egy látó felhasználónak, aki egyszerűen, szépen szeretne zenét
+hallgatni. Kedvenc színe a LILA — ez az alapértelmezett téma. Nem "kisegítő"
+alkalmazás: a hangsúly a szépségen és a kényelmen van.
+
+Alap: Android, Kotlin. A logika egy már működő lejátszóból származik.
+Készült: 2026-08-04
+================================================================================
+
+
+1. MI EZ EGY MONDATBAN
+--------------------------------------------------------------------------------
+Egy szép, letisztult zenelejátszó, ami a telefonon ÉS a felhőben tárolt zenét is
+lejátssza, hangszínszabályzóval, és többféle választható témával.
+
+
+2. MIT TUD — FUNKCIÓLISTA
+--------------------------------------------------------------------------------
+ - Zenék lejátszása A TELEFONRÓL (a rendszer médiatárából)
+ - Zenék lejátszása FELHŐBŐL vagy bármely választott mappából, ALMAPPÁKKAL
+ - Hangszínszabályzó (equalizer) kész profilokkal és kézi sávokkal
+ - Négy lejátszási mód: sorban, egy szám ismétlése, lista ismétlése, véletlen
+ - "Folytatás onnan, ahol abbahagytad" — megjegyzi a számot és a másodpercet
+ - Állítható tekerési lépésköz (10 mp zenéhez, 30 mp hangoskönyvhöz)
+ - Kedvencek és saját lejátszási listák
+ - Keresés cím és előadó szerint
+ - Alvó időzítő ("kapcsolj ki 30 perc múlva")
+ - Fülhallgató- és autórádió-gombok kezelése
+ - TÖBB VÁLASZTHATÓ TÉMA (lila, cicás, kutyás és továbbiak)
+
+
+3. ADATMODELL
+--------------------------------------------------------------------------------
+Szám (Track):
+    id           : Long   — egyedi azonosító
+    title        : String — cím
+    artist       : String — előadó (üres is lehet)
+    album        : String — album (ha ismert)
+    durationMs   : Long   — hossz ezredmásodpercben (0 = ismeretlen)
+    artworkUri   : Uri?   — borítókép, ha van
+    contentUri   : Uri    — a fájl címe (helyi VAGY felhős)
+
+FONTOS TERVEZÉSI DÖNTÉS: a lejátszó CSAK Uri-t használ, nem fájl-útvonalat.
+Ezért UGYANAZ a lejátszó kezeli a telefonon lévő és a felhős fájlokat — nem kell
+két külön motor, és a felület sem tud róla, honnan jön a zene.
+
+
+4. ZENEFORRÁSOK
+--------------------------------------------------------------------------------
+
+4.1 A TELEFONRÓL
+    A rendszer médiatárából olvassuk ki a hangfájlokat. Gyors, mert a rendszer
+    előre indexeli, és innen jön a cím, az előadó, az album és a borítókép is.
+
+4.2 FELHŐBŐL / VÁLASZTOTT MAPPÁBÓL
+    A felhasználó EGYSZER kiválaszt egy mappát a telefon fájlválasztójában.
+    Ott megjelenik a Google Drive, a OneDrive, a Dropbox és a telefon saját
+    tárhelye is.
+
+    MŰKÖDÉS:
+      - a mappához TARTÓS hozzáférést kérünk (különben újraindítás után elveszne)
+      - a mappát REKURZÍVAN járjuk be (max. 6 szint), tehát az előadónkénti
+        almappák is bekerülnek
+      - hangfájl: mp3, m4a, aac, ogg, opus, wav, flac, wma, mp4, 3gp
+      - legfeljebb 2000 szám (a lista így is kezelhető marad)
+      - névsorba rendezve
+
+    MIÉRT ÍGY, ÉS NEM KÖZVETLEN GOOGLE DRIVE KAPCSOLATTAL:
+      A közvetlen Drive-kapcsolat külön fejlesztői hitelesítést és a Google
+      jóváhagyását igényelné, és CSAK a Drive-val működne. A mappa-alapú
+      megoldás MINDEN felhővel működik, amit a telefon ismer, és nem kell
+      jelszót megadni az alkalmazásban.
+
+    ŐSZINTE KORLÁTOK (ezeket a felületnek is jeleznie kell):
+      - a felhős fájlok LEJÁTSZÁSKOR töltődnek le: internet kell, és
+        mobilneten adatforgalmat használ
+      - felhős fájloknál a cím a FÁJLNÉVBŐL jön; előadó, album, borító és hossz
+        jellemzően nem érhető el
+      - egyes Android-verziókon a Google Drive nem enged MAPPÁT választani,
+        csak fájlt — ilyenkor a OneDrive vagy a Dropbox megbízhatóbb
+
+
+5. LEJÁTSZÁSI MÓDOK, TEKERÉS, FOLYTATÁS
+--------------------------------------------------------------------------------
+MÓDOK: sorban / egy szám ismétlése / lista ismétlése / véletlen.
+A választott mód megmarad a következő indításig.
+
+TEKERÉS: állítható lépésköz, alapérték 10 másodperc.
+
+FOLYTATÁS: a lejátszó folyamatosan menti az aktuális szám azonosítóját és a
+pozíciót. Indításkor felajánlja: "Folytatás: <cím> — 34:12-től".
+Hangoskönyvnél és hosszú felvételnél ez a legfontosabb kényelmi funkció.
+
+ALVÓ IDŐZÍTŐ: megadott idő után lassan elhalkul és leáll. Elalváshoz.
+
+
+6. HANGSZÍNSZABÁLYZÓ
+--------------------------------------------------------------------------------
+Két szint, hogy mindenkinek jó legyen:
+  GYORS: kész profilok vízszintes választóként (Normál, Pop, Rock, Jazz,
+         Klasszikus, Basszus-erősítés, Beszéd, Kikapcsolva)
+  HALADÓ: sávonkénti csúszkák (5 sáv), élő kirajzolt görbével
+
+A választás megmarad. Ha a készülék nem támogatja, a szabályzó szürkén jelenik
+meg egy rövid magyarázattal — a lejátszás ettől még megy.
+
+
+7. TÉMÁK — EZ A LÉNYEG
+--------------------------------------------------------------------------------
+A felhasználó szabadon vált témát a beállításokban. Minden téma megad:
+alapszínt, hangsúlyszínt, háttér-átmenetet, hangulati díszítést és ikonstílust.
+
+7.1 "LILA ÉJSZAKA" (ALAPÉRTELMEZETT)
+    A kedvenc szín, komolyan véve. Mély ibolya háttér, ami a képernyő alja felé
+    sötétebb, teteje felé melegebb — mint egy esti égbolt.
+      háttér felül   #2A1B3D   (mély szilva)
+      háttér alul    #150E22   (majdnem fekete ibolya)
+      hangsúly       #B388FF   (világító orgonalila)
+      másodlagos     #7C4DFF   (telített ibolya)
+      szöveg         #F3EAFF   (halvány lila-fehér)
+      halvány szöveg #A896C4
+    DÍSZ: a lejátszás-gomb körül lassan lüktető, halvány lila fénykör,
+    ami a zene ütemére finoman erősödik.
+
+7.2 "CICÁS"
+    Meleg, otthonos, pihe-puha. Krémszín háttér, barack és mályva hangsúlyok.
+      háttér         #FFF6EC   (tejeskrém)
+      kártyák        #FFFFFF
+      hangsúly       #E88D67   (barack)
+      másodlagos     #C97B84   (poros mályva)
+      szöveg         #4A3B33   (meleg barna)
+    DÍSZ: apró macskatalp-nyomok a lista elválasztó vonalai helyett; a
+    lejátszás-gomb szünetben "alvó cica" ikonná fordul át; üres listánál egy
+    gömbölyödő cica rajza: "Itt még nincs zene."
+
+7.3 "KUTYÁS"
+    Vidám, energikus, barátságos.
+      háttér         #F2F7F0   (halvány fűzöld)
+      kártyák        #FFFFFF
+      hangsúly       #6BA368   (füves zöld)
+      másodlagos     #C99A5B   (meleg homok)
+      szöveg         #33402F
+    DÍSZ: a betöltés-jelző egy csóváló farok; kedvenchez adásnál egy kis
+    mancs-pecsét pattan fel.
+
+7.4 "NAPLEMENTE"
+    Melegség és nyugalom, esti hallgatáshoz.
+      háttér felül   #FF9A6C   -> alul #6A3093 (narancsból lilába)
+      hangsúly       #FFD166
+      szöveg         #FFFFFF
+
+7.5 "ÓCEÁN"
+    Hűvös, tiszta, koncentrált — munkához vagy tanuláshoz.
+      háttér         #0F2B3D
+      hangsúly       #4ECDC4
+      másodlagos     #2E8BC0
+      szöveg         #E8F6F8
+
+7.6 "ÉJFÉL" (tiszta sötét)
+    Majdnem fekete, minimális. OLED kijelzőn kevesebbet fogyaszt.
+      háttér         #000000
+      kártyák        #121212
+      hangsúly       #BB86FC   (marad egy csipet lila)
+      szöveg         #EDEDED
+
+7.7 "SAKURA"
+    Lágy, romantikus rózsaszínek.
+      háttér         #FFF0F5
+      hangsúly       #E8799E
+      másodlagos     #C48CB3
+      szöveg         #4A2F3A
+
+7.8 KÜLÖN KAPCSOLÓ: "A BORÍTÓ SZÍNEI"
+    Ha be van kapcsolva, a hangsúlyszínt a ÉPPEN SZÓLÓ SZÁM borítóképéből
+    vesszük — így a felület a zenéhez igazodik, számonként változik.
+    Ez BÁRMELYIK témával kombinálható, és nagyon látványos.
+
+
+8. A KÉPERNYŐK
+--------------------------------------------------------------------------------
+
+8.1 "MOST SZÓL" (főképernyő)
+    - NAGY borítókép középen, lekerekített sarkokkal, finom árnyékkal.
+      Ha nincs borító: a téma szerinti hangulati rajz (cicás témánál cica,
+      lilánál absztrakt hold-motívum).
+    - alatta: CÍM (nagy, félkövér), ELŐADÓ (kisebb, halványabb)
+    - csúszka a pozícióval; két oldalán az eltelt és a hátralévő idő
+    - fő gombsor: előző | LEJÁTSZÁS-SZÜNET (nagy, kiemelt, kör alakú) | következő
+    - másodlagos sor: lejátszási mód, kedvenc (szív), hangszínszabályzó,
+      alvó időzítő
+    - legfelül finom jelzés: "telefon" vagy "felhő" — hogy tudja, honnan szól
+
+8.2 KÖNYVTÁR
+    - felül fülek: SZÁMOK | ELŐADÓK | ALBUMOK | LISTÁK | KEDVENCEK
+    - forrásváltó: TELEFON / FELHŐ
+    - keresőmező felül, azonnali szűréssel
+    - a listaelemek: kis borító, cím, előadó, hossz
+    - felhős fülnél: "mappa: <név>" és "mappa cseréje" gomb
+
+8.3 HANGSZÍNSZABÁLYZÓ
+    - profilok vízszintes választóként, kiválasztva kiemelve
+    - alatta a haladó nézet: 5 csúszka, fölötte élő görbe
+
+8.4 BEÁLLÍTÁSOK
+    - TÉMA (előnézeti kártyákkal, hogy látszódjon, melyik milyen)
+    - "a borító színei" kapcsoló
+    - tekerési lépésköz
+    - alvó időzítő alapértéke
+    - felhős mappa kezelése
+
+
+9. MOZGÁS ÉS HANGULAT
+--------------------------------------------------------------------------------
+  - a lejátszás-gomb ÁTALAKUL szünet-gombbá (nem átugrik), lágy mozgással
+  - számváltásnál a borító finoman elúszik oldalra, az új becsúszik
+  - a csúszka mozgása folyamatos, nem ugrál
+  - téma-váltásnál a színek ÁTÚSZNAK egymásba, nem villannak
+  - minden animáció rövid (200-300 ezredmásodperc): érezhető, de nem lassít
+  - MINDEN ANIMÁCIÓ KIKAPCSOLHATÓ egy beállítással (van, akit zavar)
+
+
+10. AMIRE FIGYELNI KELL
+--------------------------------------------------------------------------------
+  - HÍVÁS ÉRKEZIK: a zene halkuljon el, a hívás után folytatódjon
+  - MÁSIK APP indít hangot: adjuk át a hangfókuszt tisztességesen
+  - FÜLHALLGATÓ KIHÚZÁSA: azonnal álljon meg (ne szóljon a hangszóróból)
+  - FELHŐS LEJÁTSZÁS mobilneten: jelezzük, hogy adatforgalmat használ
+  - HOSSZÚ LISTA: a görgetés maradjon folyamatos 2000 számnál is
+  - ZÁROLT KÉPERNYŐN is legyen vezérlés (rendszer-értesítéssel)
+  - minden gomb kapjon felolvasható címkét — nem a fő cél, de illik
+
+
+11. ELLENŐRZŐ LISTA
+--------------------------------------------------------------------------------
+  [ ] Helyi zenék listázása, lejátszása
+  [ ] Felhős mappa kiválasztása, almappákkal beolvasás
+  [ ] Váltás a két forrás között
+  [ ] Négy lejátszási mód
+  [ ] Hangszínszabályzó: profilok és kézi sávok
+  [ ] Folytatás onnan, ahol abbahagyta
+  [ ] Kedvencek, listák, keresés
+  [ ] Alvó időzítő
+  [ ] Fülhallgató-gombok, zárolt képernyős vezérlés
+  [ ] Hívás alatt elhalkul, utána folytatódik
+  [ ] Mind a hét téma, előnézettel
+  [ ] "A borító színei" kapcsoló
+  [ ] Animációk kikapcsolhatók
+
+================================================================================

@@ -127,7 +127,8 @@ class SlotActivity : AppCompatActivity() {
     }
 
     private fun finishGame() {
-        tts.speakThen("Félkarú rabló bezárva.") { finish() }
+        tts.speak("Félkarú rabló bezárva.")
+        finish()
     }
 
     override fun onDestroy() {

@@ -11,7 +11,22 @@ class SuperInCallService : InCallService() {
 
     private val callbacks = mutableMapOf<Call, Call.Callback>()
 
+    override fun onCallAudioStateChanged(audioState: android.telecom.CallAudioState?) {
+        super.onCallAudioStateChanged(audioState)
+        // Megjegyezzük az AKTUÁLIS állapotot, hogy a hívás-képernyő pontosan
+        // tudja, mi van bekapcsolva — ne csak feltételezze.
+        audioState?.let {
+            CallAudioController.onAudioStateChanged(
+                speakerOn = it.route == android.telecom.CallAudioState.ROUTE_SPEAKER,
+                muted = it.isMuted
+            )
+        }
+    }
+
     override fun onCallAdded(call: Call) {
+        // A hangvezérlés innen tud igazán dolgozni: alapértelmezett telefon
+        // alkalmazásként a rendszer ENGEDI a hangút és a némítás állítását.
+        CallAudioController.attach(this)
         val callback = object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 ActiveCallRegistry.onStateChanged(call, state)
@@ -30,6 +45,8 @@ class SuperInCallService : InCallService() {
         if (!ActiveCallRegistry.hasManagedCall) {
             IncomingCallRinger.stop(applicationContext)
             IncomingCallState.dismissIfShowing(applicationContext)
+            // Nincs több hívás: a hangvezérlés leáll, és minden visszaáll.
+            CallAudioController.detach()
         }
     }
 

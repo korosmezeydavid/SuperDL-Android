@@ -108,7 +108,13 @@ class BatteryPatrolService : Service() {
                 val now = System.currentTimeMillis()
                 if (now - lastScreenOnAnnounceAt < 1800L) return
                 lastScreenOnAnnounceAt = now
-                PatrolAnnouncer.announce(context, InfoHelper.speakDateTime())
+                // Feloldáskor a képernyő-bekapcsolás hangja már szól (DeviceStateTonePlayer),
+                // ezért itt beep nélkül, csak az idő – nincs dupla pittyegés.
+                PatrolAnnouncer.announce(
+                    context,
+                    InfoHelper.speakDateTime(),
+                    withBeep = false
+                )
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -149,7 +155,13 @@ class BatteryPatrolService : Service() {
         val key = "${now.get(Calendar.DAY_OF_YEAR)}-${now.get(Calendar.HOUR_OF_DAY)}-$minute"
         if (key == lastIntervalAnnounceKey) return
         lastIntervalAnnounceKey = key
-        PatrolAnnouncer.announce(this, InfoHelper.speakDateTime())
+        // Óránkénti/periodikus időbemondás: egyetlen rövid, lágy csendülés + idő.
+        PatrolAnnouncer.announce(
+            this,
+            InfoHelper.speakDateTime(),
+            withBeep = false,
+            softChime = true
+        )
     }
 
     private fun buildPatrolNotification(): Notification {

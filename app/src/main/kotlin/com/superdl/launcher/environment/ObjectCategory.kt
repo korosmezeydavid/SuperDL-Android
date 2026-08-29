@@ -27,7 +27,20 @@ enum class ObjectCategory(
             "umbrella"
         )
     ),
-    PHONE("phone", "Telefon", setOf("cell phone"));
+    PHONE("phone", "Telefon", setOf("cell phone")),
+    ANIMAL(
+        "animal",
+        "Állat",
+        setOf("dog", "cat", "bird", "horse", "sheep", "cow")
+    ),
+    VEHICLE(
+        "vehicle",
+        "Jármű",
+        setOf("car", "bus", "truck", "bicycle", "motorcycle", "train")
+    ),
+    SCREEN("screen", "Képernyő", setOf("tv")),
+    BED("bed", "Ágy", setOf("bed")),
+    PLANT("plant", "Növény", setOf("potted plant"));
 
     companion object {
         private val labelToCategory: Map<String, ObjectCategory> =

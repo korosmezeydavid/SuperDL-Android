@@ -28,6 +28,7 @@ object PatrolAnnouncer {
         val message: String,
         val withBeep: Boolean,
         val soundCategory: AlertSoundCategory,
+        val softChime: Boolean = false,
         val onDone: (() -> Unit)?
     )
 
@@ -40,6 +41,8 @@ object PatrolAnnouncer {
         message: String,
         withBeep: Boolean = true,
         soundCategory: AlertSoundCategory = AlertSoundCategory.GENERAL_NOTIFICATION,
+        critical: Boolean = false,
+        softChime: Boolean = false,
         onDone: (() -> Unit)? = null
     ) {
         val trimmed = message.trim()
@@ -47,7 +50,10 @@ object PatrolAnnouncer {
             onDone?.let { mainHandler.post(it) }
             return
         }
-        if (QuietModeHelper.shouldSuppressNotificationAnnouncements(context)) {
+        // A kritikus bejelentések (pl. aktív navigáció kanyarai) átlépnek a
+        // néma módon: a felhasználó kifejezetten kérte őket a vezetés indításával,
+        // és biztonsági szempontból nem szabad elnémítani.
+        if (!critical && QuietModeHelper.shouldSuppressNotificationAnnouncements(context)) {
             onDone?.let { mainHandler.post(it) }
             return
         }
@@ -56,6 +62,7 @@ object PatrolAnnouncer {
             message = trimmed,
             withBeep = withBeep,
             soundCategory = soundCategory,
+            softChime = softChime,
             onDone = onDone
         )
         if (speaking.compareAndSet(false, true)) {
@@ -78,7 +85,14 @@ object PatrolAnnouncer {
             request.onDone?.let { mainHandler.post(it) }
             processNextQueued()
         }
-        if (request.withBeep) {
+        if (request.softChime) {
+            // Egyetlen rövid, lágy csendülés az egész értesítő-hangsor helyett
+            // (pl. óránkénti időbemondás, feloldás) – kevésbé zavaró.
+            playSoftChime(request.appContext)
+            mainHandler.postDelayed({
+                speak(request.appContext, request.message, finish)
+            }, 700L)
+        } else if (request.withBeep) {
             AlertSoundPlayer.playOnce(request.appContext, request.soundCategory)
             mainHandler.postDelayed({
                 speak(request.appContext, request.message, finish)
@@ -159,6 +173,28 @@ object PatrolAnnouncer {
             if (wakeLock?.isHeld == true) wakeLock.release()
         } catch (e: Exception) {
             Log.w(TAG, "Wake lock release failed", e)
+        }
+    }
+
+    private fun playSoftChime(context: Context) {
+        try {
+            // A periodikus időbemondás kezdőhangja: egy kellemes "kling"
+            // hangfájl (snd_time_chime) a régi szintetikus ToneGenerator-bleep
+            // helyett. A lejátszás után magától elengedi az erőforrást.
+            val mp = android.media.MediaPlayer.create(
+                context, com.superdl.launcher.R.raw.snd_time_chime
+            )
+            if (mp != null) {
+                mp.setOnCompletionListener { it.release() }
+                mp.start()
+            } else {
+                // Ha valamiért nem tölthető be a fájl, marad a régi bleep.
+                val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 60)
+                tone.startTone(ToneGenerator.TONE_PROP_ACK, 130)
+                mainHandler.postDelayed({ tone.release() }, 200L)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Soft chime failed", e)
         }
     }
 

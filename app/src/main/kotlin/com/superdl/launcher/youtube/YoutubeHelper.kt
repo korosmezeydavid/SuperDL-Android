@@ -45,6 +45,7 @@ object YoutubeHelper {
             putExtra(YoutubePlayerActivity.EXTRA_VIDEO_ID, video.videoId)
             putExtra(YoutubePlayerActivity.EXTRA_TITLE, video.title)
             putExtra(YoutubePlayerActivity.EXTRA_CHANNEL, video.channel)
+            putExtra(YoutubePlayerActivity.EXTRA_DURATION, video.durationSeconds)
             if (context !is android.app.Activity) {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }

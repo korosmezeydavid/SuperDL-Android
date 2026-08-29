@@ -53,7 +53,8 @@ class GpsRouteGuideService : Service() {
             PatrolAnnouncer.announce(
                 this,
                 "Útvonal követés elindult: $routeName.",
-                withBeep = true
+                withBeep = true,
+                critical = true
             )
         }
         return START_STICKY
@@ -89,7 +90,7 @@ class GpsRouteGuideService : Service() {
                 if (last == null || last > threshold) {
                     GpsRouteSession.lastApproachThreshold = threshold
                     val message = buildApproachMessage(nextEvent, threshold, reversed)
-                    PatrolAnnouncer.announce(this, message, withBeep = threshold <= 20)
+                    PatrolAnnouncer.announce(this, message, withBeep = threshold <= 20, critical = true)
                     if (threshold <= 10) {
                         GpsRouteSession.lastAnnouncedEventIndex = match.nextEventIndex
                         GpsRouteSession.lastApproachThreshold = null
@@ -121,7 +122,8 @@ class GpsRouteGuideService : Service() {
                             PatrolAnnouncer.announce(
                                 this,
                                 "Visszafelé haladsz az útvonalon.",
-                                withBeep = true
+                                withBeep = true,
+                                critical = true
                             )
                         }
                     }
@@ -135,7 +137,8 @@ class GpsRouteGuideService : Service() {
                         PatrolAnnouncer.announce(
                             this,
                             "Előrefelé haladsz az útvonalon.",
-                            withBeep = false
+                            withBeep = false,
+                            critical = true
                         )
                     }
                 }
@@ -158,7 +161,7 @@ class GpsRouteGuideService : Service() {
             } else {
                 "Útvonal vége elérve."
             }
-            PatrolAnnouncer.announce(this, message, withBeep = true)
+            PatrolAnnouncer.announce(this, message, withBeep = true, critical = true)
             GpsRouteStore.stopGuidance(this)
             mainHandler.post { stopSelf() }
         }

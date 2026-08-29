@@ -27,6 +27,9 @@ class HearingAidEngine(private val context: Context) {
     @Volatile
     private var lastError: String? = null
 
+    @Volatile
+    private var activeMicSource: HearingAidSettings.MicSource = HearingAidSettings.MicSource.AUTO
+
     fun lastErrorMessage(): String? = lastError
 
     fun isRunning(): Boolean = running
@@ -46,6 +49,7 @@ class HearingAidEngine(private val context: Context) {
         }
 
         processor.updateSettings(settings)
+        activeMicSource = settings.micSource
         val sampleRate = 44100
         val channelIn = AudioFormat.CHANNEL_IN_MONO
         val channelOut = AudioFormat.CHANNEL_OUT_STEREO
@@ -158,6 +162,7 @@ class HearingAidEngine(private val context: Context) {
                 val record = AudioRecord(source, sampleRate, channelIn, encoding, bufferSize)
                 if (record.state == AudioRecord.STATE_INITIALIZED) {
                     Log.i(TAG, "AudioRecord source=$source")
+                    applyPreferredMic(record)
                     return record
                 }
                 record.release()
@@ -167,6 +172,38 @@ class HearingAidEngine(private val context: Context) {
         }
         lastError = "Nem található működő mikrofon."
         return null
+    }
+
+    /**
+     * A kiválasztott mikrofon-forrás (telefon vagy fülhallgató) beállítása.
+     * AUTO esetén nem avatkozunk be, a rendszer dönt.
+     */
+    private fun applyPreferredMic(record: AudioRecord) {
+        if (activeMicSource == HearingAidSettings.MicSource.AUTO) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+            val target = when (activeMicSource) {
+                HearingAidSettings.MicSource.PHONE -> inputs.firstOrNull {
+                    it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC
+                }
+                HearingAidSettings.MicSource.HEADSET -> inputs.firstOrNull {
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                }
+                else -> null
+            }
+            if (target != null) {
+                val ok = record.setPreferredDevice(target)
+                Log.i(TAG, "Preferred mic=${target.type} (${target.productName}) applied=$ok")
+            } else {
+                Log.w(TAG, "No matching input device for $activeMicSource")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "applyPreferredMic failed", e)
+        }
     }
 
     private fun configureAudioRoute() {

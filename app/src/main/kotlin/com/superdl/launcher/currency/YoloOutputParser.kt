@@ -7,6 +7,9 @@ import kotlin.math.min
 /**
  * Parses Ultralytics YOLO TFLite exports (raw head and end-to-end NMS layouts).
  * Tensor shapes are discovered at runtime from the interpreter.
+ *
+ * Bounding boxes are always returned in **normalized 0..1** image space so
+ * croppers and overlays can multiply by the live camera frame size.
  */
 internal object YoloOutputParser {
 
@@ -16,13 +19,23 @@ internal object YoloOutputParser {
         labels: List<String>,
         confThreshold: Float,
         iouThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int = 640,
+        modelInputHeight: Int = 640
     ): List<BanknoteDetection> {
         if (output.isEmpty() || labels.isEmpty()) return emptyList()
+        val inW = modelInputWidth.coerceAtLeast(1)
+        val inH = modelInputHeight.coerceAtLeast(1)
 
         return when (outputShape.size) {
-            3 -> parseThreeDimensional(output[0], outputShape, labels, confThreshold, iouThreshold, maxDetections)
-            2 -> parseTwoDimensional(output, outputShape, labels, confThreshold, iouThreshold, maxDetections)
+            3 -> parseThreeDimensional(
+                output[0], outputShape, labels, confThreshold, iouThreshold,
+                maxDetections, inW, inH
+            )
+            2 -> parseTwoDimensional(
+                output, outputShape, labels, confThreshold, iouThreshold,
+                maxDetections, inW, inH
+            )
             else -> emptyList()
         }
     }
@@ -33,23 +46,37 @@ internal object YoloOutputParser {
         labels: List<String>,
         confThreshold: Float,
         iouThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int,
+        modelInputHeight: Int
     ): List<BanknoteDetection> {
         val dimA = shape[1]
         val dimB = shape[2]
 
         // End-to-end: [1, max_det, 6] => xyxy + conf + class
         if (dimB == 6 || dimB == 7) {
-            return parseEndToEnd(values, dimA, dimB, labels, confThreshold, maxDetections)
+            return parseEndToEnd(
+                values, dimA, dimB, labels, confThreshold, maxDetections,
+                modelInputWidth, modelInputHeight
+            )
         }
 
         val numClasses = labels.size
         val channels = 4 + numClasses
 
         return when {
-            dimA == channels -> parseRawChannelsFirst(values, dimA, dimB, labels, confThreshold, iouThreshold, maxDetections)
-            dimB == channels -> parseRawAnchorsFirst(values, dimA, dimB, labels, confThreshold, iouThreshold, maxDetections)
-            dimB == 6 || dimB == 7 -> parseEndToEnd(values, dimA, dimB, labels, confThreshold, maxDetections)
+            dimA == channels -> parseRawChannelsFirst(
+                values, dimA, dimB, labels, confThreshold, iouThreshold,
+                maxDetections, modelInputWidth, modelInputHeight
+            )
+            dimB == channels -> parseRawAnchorsFirst(
+                values, dimA, dimB, labels, confThreshold, iouThreshold,
+                maxDetections, modelInputWidth, modelInputHeight
+            )
+            dimB == 6 || dimB == 7 -> parseEndToEnd(
+                values, dimA, dimB, labels, confThreshold, maxDetections,
+                modelInputWidth, modelInputHeight
+            )
             else -> emptyList()
         }
     }
@@ -60,7 +87,9 @@ internal object YoloOutputParser {
         labels: List<String>,
         confThreshold: Float,
         iouThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int,
+        modelInputHeight: Int
     ): List<BanknoteDetection> {
         val rows = shape[0]
         val cols = shape[1]
@@ -71,7 +100,10 @@ internal object YoloOutputParser {
                 row.copyInto(flat, offset, 0, min(cols, row.size))
                 offset += cols
             }
-            return parseEndToEnd(flat, rows, cols, labels, confThreshold, maxDetections)
+            return parseEndToEnd(
+                flat, rows, cols, labels, confThreshold, maxDetections,
+                modelInputWidth, modelInputHeight
+            )
         }
         return emptyList()
     }
@@ -82,7 +114,9 @@ internal object YoloOutputParser {
         rowWidth: Int,
         labels: List<String>,
         confThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int,
+        modelInputHeight: Int
     ): List<BanknoteDetection> {
         val detections = mutableListOf<BanknoteDetection>()
         for (row in 0 until numRows) {
@@ -104,7 +138,9 @@ internal object YoloOutputParser {
                     label = labels[classIndex],
                     classIndex = classIndex,
                     confidence = score,
-                    boundingBox = normalizeBox(x1, y1, x2, y2)
+                    boundingBox = normalizeBox(
+                        x1, y1, x2, y2, modelInputWidth, modelInputHeight
+                    )
                 )
             )
             if (detections.size >= maxDetections) break
@@ -119,7 +155,9 @@ internal object YoloOutputParser {
         labels: List<String>,
         confThreshold: Float,
         iouThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int,
+        modelInputHeight: Int
     ): List<BanknoteDetection> {
         val numClasses = labels.size
         val candidates = mutableListOf<BanknoteDetection>()
@@ -152,7 +190,9 @@ internal object YoloOutputParser {
                     label = labels[bestClass],
                     classIndex = bestClass,
                     confidence = bestScore,
-                    boundingBox = normalizeBox(x1, y1, x2, y2)
+                    boundingBox = normalizeBox(
+                        x1, y1, x2, y2, modelInputWidth, modelInputHeight
+                    )
                 )
             )
         }
@@ -166,7 +206,9 @@ internal object YoloOutputParser {
         labels: List<String>,
         confThreshold: Float,
         iouThreshold: Float,
-        maxDetections: Int
+        maxDetections: Int,
+        modelInputWidth: Int,
+        modelInputHeight: Int
     ): List<BanknoteDetection> {
         val numClasses = labels.size
         val candidates = mutableListOf<BanknoteDetection>()
@@ -202,32 +244,59 @@ internal object YoloOutputParser {
                     label = labels[bestClass],
                     classIndex = bestClass,
                     confidence = bestScore,
-                    boundingBox = normalizeBox(x1, y1, x2, y2)
+                    boundingBox = normalizeBox(
+                        x1, y1, x2, y2, modelInputWidth, modelInputHeight
+                    )
                 )
             )
         }
         return nonMaxSuppression(candidates, iouThreshold, maxDetections)
     }
 
-    private fun normalizeBox(x1: Float, y1: Float, x2: Float, y2: Float): RectF {
+    /**
+     * Converts model-space boxes (normalized 0..1 **or** pixel 0..inputSize)
+     * into a normalized RectF in 0..1 range.
+     *
+     * MIÉRT: a cropper a camera frame méretével szoroz. Ha pixel-koordinátát
+     * (pl. 120..480 a 640-es bemeneten) adnánk tovább, a vágás a frame
+     * dimenziójával elszállna, és a classifier rossz crop-ot kapna.
+     */
+    internal fun normalizeBox(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        modelInputWidth: Int = 640,
+        modelInputHeight: Int = 640
+    ): RectF {
+        val looksNormalized =
+            x2 <= 1.5f && y2 <= 1.5f && x1 >= -0.1f && y1 >= -0.1f &&
+                max(x2, y2) <= 2f
+
         val left: Float
         val top: Float
         val right: Float
         val bottom: Float
 
-        if (x2 <= 1.5f && y2 <= 1.5f && x1 >= 0f && y1 >= 0f) {
-            left = x1.coerceIn(0f, 1f)
-            top = y1.coerceIn(0f, 1f)
-            right = x2.coerceIn(0f, 1f)
-            bottom = y2.coerceIn(0f, 1f)
+        if (looksNormalized) {
+            left = x1
+            top = y1
+            right = x2
+            bottom = y2
         } else {
-            // xywh pixel space – caller should pass model input size; treat as normalized fallback
-            left = x1.coerceAtLeast(0f)
-            top = y1.coerceAtLeast(0f)
-            right = x2.coerceAtLeast(left)
-            bottom = y2.coerceAtLeast(top)
+            val w = modelInputWidth.coerceAtLeast(1).toFloat()
+            val h = modelInputHeight.coerceAtLeast(1).toFloat()
+            left = x1 / w
+            top = y1 / h
+            right = x2 / w
+            bottom = y2 / h
         }
-        return RectF(left, top, right, bottom)
+
+        val nLeft = left.coerceIn(0f, 1f)
+        val nTop = top.coerceIn(0f, 1f)
+        val nRight = right.coerceIn(nLeft, 1f)
+        val nBottom = bottom.coerceIn(nTop, 1f)
+        return RectF(nLeft, nTop, nRight, nBottom)
     }
 
     private fun nonMaxSuppression(

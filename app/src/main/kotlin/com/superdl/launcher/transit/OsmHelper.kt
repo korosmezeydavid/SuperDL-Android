@@ -11,15 +11,22 @@ internal object OsmHelper {
 
     private const val USER_AGENT = "SuperDL/1.9 (vak-barat launcher; korosmezey.david.richard@gmail.com)"
 
-    fun reverseGeocode(lat: Double, lon: Double): String? {
+    // A TÉRKÉP-SZOLGÁLTATÁS VÁLASZA NEM MEGBÍZHATÓ ADAT.
+    // Lehet üres, hibás, félbeszakadt vagy HTML hibaoldal is. Ha ilyenkor
+    // kivétel keletkezne, az a hívó háttérszálat vinné magával — ezért a
+    // feldolgozás mindenütt védve van, és hiba esetén ÜRES eredményt adunk.
+    fun reverseGeocode(lat: Double, lon: Double): String? = try {
         val url =
             "https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&accept-language=hu"
         val json = JSONObject(fetchText(url))
         val display = json.optString("display_name").ifBlank { json.optString("name") }
-        return display.ifBlank { null }
+        display.ifBlank { null }
+    } catch (e: Exception) {
+        android.util.Log.w("SDL_GPS", "reverseGeocode hiba: ${e.message}")
+        null
     }
 
-    fun geocode(query: String): List<GeoPlace> {
+    fun geocode(query: String): List<GeoPlace> = try {
         val encoded = URLEncoder.encode("$query, Magyarország", "UTF-8")
         val url = "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=6&accept-language=hu"
         val array = JSONArray(fetchText(url))
@@ -31,7 +38,10 @@ internal object OsmHelper {
             val lon = item.optString("lon").toDoubleOrNull() ?: continue
             places.add(GeoPlace(item.optString("name").ifBlank { name }, name, lat, lon))
         }
-        return places
+        places
+    } catch (e: Exception) {
+        android.util.Log.w("SDL_GPS", "geocode hiba: ${e.message}")
+        emptyList()
     }
 
     fun nearbyStops(lat: Double, lon: Double, radiusMeters: Int = 500, limit: Int = 8): List<TransitPlace> {

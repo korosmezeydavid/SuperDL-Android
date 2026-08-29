@@ -1,0 +1,113 @@
+ÉBRESZTŐ NEM SZÓLALT MEG — NYOMOZÁS
+================================================================================
+  >>> ELŐHÍVÓ JELSZÓ: "realarm" <<<
+  Bejelentve: 2026-08-12 | >>> LEZÁRVA: 2026-08-14, MEGOLDVA <<<
+================================================================================
+
+>>> A MEGOLDÁS (2026-08-14) <<<
+
+  NEM VOLT HIBA AZ ÜTEMEZÉSBEN. A ki nem hagyott ébresztők mindvégig
+  megszólaltak — a 9 órás teszt-ébresztő rendben lezajlott, és a
+  gyógyszer-emlékeztető is minden reggel.
+
+  AMI TÖRTÉNT: a beállítás-fájl vizsgálata megmutatta, hogy KÉT hatórás
+  ébresztő van a telefonon. Az egyiken nincs kihagyás, a MÁSIKON hat
+  kihagyás állt érvényben (az ötösön hét). Amikor a fejlesztő egyszer
+  beállította a kihagyást, TÖBB ébresztő is megkapta.
+
+  Tehát a hatos ébresztő ÉRVÉNYES KIHAGYÁS alatt állt — nem elromlott.
+
+>>> A VALÓDI HIBA, AMI A MIÉNK VOLT <<<
+
+  A program TELJESEN CSENDBEN nyelte el a kihagyott ébresztést. Vakon
+  semmilyen módon nem lehetett kideríteni, hogy ez történt — a fejlesztő
+  jogosan hitte, hogy elromlott valami, és két napig kereste az okát.
+
+  JAVÍTVA (2026-08-14): új menüpont az Óra és ébresztés almenüben:
+  "Kihagyott ébresztők". Felolvassa, MELYIK ébresztő van kihagyás alatt és
+  MENNYI van hátra, és jobbra söpréssel az összes kihagyás törölhető.
+
+  A kihagyás maga SZÁNDÉKOSAN NÉMA MARADT — a fejlesztő döntése: "pont az a
+  lényeg, hogy olyankor nem kell csinálnia semmit". Egy bemondás azt rontaná
+  el, amiért a felhasználó bekapcsolta.
+
+  MELLÉKESEN TALÁLT HIBA: a "minden kihagyás törlése" függvény NEM ütemezte
+  újra az ébresztőket. Így a törlés után is kimaradt volna a következő
+  alkalom, mert a már beütemezett riasztás a RÉGI adattal futott volna le.
+  Ez is javítva.
+
+>>> TANULSÁG AZ EGÉSZ PROGRAMRA <<<
+
+  Ha valami SZÁNDÉKOSAN nem történik meg, azt vakon MEG KELL TUDNI
+  kérdezni — különben a felhasználó ott keres hibát, ahol nincs.
+  A néma működés helyes; a LEKÉRDEZHETETLEN néma működés nem.
+
+================================================================================
+AZ EREDETI NYOMOZÁS (megőrizve, mert a kizárások értékesek)
+================================================================================
+
+A BEJELENTÉS (fejlesztő, 2026-08-12):
+  - "ma nem szólt reggel az ébresztőm és tegnap sem"
+  - a tartalék telefonon MEGSZÓLALT ugyanaz az időpont
+  - "vannak kihagyott beállított ébresztők, de vannak aktívan maradtak"
+    >>> tehát NEM mindegyik esik ki: ez a legfontosabb nyom
+  - teszt beállítva 2026-08-13 reggel 9:00-ra
+
+ELSŐ MÉRÉSEK (2026-08-12, a bejelentés napján):
+
+ [OK]  Akkumulátor-optimalizálás: a SuperDL RAJTA VAN a kivétel-listán
+       ("user,com.superdl.launcher.debug") — tehát a rendszer NEM altathatja
+       el. Ez volt az első gyanúm, és KIZÁRVA.
+
+ [OK]  Rendszerszintű ütemezés: NÉGY ébresztő ténylegesen be van ütemezve az
+       Android riasztás-kezelőjében (alarm.AlarmReceiver), plusz a
+       gyógyszer-emlékeztető. Tehát az ütemezés MEGTÖRTÉNIK — a hiba KÉSŐBB van.
+
+ [OK]  Kódvizsgálat (6. mérföld, ugyanezen a napon): az ütemezés pontos
+       időzítést használ, van tartaléka, és a felhasználót is tájékoztatja.
+       A KÓD RENDBEN VAN — ezért kell máshol keresni.
+
+MIT JELENT EZ EGYÜTT:
+  Az ébresztő beütemeződik, a rendszer ismeri, az akku-kezelés nem blokkolja.
+
+ [OK]  Frissítés utáni újraütemezés: MEGVAN. A BootReceiver figyeli a
+       BOOT_COMPLETED és a MY_PACKAGE_REPLACED jelzést is, és mindent
+       újraütemez (ébresztő, gyógyszer, naptár, időzítő). Az osztály létezik,
+       az AlarmReceiver.kt fájl alján. EZ A GYANÚ IS KIZÁRVA.
+
+>>> AMI EDDIG KIZÁRVA: akku-optimalizálás, az ütemezés hiánya, kód-hiba az
+    időzítésben, a frissítés utáni elvesztés.
+
+>>> AMI MARADT (a 9:00-s teszt dönti el):
+     A) A fogadó LEFUT, de a HANG nem szólal meg: háttérből való
+        Activity-indítás korlátozása, hangerő-útvonal, néma mód, hangfókusz.
+     B) A GYÁRTÓI energiakezelés. Az Ulefone (MTK lapkával) saját
+        "alkalmazás-alvasztót" használ, ami FÜGGETLEN az Android
+        akku-optimalizálástól — a fenti kivétel-lista NEM védi meg tőle.
+        Ez a legvalószínűbb maradék gyanú, és megmagyarázza, miért szólt a
+        TARTALÉK telefonon ugyanaz az időpont.
+     C) Az érintett ébresztők közös tulajdonsága (ismétlődő vagy egyszeri).
+
+A TESZT UTÁN AZONNAL FUTTATANDÓ:
+  adb logcat -d | Select-String "AlarmReceiver|AlarmService|SDL_ALARM"
+  Ez megmutatja, eljutott-e a jelzés egyáltalán a programig.
+
+KÖVETKEZŐ LÉPÉSEK (a 9:00-s teszt UTÁN):
+ 1. Napló azonnal: "adb logcat -d | grep -i alarm" — megszólalt-e a fogadó
+ 2. Ha a fogadó lefutott, de nem volt hang: az AlarmService/AlarmAlertActivity
+    indítása a gyanús (háttérből való Activity-indítás korlátozása!)
+ 3. Ha a fogadó SEM futott: a rendszer eldobta az ütemezést — ekkor a
+    telepítés/frissítés a gyanús (minden telepítés törli a beütemezett
+    riasztásokat, és csak a BootReceiver állítja vissza — DE TELEPÍTÉS NEM
+    JÁR ÚJRAINDÍTÁSSAL!)
+    >>> EZ A LEGVALÓSZÍNŰBB: napi többszöri telepítést végzünk, és a
+        MainActivity csak akkor ütemez újra, ha ELINDUL. Ha telepítés után
+        nem indítod el a programot, az ébresztők ELVESZNEK.
+ 4. Ellenőrizni: az "aktívan maradt" és a "kiesett" ébresztők között mi a
+    különbség (ismétlődő vagy egyszeri? mikor lettek beállítva?)
+
+LEHETSÉGES JAVÍTÁS (ha a 3. pont igazolódik):
+  A csomag frissítése után a rendszer küld egy jelzést
+  (ACTION_MY_PACKAGE_REPLACED). Erre KÖTELEZŐEN újra kell ütemezni mindent —
+  most ez HIÁNYZIK a manifestből. Ez a nyilvános tesztnél is számítana:
+  minden frissítés után elvesznének az ébresztők.

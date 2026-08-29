@@ -84,7 +84,7 @@ object GpsRadarHelper {
         } else {
             " Utcabemondás ki van kapcsolva. A műveletek menüben bekapcsolható."
         }
-        return "G P S kitekintő. ${parts.joinToString(" ")}$suffix$monitorHint Swipe fel-le választás, jobbra műveletek, le saját hely mentése."
+        return "G P S kitekintő. ${parts.joinToString(" ")}$suffix$monitorHint Söpörj fel-le választás, jobbra műveletek, le saját hely mentése."
     }
 
     private fun buildPoiList(latitude: Double, longitude: Double, headingDegrees: Float): List<GpsPoi> {

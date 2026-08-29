@@ -1,0 +1,171 @@
+TESZTELŐI FELHÍVÁS — FACEBOOK POSZT
+================================================================================
+  Készült: 2026-08-18
+  Cél: a SuperDL Android nyilvános tesztjének meghirdetése
+  Link: https://super-dl.com/android/tesztelo
+
+MEGJEGYZÉS A HASZNÁLATHOZ:
+Két változat készült. A HOSSZÚ a részletes, ez való a saját idővonaladra és a
+csoportokba. A RÖVID a megosztásra, kommentbe, vagy ha valahol korlátozott a
+hely. Mindkettő ugyanazt mondja el, csak más terjedelemben.
+
+================================================================================
+HOSSZÚ VÁLTOZAT
+================================================================================
+
+Barátaim, ma egy olyan bejegyzést írok, amit három-négy hónapja tologatok
+magam előtt. Mert eddig mindig azt mondtam: még nem. Még nem elég jó. Még nem
+merem kiadni a kezemből.
+
+Ma azt mondom: MOST.
+
+Elkészült a SuperDL Android változata. Nem egy alkalmazás. Nem egy kiegészítő.
+Az EGÉSZ TELEFON, vakoknak tervezve, négy mozdulattal.
+
+Fel és le: választasz. Jobbra: megnyitod. Balra: visszalépsz.
+Ennyi. És ez a négy mozdulat a program minden pontján ugyanazt jelenti.
+
+Van benne telefonálás, üzenet, e-mail, naptár, ébresztő, gyógyszer-emlékeztető.
+Zene, rádió, podcast, YouTube, könyvolvasás, hangoskönyv.
+Felismeri a szöveget a fényképen, a színeket, a tárgyakat, a QR-kódot.
+Navigál, megmondja hol vagy, mi van körülötted, mikor jön a busz.
+S.O.S. hívás, diktafon, akkumulátor őrség.
+
+És van benne egy SAJÁT KÉPERNYŐOLVASÓ, ami nem csak a SuperDL-ben olvas fel,
+hanem MINDEN MÁS ALKALMAZÁSBAN is. A bankban. A Messengerben. A boltban.
+
+Meg egy Elena nevű asszisztens, aki a hívószavára ébred.
+És egy tanuló mód, ahol huszonhat órán át gyakorolhatod a mozdulatokat,
+a végén vizsgával. Osztályzatot is kapsz. :)
+
+⭐ ÉS MOST JÖN A LÉNYEG ⭐
+
+Nem adom ki csak úgy. TESZTELŐKET KERESEK.
+
+És kérlek, ne gondold, hogy ez fontoskodás. Hadd mondjam el, miért nem az.
+
+Ez a program eddig EGYETLEN telefonon készült: az enyémen. A múlt héten
+feltettem egy másikra. Fél óra alatt kiderült két olyan hiba, amit hetekig nem
+vettem észre. Az egyik miatt a program az ELSŐ INDÍTÁSNÁL összeomlott volna
+mindenkinél, aki most telepíti. A másik miatt NÉMA maradt volna azon a
+telefonon — pedig belül minden működött.
+
+Egyik sem az én hibám volt önmagában. Egyszerűen másik gyártó, másik
+Android-verzió, másik szokás.
+
+Most képzeld el, hogy ez nem nálam derül ki, hanem nálad. Vakon. Az első
+napon. Amikor még nem tudod, hogy nem te rontottad el.
+
+Ezért kell a tesztelés.
+
+És van itt még valami, amiről beszélnem kell. Ez a program olyan dolgokat
+csinál, amiknél a tévedés nem kellemetlenség, hanem KÁR.
+Ha rosszul mondja be a gyógyszer idejét — az egészség.
+Ha nem szól az ébresztő — az a munkahely.
+Ha rosszul mondja a bankjegyet — az a pénzed.
+
+Éppen ezért a bankjegyfelismerőt SZÁNDÉKOSAN KIVETTEM a tesztverzióból.
+Kész van. Működik. De amíg nem tudom bizonyítani, hogy SOHA nem téved,
+addig nem adom oda senkinek. Külön, hosszabb mérést fog kapni.
+
+Ez nem félelem. Ez felelősség.
+
+Ugyanezért néztem át az elmúlt hetekben a teljes programot, sorról sorra.
+Húsz hibát találtam és javítottam. Volt köztük olyan, hogy a billentyűzet
+HANGOSAN KIMONDTA A JELSZAVAKAT. Gondolj bele: a boltban, a buszon, a
+váróteremben. Bárki hallhatta volna.
+
+Most már nem mondja ki.
+
+📋 AMIT A JELENTKEZÉSNÉL TUDNOD KELL
+
+Az űrlap RÖVID. Három dolgot kér: a nevedet, egy e-mail címet és egy
+telefonszámot. Ennyi. Nincs kérdőív, nincs húsz kérdés.
+
+A telefonszám azért kell, mert ha jelentkezel, FEL FOGLAK HÍVNI.
+Nem automata üzenetet küldök, nem levelet írok, amit aztán senki nem ért.
+Beszélgetünk, elmondom, mi a dolgod, és megválaszolom, amit kérdezel.
+
+Csináltam az űrlaphoz mindent, ahogy kell: adatvédelmi tájékoztató,
+hozzájárulás, a te adataid biztonságban. Nem azért, hogy bonyolítsam —
+hanem mert komolyan veszem, hogy a te adataidat kezelem.
+
+Ugyanígy a program is: HELYBEN tárol mindent. Nem küld haza semmit.
+Nincs benne reklám, nincs elemzés, nincs követés. Nem tudom, hányan
+használjátok, mit használtok belőle, vagy mikor. És ez így is marad.
+
+A képernyőolvasó látja minden alkalmazásod tartalmát — a bankit is.
+És SEMMIT nem jegyez fel belőle. Csak felolvassa neked.
+
+🙋 KI JELENTKEZZEN?
+
+Bárki, aki vak vagy gyengénlátó, és Android telefonja van.
+
+NEM kell hozzá műszaki tudás. Nem baj, ha még csak most ismerkedsz a
+telefonnal — SŐT. Pont a te visszajelzésed a legértékesebb, mert te
+találkozol azzal, ami egy gyakorlottnak fel sem tűnik.
+
+Minél többféle telefon, annál jobb. Régi, új, olcsó, drága — mindegyik kell.
+
+Amit kérek: használd, ahogy egy hétköznap adódik. És ha valami nem jó,
+SZÓLJ. Beépítettem egy hibajelentőt: elmondod a saját szavaiddal, mi történt,
+a program hozzáteszi a műszaki adatokat, és elküldheted a leveleződdel vagy
+akár Messengerrel. Nem kell hozzá semmit beállítanod.
+
+👉 JELENTKEZÉS: https://super-dl.com/android/tesztelo
+
+A SuperDL ingyenes. És az is marad.
+
+Három-négy hónap munkája van benne. De őszintén? Megérte minden percét.
+És most rátok van szükségem, hogy tényleg jó legyen.
+
+Köszönöm, hogy elolvastad. 🎈
+
+
+================================================================================
+RÖVID VÁLTOZAT (megosztásra, kommentbe)
+================================================================================
+
+Elkészült a SuperDL Android változata — és tesztelőket keresek! 🎈
+
+Nem alkalmazás: az EGÉSZ TELEFON, vakoknak tervezve, négy mozdulattal.
+Fel-le választasz, jobbra megnyitod, balra visszalépsz. Mindenhol ugyanígy.
+
+Telefonálás, üzenet, naptár, ébresztő, gyógyszer-emlékeztető, zene, rádió,
+könyvolvasás, szöveg- és színfelismerés, navigáció, tömegközlekedés, S.O.S.
+Plusz egy saját képernyőolvasó, ami MINDEN alkalmazásban felolvas.
+
+Miért kell tesztelő? Mert a program eddig egyetlen telefonon készült.
+Amikor feltettem egy másikra, fél óra alatt két olyan hiba jött elő, amit
+hetekig nem vettem észre. Az egyiktől a program összeomlott volna az első
+indításnál. A másiktól néma maradt volna.
+
+Nálam derült ki. Nem nálad. És pont ezért kell sok telefon, sok ember.
+
+Bárki jelentkezhet, aki vak vagy gyengénlátó és Android telefonja van.
+Műszaki tudás NEM kell.
+
+Az űrlap rövid: név, e-mail, telefonszám. És ha jelentkezel, FELHÍVLAK —
+elmondom szóban, mi a dolgod, és megválaszolom, amit kérdezel.
+
+👉 https://super-dl.com/android/tesztelo
+
+Ingyenes, és az is marad. ❤️
+
+
+================================================================================
+MEGJEGYZÉSEK DÁVIDNAK
+================================================================================
+ - A hangnem a te stílusod: közvetlen, őszinte, de nem szerénykedő.
+ - A "nem fontoskodás, hanem felelősség" gondolat HÁROM helyen jelenik meg,
+   mindig konkrét példával — mert állítás helyett a példa győz meg.
+ - A billentyűzet-jelszó példát azért tettem bele, mert EZ AZ, ami elhiteti
+   az olvasóval, hogy tényleg átnézted. Egy általános "sokat dolgoztam rajta"
+   mondat semmit nem mond; ez viszont konkrét, és bárki elképzeli magát a
+   buszon.
+ - A bankjegyfelismerő kivétele SZINTÉN bizalmat épít: azt mutatja, hogy
+   inkább visszatartasz valamit, mint hogy kockáztass.
+ - Ha kell kép a poszthoz: a telefon a kezedben, a Nyugatinál. A saját arcod
+   és a saját helyed többet ér bármilyen képernyőképnél.
+ - Ha valaki azt kérdezi, mikor lesz kész: ne mondj dátumot. "Amikor a
+   tesztelők azt mondják, hogy jó."

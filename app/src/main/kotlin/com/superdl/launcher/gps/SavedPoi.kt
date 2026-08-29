@@ -8,9 +8,12 @@ data class SavedPoi(
     val latitude: Double,
     val longitude: Double,
     val category: String = "mentett",
-    val savedAtMs: Long = System.currentTimeMillis()
+    val savedAtMs: Long = System.currentTimeMillis(),
+    val voiceNotePath: String? = null
 ) {
-    fun speakPreview(): String = name
+    fun hasVoiceNote(): Boolean = !voiceNotePath.isNullOrBlank()
+
+    fun speakPreview(): String = if (hasVoiceNote()) "$name, hangjegyzettel" else name
 
     fun toGpsPoi(fromLocation: Location?, headingDegrees: Float): GpsPoi {
         val refLat = fromLocation?.latitude ?: latitude

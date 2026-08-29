@@ -58,6 +58,18 @@ object NavigationHelper {
             onError("Üres keresés.")
             return
         }
+        // HÁLÓZAT-ELLENŐRZÉS: a helykeresés kizárólag interneten működik.
+        // Enélkül hosszú várakozás után jött volna egy "nem találtam" üzenet,
+        // ami félrevezető — a felhasználó azt hinné, nincs ilyen hely.
+        if (!com.superdl.launcher.net.NetworkHelper.isOnline(context)) {
+            onError(
+                com.superdl.launcher.net.NetworkHelper.offlineMessage(
+                    "a helykeresés",
+                    "A mentett helyeid és az iránytű internet nélkül is működnek."
+                )
+            )
+            return
+        }
         val location = getLastLocation(context)
         runAsync(onError, {
             OsmHelper.geocode(trimmed).map { geo ->

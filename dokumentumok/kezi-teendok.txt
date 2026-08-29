@@ -1,0 +1,147 @@
+SUPERDL — KÉZI TESZTELÉSI TEENDŐK
+================================================================================
+  >>> ELŐHÍVÓ JELSZÓ: "kezi" <<<
+  Készült: 2026-08-14 | A nagytakarítás 1-16. mérföldjének eredménye
+
+MIÉRT VAN ERRE SZÜKSÉG:
+A nagytakarítás során a gép átvizsgálta a teljes kódot, és 20 hibát talált és
+javított. DE a gép NEM tudja kipróbálni, hogy a program a KÉZBEN is jól
+működik-e: nem hall, nem söpör, nem tart telefont a bankjegy elé. Ez a lista
+azt gyűjti össze, amit CSAK ÉLŐ HASZNÁLATTAL lehet ellenőrizni.
+
+HOGYAN HASZNÁLD:
+Nem kell egyszerre végigcsinálni. A lista fontossági sorrendben van: az
+"A" csoport a kiadás FELTÉTELE, a "B" fontos, a "C" jó lenne.
+Ha valami nem stimmel, elég annyit megjegyezni: MELYIK pont, és MI történt.
+
+
+════════════════════════════════════════════════════════════════════════════════
+A CSOPORT — EZEK NÉLKÜL NEM ADHATÓ KI
+════════════════════════════════════════════════════════════════════════════════
+
+A1. A KIADÁSI VÁLTOZAT VÉGIGPRÓBÁLÁSA          [16. mérföld]
+    Ez a legfontosabb pont az egész listán.
+    A kiadási csomag MÁSHOGY épül: a kód tömörítve és átnevezve van benne.
+    Ami név alapján működik, az EL IS TÖRHET tőle — a fejlesztői változatban
+    viszont hibátlanul menne. Ezt csak élesben lehet kideríteni.
+    Külön ellenőrizendő a kiadási csomagon:
+      [ ] a képernyőolvasó egyáltalán bekapcsolható-e
+      [ ] a PIN segéd megjelenik-e a kisegítő beállításokban
+      [ ] a mátrix billentyűzet választható-e
+      [ ] QR-olvasó és szövegfelolvasó elindul-e
+      [ ] WiFi portál elindul-e
+      [ ] egy ébresztő megszólal-e
+    HA BÁRMELYIK NEM MEGY: azonnal szólni, mert a tömörítés törte el.
+
+A2. JELSZÓ-PRÓBA                                [4. mérföld]
+    Nyiss meg egy banki vagy e-mail bejelentkezést, és gépelj a mátrix
+    billentyűzettel.
+      [ ] a program NEM mondja ki a betűket, csak rövid hang szól
+      [ ] a bevitel így is használható (a hangokból követhető a pörgetés)
+      [ ] a Beállítások > Mennyit magyarázzon > Jelszó betűinek kimondása
+          ponttal bekapcsolható, ha valaki mégis kéri
+
+A3. PIN SEGÉD ÉS FELOLDÁS                       [2. mérföld]
+    [ ] újraindítás után, feloldás ELŐTT beszél-e a telefon
+    [ ] a PIN beírható-e gesztussal
+    [ ] ha a PIN segéd nem megy, a képernyőolvasó beugrik-e helyette
+    [ ] frissítés (újratelepítés) UTÁN megmaradnak-e bekapcsolva
+        >>> 08-07-én ez KIESETT, ezért kiemelten fontos
+
+A4. ÉBRESZTŐK                                   [6. és 12. mérföld]
+    [ ] ébresztő megszólal-e képernyő kikapcsolva, telefon zsebben
+    [ ] a "Kihagyott ébresztők" menüpont helyesen mondja-e, mi van kihagyás
+        alatt (ÚJ)
+    [ ] a kihagyások törlése után újra megszólal-e (ÚJ)
+    [ ] gyógyszer-emlékeztető megszólalása és nyugtázása
+
+A5. HÍVÁS                                       [5. mérföld]
+    [ ] bejövő hívás fogadása és elutasítása
+    [ ] kihangosítás és némítás VALÓDI hívás közben
+    [ ] hívás alatt a zene, rádió, könyv, YouTube ELHALLGAT-e (ÚJ)
+    [ ] hívás után magától folytatja-e
+
+
+════════════════════════════════════════════════════════════════════════════════
+B CSOPORT — FONTOS, DE NEM KIADÁS-BLOKKOLÓ
+════════════════════════════════════════════════════════════════════════════════
+
+B1. AZ ÚJ KÉPERNYŐOLVASÓ-KÉPESSÉGEK            [3. mérföld]
+    Ezek mind ma épültek, egyik sincs élesben kipróbálva:
+    [ ] ÖNMŰKÖDŐ GÖRGETÉS: hosszú listában (üzenetek, weboldal) a végén
+        magától továbbgörget-e, vagy körbeugrik
+    [ ] ÉRTESÍTÉS BEMONDÁSA: más alkalmazásban hallod-e, ha üzenet jön —
+        és NEM vágja-e félbe, amit épp olvas
+    [ ] TENYÉRREL NÉMÍTÁS: letakarva elhallgat-e
+        >>> ÉS A ZSEBPRÓBA: zsebbe téve NE maradjon tartósan néma
+    [ ] MÁSOLÁS (négy ujjal dupla koppintás) és BEILLESZTÉS (négy ujjal
+        hármas koppintás)
+    [ ] KIJELÖLÉS (dupla koppintás és nyomva tartás) szövegmezőben
+    [ ] IGEN-NEM PÁRBESZÉD: egy "Törlöd?" ablaknál a jobbra = igen,
+        balra = nem tényleg működik-e
+    [ ] KAPCSOLÓ-HANGOK: megnyomás után AZONNAL hallod-e az új állapotot
+
+B2. FÜLHALLGATÓ-PRÓBA                           [8. mérföld]
+    Mind az öt lejátszónál (zene, hangoskönyv, rádió, podcast, YouTube):
+    [ ] indíts lejátszást fülhallgatóval, és HÚZD KI
+        >>> el kell hallgatnia, NEM szabad a hangszóróból szólnia
+    [ ] Bluetooth-fülhallgató kikapcsolása lejátszás közben
+    [ ] könyvolvasás közben a fülhallgató lejátszás-szünet gombja (ÚJ)
+
+B3. HÁLÓZAT NÉLKÜLI VISELKEDÉS                  [9. mérföld]
+    Kapcsold REPÜLŐS ÜZEMMÓDBA, és próbáld:
+    [ ] helykeresés — azonnal és érthetően mondja-e, hogy nincs internet
+    [ ] megállók és menetrend — ugyanez
+    [ ] "Hol vagyok" — a KOORDINÁTÁKAT megadja-e, csak a címet nem
+    [ ] e-mail, rádió, katalógus — érthető hibaüzenet-e
+
+B4. TANULÓ MÓD                                  [saját fejlesztés]
+    [ ] a 26 óra végigjátszható-e, Elena hangjával
+    [ ] a vizsga: NEM súgja meg a mozdulatot, csak a célt
+    [ ] a csörgő telefon feladat 10 másodperces időzítője
+    [ ] kilépés NÉGY gyors koppintással, bármikor
+    [ ] az osztályzat Elena saját hangján szólal-e meg
+
+B5. WIFI PORTÁL                                 [10. mérföld]
+    [ ] TALÁLGATÁS-PRÓBA: írj be tízszer rossz PIN-t a gépről
+        >>> le kell zárnia, és öt perc után újra engednie (ÚJ)
+    [ ] fájlfeltöltés és letöltés
+    [ ] SMS küldése és névjegy-felvétel a portálról
+    [ ] a portál viselkedése, ha megszakad a wifi
+
+B6. ASSZISZTENS                                 [11. mérföld]
+    [ ] "Elena" hívószó felismerése zajban, távolról
+    [ ] HIBA-PRÓBA: repülős üzemmódban hagyd bekapcsolva 10 percig
+        >>> le kell állnia, és SZÓLNIA róla (ÚJ)
+
+
+════════════════════════════════════════════════════════════════════════════════
+C CSOPORT — HOSSZABB MEGFIGYELÉS
+════════════════════════════════════════════════════════════════════════════════
+
+C1. AKKUMULÁTOR                                 [12. mérföld]
+    [ ] ÉJSZAKAI PRÓBA: este 100%-ról reggelig, minden bekapcsolva —
+        mennyit fogyaszt (Beállítások > Akkumulátor > SuperDL)
+    [ ] ugyanez BIZTONSÁGOS MÓDBAN, összehasonlításképp
+    [ ] portál 1 óra bekapcsolva, majd kikapcsolás
+    [ ] GPS-navigáció 30 perc, majd kilépés — leáll-e minden
+
+C2. HOSSZÚ HASZNÁLAT
+    [ ] 30+ perc vegyes használat: lassul-e, melegszik-e
+    [ ] a képernyőolvasó fél óra után is ugyanolyan gyors-e
+
+C3. BANKJEGY-FELISMERŐ                          [KÜLÖN TESZTKÖR]
+    A fejlesztő döntése: HAVI MÉRÉS, önálló körben.
+    Cél: hány felismerésből hány tévedés, és melyik címletnél.
+    >>> A kiadási csomagból KI VAN VÉVE (a modell 38 MB-ot is spórol).
+
+
+════════════════════════════════════════════════════════════════════════════════
+AMI MÉG HÁTRAVAN — FEJLESZTÉS, NEM TESZT
+════════════════════════════════════════════════════════════════════════════════
+ 1. HIBAJELENTÉS-KÜLDÉS: hogyan juttassák el a tesztelők a jelentéseket.
+    (Megbeszélés alatt: e-mail vagy GitHub.)
+ 2. ADATVÉDELMI TÁJÉKOZTATÓ magyarul, FELOLVASHATÓAN a programból.  [13. mf.]
+ 3. A tesztelőknek szóló ÚTMUTATÓ: mit telepítsenek, mit engedélyezzenek,
+    és hogy a kiadási példány KÜLÖN adatokkal fut a fejlesztői mellett.
+ 4. Bankjegy-mérés naplózása (ha a fejlesztő kéri).

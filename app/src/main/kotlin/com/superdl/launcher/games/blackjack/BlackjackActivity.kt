@@ -164,7 +164,7 @@ class BlackjackActivity : AppCompatActivity() {
         val finished = game.currentState()?.phase == BlackjackGame.Phase.FINISHED
         if (finished) {
             playRoundResultSound()
-            tts.speakAdd("Kör vége. Jobbra swipe az új körhöz.")
+            tts.speakAdd("Kör vége. Jobbra söprés az új körhöz.")
         }
     }
 
@@ -214,7 +214,8 @@ class BlackjackActivity : AppCompatActivity() {
     }
 
     private fun finishGame() {
-        tts.speakThen("Blackjack bezárva.") { finish() }
+        tts.speak("Blackjack bezárva.")
+        finish()
     }
 
     override fun onDestroy() {

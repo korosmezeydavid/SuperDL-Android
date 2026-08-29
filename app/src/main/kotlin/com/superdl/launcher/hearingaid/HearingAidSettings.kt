@@ -6,9 +6,19 @@ data class HearingAidSettings(
     val bassGain: Float = 1.0f,
     val midGain: Float = 1.0f,
     val trebleGain: Float = 1.0f,
-    val balance: BalanceMode = BalanceMode.BOTH
+    val balance: BalanceMode = BalanceMode.BOTH,
+    val micSource: MicSource = MicSource.AUTO
 ) {
     enum class BalanceMode { LEFT, BOTH, RIGHT }
+
+    /**
+     * Melyik fizikai mikrofon fogja a hangot:
+     * - AUTO: a rendszer dönt (általában a headset mikrofonja, ha van)
+     * - PHONE: a telefon beépített mikrofonja (tisztább, de a telefont oda kell tartani)
+     * - HEADSET: a Bluetooth vagy vezetékes fülhallgató mikrofonja
+     * A kimenet (amin hallasz) ettől függetlenül a headset marad, ha csatlakoztatva van.
+     */
+    enum class MicSource { AUTO, PHONE, HEADSET }
 
     fun speakSummary(): String = buildString {
         append("Hallás erősítő. ")
@@ -17,7 +27,8 @@ data class HearingAidSettings(
         append("Mély: ${percent(bassGain)}. ")
         append("Közép: ${percent(midGain)}. ")
         append("Magas: ${percent(trebleGain)}. ")
-        append("Balansz: ${balance.speakHu()}.")
+        append("Balansz: ${balance.speakHu()}. ")
+        append("Mikrofon forrás: ${micSource.speakHu()}.")
     }
 
     private fun percent(value: Float): String = "${(value * 100).toInt()} százalék"
@@ -33,4 +44,10 @@ fun HearingAidSettings.BalanceMode.speakHu(): String = when (this) {
     HearingAidSettings.BalanceMode.LEFT -> "bal fül"
     HearingAidSettings.BalanceMode.BOTH -> "mindkét fül"
     HearingAidSettings.BalanceMode.RIGHT -> "jobb fül"
+}
+
+fun HearingAidSettings.MicSource.speakHu(): String = when (this) {
+    HearingAidSettings.MicSource.AUTO -> "automatikus"
+    HearingAidSettings.MicSource.PHONE -> "telefon mikrofon"
+    HearingAidSettings.MicSource.HEADSET -> "fülhallgató mikrofon"
 }

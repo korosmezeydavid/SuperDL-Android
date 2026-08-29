@@ -25,12 +25,26 @@ class ElenaWakeListenService : Service() {
         const val ACTION_RESUME = "com.superdl.launcher.action.ELENA_WAKE_RESUME"
         private const val LISTEN_CYCLE_MS = 450L
         private const val ERROR_BACKOFF_MS = 2_200L
+
+        /** Naplózási címke. */
+        private const val TAG = "SDL_ELENA_WAKE"
+
+        /**
+         * Ennyi EGYMÁS UTÁNI hiba után leállítjuk a figyelést.
+         * Nyolc próbálkozás bőven elég egy átmeneti zavar átvészelésére —
+         * ennél több már tartós hibát jelent, és onnantól csak az
+         * akkumulátort fogyasztanánk.
+         */
+        private const val MAX_CONSECUTIVE_ERRORS = 8
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private var voiceInput: VoiceInput? = null
     private var listeningGeneration = 0
     private var activeListenGeneration = 0
+
+    /** Egymás utáni hibák száma — sok hiba után leállunk. */
+    private var consecutiveErrors = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -109,15 +123,49 @@ class ElenaWakeListenService : Service() {
             hints = ArrayList(ElenaWakeHelper.wakeHints(this)),
             onResult = { result ->
                 if (!isListenCycleActive(generation)) return@listenPromptWakeWord
+                // SIKER: a hibaszámláló nullázódik.
+                consecutiveErrors = 0
                 handleRecognition(result.hypotheses.firstOrNull().orEmpty())
                 scheduleListen(LISTEN_CYCLE_MS)
             },
             onError = { errorCode ->
                 if (!isListenCycleActive(generation)) return@listenPromptWakeWord
+
+                // ISMÉTLŐDŐ HIBA ELLENI VÉDELEM.
+                //
+                // MIÉRT KELL: az ébresztőszó-figyelő FOLYAMATOSAN hallgat, és
+                // hiba után újraindul. Ha a felismerő TARTÓSAN elromlik (nincs
+                // hálózat, elveszett a mikrofon-engedély, más alkalmazás
+                // foglalja), ez VÉGTELEN újrapróbálkozássá válik — és
+                // észrevétlenül lemeríti az akkumulátort. A felhasználó csak
+                // annyit lát, hogy reggelre lemerült a telefon.
+                //
+                // A hibaszámláló a képernyőolvasó bevált mintáját követi:
+                // sok hiba után leállunk, és SZÓLUNK is róla.
+                consecutiveErrors++
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    android.util.Log.w(
+                        TAG,
+                        "ebresztoszo-figyeles LEALL: $consecutiveErrors egymas utani hiba"
+                    )
+                    ElenaWakeStore.setListenEnabled(this@ElenaWakeListenService, false)
+                    com.superdl.launcher.patrol.PatrolAnnouncer.announce(
+                        this@ElenaWakeListenService,
+                        "Az Elena hívószó figyelése leállt, mert többször hibába futott. " +
+                            "A Beállításokban újra bekapcsolhatod.",
+                        withBeep = true,
+                        critical = false
+                    )
+                    stopSelf()
+                    return@listenPromptWakeWord
+                }
+
                 val backoff = if (errorCode == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
                     3200L
                 } else {
-                    ERROR_BACKOFF_MS
+                    // NÖVEKVŐ VÁRAKOZÁS: minden hibánál tovább várunk, így egy
+                    // átmeneti zavar nem terheli a telefont sűrű próbálkozással.
+                    ERROR_BACKOFF_MS * consecutiveErrors
                 }
                 scheduleListen(backoff)
             }

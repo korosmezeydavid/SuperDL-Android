@@ -95,7 +95,7 @@ class IncomingCallActivity : AppCompatActivity() {
         registerDismissReceiver()
         IncomingCallState.isShowing = true
         tts.speakThen("Bejövő hívás. $name.") {
-            tts.speakAdd("Swipe jobbra a fogadáshoz, swipe balra az elutasításhoz.")
+            tts.speakAdd("Söpörj jobbra a fogadáshoz, söprés balra az elutasításhoz.")
         }
     }
 

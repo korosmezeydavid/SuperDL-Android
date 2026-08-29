@@ -55,6 +55,17 @@ object TransitHelper {
                 onError("Helymeghatározás nem elérhető. Kapcsold be a G P S-t.")
                 return
             }
+        // HÁLÓZAT-ELLENŐRZÉS: a megállók és menetrendek csak interneten
+        // érhetők el. Ezt AZONNAL megmondjuk, nem hosszú várakozás után.
+        if (!com.superdl.launcher.net.NetworkHelper.isOnline(context)) {
+            onError(
+                com.superdl.launcher.net.NetworkHelper.offlineMessage(
+                    "a menetrend lekérdezése",
+                    "Keress wifit, vagy kapcsold be a mobiladatot."
+                )
+            )
+            return
+        }
         runAsync(onError, {
             val raw = if (isInBudapest(location)) {
                 fetchBkkNearby(location, radiusMode.bkkRadius)
@@ -171,6 +182,17 @@ object TransitHelper {
                 onError("Helymeghatározás nem elérhető. Kapcsold be a G P S-t.")
                 return
             }
+        // HÁLÓZAT-ELLENŐRZÉS: a megállók és menetrendek csak interneten
+        // érhetők el. Ezt AZONNAL megmondjuk, nem hosszú várakozás után.
+        if (!com.superdl.launcher.net.NetworkHelper.isOnline(context)) {
+            onError(
+                com.superdl.launcher.net.NetworkHelper.offlineMessage(
+                    "a menetrend lekérdezése",
+                    "Keress wifit, vagy kapcsold be a mobiladatot."
+                )
+            )
+            return
+        }
         runAsync(onError, {
             val target = OsmHelper.geocode(trimmed).firstOrNull()
                 ?: throw TransitApiException("Nem található célállomás: $trimmed.")

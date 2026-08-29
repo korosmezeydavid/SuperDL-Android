@@ -111,7 +111,7 @@ class TextReaderActivity : AppCompatActivity() {
                     finishReader()
                 } else {
                     lastBackPressAt = now
-                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra swipe-olj.")
+                    tts.speak("Kilépéshez nyomd meg újra a vissza gombot, vagy balra söpörj.")
                 }
             }
         })
@@ -388,7 +388,8 @@ class TextReaderActivity : AppCompatActivity() {
             TextReaderMode.GENERAL_TEXT -> getString(R.string.text_reader_exit_general)
             TextReaderMode.CONTINUOUS -> getString(R.string.text_reader_exit_continuous)
         }
-        tts.speakThen(exitMessage) { finish() }
+        tts.speak(exitMessage)
+        finish()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

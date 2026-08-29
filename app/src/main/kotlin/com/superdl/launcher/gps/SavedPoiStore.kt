@@ -46,6 +46,20 @@ object SavedPoiStore {
         return true
     }
 
+    /** Beállítja vagy törli (null) egy mentett ponthoz tartozó hangjegyzet útvonalát. */
+    fun updateVoiceNote(context: Context, id: String, voiceNotePath: String?): SavedPoi? {
+        val current = loadRaw(context).toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index < 0) return null
+        val updated = current[index].copy(voiceNotePath = voiceNotePath)
+        current[index] = updated
+        save(context, current)
+        return updated
+    }
+
+    fun getById(context: Context, id: String): SavedPoi? =
+        loadRaw(context).firstOrNull { it.id == id }
+
     fun containsCoords(context: Context, latitude: Double, longitude: Double): Boolean =
         loadRaw(context).any { near(it.latitude, it.longitude, latitude, longitude) }
 
@@ -71,7 +85,8 @@ object SavedPoiStore {
                             latitude = lat,
                             longitude = lon,
                             category = item.optString("category", "mentett"),
-                            savedAtMs = item.optLong("savedAtMs", System.currentTimeMillis())
+                            savedAtMs = item.optLong("savedAtMs", System.currentTimeMillis()),
+                            voiceNotePath = item.optString("voiceNotePath", "").ifBlank { null }
                         )
                     )
                 }
@@ -92,6 +107,7 @@ object SavedPoiStore {
                     .put("longitude", poi.longitude)
                     .put("category", poi.category)
                     .put("savedAtMs", poi.savedAtMs)
+                    .put("voiceNotePath", poi.voiceNotePath ?: "")
             )
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

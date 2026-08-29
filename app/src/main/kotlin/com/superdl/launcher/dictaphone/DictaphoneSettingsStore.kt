@@ -10,6 +10,7 @@ object DictaphoneSettingsStore {
     private const val KEY_BITRATE = "bitrate"
     private const val KEY_CHANNELS = "channels"
     private const val KEY_NOISE = "noise_suppression"
+    private const val KEY_RAW = "raw_capture"
 
     fun load(context: Context): DictaphoneConfig =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).let { prefs ->
@@ -24,7 +25,8 @@ object DictaphoneSettingsStore {
                 channels = DictaphoneChannels.entries.getOrElse(prefs.getInt(KEY_CHANNELS, 0)) {
                     DictaphoneChannels.MONO
                 },
-                noiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE, false)
+                noiseSuppressionEnabled = prefs.getBoolean(KEY_NOISE, false),
+                rawCapture = prefs.getBoolean(KEY_RAW, false)
             )
         }
 
@@ -35,6 +37,7 @@ object DictaphoneSettingsStore {
             .putInt(KEY_BITRATE, config.bitrate.ordinal)
             .putInt(KEY_CHANNELS, config.channels.ordinal)
             .putBoolean(KEY_NOISE, config.noiseSuppressionEnabled)
+            .putBoolean(KEY_RAW, config.rawCapture)
             .apply()
     }
 
@@ -54,6 +57,23 @@ object DictaphoneSettingsStore {
         val config = load(context)
         val next = !config.noiseSuppressionEnabled
         save(context, config.copy(noiseSuppressionEnabled = next))
+        return next
+    }
+
+    /**
+     * Teljesen nyers felvétel ki/be. Bekapcsoláskor a zajszűrést is kikapcsoljuk,
+     * mert a kettő együtt értelmetlen lenne.
+     */
+    fun toggleRawCapture(context: Context): Boolean {
+        val config = load(context)
+        val next = !config.rawCapture
+        save(
+            context,
+            config.copy(
+                rawCapture = next,
+                noiseSuppressionEnabled = if (next) false else config.noiseSuppressionEnabled
+            )
+        )
         return next
     }
 }

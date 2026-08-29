@@ -477,6 +477,9 @@ object VoiceAssistantHelper {
         containsAny(text, "napi osszefoglalo", "reggeli osszefoglalo", "mi var ram ma", "mi var rad ma") ->
             MenuAction.DAY_SUMMARY
 
+        containsAny(text, "helyzetjelentes", "helyzet jelentes", "mi a helyzet", "mi ujsag", "hol allok", "gyors jelentes", "roviden mi van") ->
+            MenuAction.STATUS_REPORT
+
         containsAny(text, "bevasarlolista", "bevasarlo lista", "mi van a listan", "vasarlolista") ->
             MenuAction.SHOPPING_LIST
 
@@ -518,6 +521,16 @@ object VoiceAssistantHelper {
 
         containsAny(
             text,
+            "mi van elottem",
+            "mi van előttem",
+            "mit latsz",
+            "mit látsz",
+            "nezz korul",
+            "nézz körül"
+        ) -> MenuAction.ENV_SNAPSHOT
+
+        containsAny(
+            text,
             "kornyezeti kitekinto",
             "kornyezet felismeres",
             "objektum felismeres",
@@ -542,6 +555,18 @@ object VoiceAssistantHelper {
 
         containsAny(text, "kedvenc megallo", "kedvenc megallok", "mentett megallo") ->
             MenuAction.TRANSIT_FAVORITES
+
+        containsAny(text, "kozeli allomas", "kozeli vasutallomas", "vonat allomas", "mav allomas") ->
+            MenuAction.TRAIN_NEARBY
+
+        containsAny(text, "allomas keres", "allomast keres", "vasutallomas keres") ->
+            MenuAction.TRAIN_STATION_SEARCH
+
+        containsAny(text, "kedvenc allomas", "kedvenc allomasok", "mentett allomas", "kedvenc vonat allomas") ->
+            MenuAction.TRAIN_FAVORITES
+
+        containsAny(text, "vonat", "mav", "vasut", "vasutallomas") ->
+            MenuAction.TRAIN_NEARBY
 
         containsAny(text, "kozlekedes", "tomegkozlekedes", "busszal menj") ->
             MenuAction.TRANSIT_ROUTE
@@ -596,6 +621,21 @@ object VoiceAssistantHelper {
 
         containsAny(text, "zene", "zenek", "zeneszam", "zene a telefonon") ->
             MenuAction.MUSIC
+
+        // SÖTÉT MÓD — sokféleképpen mondható, ezért bő a felsorolás.
+        containsAny(
+            text,
+            "sotet mod",
+            "sotetitsd",
+            "sotet kepernyo",
+            "kepernyo sotet",
+            "fuggony",
+            "fuggonyozd",
+            "kapcsold le a kepernyot",
+            "kapcsold ki a kepernyot",
+            "ne latszodjon a kepernyo",
+            "feketitsd"
+        ) -> MenuAction.SCREEN_CURTAIN_TOGGLE
 
         containsAny(text, "zseblampa", "lampa be", "villogo", "villog") ->
             MenuAction.FLASHLIGHT
@@ -791,7 +831,7 @@ object VoiceAssistantHelper {
         containsAny(text, "hangok", "program hangjai", "hangok betanitasa") ->
             MenuAction.SOUND_TRAINING
 
-        containsAny(text, "swipe hangtema", "swipe hangtéma", "hangtema", "hangtéma", "gesztus hang") ->
+        containsAny(text, "söprés hangtema", "söprés hangtéma", "hangtema", "hangtéma", "gesztus hang") ->
             MenuAction.SOUND_THEME_SELECT
 
         containsAny(text, "tanulo mod", "tanuló mód", "gesztus gyakorlas", "gesztusok gyakorlasa", "jatszoter", "játszótér", "betanulas", "betanulás") ->

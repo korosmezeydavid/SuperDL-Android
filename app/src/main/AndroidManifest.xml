@@ -52,6 +52,7 @@
     <!-- Telefon & Hívások -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <!-- A képernyőolvasó ebből tudja, hogy csörög-e a telefon -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -86,6 +87,14 @@
     <!-- Ébresztő & Értesítések -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!--
+      Korlátlan háttérfutás kérése.
+      MIÉRT: enélkül a rendszer altathatja az appot, és a gyógyszer emlékeztető
+      és az ébresztő késhet vagy elmaradhat. A felmentést a felhasználó adja meg
+      a rendszer párbeszédében; ez az engedély csak ahhoz kell, hogy a párbeszédet
+      egyáltalán meg tudjuk nyitni.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -113,11 +122,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Lépésszámláló: a beépített lépésérzékelő használatához -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Frissítés telepítése a saját tárolóból (Play nélküli terjesztéshez) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Sötét mód: fekete réteg minden fölé (a képernyő elfüggönyözése) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <permission
-        android:name="com.superdl.launcher.permission.SET_SOS"
+        android:name="${applicationId}.permission.SET_SOS"
         android:protectionLevel="signature" />
 
     <application
@@ -128,7 +143,13 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.SuperDL"
         android:supportsRtl="false"
+        android:usesCleartextTraffic="true"
         tools:replace="android:allowBackup,android:supportsRtl">
+
+        <!-- usesCleartextTraffic: sok internetes rádió-stream titkosítatlan
+             HTTP-t használ (nem HTTPS). Android 9 óta ez alapból tiltott, ezért
+             a rádió-streamek némán elhaltak (MediaPlayer what=1 hiba). Ez a
+             kapcsoló engedélyezi a HTTP-streameket. -->
 
         <!-- FŐKÉPERNYŐ LAUNCHER -->
         <activity
@@ -189,6 +210,12 @@
 
         <activity
             android:name=".qr.QrScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".chat.ChatActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.SuperDL" />
@@ -312,6 +339,56 @@
             android:theme="@style/Theme.SuperDL" />
 
         <activity
+            android:name=".book.AudiobookPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".sound.RingtonePickerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".files.FileManagerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <service
+            android:name=".files.WifiPortalService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <activity
+            android:name=".podcast.PodcastPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".radio.RadioPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".alarm.AlarmAlertActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <service
+            android:name=".alarm.AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <activity
             android:name=".youtube.YoutubePlayerActivity"
             android:exported="false"
             android:screenOrientation="portrait"
@@ -382,6 +459,7 @@
         <service
             android:name=".lock.keyguard.KeyguardPinAccessibilityService"
             android:exported="true"
+            android:directBootAware="true"
             android:label="@string/keyguard_pin_accessibility_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
@@ -434,6 +512,16 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="gps_radar" />
+        </service>
+
+        <!-- Hang-iránytű – élő térbeli tájékozódás forgatással -->
+        <service
+            android:name=".gps.CompassScanService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="compass_scan" />
         </service>
 
         <!-- GPS Környezeti figyelő – Voice Vista / Soundscape-szerű utcabemondás -->
@@ -511,6 +599,64 @@
                 <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
         </service>
+
+        <!-- Billentyűzet próbapad és váltó (a rendszer választója innen működik) -->
+        <activity
+            android:name=".keyboard.KeyboardTestActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Mátrix billentyűzet: egyujjas, telefonszám-elrendezésű bevitel.
+             Tartalék a Braille-hez, ott is működik, ahol a multi-touch nem. -->
+        <service
+            android:name=".keyboard.MatrixKeyboardService"
+            android:exported="true"
+            android:label="@string/matrix_keyboard_label"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/matrix_keyboard" />
+        </service>
+
+        <!-- Super DL képernyőolvasó: külső alkalmazások kezelése a négy gesztussal.
+             Az érintés-kezelést futásidőben kéri, csak külső appnál. -->
+        <service
+            android:name=".screenreader.ScreenReaderService"
+            android:exported="true"
+            android:directBootAware="true"
+            android:label="@string/screen_reader_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/screen_reader_service" />
+        </service>
+
+        <!-- "Hol a telóm?" csörgetés leállítása a készüléken (zárolt képernyőn is) -->
+        <activity
+            android:name=".files.FindPhoneStopActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Az SMS-küldés tényleges eredményét fogadja (elment-e a hálózatra) -->
+        <receiver
+            android:name=".sms.SmsSendReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.superdl.launcher.SMS_SENT" />
+                <action android:name="com.superdl.launcher.SMS_DELIVERED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Hívás szűrő tartalék – ha a szűrő szerepkör nincs engedélyezve -->
         <receiver
@@ -670,7 +816,7 @@
         <receiver
             android:name=".sos.SosConfigReceiver"
             android:exported="true"
-            android:permission="com.superdl.launcher.permission.SET_SOS">
+            android:permission="${applicationId}.permission.SET_SOS">
             <intent-filter>
                 <action android:name="com.superdl.launcher.SET_SOS" />
             </intent-filter>

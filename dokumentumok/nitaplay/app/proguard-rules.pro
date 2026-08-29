@@ -1,0 +1,1 @@
+# NitaPlay — default rules

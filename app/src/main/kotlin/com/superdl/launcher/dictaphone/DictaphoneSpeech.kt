@@ -18,5 +18,5 @@ object DictaphoneSpeech {
         "Felvétel mentve: ${entry.speakSummary()}"
 
     fun speakSettingsIntro(config: DictaphoneConfig): String =
-        "Minőség és formátum beállítása. Aktuális: ${config.speakSummary()}. Swipe fel-le választás, jobbra módosítás."
+        "Minőség és formátum beállítása. Aktuális: ${config.speakSummary()}. Söpörj fel-le választás, jobbra módosítás."
 }
