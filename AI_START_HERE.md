@@ -2,18 +2,31 @@
 
 **Utolsó frissítés:** 2026-08-29 | **Verzió:** 1.55.0 (versionCode 101)
 
-> ⚠️ **KÉT SÜRGŐS DOLOG, MIELŐTT BÁRMIHEZ HOZZÁKEZDESZ (2026-08-29-i felmérés):**
+## GITHUB (2026-08-29-től)
+
+**Repó: https://github.com/korosmezeydavid/SuperDL-Android — NYILVÁNOS.**
+A 2026-07-08 óta felgyűlt 434 fájlnyi munka egy commitban rögzítve és felpusholva
+(`26fb93c`). Ág: `master`. A `.git` addig **remote nélkül** állt: a képernyőolvasó,
+a gesztus-iskola és minden más 7 hétig csak ezen a merevlemezen létezett.
+
+**Tesztelői letöltő-link (mindig a legfrissebb kiadásra visz):**
+`https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk`
+
+Ez azért működik, mert minden kiadáshoz feltöltünk egy **verzió nélküli**
+`SuperDL.apk` másolatot is a verziózott `SuperDL-<verzió>.apk` mellé.
+**Új kiadásnál MINDKETTŐT fel kell tölteni, különben a link elromlik.**
+
+> ⚠️ **A REPÓ NYILVÁNOS — KÖTELEZŐ TITOK-SZKEN MINDEN PUSH ELŐTT.**
+> A `.gitignore`-ban 2026-08-29-ig hiányzott egy sorvégtörés
+> (`*.keystoreapp/src/main/assets/ably_key.txt` egyetlen sorban), ezért **sem az aláíró
+> kulcs, sem az Ably-kulcs nem volt kizárva**. Javítva, de ne ronts vissza rajta.
+> Amit soha nem szabad kiküldeni: `app/superdl-release.keystore`, `keystore.properties`,
+> `app/src/main/assets/ably_key.txt`, `local.properties`.
+> Ha az aláíró kulcs kiszivárog, bárki aláírhat hamis „frissítést" a program nevében.
 >
-> 1. **A git-tár nincs szinkronban a lemezzel.** Utolsó commit: **2026-07-08 (1.54.9)**.
->    A munkafában **307 érintett fájl** vár (115 módosított, 189 új/követetlen, 3 törölt) —
->    ez kb. **7 hét fejlesztése commit nélkül**.
-> 2. **Ennek a mappának NINCS git remote-ja** (`git remote -v` üres). Vagyis a fenti 7 hét
->    **csak ezen a merevlemezen létezik**, sehol máshol.
->
-> Ez nem stílus-kérdés: egy lemezhiba vagy egy elrontott tömeges szerkesztés visszavonhatatlan.
-> AJÁNLOTT ELSŐ LÉPÉS bármely új AI-nak: kérdezd meg a fejlesztőt, csináljunk-e egy commitot
-> és állítsunk-e be távoli tárolót (privát GitHub-repó). Amíg ez nincs meg, **különösen óvatosan
-> nyúlj tömegesen fájlokhoz** — nincs mihez visszatérni.
+> A `.gitignore` kizárja továbbá a build-kimeneteket, az alprojektek `build/` mappáit
+> és a bankjegy-tanító képeket (`tools/banknote_yolo/`, `banknote_dataset*` — kb. 1,25 GB).
+> **Ezek a képek NINCSENEK mentve sehova** — ha fontosak, külön mentést igényelnek.
 
 Ha te egy AI vagy (Claude, Grok, egyéb), és most kapcsolódtál be a SuperDL
 fejlesztésébe: ez a fájl a belépőpont. Olvasd el végig, mielőtt bármit
