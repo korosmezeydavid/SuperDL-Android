@@ -53,6 +53,7 @@ enum class CatalogCategory(val label: String) {
     MEDIA("Média és rádió"),
     EVERYDAY("Mindennapi segítség"),
     LOOKS("Hangzás és megjelenés"),
+    LABELS("Elnevezések"),
     OTHER("Egyéb");
 
     companion object {
@@ -75,6 +76,7 @@ enum class CatalogCategory(val label: String) {
             "media", "média" -> MEDIA
             "mindennapi", "everyday" -> EVERYDAY
             "megjelenes", "megjelenés", "looks" -> LOOKS
+            "cimkek", "címkék", "elnevezesek", "elnevezések", "labels" -> LABELS
             "egyeb", "egyéb", "other" -> OTHER
             else -> null
         }
@@ -86,6 +88,8 @@ enum class CatalogCategory(val label: String) {
             ModuleType.RADIO_PACK -> MEDIA
             ModuleType.RECIPES, ModuleType.TEXT_BANK -> EVERYDAY
             ModuleType.SOUND_THEME -> LOOKS
+            ModuleType.LABEL_PACK -> LABELS
+            ModuleType.ROUTE_PACK -> EVERYDAY
             ModuleType.EXTERNAL_APP -> OTHER
             ModuleType.UNKNOWN -> OTHER
         }
@@ -101,6 +105,8 @@ enum class ModuleType(val key: String, val label: String) {
     GUIDE("guide", "útmutató"),
     RECIPES("recipes", "receptek"),
     TEXT_BANK("textbank", "szövegtár-készlet"),
+    LABEL_PACK("labelpack", "elnevezés-csomag"),
+    ROUTE_PACK("routepack", "műveletsor-csomag"),
     EXTERNAL_APP("externalapp", "külön alkalmazás"),
     UNKNOWN("unknown", "ismeretlen típus");
 

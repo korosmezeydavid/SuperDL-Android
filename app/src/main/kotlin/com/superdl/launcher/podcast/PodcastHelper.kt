@@ -17,13 +17,40 @@ import java.net.URLEncoder
 object PodcastHelper {
 
     private const val TAG = "SuperDL.Podcast"
-    private const val USER_AGENT = "SuperDL/1.9 (accessibility launcher)"
+
+    /**
+     * BÖNGÉSZŐS AZONOSÍTÓ, ÉS EZ NEM SZŐRSZÁLHASOGATÁS.
+     *
+     * Az Apple kereső-szolgáltatása a szokatlan azonosítójú kéréseket
+     * elutasítja (403), ezért a keresés csendben mindig üres listát adott —
+     * a felhasználó annyit hallott: "nincs találat".
+     */
+    private const val USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/120.0.0.0 Mobile Safari/537.36"
     private const val TIMEOUT_MS = 15_000
+
+    /**
+     * A LEGUTÓBBI HIBA — hogy a felhasználó ne csak annyit halljon, hogy
+     * "nem sikerült", hanem azt is, MI nem sikerült. Vakon a néma hiba a
+     * legrosszabb: nem lehet eldönteni, az internet rossz-e, vagy a program.
+     */
+    @Volatile
+    var lastError: String? = null
+        private set
 
     /** Népszerű podcastok az adott országban (alapból Magyarország). */
     fun topPodcasts(country: String = "hu", limit: Int = 25): List<Podcast> {
-        val url = "https://rss.applemarketingtools.com/api/v2/$country/podcasts/top/$limit/podcasts.json"
-        val json = httpGet(url) ?: return emptyList()
+        lastError = null
+        // AZ APPLE ÁTKÖLTÖZTETTE A TOPLISTÁT: a régi rss.applemarketingtools.com
+        // ma átirányít a rss.marketingtools.apple.com címre. Az átirányítást
+        // nem minden Android-verzió követi másik gépnévre, ezért az ÚJ címmel
+        // kezdünk, és a régi már csak tartalék.
+        val json = httpGet(
+            "https://rss.marketingtools.apple.com/api/v2/$country/podcasts/top/$limit/podcasts.json"
+        ) ?: httpGet(
+            "https://rss.applemarketingtools.com/api/v2/$country/podcasts/top/$limit/podcasts.json"
+        ) ?: return emptyList()
         return try {
             val results = JSONObject(json).getJSONObject("feed").getJSONArray("results")
             val list = mutableListOf<Podcast>()
@@ -43,19 +70,49 @@ object PodcastHelper {
         }
     }
 
-    /** Podcast keresése név vagy téma alapján. */
+    /**
+     * Podcast keresése név vagy téma alapján.
+     *
+     * KÉT MENETBEN: először a beállított ország boltjában, és ha ott nincs
+     * találat, világszerte. A magyar bolt katalógusa kicsi — egy angol nyelvű
+     * műsor nevére ott simán nulla találat jön, pedig a műsor létezik.
+     */
     fun search(query: String, country: String = "HU", limit: Int = 25): List<Podcast> {
+        lastError = null
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = "https://itunes.apple.com/search?term=$encoded&country=$country&media=podcast&limit=$limit"
-        val json = httpGet(url) ?: return emptyList()
-        return parseItunesResults(json)
+        val local = httpGet(
+            "https://itunes.apple.com/search?term=$encoded&country=$country&media=podcast&limit=$limit"
+        )?.let { parseItunesResults(it) } ?: emptyList()
+        if (local.isNotEmpty()) return local
+        val world = httpGet(
+            "https://itunes.apple.com/search?term=$encoded&media=podcast&limit=$limit"
+        )?.let { parseItunesResults(it) } ?: emptyList()
+        return world
+    }
+
+    /**
+     * Kimondható hibaüzenet, ha a lista üres maradt. Megkülönbözteti a
+     * "nincs internet" és a "nincs ilyen műsor" esetet — ez a kettő
+     * teljesen más teendőt jelent a felhasználónak.
+     */
+    fun speakFailure(what: String): String {
+        val err = lastError
+        return if (err.isNullOrBlank()) {
+            "Nincs találat erre: $what."
+        } else {
+            "Nem sikerült elérni a podcast-katalógust. $err. Ellenőrizd az internetet, aztán próbáld újra."
+        }
     }
 
     /** Egy podcast adatainak (főleg a feed URL-jének) lekérése iTunes ID alapján. */
     fun lookup(collectionId: String, country: String = "HU"): Podcast? {
-        val url = "https://itunes.apple.com/lookup?id=$collectionId&country=$country&media=podcast"
-        val json = httpGet(url) ?: return null
-        return parseItunesResults(json).firstOrNull()
+        val local = httpGet(
+            "https://itunes.apple.com/lookup?id=$collectionId&country=$country&media=podcast"
+        )?.let { parseItunesResults(it).firstOrNull { p -> p.feedUrl.isNotBlank() } }
+        if (local != null) return local
+        // Ha a magyar bolt nem ismeri a műsort, a világméretű keresés még igen.
+        return httpGet("https://itunes.apple.com/lookup?id=$collectionId&media=podcast")
+            ?.let { parseItunesResults(it).firstOrNull { p -> p.feedUrl.isNotBlank() } }
     }
 
     private fun parseItunesResults(json: String): List<Podcast> = try {
@@ -64,8 +121,14 @@ object PodcastHelper {
         for (i in 0 until results.length()) {
             val obj = results.getJSONObject(i)
             val feed = obj.optString("feedUrl")
-            val name = obj.optString("collectionName")
-            if (feed.isBlank() || name.isBlank()) continue
+            // A collectionName néha hiányzik, a trackName viszont megvan.
+            val name = obj.optString("collectionName").ifBlank { obj.optString("trackName") }
+            // A FEED URL HIÁNYA NEM OK A KIDOBÁSRA. Az Apple egyre több
+            // műsornál elhagyja ezt a mezőt, és eddig ezeket a találatokat
+            // csendben eldobtuk — emiatt tűnt úgy, hogy nincs találat.
+            // A feedet megnyitáskor amúgy is lekérjük az azonosító alapján,
+            // pont ahogy a toplistánál.
+            if (name.isBlank()) continue
             list.add(
                 Podcast(
                     id = obj.optLong("collectionId").toString(),
@@ -168,10 +231,22 @@ object PodcastHelper {
                 readTimeout = TIMEOUT_MS
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "application/json, text/xml, */*")
+                setRequestProperty("Accept-Language", "hu-HU,hu;q=0.9,en;q=0.8")
             }
-            if (conn.responseCode !in 200..299) return null
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                lastError = "A szolgáltatás $code hibakóddal válaszolt"
+                Log.w(TAG, "httpGet HTTP $code: $urlString")
+                return null
+            }
             conn.inputStream.bufferedReader().use { it.readText() }
         } catch (e: Exception) {
+            lastError = when (e) {
+                is java.net.UnknownHostException -> "Nincs internetkapcsolat"
+                is java.net.SocketTimeoutException -> "A szolgáltatás nem válaszolt időben"
+                else -> e.javaClass.simpleName
+            }
             Log.w(TAG, "httpGet failed: $urlString", e)
             null
         } finally {

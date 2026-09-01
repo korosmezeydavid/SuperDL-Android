@@ -109,10 +109,11 @@ class RadioRecorder(private val context: Context) {
     companion object {
         private const val TAG = "SuperDL.RadioRec"
 
-        fun dir(context: Context): File {
-            val d = File(context.getExternalFilesDir(null), "radio_recordings")
-            if (!d.exists()) d.mkdirs()
-            return d
-        }
+        /**
+         * A felvételek helye: /Recordings/Radio — nyilvános mappa, amit a
+         * fájlkezelő és a számítógép is lát. (Régen a program saját mappájába
+         * kerültek, ahova az Android 11 óta senki nem lát be.)
+         */
+        fun dir(context: Context): File = com.superdl.launcher.files.RecordingsDirs.radio(context)
     }
 }

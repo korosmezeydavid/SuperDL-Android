@@ -3,7 +3,9 @@ package com.superdl.launcher.music
 import android.content.Context
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.provider.MediaStore
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -260,11 +262,17 @@ class MusicPlayerActivity : AppCompatActivity() {
         SEEK_FORWARD("Előre tekerés"),
         SEEK_BACKWARD("Vissza tekerés"),
         POSITION("Hol tartok"),
+        // Ugyanaz a szám kétszer-háromszor a listában: innen egy mozdulattal
+        // kidobható. Kétlépcsős: az első jobbra söprés csak megkérdezi.
+        DELETE_AND_NEXT("Zeneszám törlése és a következő szám lejátszása"),
         STOP("Lejátszás leállítása")
     }
 
     private val menuItems = ControlItem.entries
     private var menuIndex = 0
+
+    /** Törlés-megerősítés: true, ha a következő jobbra söprés tényleg töröl. */
+    private var pendingDelete = false
 
     enum class PlayMode { SEQUENTIAL, REPEAT_ONE, REPEAT_ALL, SHUFFLE }
 
@@ -322,6 +330,8 @@ class MusicPlayerActivity : AppCompatActivity() {
     }
 
     private fun navigateMenu(delta: Int) {
+        // Ha elléptél a törlésről, a megerősítés elévĂĽl — nem lehet véletlenĂĽl törölni.
+        pendingDelete = false
         menuIndex = (menuIndex + delta + menuItems.size) % menuItems.size
         val item = menuItems[menuIndex]
         updateHint(item)
@@ -341,6 +351,7 @@ class MusicPlayerActivity : AppCompatActivity() {
             ControlItem.SEEK_FORWARD -> seekBy(seekStepSec)
             ControlItem.SEEK_BACKWARD -> seekBy(-seekStepSec)
             ControlItem.POSITION -> announcePosition()
+            ControlItem.DELETE_AND_NEXT -> deleteCurrentAndNext()
             ControlItem.STOP -> stopAndFinish("Lejátszás leállítva.")
         }
     }
@@ -501,6 +512,101 @@ class MusicPlayerActivity : AppCompatActivity() {
         val dur = formatClock(player.duration)
         val remaining = formatClock((player.duration - player.currentPosition).coerceAtLeast(0))
         tts.speak("$pos a $dur-ból. Hátra van $remaining. Tekerés egység $seekStepSec másodperc.")
+    }
+
+    // ==================== Zeneszám törlése ====================
+
+    /**
+     * A szám valódi fájl-útvonala a médiatárból. A törléshez kell: a
+     * content-URI törlése önmagában csak a nyilvántartásból venné ki,
+     * a fájl ott maradna a kártyán.
+     */
+    private fun resolveFilePath(track: MusicTrack): String? = try {
+        contentResolver.query(
+            track.contentUri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * A most szóló szám végleges törlése, majd tovább a következőre.
+     * Duplán-triplán meglévő számokra való.
+     *
+     * KÉTLÉPCSŐS: az első jobbra söprés csak megkérdezi, a második töröl.
+     * Fel-le lépéssel a kérdés elévül — vakon is biztonságos.
+     */
+    private fun deleteCurrentAndNext() {
+        if (playlist.isEmpty()) return
+        val track = currentTrack()
+
+        // Android 11 óta a saját mappáin kívül csak teljes fájlhozzáféréssel
+        // törölhet egy alkalmazás. Enélkül a törlés csendben elbukna.
+        if (!com.superdl.launcher.files.StorageAccess.hasFullAccess()) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(com.superdl.launcher.files.StorageAccess.EXPLANATION)
+            return
+        }
+
+        if (!pendingDelete) {
+            pendingDelete = true
+            tts.speak(
+                "Biztosan törlöd? ${track.title}. A fájl véglegesen törlődik. " +
+                    "Söpörj újra jobbra a törléshez, vagy lépj fel-le a kilépéshez."
+            )
+            return
+        }
+        pendingDelete = false
+
+        val path = resolveFilePath(track)
+        // A lejátszót el KELL engedni: amíg szól, nyitva tartja a fájlt.
+        releasePlayer()
+
+        var ok = false
+        if (path != null) {
+            ok = try {
+                val f = java.io.File(path)
+                !f.exists() || f.delete()
+            } catch (_: Exception) {
+                false
+            }
+        }
+        // A médiatárból is ki kell venni, különben a lista legközelebb
+        // egy nem létező számot kínálna fel.
+        val rows = try {
+            contentResolver.delete(track.contentUri, null, null)
+        } catch (_: Exception) {
+            0
+        }
+        if (rows > 0) ok = true
+        if (path != null) {
+            try {
+                MediaScannerConnection.scanFile(this, arrayOf(path), null, null)
+            } catch (_: Exception) {
+            }
+        }
+
+        if (!ok) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak("Nem sikerült törölni. Lehet, hogy a fájl nem a memóriakártyán van, vagy hiányzik a jogosultság.")
+            playCurrent()
+            return
+        }
+
+        sounds.play(SoundType.ACTION_OK)
+
+        val remaining = playlist.toMutableList()
+        remaining.removeAt(currentIndex)
+        playlist = remaining
+        MusicPlaylistHolder.tracks = remaining
+
+        if (playlist.isEmpty()) {
+            stopAndFinish("Törölve. Nincs több szám a listában.")
+            return
+        }
+        // A törölt elem helyére a következő csúszott, de a lista rövidebb lett.
+        if (currentIndex >= playlist.size) currentIndex = 0
+        tts.speakThen("Törölve: ${track.title}.") { playCurrent() }
     }
 
     // ==================== Hangerőgomb = tekerés ====================

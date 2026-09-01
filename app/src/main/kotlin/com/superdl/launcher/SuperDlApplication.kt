@@ -91,6 +91,14 @@ class SuperDlApplication : Application() {
         } catch (e: Exception) {
             Log.w(TAG, "StartupGuard hiba: ${e.message}")
         }
+        // A névjegyzék megjelenítési beállításai a memóriába: a maskPhone()
+        // olyan helyeken is fut (csengetés, hívás közbeni képernyő), ahol
+        // már nincs mód beállítást olvasni.
+        try {
+            com.superdl.launcher.contacts.ContactPrefs.warm(this)
+        } catch (e: Exception) {
+            Log.w(TAG, "ContactPrefs.warm hiba: ${e.message}")
+        }
         try {
             QuietModeHelper.reconcileOnStartup(this)
         } catch (e: Exception) {

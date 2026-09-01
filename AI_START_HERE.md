@@ -1,6 +1,11 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-08-29 | **Verzió:** 1.55.0 (versionCode 101)
+**Utolsó frissítés:** 2026-08-30 | **Verzió:** 1.55.0 (versionCode 101)
+
+> **2026-08-30: NAGY KÖR — a képernyőolvasó öt új képessége.** Elem-ujjlenyomat,
+> címkekezelő, címkecsomagok, hangtérkép, műveletsorok, beküldés. Részletek a
+> 7. szakasz „2026-08-30" részében. **A verziószám NEM emelkedett** — a munka a
+> debug variánsban van a telefonon, kiadás nem készült.
 
 ## GITHUB (2026-08-29-től)
 
@@ -208,6 +213,69 @@ utaznak; a felismerő a release-ben KI van kapcsolva (külön, egy hónapos pont
   ébresztő létezett, és az egyiken érvényes kihagyás állt. Tanulság a UI-ra: a kihagyás
   beállítása több ébresztőt is érintett, és ez nem volt hallható.
 
+### 2026-08-30 — a képernyőolvasó öt új képessége (MK0–MK9)
+
+Egy nap alatt hét mérföldkő. Minden a `mobil`-ágas tervdokumentum
+(`android-uj-funkciok-merfoldkovek.md`, a claude.ai Projektben) szerint.
+**A telefonon fut, de MÉRÉSSEL MÉG NINCS LEZÁRVA — lásd lentebb, mi vár rá.**
+
+- **Elem-ujjlenyomat (`ElementFingerprint.kt`).** Egy képernyő-elem azonosítása
+  NEM egy jelre épül, hanem tízre, súlyozva: belső azonosító, osztály, szülő
+  osztálya, testvér-index, arányos méret és helyzet, kattintható, kapcsoló.
+  Az egyezés PONTSZÁM. **A program tudatában van a bizonytalanságának:** 0,86
+  fölött kimondja a nevet, 0,68 és 0,86 közt azt mondja, „valószínűleg X", az
+  alatt hallgat. ⚠️ **A küszöbök TIPPEK, nem mérésből valók** — a terv szerint
+  mérésből kellene jönniük (20 elem, 5 app, frissítés előtt-után).
+- **Címkekezelő (`LabelManagerActivity`).** Eddig elnevezni lehetett, de
+  listázni, átnevezni, törölni nem — a címke zsákutca volt. Most: lista,
+  Átnevezés, Részletek (mire épül a név, mennyire bízhatsz benne), Törlés.
+- **Elnevezés billentyűzettel (`LabelInputActivity`).** Eddig CSAK hanggal ment;
+  ha nem volt beszédfelismerés, a gomb örökre névtelen maradt. Most a hangos út
+  hibájánál is átadja a szót a billentyűzetnek.
+- **⚠️ HIBAJAVÍTÁS: a címkék nem voltak benne a mentésben.** A
+  `BackupManager.INCLUDED_PREFS` nem sorolta fel a
+  `superdl_screenreader_labels`-t → telefoncsere = minden elnevezés elveszett.
+- **Címkecsomagok (`LabelPackStore`).** Új modul-típus: `labelpack`. Formátum:
+  `dokumentumok/cimkecsomag-formatum.txt`. **A saját címke MINDIG veri a
+  közösét** — nem szabályként, hanem SORRENDKÉNT: saját pontos kulcs → saját
+  ujjlenyomat → csak azután a csomag. Elvethető, és az elvetés túléli a
+  frissítést. Nincs még kiadott csomag a katalógusban.
+- **Hangtérkép (`ScreenMap`, `ScreenMapPlayer`).** Jobbra-majd-fel: a képernyő
+  SZERKEZETE hangban. Nem leltár — sávokra bont ott, ahol a függőleges hézag
+  nagyobb a szokásosnál. **Négy hangnyelv** (Csoportos, Számláló, Pásztázó,
+  Beszédes), mert ez hallásélmény, nem logika; jobbra-majd-le vált és rögtön
+  le is játssza. Tempó: Nyugodt (alap) / Normál / Gyors — az első próba
+  visszajelzése az volt, hogy „ledarálja".
+- **Műveletsorok (`macro` csomag).** Balra-majd-fel indítja és állítja le a
+  felvételt. **A lépés nem koordináta, hanem ujjlenyomat + címke.** Négy
+  megállási pont: nem találja / bizonytalan / veszélyes szó / balra söprés.
+  Kapcsolóknál a KÍVÁNT ÁLLAPOTOT jegyzi meg, nem a megnyomást — ha már jó
+  állapotban van, kihagyja. Elérhető: Eszközök → Műveletsorok, ÉS a
+  képernyőolvasó almenüjéből. **Elena is érti:** „műveletsor <név>".
+  Megosztás: a lépésneveket felolvassa küldés előtt, mert azok a képernyőről
+  származnak és lehet bennük személyes adat.
+- **Beküldés (`LabelSharing`, `LabelSubmitActivity`).** **ALAPBÓL KIKAPCSOLVA**,
+  a terv szerint. Egy készülék egy szavazat (véletlen azonosító). A veszélyes
+  szavak (töröl, fizet, elküld…) jelölve mennek, és hárman sem élesednek.
+- **⚠️ HIBAJAVÍTÁS: duplán bemondott menüpontok.** A Beállításokban minden sor
+  kétszer hangzott el. Ok: a megnyomható sor a gyerekei szövegéből kapja a
+  nevét, aztán a bejárás a gyerekbe lépve ugyanazt megtalálta. A `walk` most
+  magával viszi, mit mondott már el a sor — de az önállóan működő elemek
+  (kapcsoló, mező, gomb) SOHA nem esnek ki.
+
+**Amit a felderítésről (`felderites`) tudni kell: MÁR MEG VAN ÍRVA.** A
+`TouchExplorer.kt` be van kötve, és **alapból BE van kapcsolva** — vagyis a
+tesztelőknél 1.55.0 óta fut. Döntés 2026-08-30: marad bekapcsolva.
+
+**Ami MÉRÉSRE VÁR a telefonon:** az MK1 küszöbei, a hangtérkép hangnyelv-
+választása (ez tisztán a fejlesztő füle), a címkecsomag kész-kritériuma
+(nincs kiadott csomag), és a műveletsorok viselkedése app-frissítés után.
+
+**Ami külső dologra vár:** MK10 (segítség egy gesztussal) — a super-dl.com-on
+futnia kellene valaminek, mert az Ably-kulcs nem mehet böngészőbe;
+lásd `dokumentumok/segitseg-terv.txt`. MK11 (élő kísérő) — YOLO + szemüveg.
+**MK7 (közös hangnyelv a Windowsszal) 2026-08-30-án ELVETVE.**
+
 ### Tesztelői fázis — anyagok készen
 
 | Fájl | Mi ez |
@@ -222,9 +290,9 @@ tesztelői visszajelzés — ez dönti el, min kell dolgozni.
 
 ### Nyitott szálak
 
-- **`felderites` (2026-08-19, TERV, kód nincs)** — érintéses felderítés a képernyőolvasóban:
-  3 mp nyomva tartás indítja, és nemcsak azt mondja meg, MI van az ujjad alatt, hanem azt is,
-  HOL vagy a képernyőn. `dokumentumok/felderites-terv.txt`.
+- ~~**`felderites`**~~ — **MEGÉPÜLT, és alapból BE van kapcsolva** (2026-08-30-i
+  lemez-ellenőrzés derítette ki: a `TouchExplorer.kt` régóta be van kötve).
+  A terv `dokumentumok/felderites-terv.txt`-ben megmaradt.
 - **`domino` (2026-08-10, TERV)** — hibatűrés: „egy funkció meghibásodhat, a SuperDL nem".
   `dokumentumok/domino-terv.txt`.
 - **`bolt` (döntés 2026-08-04)** — a SuperDL NEM megy a Google Play-re, saját modulboltot kap,
@@ -299,7 +367,9 @@ A fejlesztő kulcsszóval hívja elő ezeket. Ha egy jelszót mond, EZT a fájlt
 
 | Jelszó | Fájl | Miről szól |
 |--------|------|------------|
-| `felderites` | `dokumentumok/felderites-terv.txt` | érintéses felderítés a képernyőolvasóban (TERV) |
+| `felderites` | `dokumentumok/felderites-terv.txt` | érintéses felderítés (MEGÉPÜLT, alapból BE) |
+| `segitseg` | `dokumentumok/segitseg-terv.txt` | MK10: mi akadályozza, és mit kell eldönteni |
+| `cimkecsomag` | `dokumentumok/cimkecsomag-formatum.txt` | a címkecsomagok formátuma (elsőre kell eltalálni) |
 | `domino` | `dokumentumok/domino-terv.txt` | hibatűrés, izolált meghibásodás (TERV) |
 | `bolt` | `dokumentumok/bolt-terv.txt` | saját modulbolt a Google Play helyett |
 | `braille` | `dokumentumok/braille-billentyuzet-terv.txt` | Braille-billentyűzet (kód eltávolítva, terv megmaradt) |

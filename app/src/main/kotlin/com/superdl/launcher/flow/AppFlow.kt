@@ -60,6 +60,18 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    /** Névjegy visszatöltés: a megtalált .vcf fájlok közötti választás. */
+    data class ContactImportBrowse(
+        val files: List<java.io.File>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Rádiófelvételek listája — jobbra lejátszás a beépített lejátszóval. */
+    data class RadioRecordingBrowse(
+        val files: List<java.io.File>,
+        val index: Int
+    ) : AppFlow()
+
     data class ContactContextMenu(
         val items: List<com.superdl.launcher.contacts.ContactBookItem>,
         val contactIndex: Int,
@@ -340,7 +352,19 @@ sealed class AppFlow {
         val slot: Int
     ) : AppFlow()
     data class MusicBrowse(val tracks: List<com.superdl.launcher.music.MusicTrack>, val index: Int) : AppFlow()
-    data class RadioBrowse(val stations: List<com.superdl.launcher.radio.RadioStation>, val index: Int) : AppFlow()
+    data class RadioBrowse(
+        val stations: List<com.superdl.launcher.radio.RadioStation>,
+        val index: Int,
+        /** Törlés mód: a jobbra söprés nem elindítja, hanem eltávolítja a kedvencet. */
+        val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    /** Kedvenc rádió eltávolításának megerősítése. */
+    data class RadioFavoriteDeleteConfirm(
+        val station: com.superdl.launcher.radio.RadioStation,
+        val stations: List<com.superdl.launcher.radio.RadioStation>,
+        val index: Int
+    ) : AppFlow()
     object CalculatorAwaitInput : AppFlow()
     object WeatherAwaitCity : AppFlow()
     data class EmailSmtpPickAccount(
@@ -540,7 +564,17 @@ sealed class AppFlow {
 
     data class LegalBrowse(val sections: List<com.superdl.launcher.legal.LegalSection>, val index: Int) : AppFlow()
 
-    data class BookLibraryBrowse(val books: List<com.superdl.launcher.book.BookEntry>, val index: Int) : AppFlow()
+    data class BookLibraryBrowse(
+        val books: List<com.superdl.launcher.book.BookEntry>,
+        val index: Int,
+        val deleteMode: Boolean = false
+    ) : AppFlow()
+    /** Könyv végleges törlésének megerősítése (jobbra: törlés, balra: mégse). */
+    data class BookDeleteConfirm(
+        val book: com.superdl.launcher.book.BookEntry,
+        val books: List<com.superdl.launcher.book.BookEntry>,
+        val index: Int
+    ) : AppFlow()
     data class BookRecentBrowse(val books: List<com.superdl.launcher.book.BookEntry>, val index: Int) : AppFlow()
     data class BookBookmarkBrowse(
         val bookmarks: List<com.superdl.launcher.book.BookBookmark>,
@@ -910,7 +944,13 @@ sealed class AppFlow {
      */
     data class SetupWizardBrowse(
         val requirements: List<com.superdl.launcher.setup.SetupRequirements.Requirement>,
-        val index: Int
+        val index: Int,
+        /**
+         * ELSŐ INDÍTÁS: ilyenkor a varázsló nem enged tovább, amíg az
+         * alapvető tételek hiányoznak. A menüből indított varázslónál
+         * ez hamis — ott bármikor ki lehet lépni.
+         */
+        val firstRun: Boolean = false
     ) : AppFlow()
 
     /**
@@ -921,7 +961,17 @@ sealed class AppFlow {
      * enélkül a varázsló azt hinné, hogy még mindig hiányzik.
      */
     data class SetupWizardAwaitReturn(
-        val requirement: com.superdl.launcher.setup.SetupRequirements.Requirement
+        val requirement: com.superdl.launcher.setup.SetupRequirements.Requirement,
+        val firstRun: Boolean = false
+    ) : AppFlow()
+
+    /**
+     * NEM LEKÉRDEZHETŐ TÉTEL megerősítése (gyártói automatikus indítás).
+     * A program nem tudja megmérni, ezért megkérdezi — és ezt ki is mondja.
+     */
+    data class SetupWizardConfirmManual(
+        val requirement: com.superdl.launcher.setup.SetupRequirements.Requirement,
+        val firstRun: Boolean = false
     ) : AppFlow()
 
 

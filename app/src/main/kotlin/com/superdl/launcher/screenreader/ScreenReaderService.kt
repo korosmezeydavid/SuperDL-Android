@@ -96,6 +96,7 @@ class ScreenReaderService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        live = this
         android.util.Log.i(ScreenReaderPrefs.TAG, "Kepernyoolvaso szolgaltatas csatlakozott")
         tts = try {
             TtsManager(this)
@@ -546,6 +547,17 @@ class ScreenReaderService : AccessibilityService() {
     }
 
     companion object {
+
+        /**
+         * A FUTÓ szolgáltatás — a menü ezen keresztül indít műveletsort.
+         *
+         * MIÉRT KELL: a műveletsort csak a képernyőolvasó tudja lejátszani,
+         * mert csak ő tud más alkalmazásokban gombot nyomni. A menü viszont
+         * egy külön ablak. Enélkül a kettő nem érné el egymást.
+         */
+        @Volatile
+        var live: ScreenReaderService? = null
+            private set
         /**
          * Ezeken NEM vesszük át az érintés-kezelést.
          *
@@ -578,6 +590,12 @@ class ScreenReaderService : AccessibilityService() {
             "Balra majd jobbra: első elem. Jobbra majd balra: utolsó elem.",
             "Fel majd balra: kezdőképernyő. Fel majd jobbra: legutóbbi alkalmazások.",
             "Le majd balra: értesítések. Le majd jobbra: hosszan nyomás.",
+            "Jobbra majd fel: HANGTÉRKÉP — másfél másodperc hang, és tudod, " +
+                "milyen ez a képernyő: lista, űrlap, vagy majdnem üres.",
+            "Jobbra majd le: a hangtérkép nyelvének váltása, és rögtön hallod is.",
+            "Balra majd fel: MŰVELETSOR felvétele. Elindítod, végigcsinálod a " +
+                "lépéseket, és ugyanezzel a mozdulattal leállítod. Utána egy " +
+                "névvel elindíthatod bármikor.",
             "KÉT UJJAL — mit olvasunk.",
             "Jobbra és balra: váltás a módok között. Minden elem, címsorok, " +
                 "hivatkozások, gombok, beviteli mezők, szöveg.",
@@ -664,6 +682,10 @@ class ScreenReaderService : AccessibilityService() {
             handleTrainingGesture(gestureId)
             return true
         }
+        // MŰVELETSOR LEJÁTSZÁSA KÖZBEN a gesztusok mást jelentenek: jobbra
+        // igen, balra megszakítás. Ez mindent megelőz — ha épp fut valami a
+        // kezed helyett, a kiszállásnak kell a legkönnyebbnek lennie.
+        if (handleRouteGesture(gestureId)) return true
         return try {
             when (gestureId) {
                 // ── ALAP NÉGY GESZTUS ──────────────────────────────────────
@@ -683,6 +705,7 @@ class ScreenReaderService : AccessibilityService() {
                     // szabály él: jobbra igen, balra nem.
                     if (!rejectDialogIfPresent()) {
                         sounds?.play(ScreenReaderSounds.Sound.BACK)
+                        recordStep(com.superdl.launcher.macro.TaskStep.Action.BACK, null)
                         performGlobalAction(GLOBAL_ACTION_BACK)
                     }
                     true
@@ -704,6 +727,22 @@ class ScreenReaderService : AccessibilityService() {
 
                 // ── RÉSZLETEK / HOSSZAN NYOMÁS ────────────────────────────
                 GESTURE_SWIPE_DOWN_AND_RIGHT -> { longPressCurrent(); true }
+
+                // ── HANGTÉRKÉP: milyen ez a képernyő? ─────────────────────
+                // JOBBRA-MAJD-FEL. Eddig szabadon állt, és a mozdulat
+                // "kinyitás" érzetű — felfelé, kifelé a részletekből.
+                GESTURE_SWIPE_RIGHT_AND_UP -> { playScreenMap(); true }
+                // JOBBRA-MAJD-LE: a hangnyelv váltása. Közvetlenül a térkép
+                // mellett, mert a kipróbálás közben kell váltogatni — nem
+                // menüben, ahol minden váltás öt lépés.
+                GESTURE_SWIPE_RIGHT_AND_DOWN -> { cycleScreenMapStyle(); true }
+
+                // ── MŰVELETSOR FELVÉTELE ─────────────────────────────────
+                // BALRA-MAJD-FEL. A felvételt ott kell tudni indítani és
+                // leállítani, AHOL a munka történik — egy másik alkalmazás
+                // közepén. Menüből ez nem menne: a menübe lépéssel már
+                // elhagynád azt a képernyőt, amit fel akarsz venni.
+                GESTURE_SWIPE_LEFT_AND_UP -> { toggleRouteRecording(); true }
 
                 // ── KÉT UJJAL: MIT olvasunk ───────────────────────────────
                 // (Android 11 felett érkeznek ilyen események; régebbin a
@@ -769,6 +808,11 @@ class ScreenReaderService : AccessibilityService() {
             tts?.speak(if (forward) "A lista végén vagy." else "A lista elején vagy.")
             return
         }
+        recordStep(
+            if (forward) com.superdl.launcher.macro.TaskStep.Action.SCROLL_FORWARD
+            else com.superdl.launcher.macro.TaskStep.Action.SCROLL_BACK,
+            null
+        )
         // A tartalom változott: friss beolvasás, és az első elemre állunk.
         clearNodes()
         index = 0
@@ -862,6 +906,7 @@ class ScreenReaderService : AccessibilityService() {
         }
         val ok = ScreenReaderNavigator.longPress(node)
         if (ok) {
+            recordStep(com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK, node)
             sounds?.play(ScreenReaderSounds.Sound.LONG_PRESS)
             tts?.speak("Hosszan megnyomva.")
             clearNodes()
@@ -1096,12 +1141,14 @@ class ScreenReaderService : AccessibilityService() {
             say("Nincs kiválasztott elem.")
             return
         }
+        val pkg = currentPackage ?: return
         val vi = voiceInput
         if (vi == null || !vi.isAvailable()) {
-            say("Az elnevezéshez hangfelismerés kell, ami most nem érhető el.")
+            // NINCS HANGFELISMERÉS — de ettől még el lehet nevezni.
+            // Korábban itt elakadt a funkció; most a billentyűzetes ablak jön.
+            openLabelKeyboard(node, pkg)
             return
         }
-        val pkg = currentPackage ?: return
         val existing = ScreenReaderLabels.labelFor(this, node, pkg)
         sounds?.play(ScreenReaderSounds.Sound.FIELD)
         vi.listenPrompt(
@@ -1116,6 +1163,7 @@ class ScreenReaderService : AccessibilityService() {
                     if (name.isBlank()) {
                         say("Nem értettem.")
                     } else if (ScreenReaderLabels.setLabel(this, node, pkg, name)) {
+                        rememberFingerprint(node, pkg)
                         sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
                         say("Elmentve: $name. Mostantól így fogom nevezni.")
                         nodesStale = true
@@ -1126,11 +1174,480 @@ class ScreenReaderService : AccessibilityService() {
             },
             onError = {
                 handler.post {
+                    // NEM adjuk fel: ha a hang nem ment, jöjjön a billentyűzet.
+                    // Egy zajos helyen ez a különbség aközött, hogy a gomb
+                    // örökre névtelen marad, vagy nem.
                     sounds?.play(ScreenReaderSounds.Sound.ERROR)
-                    say("Nem sikerült az elnevezés.")
+                    say("A hangos elnevezés nem sikerült. Írd be.")
+                    openLabelKeyboard(node, pkg)
                 }
             }
         )
+    }
+
+    /**
+     * ELNEVEZÉS BILLENTYŰZETTEL — a hangos út tartaléka.
+     *
+     * MIÉRT ÍGY: mire az ablak megnyílik, az elem már nincs a képernyőn (a
+     * saját ablakunk van elöl). Ezért a kulcsot MOST számoljuk ki, amíg az elem
+     * még megvan, és azt adjuk át. Az ablak már csak a kulccsal dolgozik.
+     */
+    private fun openLabelKeyboard(node: AccessibilityNodeInfo, pkg: String) {
+        val key = ScreenReaderLabels.keyOf(node, pkg)
+        if (key == null) {
+            sounds?.play(ScreenReaderSounds.Sound.ERROR)
+            say("Ezt az elemet nem tudom megjegyezni.")
+            return
+        }
+        sounds?.play(ScreenReaderSounds.Sound.FIELD)
+        try {
+            val intent = android.content.Intent(this, LabelInputActivity::class.java).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(LabelInputActivity.EXTRA_KEY, key)
+                putExtra(LabelInputActivity.EXTRA_WHAT, ScreenReaderNavigator.describe(node))
+            }
+            rememberFingerprint(node, pkg)
+            startActivity(intent)
+            nodesStale = true
+        } catch (e: Exception) {
+            sounds?.play(ScreenReaderSounds.Sound.ERROR)
+            say("Az elnevező ablak nem nyílt meg.")
+        }
+    }
+
+    /**
+     * Az elem UJJLENYOMATÁNAK eltétele az elnevezéssel együtt.
+     *
+     * MIÉRT MOST: az ujjlenyomatot akkor kell rögzíteni, amikor az elem MÉG
+     * A KÉPERNYŐN VAN. Utólag már nincs miből.
+     */
+    private fun rememberFingerprint(node: AccessibilityNodeInfo, pkg: String) {
+        try {
+            val key = ScreenReaderLabels.keyOf(node, pkg) ?: return
+            val print = ElementFingerprint.of(node, screenWidth(), screenHeight()) ?: return
+            ScreenReaderLabels.saveFingerprint(this, key, print)
+        } catch (_: Exception) {
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  MŰVELETSOR — felvétel és lejátszás
+    // ══════════════════════════════════════════════════════════════════════
+
+    private var playingRoute: com.superdl.launcher.macro.TaskRoute? = null
+    private var playIndex = 0
+
+    /** Igaz, amíg egy kérdésre várunk: jobbra igen, balra nem. */
+    private var routeAwaitingYes = false
+
+    val isRoutePlaying: Boolean get() = playingRoute != null
+
+    /**
+     * FELVÉTEL: egy megtett lépés eltétele.
+     *
+     * Csak akkor csinál bármit, ha megy a felvétel. Ez azért fontos, mert így
+     * a felvétel nem külön "mód", amiben minden másképp működik — ugyanúgy
+     * használod a telefont, mint mindig, csak közben figyelünk.
+     */
+    private fun recordStep(
+        action: com.superdl.launcher.macro.TaskStep.Action,
+        node: AccessibilityNodeInfo?,
+        desiredChecked: Boolean? = null
+    ) {
+        if (!com.superdl.launcher.macro.TaskRouteStore.isRecording(this)) return
+        if (playingRoute != null) return
+        try {
+            val pkg = currentPackage.orEmpty()
+            val print = node?.let { ElementFingerprint.of(it, screenWidth(), screenHeight()) }
+            com.superdl.launcher.macro.TaskRouteStore.addStep(
+                com.superdl.launcher.macro.TaskStep(
+                    action = action,
+                    fingerprint = print?.serialize().orEmpty(),
+                    label = node?.let { describeWithCustomLabel(it) }.orEmpty(),
+                    packageName = pkg,
+                    desiredChecked = desiredChecked
+                )
+            )
+            sounds?.play(ScreenReaderSounds.Sound.PIP)
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * FELVÉTEL INDÍTÁSA ÉS LEÁLLÍTÁSA — egy gesztussal, oda-vissza.
+     *
+     * MIÉRT UGYANAZ A MOZDULAT MINDKETTŐRE: mert a felvétel közben a
+     * felhasználó az adott alkalmazásban dolgozik, és nem akar egy MÁSODIK
+     * mozdulatot is fejben tartani. Amit elindítottál, azt ugyanazzal állítod
+     * meg — ez a legkevesebb, amit meg kell jegyezni.
+     */
+    fun toggleRouteRecording() {
+        stopContinuousReading()
+        val store = com.superdl.launcher.macro.TaskRouteStore
+        if (playingRoute != null) {
+            say("Most épp lejátszás megy. Balra söpréssel tudod megállítani.")
+            return
+        }
+
+        if (!store.isRecording(this)) {
+            store.startRecording(this, currentPackage.orEmpty())
+            sounds?.play(ScreenReaderSounds.Sound.ON)
+            say(
+                "Felvétel elindult. Csináld végig a lépéseket úgy, ahogy szoktad — " +
+                    "minden megnyomást megjegyzek. Ha kész vagy, balra majd fel."
+            )
+            return
+        }
+
+        val count = store.recordedCount()
+        if (count == 0) {
+            store.cancelRecording(this)
+            sounds?.play(ScreenReaderSounds.Sound.EDGE)
+            say("A felvétel véget ért, de nem volt benne egyetlen lépés sem. Nem mentettem el semmit.")
+            return
+        }
+
+        sounds?.play(ScreenReaderSounds.Sound.OFF)
+        val vi = voiceInput
+        if (vi != null && vi.isAvailable()) {
+            say("$count lépés. Mondd, minek nevezzem.")
+            handler.postDelayed({
+                vi.listenPrompt(
+                    prompt = "Mondd a műveletsor nevét.",
+                    onResult = { spoken -> handler.post { finishRecording(spoken) } },
+                    onError = { handler.post { finishRecording("") } }
+                )
+            }, 2200L)
+        } else {
+            finishRecording("")
+        }
+    }
+
+    private fun finishRecording(name: String) {
+        val store = com.superdl.launcher.macro.TaskRouteStore
+        val fallback = "Műveletsor ${store.all(this).size + 1}"
+        val route = store.finishRecording(this, name.trim().ifBlank { fallback })
+        if (route == null) {
+            say("Nem sikerült elmenteni a műveletsort.")
+            return
+        }
+        sounds?.play(ScreenReaderSounds.Sound.FANFARE)
+        say(
+            "Elmentve: ${route.name}, ${route.steps.size} lépés. " +
+                "A menüben, a Műveletsorok pontban tudod elindítani."
+        )
+    }
+
+    /**
+     * LEJÁTSZÁS INDÍTÁSA.
+     *
+     * Előbb megnyitjuk azt az alkalmazást, ahol a felvétel indult. Enélkül a
+     * műveletsor csak akkor menne, ha a felhasználó magától pont ott áll, ahol
+     * a felvételkor állt — ami épp az a teher, amit le akarunk venni róla.
+     */
+    fun startRoute(route: com.superdl.launcher.macro.TaskRoute) {
+        stopContinuousReading()
+        playingRoute = route
+        playIndex = 0
+        routeAwaitingYes = false
+        say(
+            "${route.name}. ${route.steps.size} lépés. " +
+                "Balra söpréssel bármikor megállítom."
+        )
+        var launched = false
+        if (route.startPackage.isNotBlank() && route.startPackage != packageName) {
+            launched = try {
+                packageManager.getLaunchIntentForPackage(route.startPackage)?.let {
+                    it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(it)
+                    true
+                } ?: false
+            } catch (_: Exception) {
+                false
+            }
+        }
+        // Az alkalmazás indulása időbe telik. Ha nem kellett indítani, akkor is
+        // hagyunk időt, hogy a bevezető mondat elhangozzon.
+        handler.postDelayed({ runNextStep() }, if (launched) 3000L else 2200L)
+    }
+
+    fun stopRoute(reason: String) {
+        playingRoute = null
+        routeAwaitingYes = false
+        handler.removeCallbacks(routeRunner)
+        sounds?.play(ScreenReaderSounds.Sound.EDGE)
+        say(reason)
+        nodesStale = true
+    }
+
+    private val routeRunner = Runnable { runNextStep() }
+
+    /**
+     * A KÖVETKEZŐ LÉPÉS.
+     *
+     * Minden lépés előtt ELLENŐRZÜNK. Ha nem az van a képernyőn, amit várunk,
+     * a program AZONNAL MEGÁLL, és megmondja, hol tart. Soha nem nyomkod
+     * tovább vakon.
+     *
+     * Ez a `domino` gondolat: az automatizálás vakon csak akkor bízható meg,
+     * ha TUD FÉLNI. Egy műveletsor, ami mindenáron végigmegy, előbb-utóbb
+     * olyat nyom meg, amit nem lehet visszacsinálni.
+     */
+    private fun runNextStep() {
+        val route = playingRoute ?: return
+        if (playIndex >= route.steps.size) {
+            playingRoute = null
+            sounds?.play(ScreenReaderSounds.Sound.FANFARE)
+            say("${route.name}: kész, mind a ${route.steps.size} lépés megvolt.")
+            nodesStale = true
+            return
+        }
+
+        val step = route.steps[playIndex]
+
+        // ── AMIT SOHA NEM CSINÁL MAGÁTÓL ──────────────────────────────────
+        // Fizetés, végleges küldés, törlés. Itt MINDIG megáll és megkérdez,
+        // akkor is, ha a felvételkor TE nyomtad meg. A felvétel arról szólt,
+        // hogy mit szoktál csinálni — nem arról, hogy ezt most is akarod.
+        if (step.needsTarget && LabelSharing.isDangerous(step.label)) {
+            routeAwaitingYes = true
+            sounds?.play(ScreenReaderSounds.Sound.LONG_PRESS)
+            say(
+                "Megállok. A következő lépés: ${step.speak()}. " +
+                    "Ez visszafordíthatatlan lehet, ezért nem csinálom meg magamtól. " +
+                    "Jobbra igen, balra nem."
+            )
+            return
+        }
+
+        performStep(step)
+    }
+
+    /** A lépés végrehajtása — a megerősítés (ha kellett) már megvan. */
+    private fun performStep(step: com.superdl.launcher.macro.TaskStep) {
+        val route = playingRoute ?: return
+
+        if (!step.needsTarget) {
+            say(step.speak())
+            when (step.action) {
+                com.superdl.launcher.macro.TaskStep.Action.BACK ->
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                com.superdl.launcher.macro.TaskStep.Action.HOME ->
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                com.superdl.launcher.macro.TaskStep.Action.SCROLL_FORWARD ->
+                    scrollForRoute(true)
+                com.superdl.launcher.macro.TaskStep.Action.SCROLL_BACK ->
+                    scrollForRoute(false)
+                else -> {}
+            }
+            advance()
+            return
+        }
+
+        // ── AZ ELLENŐRZÉS ────────────────────────────────────────────────
+        val wanted = ElementFingerprint.parse(step.fingerprint)
+        if (wanted == null) {
+            stopRoute(
+                "Megálltam a ${playIndex + 1}. lépésnél. Ezt a lépést nem tudom " +
+                    "azonosítani — valószínűleg egy régi felvételből való."
+            )
+            return
+        }
+
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        var best: AccessibilityNodeInfo? = null
+        var bestScore = 0f
+        for (node in ScreenReaderNavigator.collectNodes(root)) {
+            val print = ElementFingerprint.of(node, screenWidth(), screenHeight()) ?: continue
+            val s = ElementFingerprint.score(wanted, print)
+            if (s > bestScore) {
+                bestScore = s
+                best = node
+            }
+        }
+
+        // NEM TALÁLTAM: megállunk, és megmondjuk, hol. A felhasználó innen
+        // kézzel folytathatja — tudja, meddig jutottunk.
+        if (best == null || bestScore < ElementFingerprint.THRESHOLD_MAYBE) {
+            stopRoute(
+                "Megálltam a ${playIndex + 1}. lépésnél. Nem találom ezt: ${step.label}. " +
+                    "Lehet, hogy az alkalmazás megváltozott. Innen kézzel tudod folytatni."
+            )
+            return
+        }
+
+        // BIZONYTALAN VAGYOK: megtaláltam valamit, de nem elég biztosan.
+        // Ilyenkor sem nyomom meg magamtól — megkérdezem. A rossz gomb
+        // megnyomása sokkal drágább, mint egy kérdés.
+        if (bestScore < ElementFingerprint.THRESHOLD_SURE) {
+            routeAwaitingYes = true
+            val found = describeWithCustomLabel(best)
+            say(
+                "Megállok. Ezt keresem: ${step.label}. Ezt találtam: $found. " +
+                    "Nem vagyok biztos benne, hogy ugyanaz. Megnyomjam? Jobbra igen, balra nem."
+            )
+            pendingTarget = best
+            return
+        }
+
+        // ── MÁR JÓ ÁLLAPOTBAN VAN? ────────────────────────────────────────
+        // Egy kapcsolónál a megnyomás azt jelenti: "változtasd meg". Ha a
+        // kapcsoló MÁR abban az állapotban van, amit el akartunk érni, akkor a
+        // megnyomás pont elrontaná. Ilyenkor a helyes lépés a KIHAGYÁS — és ki
+        // is mondjuk, hogy ne tűnjön úgy, mintha nem történt volna semmi.
+        val wantedState = step.desiredChecked
+        if (wantedState != null && best.isCheckable && best.isChecked == wantedState) {
+            say(
+                if (wantedState) "${step.label}: már bekapcsolva, kihagyom."
+                else "${step.label}: már kikapcsolva, kihagyom."
+            )
+            advance()
+            return
+        }
+
+        say(step.speak())
+        val ok = if (step.action == com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK) {
+            ScreenReaderNavigator.longPress(best)
+        } else {
+            ScreenReaderNavigator.activate(best)
+        }
+        if (!ok) {
+            stopRoute(
+                "Megálltam a ${playIndex + 1}. lépésnél. Megtaláltam, de nem sikerült " +
+                    "megnyomni: ${step.label}."
+            )
+            return
+        }
+        advance()
+    }
+
+    /** A bizonytalan találat, ami megerősítésre vár. */
+    private var pendingTarget: AccessibilityNodeInfo? = null
+
+    private fun scrollForRoute(forward: Boolean) {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        val scrollable = ScreenReaderNavigator.findScrollable(root)
+        if (scrollable != null) ScreenReaderNavigator.scroll(scrollable, forward)
+    }
+
+    /**
+     * TOVÁBB A KÖVETKEZŐ LÉPÉSRE.
+     *
+     * A várakozás nem díszítés: az alkalmazásnak idő kell átrajzolni a
+     * képernyőt. Ha rögtön keresnénk, még a RÉGI képernyőt látnánk, és vagy
+     * rossz elemet nyomnánk meg, vagy feleslegesen megállnánk.
+     */
+    private fun advance() {
+        playIndex++
+        nodesStale = true
+        clearNodes()
+        handler.removeCallbacks(routeRunner)
+        handler.postDelayed(routeRunner, 1400L)
+    }
+
+    /**
+     * A megerősítő kérdés megválaszolása.
+     * @return igaz, ha a gesztus ide tartozott, és nem kell tovább kezelni
+     */
+    private fun handleRouteGesture(gestureId: Int): Boolean {
+        if (playingRoute == null) return false
+
+        if (routeAwaitingYes) {
+            when (gestureId) {
+                GESTURE_SWIPE_RIGHT -> {
+                    routeAwaitingYes = false
+                    val step = playingRoute?.steps?.getOrNull(playIndex)
+                    val target = pendingTarget
+                    pendingTarget = null
+                    if (step == null) return true
+                    if (target != null) {
+                        // A bizonytalan találatot most már jóváhagytad.
+                        say(step.speak())
+                        val ok = if (step.action ==
+                            com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK
+                        ) {
+                            ScreenReaderNavigator.longPress(target)
+                        } else {
+                            ScreenReaderNavigator.activate(target)
+                        }
+                        if (ok) advance() else stopRoute("Nem sikerült megnyomni.")
+                    } else {
+                        performStep(step)
+                    }
+                    return true
+                }
+                GESTURE_SWIPE_LEFT -> {
+                    pendingTarget = null
+                    stopRoute("Rendben, itt megálltam. Innen kézzel folytathatod.")
+                    return true
+                }
+                else -> {
+                    say("Jobbra igen, balra nem.")
+                    return true
+                }
+            }
+        }
+
+        // LEJÁTSZÁS KÖZBEN a balra söprés MEGSZAKÍT. Ez a legfontosabb
+        // gesztus itt: bármikor ki lehet szállni, egy mozdulattal.
+        if (gestureId == GESTURE_SWIPE_LEFT) {
+            pendingTarget = null
+            stopRoute("Megszakítva a ${playIndex + 1}. lépésnél.")
+            return true
+        }
+        return false
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  HANGTÉRKÉP
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * MILYEN EZ A KÉPERNYŐ? Egy gesztus, másfél másodperc hang.
+     *
+     * Nem mondja meg, MI van rajta — arra ott a lépkedés és a felderítés.
+     * Azt mondja meg, MILYEN: lista-e, űrlap-e, vagy majdnem üres egy nagy
+     * gombbal. Ez a fél másodperces pillantás vak megfelelője.
+     */
+    fun playScreenMap() {
+        stopContinuousReading()
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        val map = ScreenMap.of(root, screenWidth(), screenHeight())
+        if (map.isEmpty) {
+            sounds?.play(ScreenReaderSounds.Sound.EDGE)
+            say("Nem látok semmit ezen a képernyőn.")
+            return
+        }
+        val style = ScreenReaderPrefs.getScreenMapStyle(this)
+        val tempo = ScreenReaderPrefs.getScreenMapTempo(this)
+        ScreenMapPlayer.play(map, style, tempo, sounds, handler) { text -> say(text) }
+    }
+
+    /**
+     * A HANGNYELV VÁLTÁSA, és rögtön a próbája.
+     *
+     * MIÉRT SZÓL EGYBŐL: egy hangnyelvet nem a nevéből lehet megítélni, hanem
+     * abból, ahogy szól. Ha csak bemondaná, hogy "Pásztázó", azzal semmit nem
+     * mondana — az összehasonlításhoz az kell, hogy ugyanazt a képernyőt
+     * halld a másik nyelven, azonnal.
+     */
+    fun cycleScreenMapStyle() {
+        val next = ScreenReaderPrefs.cycleScreenMapStyle(this)
+        say("Hangtérkép: ${ScreenMapPlayer.styleName(next)}.")
+        handler.postDelayed({ playScreenMap() }, 1200L)
     }
 
     /**
@@ -2247,14 +2764,67 @@ class ScreenReaderService : AccessibilityService() {
     private fun describeWithCustomLabel(node: AccessibilityNodeInfo): String {
         val pkg = currentPackage
         if (pkg != null) {
+            val extra = if (node.isCheckable) {
+                if (node.isChecked) ", bekapcsolva" else ", kikapcsolva"
+            } else ""
+
+            // 1. PONTOS TALÁLAT: ugyanaz a kulcs. Ez a régi, bevált út —
+            //    változatlanul ez az első.
             ScreenReaderLabels.labelFor(this, node, pkg)?.let { custom ->
-                val extra = if (node.isCheckable) {
-                    if (node.isChecked) ", bekapcsolva" else ", kikapcsolva"
-                } else ""
                 return "$custom$extra"
             }
+
+            // 2. UJJLENYOMAT: a kulcs nem talált, de lehet, hogy csak
+            //    elmozdult az elem. Itt eddig egyszerűen elveszett a név.
+            //
+            //    A LÉNYEG A BIZONYTALANSÁG KIMONDÁSA: ha az egyezés nem elég
+            //    erős, a program NEM állítja, hanem valószínűsíti. A "gomb"
+            //    is ott marad a mondatban, hogy tudd, ez nem biztos tudás.
+            //    Inkább hallgat, mint téveszt — de ha sejt valamit, azt
+            //    sejtésként mondja el, nem hallgatja el.
+            val match = try {
+                ScreenReaderLabels.matchByFingerprint(
+                    this, node, pkg, screenWidth(), screenHeight()
+                )
+            } catch (_: Exception) {
+                null
+            }
+            if (match != null) return speakMatch(match, node, extra)
+
+            // 3. KÖZÖSSÉGI CÍMKE. VASSZABÁLY: ez az UTOLSÓ út — a saját
+            //    címkéd mindig veri a közösét, mert a fentiek előbb futnak le.
+            //    Amit valaki más adott, azt csak akkor halljuk, ha nekünk
+            //    magunknak nincs jobb nevünk rá.
+            val shared = try {
+                LabelPackStore.match(
+                    this, node, pkg,
+                    ScreenReaderLabels.keyOf(node, pkg),
+                    screenWidth(), screenHeight()
+                )
+            } catch (_: Exception) {
+                null
+            }
+            if (shared != null) return speakMatch(shared, node, extra)
         }
         return ScreenReaderNavigator.describe(node)
+    }
+
+    /**
+     * A találat kimondása — a BIZONYTALANSÁGGAL együtt.
+     *
+     * Ha az egyezés nem elég erős, a program nem állít, hanem valószínűsít, és
+     * ott hagyja az eredeti leírást is, hogy legyen mihez viszonyítani.
+     * Inkább hallgat, mint téveszt — de ha sejt valamit, azt sejtésként mondja
+     * el, nem hallgatja el.
+     */
+    private fun speakMatch(
+        match: ScreenReaderLabels.Match,
+        node: AccessibilityNodeInfo,
+        extra: String
+    ): String = if (match.sure) {
+        "${match.label}$extra"
+    } else {
+        "valószínűleg ${match.label}$extra, ${ScreenReaderNavigator.describe(node)}"
     }
 
     /** Az aktuális elem szövegének felbontása a kért részletességre. */
@@ -2308,8 +2878,13 @@ class ScreenReaderService : AccessibilityService() {
             return
         }
 
+        // A KAPCSOLÓ ÁLLAPOTÁT A MEGNYOMÁS ELŐTT olvassuk ki: utána már az új
+        // állapotot látnánk, és nem tudnánk, mit AKART a felhasználó.
+        val wantedState = if (node.isCheckable) !node.isChecked else null
+
         val ok = ScreenReaderNavigator.activate(node)
         if (ok) {
+            recordStep(com.superdl.launcher.macro.TaskStep.Action.CLICK, node, wantedState)
             sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
             // KAPCSOLÓNÁL azonnal jelezzük az ÚJ állapotot — eddig ehhez
             // le kellett söpörni és visszalépni.
@@ -2335,6 +2910,7 @@ class ScreenReaderService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (live === this) live = null
         setTouchExploration(false)
         stopProximityWatch()
         handler.removeCallbacksAndMessages(null)

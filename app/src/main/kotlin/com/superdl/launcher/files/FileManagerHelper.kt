@@ -13,14 +13,30 @@ import java.util.Locale
  */
 data class FileItem(
     val file: File,
-    val isParent: Boolean = false
+    val isParent: Boolean = false,
+    /**
+     * A MAPPA VÉGÉN ÁLLÓ "Menü" SOR. Nem fájl és nem mappa: innen nyílnak a
+     * csoportos műveletek (kijelölés, teljes tartalom törlése, keresés).
+     * MIÉRT A LISTA VÉGÉN: az eleje a "vissza a szülőbe" helye, és aki
+     * végiglapozza a mappát, az úgyis ideér — aki meg siet, egy felfelé
+     * söpréssel a lista végén azonnal itt van.
+     */
+    val isMenu: Boolean = false
 ) {
-    val name: String get() = if (isParent) "Vissza a szülő mappába" else file.name
-    val isDirectory: Boolean get() = file.isDirectory
+    val name: String get() = when {
+        isParent -> "Vissza a szülő mappába"
+        isMenu -> "Menü"
+        else -> file.name
+    }
+    val isDirectory: Boolean get() = !isMenu && file.isDirectory
+
+    /** Igaz, ha ez valódi fájl vagy mappa (nem navigációs sor). */
+    val isReal: Boolean get() = !isParent && !isMenu
 
     /** Vak felhasználónak felolvasható előnézet: mi ez, mekkora, mikori. */
     fun speakPreview(context: Context): String {
         if (isParent) return name
+        if (isMenu) return "Menü. Csoportos műveletek ebben a mappában."
         return if (isDirectory) {
             val count = try {
                 file.listFiles()?.size ?: 0
@@ -46,6 +62,72 @@ data class FileItem(
         }
         return "$name. ${FileKind.of(file).hungarianName}. $size. Módosítva: $modified."
     }
+}
+
+/**
+ * TELJES FÁJLHOZZÁFÉRÉS — van-e, és ha nincs, hogyan kérjük.
+ *
+ * A BAJ, AMIT ORVOSOL: Android 11 óta egy alkalmazás a saját mappáin kívül
+ * SEMMIT nem törölhet, nem helyezhet át és nem hozhat létre, ha nincs meg ez
+ * a külön engedély. A fájlkezelő böngészni tudott — ezért úgy TŰNT, hogy
+ * működik —, de a törlés, az áthelyezés és a tömörítés némán elhasalt.
+ *
+ * Vakon ez a legrosszabb hibafajta: a menüpont kimondja magát, lefut, és
+ * utána semmi. A felhasználó azt hiszi, ő rontott el valamit.
+ *
+ * Ez az engedély NEM a szokásos "engedélyezed?" ablak: a rendszer egy külön
+ * beállítás-oldalra visz. Ezért kell hozzá magyarázat, nem elég egy kérés.
+ */
+object StorageAccess {
+
+    /** Megvan-e a teljes hozzáférés. Android 10 alatt mindig igen. */
+    fun hasFullAccess(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            try {
+                android.os.Environment.isExternalStorageManager()
+            } catch (_: Exception) {
+                false
+            }
+        } else {
+            true
+        }
+
+    /** A beállítás-oldal megnyitása, ahol a felhasználó megadhatja. */
+    fun openSettings(context: android.content.Context): Boolean = try {
+        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                android.net.Uri.parse("package:${context.packageName}")
+            )
+        } else {
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.parse("package:${context.packageName}"))
+        }
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        true
+    } catch (_: Exception) {
+        // Egyes készülékeken a közvetlen oldal nem nyílik meg — akkor az
+        // általános listát próbáljuk, ott is megtalálható.
+        try {
+            context.startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Amit a felhasználó hall, ha hiányzik. Elmondja, MIÉRT és MI a teendő. */
+    const val EXPLANATION =
+        "Ehhez teljes fájlhozzáférés kell. Az Android 11 óta egy alkalmazás " +
+            "csak a saját mappáiban törölhet és hozhat létre fájlt — enélkül a " +
+            "fájlkezelő csak böngészni tud. Söpörj jobbra, és megnyitom a " +
+            "beállítást: ott kapcsold be a Super DL-nél az összes fájl kezelését, " +
+            "aztán gyere vissza."
 }
 
 /**
@@ -162,6 +244,9 @@ object FileManagerHelper {
             val dir = Environment.getExternalStoragePublicDirectory(type)
             if (dir != null && dir.exists()) places.add(label to dir)
         }
+        // A rádió- és diktafon-felvételek nyilvános helye.
+        val recordings = File(root, "Recordings")
+        if (recordings.exists()) places.add("Felvételek" to recordings)
         // A SuperDL saját mappája (ide kerülnek a portálon feltöltött fájlok)
         val superdl = File(root, "SuperDL")
         if (superdl.exists()) places.add("SuperDL mappa" to superdl)
@@ -172,7 +257,7 @@ object FileManagerHelper {
      * Egy mappa tartalma, vak-barát sorrendben.
      * @param includeParent tegyünk-e a lista élére "vissza a szülőbe" elemet
      */
-    fun listDir(dir: File, includeParent: Boolean = true): List<FileItem> {
+    fun listDir(dir: File, includeParent: Boolean = true, includeMenu: Boolean = false): List<FileItem> {
         val items = mutableListOf<FileItem>()
         val parent = dir.parentFile
         if (includeParent && parent != null && parent.canRead() && dir != rootDir()) {
@@ -188,7 +273,53 @@ object FileManagerHelper {
                 .thenBy { it.name.lowercase(Locale("hu", "HU")) }
         )
         items.addAll(sorted.map { FileItem(it) })
+        // A csoportos műveletek belépője — mindig a lista legvégén.
+        if (includeMenu) items.add(FileItem(dir, isMenu = true))
         return items
+    }
+
+    /**
+     * CÉLMAPPÁK a mozgatáshoz és másoláshoz — LAPOS listaként, nem fában.
+     *
+     * MIÉRT LAPOS: fában lépkedve vakon nehéz megmondani, hol tartasz, és
+     * pont ott a legnagyobb a tévedés ára ("nem a Recordings, hanem a
+     * Ringtones mappába tettem"). Egy lapos listában viszont minden sor
+     * KIMONDJA a teljes helyét, tehát nincs mit félreérteni.
+     *
+     * A sorrend nem véletlen: elöl a mostani mappa és a gyakran használt
+     * helyek, utána a többi — így a valószínű célok pár söprésre vannak.
+     */
+    fun destinationFolders(currentDir: File, maxDepth: Int = 3, maxResults: Int = 300): List<File> {
+        val out = LinkedHashSet<File>()
+        out.add(currentDir)
+        quickPlaces().forEach { (_, dir) -> if (dir.isDirectory) out.add(dir) }
+        val rest = sortedSetOf<String>()
+        try {
+            rootDir().walkTopDown()
+                .maxDepth(maxDepth)
+                .onEnter { dir ->
+                    // Az Android/ mappába nincs értelme belépni: oda az
+                    // Android 11 óta úgysem lehet írni.
+                    !dir.isHidden && dir.name != "Android"
+                }
+                .filter { it.isDirectory && !it.isHidden }
+                .forEach { d ->
+                    if (rest.size < maxResults) rest.add(d.absolutePath)
+                }
+        } catch (_: Exception) {
+        }
+        rest.forEach { out.add(File(it)) }
+        return out.filter { it.isDirectory && it.canRead() }.take(maxResults)
+    }
+
+    /** Egy mappa kimondható neve az útjával együtt ("Zene, ezen belül: Rádió"). */
+    fun speakFolder(dir: File): String {
+        val root = rootDir().absolutePath
+        val rel = dir.absolutePath.removePrefix(root).trim('/')
+        if (rel.isBlank()) return "Fő tárhely"
+        val parts = rel.split('/')
+        return if (parts.size == 1) parts[0]
+        else "${parts.last()}, ezen belül: ${parts.dropLast(1).joinToString(", ")}"
     }
 
     /** Új mappa létrehozása. */

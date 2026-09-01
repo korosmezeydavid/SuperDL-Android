@@ -1,0 +1,85 @@
+MK10 — SEGÍTSÉG EGY GESZTUSSAL: MI AKADÁLYOZZA, ÉS MIT KELL ELDÖNTENI
+=====================================================================
+Készült: 2026-08-30 · Lemez-ellenőrzés után, kód nélkül
+
+MIÉRT EZ A FÁJL
+---------------
+Az MK10 az első mérföldkő a sorban, ami NEM fejezhető be az Android-projekten
+belül. Nem azért, mert nehéz, hanem mert a fele nem itt van. Ezt jobb most
+leírni, mint félig megépíteni és a tesztelők kezében hagyni.
+
+
+AMI MÁR MEGVAN A LEMEZEN
+------------------------
+A Csevejcenter kész P2P-tapasztalatot hordoz, és ennek egy része újrahasznosul:
+
+  chat/NetRoom.kt   Ably-alapú SZOBA, REST-en publikál és a csatorna
+                    előzményét pollozza. A PC-s netroom.py pontos párja —
+                    egy PC-s és egy telefonos felhasználó ugyanabban a
+                    szobában lehet. EZ A JELZÉSVÁLTÁS (signaling) kész alapja.
+  chat/Stun.kt      NAT-áthatolás.
+  chat/TerHang.kt   Saját, 16 kHz-es térbeli hang-motor, AudioRecord és
+                    AudioTrack fölött.
+
+Vagyis a szobakód, a jelzésváltás és a tűzfal-áthatolás gondolata megvan.
+
+
+AMI VISZONT NINCS, ÉS AMIN MÚLIK
+--------------------------------
+
+1. NINCS WEBRTC AZ ANDROID OLDALON.
+   A TerHang saját hangprotokoll — egy BÖNGÉSZŐ nem tud vele beszélni.
+   A 2026-08-30-i döntés viszont az volt, hogy a segítő BÖNGÉSZŐBŐL
+   csatlakozik ("egy látó nem fogja a SuperDL Windows-t letölteni"), és
+   böngészővel élő hangot és képet WebRTC-vel lehet cserélni.
+
+   Következmény: új könyvtár kell az alkalmazásba (org.webrtc, kb. 10-15 MB).
+   Ez egy TESZTELŐI FÁZISBAN lévő programnál nem apró döntés: nő az APK,
+   új natív kód kerül bele, és a hibalehetőségek is nőnek. Ezt nem lehet
+   csendben megcsinálni.
+
+2. AZ ABLY-KULCS NEM MEHET A WEBOLDALRA.
+   Ez a súlyosabb. Ma a kulcs az assets/ably_key.txt-ben van, git-ignorálva,
+   csak a kész APK-ban. Egy BÖNGÉSZŐBEN futó oldal viszont mindenki számára
+   olvasható — ha a kulcsot beletennénk, azzal bárki írhatna és olvashatna
+   MINDEN szobát, a Csevejcenterét is.
+
+   Ez nem megkerülhető trükkel. Három út van:
+     a) egy pici végpont a super-dl.com-on, ami rövid életű Ably-tokent ad
+        a segítő oldalnak (a szokásos megoldás),
+     b) külön, csak erre való jelzésváltó szolgáltatás, publikusan is
+        biztonságos kulccsal,
+     c) saját, apró jelzésváltó a super-dl.com-on (WebSocket).
+
+   Mindhárom azt jelenti, hogy a super-dl.com-on FUTNI KELL VALAMINEK.
+   Ma az egy statikus oldal.
+
+3. KÉPERNYŐMEGOSZTÁS-ENGEDÉLY.
+   A MediaProjection rendszerszintű engedély, minden alkalommal újra kérve.
+   Ez megoldható, de vakon a rendszer engedélykérő ablakát végig kell tudni
+   kattintani — érdemes a képernyőolvasóval együtt kipróbálni, mert ez az a
+   pont, ahol egy segítségkérés elakadhat pont akkor, amikor kell.
+
+
+AMIT EL KELL DÖNTENI (nem kódolási kérdés)
+------------------------------------------
+1. Bekerüljön-e a WebRTC könyvtár a tesztelői változatba, vagy várjon a
+   tesztelői fázis végéig?
+2. Melyik út a jelzésváltásra: token-végpont, külön szolgáltatás, vagy saját
+   jelzésváltó?
+3. Ki és mikor teszi ki a segítő oldalt a super-dl.com alá? (Hercules)
+
+
+JAVASLAT
+--------
+Az MK10 maradjon a tervezőszobában, amíg a 2. kérdés el nem dől — az a
+szűk keresztmetszet, nem a kód. Amint van hova jelzést váltani, az androidos
+rész két körben megépíthető:
+
+  1. kör: szobakód, meghívó link, a három küldési út (SMS, Messenger,
+          bármi) — ugyanaz a szemlélet, mint a hibajelentőnél.
+  2. kör: WebRTC-hang, majd a kamera, majd a képernyő. Ebben a sorrendben,
+          mert a HANG önmagában is hasznos, a többi ráépül.
+
+A "segítő nem felhasználó, hanem szívesség" elv marad: se fiók, se
+regisztráció, se telepítés. Megnyit egy linket, lát és beszél.

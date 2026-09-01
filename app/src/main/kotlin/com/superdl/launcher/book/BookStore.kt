@@ -174,6 +174,42 @@ object BookStore {
         return removed
     }
 
+    /**
+     * Minden nyom eltüntetése egy könyvről: olvasási pozíció, "nem rég
+     * olvasott" bejegyzés és az összes hozzá tartozó könyvjelző.
+     *
+     * A TÖRÖLT KÖNYV FÁJLJÁT NEM ez törli — azt a hívó teszi. Ez csak arra
+     * való, hogy a program ne kínáljon fel többé egy már nem létező könyvet.
+     */
+    fun forgetBook(context: Context, bookPath: String) {
+        // pozíció
+        val positions = readPositions(context)
+        if (positions.has(bookPath)) {
+            positions.remove(bookPath)
+            JsonPrefsHelper.saveJsonObject(
+                context, PREFS, KEY_POSITIONS, KEY_POSITIONS_SCHEMA, SCHEMA_VERSION, positions
+            )
+        }
+        // hangoskönyv-pozíció
+        val audio = readAudioPositions(context)
+        if (audio.has(bookPath)) {
+            audio.remove(bookPath)
+            JsonPrefsHelper.saveJsonObject(
+                context, PREFS, KEY_AUDIO_POS, KEY_AUDIO_POS_SCHEMA, SCHEMA_VERSION, audio
+            )
+        }
+        // nem rég olvasott
+        val recent = getRecentPaths(context).filter { it != bookPath }
+        val array = JSONArray()
+        recent.forEach { array.put(it) }
+        JsonPrefsHelper.saveJsonArray(
+            context, PREFS, KEY_RECENT, KEY_RECENT_SCHEMA, SCHEMA_VERSION, array
+        )
+        // könyvjelzők
+        val bookmarks = getBookmarks(context).filter { it.bookPath != bookPath }
+        saveBookmarks(context, bookmarks)
+    }
+
     /** A könyvjelzők nyers JSON-tömbje – a WiFi-portál GET /sync/bookmarks-hez. */
     fun bookmarksJsonArray(context: Context): JSONArray =
         JsonPrefsHelper.readJsonArray(

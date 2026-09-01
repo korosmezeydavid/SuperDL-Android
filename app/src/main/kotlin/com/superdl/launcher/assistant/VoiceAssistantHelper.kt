@@ -19,6 +19,16 @@ sealed class VoiceAssistantIntent {
     data class BookSearch(val query: String) : VoiceAssistantIntent()
     data class OpenExternalApp(val query: String) : VoiceAssistantIntent()
     data class WebSearch(val query: String) : VoiceAssistantIntent()
+
+    /**
+     * MŰVELETSOR INDÍTÁSA HANGGAL — "Elena, műveletsor wifi hotspot".
+     *
+     * MIÉRT KELL A "MŰVELETSOR" SZÓ: enélkül minden kimondott mondatot össze
+     * kellene vetni a műveletsorok neveivel, és egy "hotspot" nevű műveletsor
+     * elnyelné a hotspotról szóló kérdéseket. A hívószó teszi egyértelművé,
+     * hogy most nem kérdezel, hanem CSINÁLTATSZ valamit.
+     */
+    data class RunTaskRoute(val routeId: String, val routeName: String) : VoiceAssistantIntent()
 }
 
 object VoiceAssistantHelper {
@@ -108,6 +118,10 @@ object VoiceAssistantHelper {
         is VoiceAssistantIntent.TransitRoute,
         is VoiceAssistantIntent.NavWalkRoute -> 14
         is VoiceAssistantIntent.CallContact -> 15
+        // A LEGMAGASABB PONTSZÁM: ha a hívószó elhangzott, akkor a felhasználó
+        // egészen biztosan műveletsort akart indítani, nem keresni vagy
+        // kérdezni. Itt nincs mit mérlegelni.
+        is VoiceAssistantIntent.RunTaskRoute -> 16
     }
 
     private fun interpretNormalized(text: String, context: Context? = null): VoiceAssistantIntent {
@@ -133,6 +147,11 @@ object VoiceAssistantHelper {
             }
             return VoiceAssistantIntent.Speak(helpText())
         }
+
+        // A MŰVELETSOR KORÁN JÖN: ha egyszer kimondtad a hívószót, akkor
+        // csinálni akarsz valamit, nem kérdezni. Ha később állna, egy
+        // "hotspot bekapcsolás" nevű műveletsort elnyelne a webkeresés.
+        matchTaskRoute(text, context)?.let { return it }
 
         extractCallTarget(text)?.let { target ->
             return VoiceAssistantIntent.CallContact(target)
@@ -756,6 +775,9 @@ object VoiceAssistantHelper {
         containsAny(text, "konyvjelzo torles", "konyvjelzok torlese") ->
             MenuAction.BOOK_BOOKMARK_DELETE
 
+        containsAny(text, "konyv torles", "konyv torlese", "konyvet torol", "konyvtorles") ->
+            MenuAction.BOOK_DELETE
+
         containsAny(text, "nem reg olvasott", "friss konyvek", "utobbi konyvek") ->
             MenuAction.BOOK_RECENT
 
@@ -976,6 +998,79 @@ object VoiceAssistantHelper {
             val normalized = normalize(term)
             text.contains(normalized) || text.split(" ").any { word -> word == normalized }
         }
+
+    /**
+     * MŰVELETSOR KERESÉSE A KIMONDOTT MONDATBAN.
+     *
+     * A hívószó után maradó szöveget vetjük össze a mentett műveletsorok
+     * neveivel. A hangfelismerés ritkán adja vissza pontosan ugyanazt, amit a
+     * felvételkor bemondtál, ezért nem betű szerinti egyezést nézünk, hanem
+     * SZAVAKAT: hány szó közös a kettőben.
+     *
+     * MIÉRT NEM INDÍT BIZONYTALANUL: ez a funkció a te nevedben nyomkod
+     * gombokat. Ha nem elég egyértelmű, melyikre gondoltál, inkább FELSOROLJA
+     * a lehetőségeket, mint hogy a rosszat indítsa el. Egy rossz találgatás
+     * ára itt sokkal nagyobb, mint egy visszakérdezésé.
+     */
+    private fun matchTaskRoute(text: String, context: Context?): VoiceAssistantIntent? {
+        val ctx = context ?: return null
+        if (!containsAny(text, "muveletsor", "műveletsor", "muvelet sor", "művelet sor")) return null
+
+        val routes = try {
+            com.superdl.launcher.macro.TaskRouteStore.all(ctx)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (routes.isEmpty()) {
+            return VoiceAssistantIntent.Speak(
+                "Még nincs egyetlen műveletsor sem. Felvenni a képernyőolvasóban tudsz: " +
+                    "söpörj balra majd fel, csináld végig a lépéseket, és megint balra majd fel."
+            )
+        }
+
+        val query = extractAfter(
+            text,
+            listOf("muveletsor", "muvelet sor")
+        )?.trim().orEmpty()
+
+        // Csak a hívószó hangzott el: felsoroljuk, mi van.
+        if (query.length < 2) {
+            return VoiceAssistantIntent.Speak(
+                "${routes.size} műveletsorod van: ${routes.joinToString(", ") { it.name }}. " +
+                    "Mondd ki a nevét is, például: műveletsor ${routes.first().name}."
+            )
+        }
+
+        val queryWords = query.split(" ").filter { it.length >= 3 }.toSet()
+        var best: com.superdl.launcher.macro.TaskRoute? = null
+        var bestHits = 0
+        var tie = false
+        for (route in routes) {
+            val nameWords = normalize(route.name).split(" ").filter { it.length >= 3 }.toSet()
+            val hits = nameWords.count { it in queryWords }
+            when {
+                hits > bestHits -> {
+                    bestHits = hits
+                    best = route
+                    tie = false
+                }
+                hits == bestHits && hits > 0 -> tie = true
+            }
+        }
+
+        if (best == null || bestHits == 0) {
+            return VoiceAssistantIntent.Speak(
+                "Nincs ilyen műveletsorom. Ezek vannak: ${routes.joinToString(", ") { it.name }}."
+            )
+        }
+        if (tie) {
+            return VoiceAssistantIntent.Speak(
+                "Több is illik erre. Ezek vannak: ${routes.joinToString(", ") { it.name }}. " +
+                    "Mondd pontosabban."
+            )
+        }
+        return VoiceAssistantIntent.RunTaskRoute(best.id, best.name)
+    }
 
     fun normalize(raw: String): String {
         val lower = raw.trim().lowercase(Locale("hu", "HU"))

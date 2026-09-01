@@ -232,4 +232,57 @@ object ScreenReaderPrefs {
         prefs(context).edit().putLong(KEY_EXPLORE_HOLD, next).apply()
         return next
     }
+
+    // ── HANGTÉRKÉP: MELYIK HANGNYELV ────────────────────────────────────────
+
+    private const val KEY_SCREEN_MAP_STYLE = "screen_map_style"
+
+    /**
+     * MIÉRT ÁLLÍTHATÓ, ÉS MIÉRT NÉGY:
+     *
+     * Ez az egyetlen olyan funkció, aminél előre NEM tudható, hogy jó lesz-e.
+     * Nem logika kérdése, hanem HALLÁSÉLMÉNYÉ — papíron nem dől el. Ezért nem
+     * egy megoldást építünk, hanem négyet, és a fül dönt.
+     *
+     * A négy változat két kérdést jár körül:
+     *   - Szerkezetet halljunk vagy leltárt? (Csoportos kontra Pásztázó)
+     *   - Segít-e a beszéd, vagy csak lassít? (Beszédes kontra a többi)
+     *
+     * Ha kiderül, melyik a nyertes, a többi kikerülhet — de amíg nincs
+     * kipróbálva, egyik sem "az igazi".
+     */
+    fun getScreenMapStyle(context: Context): Int =
+        prefs(context).getInt(KEY_SCREEN_MAP_STYLE, 0).coerceIn(0, 3)
+
+    fun cycleScreenMapStyle(context: Context): Int {
+        val next = (getScreenMapStyle(context) + 1) % 4
+        prefs(context).edit().putInt(KEY_SCREEN_MAP_STYLE, next).apply()
+        return next
+    }
+
+    // ── HANGTÉRKÉP: A TEMPÓ ─────────────────────────────────────────────────
+
+    private const val KEY_SCREEN_MAP_TEMPO = "screen_map_tempo"
+
+    /**
+     * A hangtérkép tempója: 0 = nyugodt, 1 = normál, 2 = gyors.
+     *
+     * MIÉRT LETT EBBŐL BEÁLLÍTÁS: az első próba visszajelzése az volt, hogy
+     * "nagyon gyorsan ledarálja". Ez nem hangnyelv-kérdés — mind a négy nyelv
+     * ugyanattól lesz olvashatatlan. És nem is egyszerűen "lassítani kell":
+     * aki már megszokta, annak a lassú fárasztó lesz, mert naponta sokszor
+     * használja.
+     *
+     * ALAPBÓL NYUGODT. Egy új dolgot előbb meg kell tudni hallani; sietni
+     * csak azután érdemes, ha már érted, mit hallasz. A gyorsítás egy
+     * menüpont, a meg nem értett hangkép viszont elveszett funkció.
+     */
+    fun getScreenMapTempo(context: Context): Int =
+        prefs(context).getInt(KEY_SCREEN_MAP_TEMPO, 0).coerceIn(0, 2)
+
+    fun cycleScreenMapTempo(context: Context): Int {
+        val next = (getScreenMapTempo(context) + 1) % 3
+        prefs(context).edit().putInt(KEY_SCREEN_MAP_TEMPO, next).apply()
+        return next
+    }
 }

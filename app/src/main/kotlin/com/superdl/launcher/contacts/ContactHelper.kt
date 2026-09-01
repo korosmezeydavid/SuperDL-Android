@@ -59,6 +59,13 @@ object ContactHelper {
 
     fun maskPhone(phone: String): String {
         val digits = phone.filter { it.isDigit() }
+        // TELJES SZÁM MÓD (a Névjegyzék beállításokban kapcsolható):
+        // számjegyenként, szóközzel — különben a beszédmotor egyetlen
+        // hatalmas számként olvasná fel ("hétszázhuszonhárommillió...").
+        if (ContactPrefs.fullNumberFast() && digits.isNotEmpty()) {
+            val plus = if (phone.trim().startsWith("+")) "plusz " else ""
+            return plus + digits.map { it }.joinToString(" ")
+        }
         if (digits.length < 4) return phone
         return "vége ${digits.takeLast(4)}"
     }

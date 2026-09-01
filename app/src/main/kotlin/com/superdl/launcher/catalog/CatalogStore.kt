@@ -37,6 +37,9 @@ object CatalogStore {
             CatalogClient.moduleFile(context, moduleId).delete()
         } catch (_: Exception) {
         }
+        // Ha címkecsomag volt, a memóriában lévő másolatát is el kell engedni.
+        com.superdl.launcher.screenreader.LabelPackStore.invalidate()
+        com.superdl.launcher.macro.RoutePackStore.invalidate()
     }
 
     /** A letöltött modulok azonosítói, típus szerint szűrve. */

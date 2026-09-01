@@ -107,6 +107,16 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- TELJES FÁJLHOZZÁFÉRÉS — a fájlkezelő ezen áll vagy bukik.
+         Android 11 óta egy alkalmazás a SAJÁT mappáin kívül semmit nem
+         törölhet, nem helyezhet át és nem hozhat létre enélkül. A fájlkezelő
+         böngészni tudott, de minden művelet némán elhasalt.
+         Ez a Play-en korlátozott engedély — minket nem érint, mert a SuperDL
+         szándékosan NEM a Play-en terjed (lásd: `bolt` döntés). -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <!-- Kamera / Zseblámpa -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -122,6 +132,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- YouTube takarékos mód: a hang a képernyő lezárása után is szól -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Lépésszámláló: a beépített lépésérzékelő használatához -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <!-- Frissítés telepítése a saját tárolóból (Play nélküli terjesztéshez) -->
@@ -605,6 +617,51 @@
             android:name=".keyboard.KeyboardTestActivity"
             android:exported="false"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Elnevezés billentyűzettel: a hangos elnevezés tartaléka.
+             Ha nincs beszédfelismerés (zaj, nincs net, hiányzó nyelvi csomag),
+             a névtelen gomb így is elnevezhető. -->
+        <activity
+            android:name=".screenreader.LabelInputActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Címkekezelő: a saját elnevezések listája, átnevezés, törlés. -->
+        <activity
+            android:name=".screenreader.LabelManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Elnevezések beküldése: jóváhagyás és a három küldési út. -->
+        <activity
+            android:name=".screenreader.LabelSubmitActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Műveletsorok: lista, indítás, törlés. A felvétel a képernyő-
+             olvasóban indul (balra majd fel), nem innen. -->
+        <activity
+            android:name=".macro.TaskRouteActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- YouTube takarékos mód: csak a hang, előtérszolgáltatásban.
+             Így a képernyő lezárása után is szól, értesítéssel és
+             zárképernyő-gombokkal. -->
+        <service
+            android:name=".youtube.YoutubeAudioService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Saját médialejátszó: a fájlkezelőből megnyitott zene és videó.
+             Enélkül egy friss telepítésű telefonon a felhasználó a SAJÁT
+             zenéjét sem tudta meghallgatni („nincs hozzá alkalmazás"). -->
+        <activity
+            android:name=".media.LocalMediaPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.SuperDL" />
 
         <!-- Mátrix billentyűzet: egyujjas, telefonszám-elrendezésű bevitel.

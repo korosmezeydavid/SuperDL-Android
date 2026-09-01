@@ -59,7 +59,15 @@ object SetupRequirements {
         ROLE,
 
         /** Rendszerbeállítás — csak odanavigálni tudunk, a kapcsolót a user nyomja. */
-        SYSTEM_SCREEN
+        SYSTEM_SCREEN,
+
+        /**
+         * NEM LEKÉRDEZHETŐ. Odanavigálunk, de utána a felhasználó szava dönt,
+         * mert erre nincs API (gyártói automatikus indítás). Ilyenkor a
+         * program megmondja, hogy ezt nem tudja ellenőrizni — nem tesz úgy,
+         * mintha tudná.
+         */
+        MANUAL
     }
 
     data class Requirement(
@@ -74,12 +82,24 @@ object SetupRequirements {
         val permissions: List<String> = emptyList(),
         /** Van-e részletes magyar útmutató hozzá. */
         val guide: PermissionGuideType? = null,
-        val granted: Boolean
+        val granted: Boolean,
+        /**
+         * MIÉRT KÉRJÜK — a megadás ELŐTT hangzik el.
+         *
+         * MIÉRT NEM ELÉG A whatBreaks: az azt mondja meg, mit VESZÍTESZ. Ez
+         * azt, hogy mit KAPSZ, és hogy mihez nyúl hozzá a program. Aki vakon
+         * ad meg egy engedélyt, annak joga van tudni, mire mondott igent.
+         * Üresen hagyva a whatBreaks szolgál magyarázatként.
+         */
+        val why: String = ""
     ) {
         fun speakStatus(): String = "$title: ${if (granted) "megvan" else "hiányzik"}."
 
         fun speakDetail(): String =
             if (granted) "$title: megvan." else "$title: hiányzik. $whatBreaks"
+
+        /** A megadás előtti magyarázat. */
+        fun speakWhy(): String = why.ifBlank { whatBreaks }
 
         fun severityLabel(): String = when (severity) {
             Severity.ESSENTIAL -> "alapvető"
@@ -105,6 +125,20 @@ object SetupRequirements {
      */
     fun all(context: Context): List<Requirement> = listOf(
         // ---- ALAPVETŐ ----
+        // A KEZDŐKÉPERNYŐ AZ ELSŐ, ÉS EZ NEM ÖNCÉLÚ: enélkül a kezdőlap gomb
+        // kiviszi a felhasználót a SuperDL-ből — beállítás közben pont a
+        // legrosszabbkor. Vele viszont a kezdőlap gomb IDE hoz vissza.
+        Requirement(
+            id = "role_home",
+            title = "SuperDL legyen a kezdőképernyő",
+            whatBreaks = "A kezdőlap gomb egy másik felületre visz, nem a SuperDL-be.",
+            why = "Ezzel lesz a SuperDL a telefonod kezdőképernyője: bármikor, bárhonnan " +
+                "egy kezdőlap gombbal ide jutsz vissza. Ez a legfontosabb kapaszkodó — " +
+                "ha valahol elveszel, innentől mindig van hova visszatérni.",
+            severity = Severity.ESSENTIAL,
+            kind = RequestKind.ROLE,
+            granted = isDefaultHome(context)
+        ),
         runtime(
             context,
             id = "phone",
@@ -192,16 +226,28 @@ object SetupRequirements {
             granted = isIgnoringBatteryOptimizations(context)
         ),
 
-        // ---- FONTOS ----
         Requirement(
             id = "role_dialer",
             title = "Alapértelmezett telefon alkalmazás",
-            whatBreaks = "A hívásokat nem a SuperDL akadálymentes hívásképernyője kezeli.",
-            severity = Severity.IMPORTANT,
+            whatBreaks = "A hívásokat nem a SuperDL akadálymentes hívásképernyője kezeli, " +
+                "és a program nem látja, hogy egy hívást felvettek-e. Emiatt az S.O.S. " +
+                "riasztás sem tud továbblépni a következő számra.",
+            why = "Ezzel lesz a SuperDL a telefonod hívásfelülete: bejövő hívásnál a nevet " +
+                "mondja, nem a számot, és a hívás a megszokott gesztusokkal kezelhető. " +
+                "Ez az S.O.S. miatt is fontos: enélkül a program nem tudja megállapítani, " +
+                "hogy egy segélyhívást felvettek-e, tehát nem tud biztosan továbblépni " +
+                "a következő számra.",
+            // MIÉRT ALAPVETŐ, HOLOTT KORÁBBAN CSAK FONTOS VOLT:
+            // az S.O.S. riasztás lánca a hívásállapotra épül. Enélkül csak
+            // időkorláttal tippelhetünk, hogy „nem vették fel" — vészhelyzetben
+            // ez nem elég jó. Egy telefon, ami vakon kezelhető hívásfelület
+            // nélkül működik, nem az, aminek a SuperDL-t szánták.
+            severity = Severity.ESSENTIAL,
             kind = RequestKind.ROLE,
             guide = PermissionGuideType.DIALER_ROLE,
             granted = safe { DialerRoleHelper.isDefaultDialer(context) }
         ),
+        // ---- FONTOS ----
         Requirement(
             id = "role_assistant",
             title = "Alapértelmezett asszisztens",
@@ -262,7 +308,95 @@ object SetupRequirements {
             }
         ),
 
+        // TELJES FÁJLHOZZÁFÉRÉS: enélkül a fájlkezelő csak NÉZNI tud. A törlés,
+        // a tömörítés és az áthelyezés CSENDBEN elbukik — a felhasználó azt
+        // hiszi, ő rontotta el. Ezért alapvető, nem kiegészítő.
+        Requirement(
+            id = "storage_all_files",
+            title = "Teljes fájlhozzáférés",
+            whatBreaks = "A fájlkezelő csak böngészni tud: nem törölhetsz, nem tömöríthetsz " +
+                "és nem helyezhetsz át semmit. A felvételek sem kerülnek olyan mappába, " +
+                "amit a számítógép is lát.",
+            why = "Az Android 11 óta egy alkalmazás a saját mappáin kívül semmit nem " +
+                "törölhet és nem hozhat létre külön engedély nélkül. Ez kell ahhoz, hogy " +
+                "a fájlkezelőd valódi fájlkezelő legyen, és hogy a rádió- meg a " +
+                "diktafon-felvételeid a Felvételek mappába kerüljenek.",
+            severity = Severity.ESSENTIAL,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = hasAllFilesAccess()
+        ),
+
+        // ---- FONTOS: SAJÁT KISEGÍTŐ SZOLGÁLTATÁSOK ÉS BILLENTYŰZET ----
+        Requirement(
+            id = "keyboard_enabled",
+            title = "Mátrix billentyűzet bekapcsolása",
+            whatBreaks = "Nem tudsz a SuperDL saját, egyujjas billentyűzetével írni.",
+            why = "A mátrix billentyűzet telefonszám-elrendezésű, egy ujjal kezelhető, és " +
+                "ott is működik, ahol a többujjas gesztusok nem. Ez a lépés csak " +
+                "engedélyezi a rendszerben — kiválasztani a következő lépésben fogjuk.",
+            severity = Severity.IMPORTANT,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = isKeyboardEnabled(context)
+        ),
+        Requirement(
+            id = "keyboard_selected",
+            title = "Mátrix billentyűzet kiválasztása",
+            whatBreaks = "Írásnál nem a SuperDL billentyűzete jön elő, hanem a gyári.",
+            why = "Bekapcsolni és kiválasztani két külön lépés az Androidban. Ez a " +
+                "második: innentől írásnál a SuperDL billentyűzete nyílik meg. " +
+                "Bármikor visszaválthatsz a gyárira.",
+            severity = Severity.IMPORTANT,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = isKeyboardSelected(context)
+        ),
+        // A PIN SEGÉD a zárképernyőn dolgozik, tehát még feloldás ELŐTT.
+        Requirement(
+            id = "pin_helper",
+            title = "PIN segéd",
+            whatBreaks = "A zárképernyőn nem mondja be a beírt számjegyeket, " +
+                "vakon nehéz feloldani a telefont.",
+            why = "A PIN segéd egy kisegítő szolgáltatás, ami CSAK a zárképernyőn " +
+                "dolgozik: felolvassa, hova nyúlsz és mit ütöttél be. A telefon " +
+                "feloldása enélkül vakon nagyon nehéz.",
+            severity = Severity.IMPORTANT,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = isAccessibilityServiceEnabled(
+                context, "com.superdl.launcher.lock.keyguard.KeyguardPinAccessibilityService"
+            )
+        ),
+        // A KÉPERNYŐOLVASÓ SZÁNDÉKOSAN A LISTA VÉGE FELÉ VAN.
+        //
+        // MIÉRT: a beállításon a felhasználó a TalkBackkel jut végig — az a
+        // mankója. Ha ezt a lépést előbb tennénk, két képernyőolvasó beszélne
+        // egyszerre, és a többi rendszerképernyő kezelhetetlenné válna.
+        Requirement(
+            id = "screen_reader",
+            title = "Super DL képernyőolvasó",
+            whatBreaks = "Külső alkalmazásokat nem tudsz a SuperDL négy gesztusával kezelni.",
+            why = "Ez a SuperDL saját képernyőolvasója: más alkalmazásokat is a megszokott " +
+                "négy söpréssel kezelhetsz vele. FONTOS: ez a TalkBack HELYETT működik, " +
+                "nem mellette. Ha most bekapcsolod, a TalkBacket érdemes utána kikapcsolni, " +
+                "különben ketten beszélnek egyszerre. Ezt a lépést nyugodtan hagyd későbbre, " +
+                "ha maradnál a TalkBacknél.",
+            severity = Severity.IMPORTANT,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = isAccessibilityServiceEnabled(
+                context, "com.superdl.launcher.screenreader.ScreenReaderService"
+            )
+        ),
+
         // ---- KIEGÉSZÍTŐ ----
+        Requirement(
+            id = "overlay",
+            title = "Képernyő fölé rajzolás",
+            whatBreaks = "A sötét mód nem tudja elfüggönyözni a képernyőt.",
+            why = "Ezzel tud a SuperDL egy fekete réteget tenni minden fölé. Vakon ez " +
+                "áramot spórol és megvéd attól, hogy a melletted ülő elolvassa a " +
+                "telefonod. Semmi mást nem jelenít meg.",
+            severity = Severity.OPTIONAL,
+            kind = RequestKind.SYSTEM_SCREEN,
+            granted = canDrawOverlays(context)
+        ),
         Requirement(
             id = "role_screening",
             title = "Hívás szűrő",
@@ -293,7 +427,39 @@ object SetupRequirements {
             },
             guide = PermissionGuideType.BLUETOOTH_MANUAL
         )
-    )
+    ) + autostartRequirement(context)
+
+    /**
+     * GYÁRTÓI AUTOMATIKUS INDÍTÁS — csak ott, ahol egyáltalán létezik.
+     *
+     * ŐSZINTE KORLÁT: erre nincs lekérdező API. Odanavigálunk, elmondjuk mit
+     * keressen, és utána a felhasználó mondja meg, hogy megvan-e. A program
+     * ezt ki is mondja — nem tesz úgy, mintha tudná.
+     *
+     * Olyan telefonon, ahol ilyen beállítás nincs (Pixel, Ulefone), a tétel
+     * meg sem jelenik: fölösleges ijesztgetés lenne.
+     */
+    private fun autostartRequirement(context: Context): List<Requirement> {
+        val available = safe { AutostartHelper.isAvailable(context) }
+        if (!available) return emptyList()
+        val brand = safe2 { AutostartHelper.manufacturerLabel() } ?: ""
+        return listOf(
+            Requirement(
+                id = "autostart",
+                title = "Gyártói automatikus indítás",
+                whatBreaks = "A $brand rendszer a saját védelmével akkor is megölheti a " +
+                    "SuperDL-t a háttérben, ha az Android akku-beállítása már rendben van. " +
+                    "Ilyenkor a gyógyszer emlékeztető némán elmarad.",
+                why = "Ez a $brand telefonok saját beállítása, az Android akku-beállításán " +
+                    "FELÜL. Meg kell keresned benne a Super DL-t, és bekapcsolni. " +
+                    "Ezt a program nem tudja leellenőrizni — ilyen lekérdezés nincs —, " +
+                    "ezért utána téged fog megkérdezni, sikerült-e.",
+                severity = Severity.IMPORTANT,
+                kind = RequestKind.MANUAL,
+                granted = SetupPrefs.isAcknowledged(context, "autostart")
+            )
+        )
+    }
 
     fun missing(context: Context): List<Requirement> = all(context).filter { !it.granted }
 
@@ -303,6 +469,27 @@ object SetupRequirements {
     /** Minden lényeges megvan-e (a kiegészítők nem számítanak bele). */
     fun isReady(context: Context): Boolean =
         missing(context).none { it.severity != Severity.OPTIONAL }
+
+    /**
+     * Amivel a varázslóban még dolgunk van.
+     *
+     * A KÉSŐBBRE HAGYOTT tételek kimaradnak: ha a felhasználó egyszer
+     * végighallgatta és azt mondta "később", akkor nem tolakszunk vele
+     * minden indításkor. A menüből bármikor elővehető.
+     */
+    fun pending(context: Context): List<Requirement> =
+        missing(context).filter { !SetupPrefs.isSkipped(context, it.id) }
+
+    /**
+     * AZ ELSŐ INDÍTÁS KAPUJA: amíg ezek hiányoznak, a varázsló nem enged
+     * tovább a főmenübe. Csak az alapvetők — a többit el lehet halasztani.
+     *
+     * MIÉRT NEM MINDEN: mert akkor egy elutasított naptár-engedély miatt
+     * használhatatlan maradna az egész telefon. Az alapvetők nélkül viszont
+     * a SuperDL nem az, aminek szánták.
+     */
+    fun blocking(context: Context): List<Requirement> =
+        missing(context).filter { it.severity == Severity.ESSENTIAL }
 
     /**
      * Egymondatos, felolvasható összefoglaló.
@@ -349,6 +536,28 @@ object SetupRequirements {
                 null
             }
             "notification_listener" -> Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            "role_home" -> Intent(Settings.ACTION_HOME_SETTINGS)
+            "storage_all_files" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            } else {
+                null
+            }
+            // A billentyűzet KÉT képernyő: az egyik bekapcsol, a másik kiválaszt.
+            // A kiválasztást a rendszer felugró listája végzi, azt a hívó nyitja.
+            "keyboard_enabled", "keyboard_selected" -> Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+            // A két kisegítő szolgáltatás ugyanarra a listára visz — a
+            // felhasználónak a nevét mondjuk meg, hogy melyiket keresse.
+            "screen_reader", "pin_helper" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "overlay" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            } else {
+                null
+            }
+            "autostart" -> safeIntent { AutostartHelper.findIntent(context) }
             "battery_optimization" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                     data = Uri.parse("package:${context.packageName}")
@@ -374,8 +583,10 @@ object SetupRequirements {
         whatBreaks: String,
         severity: Severity,
         permissions: List<String>,
-        guide: PermissionGuideType? = null
+        guide: PermissionGuideType? = null,
+        why: String = ""
     ): Requirement = Requirement(
+        why = why,
         id = id,
         title = title,
         whatBreaks = whatBreaks,
@@ -422,6 +633,59 @@ object SetupRequirements {
         block()
     } catch (_: Exception) {
         false
+    }
+
+    private inline fun <T> safe2(block: () -> T): T? = try {
+        block()
+    } catch (_: Exception) {
+        null
+    }
+
+    /** A SuperDL-e a kezdőképernyő. */
+    private fun isDefaultHome(context: Context): Boolean = safe {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val info = context.packageManager.resolveActivity(
+            intent, PackageManager.MATCH_DEFAULT_ONLY
+        )
+        info?.activityInfo?.packageName == context.packageName
+    }
+
+    /** Teljes fájlhozzáférés (Android 11 alatt nincs ilyen korlát). */
+    private fun hasAllFilesAccess(): Boolean =
+        com.superdl.launcher.files.StorageAccess.hasFullAccess()
+
+    /** Engedélyezve van-e a rendszerben egy kisegítő szolgáltatásunk. */
+    private fun isAccessibilityServiceEnabled(context: Context, className: String): Boolean = safe {
+        val enabled = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ).orEmpty()
+        // A lista alakja: "csomag/osztály:csomag/osztály". A rövidített
+        // ("csomag/.osztály") alakot is elfogadjuk, mert egyes gyártók így írják.
+        val full = "${context.packageName}/$className"
+        val short = "${context.packageName}/${className.removePrefix(context.packageName)}"
+        enabled.split(':').any { it.equals(full, true) || it.equals(short, true) }
+    }
+
+    /** Be van-e kapcsolva a rendszerben a mátrix billentyűzet. */
+    private fun isKeyboardEnabled(context: Context): Boolean = safe {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager ?: return@safe false
+        imm.enabledInputMethodList.any { it.packageName == context.packageName }
+    }
+
+    /** Ki van-e VÁLASZTVA a mátrix billentyűzet (ez külön lépés a bekapcsolás után). */
+    private fun isKeyboardSelected(context: Context): Boolean = safe {
+        val current = Settings.Secure.getString(
+            context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
+        ).orEmpty()
+        current.startsWith(context.packageName)
+    }
+
+    /** Rajzolhat-e a program más alkalmazások fölé (sötét mód függönye). */
+    private fun canDrawOverlays(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return safe { Settings.canDrawOverlays(context) }
     }
 
     private inline fun safeIntent(block: () -> Intent?): Intent? = try {

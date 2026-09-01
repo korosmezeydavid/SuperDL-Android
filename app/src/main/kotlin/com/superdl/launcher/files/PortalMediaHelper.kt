@@ -25,10 +25,18 @@ object PortalMediaHelper {
 
     /** Az engedélyezett hang-mappák (csak ezekből tölthető le). */
     private fun audioDirs(context: Context): List<Pair<String, File>> = listOfNotNull(
-        context.getExternalFilesDir(null)?.let { "Diktafon" to File(it, "ProfiDiktafon") },
-        context.getExternalFilesDir(null)?.let { "Rádió-felvétel" to File(it, "radio_recordings") },
+        // Az ÚJ, nyilvános helyek (/Recordings/...) — ide kerülnek a felvételek.
+        "Diktafon" to RecordingsDirs.dictaphone(context),
+        "Rádió-felvétel" to RecordingsDirs.radio(context),
+        // A RÉGI helyek is maradnak a listában: ha valakinél a költöztetés
+        // még nem futott le (nincs teljes fájlhozzáférés), a portál akkor is
+        // lássa a régi felvételeit. Üres mappát a listAudio úgyis kihagy.
+        "Diktafon" to RecordingsDirs.legacyDictaphone(context),
+        "Rádió-felvétel" to RecordingsDirs.legacyRadio(context),
         "Hangjegyzet" to File(context.filesDir, "voice_notes"),
-    )
+        // Ha a nyilvános mappa nem hozható létre, az új és a régi hely
+        // UGYANAZ — ilyenkor minden fájl kétszer szerepelne a listában.
+    ).distinctBy { it.second.absolutePath }
 
     fun listAudio(context: Context): List<MediaEntry> {
         val out = mutableListOf<MediaEntry>()

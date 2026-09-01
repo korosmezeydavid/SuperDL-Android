@@ -135,6 +135,19 @@ class YoutubePlayerActivity : AppCompatActivity() {
             return
         }
 
+        // TAKARÉKOS MÓD: nem itt játsszuk le, hanem átadjuk a háttér-
+        // szolgáltatásnak, és bezárjuk ezt az ablakot.
+        //
+        // MIÉRT ÍGY: ez az ablak a képernyőhöz kötődik — ha lezárod a
+        // telefont, a beágyazott lejátszó képfelülete megszűnik, és a hang is
+        // vele megy. A szolgáltatás viszont nem függ a képernyőtől: ott a
+        // lejátszás akkor is megy, ha a telefon a zsebedben van.
+        if (YoutubeSaverPrefs.isEnabled(this)) {
+            YoutubeAudioService.start(this, videoId, title.ifBlank { "YouTube" })
+            finish()
+            return
+        }
+
         setupPlayer(videoId)
         tts.speak("Videó betöltése. Várj egy pillanatot.")
 

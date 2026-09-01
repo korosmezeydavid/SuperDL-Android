@@ -2,7 +2,7 @@
   SUPER DL (Super Digital Launcher) — FEJLESZTÉSI NAPLÓ / MEMÓRIA TÉR
 ================================================================================
 
-  Utolsó frissítés: 2026-07-17
+  Utolsó frissítés: 2026-08-30
   Fejlesztő:        Kőrösmezey Dávid
   Kapcsolat:        korosmezey.david.richard@gmail.com
   Projekt mappa:    C:\Users\msn\Documents\SuperDL-Android
@@ -38,11 +38,94 @@
 
 
 ================================================================================
-  2. AKTUÁLIS ÁLLAPOT (2026-07-17)
+  2. AKTUÁLIS ÁLLAPOT (2026-08-30)
 ================================================================================
 
   Legfrissebb forráskód verzió:  1.55.0 (versionCode 101)
   Telefonon telepített verzió:   1.55.0 (101) DEBUG variáns — naprakész
+
+  ------------------------------------------------------------------------
+  FIGYELEM: ez a napló 2026-08-09 és 2026-08-29 között NEM vezetett.
+  Az abban az időszakban végzett munka az AI_START_HERE.md 7. szakaszában
+  és a claude.ai Projekt 00-OLVASD-ELOSZOR.md-jében van meg.
+  ------------------------------------------------------------------------
+
+  2026-08-30 — NAGY KÖR: A KÉPERNYŐOLVASÓ ÖT ÚJ KÉPESSÉGE
+  --------------------------------------------------------
+  Hét mérföldkő egy nap alatt, a tervezőszobában készült
+  „android-uj-funkciok-merfoldkovek.md" szerint (claude.ai Projekt).
+  A verziószám NEM emelkedett: kiadás nem készült, a munka a debug
+  variánsban van a telefonon.
+
+  MK0 — Lemez-ellenőrzés. Három ponton tévedett a terv:
+      * a FELDERÍTÉS már meg volt írva (TouchExplorer.kt), ráadásul
+        ALAPBÓL BEKAPCSOLVA — tehát a tesztelőknél 1.55.0 óta fut.
+        DÖNTÉS: marad bekapcsolva. A kikapcsolás maga is regresszió
+        lenne egy megszokott viselkedésen.
+      * a címkék NEM voltak benne a mentésben (hiba, nem hiányzó funkció)
+      * a címkecsomaghoz mégis kell alkalmazás-módosítás, mert a
+        ModuleType zárt enum → a FORMÁTUMOT ELSŐRE KELL ELTALÁLNI
+
+  MK1 — ElementFingerprint.kt. Tíz jel súlyozva, az egyezés pontszám.
+      A program TUDATÁBAN VAN A BIZONYTALANSÁGÁNAK: 0,86 fölött állít,
+      0,68–0,86 közt „valószínűleg", alatta hallgat.
+      ⚠️ A küszöbök TIPPEK. A terv szerint mérésből kell jönniük:
+      20 elem, 5 alkalmazás, frissítés előtt és után. EZ MÉG NINCS MEG.
+
+  MK2 — Címkekezelő (LabelManagerActivity) + billentyűzetes elnevezés
+      (LabelInputActivity) + a mentés-hiba javítása. Az elnevezés eddig
+      CSAK hanggal ment; ha nem volt beszédfelismerés, a gomb örökre
+      névtelen maradt.
+
+  MK3 — Címkecsomagok (LabelPackStore). Új modul-típus: "labelpack".
+      A formátum: dokumentumok/cimkecsomag-formatum.txt.
+      Négy mező szándékosan ÜRESEN benne (megjegyzes, eredet, verziotol,
+      verzioig) — olcsóbb most beletenni, mint fél év múlva frissítést
+      kiadni miatta. VASSZABÁLY sorrendként megvalósítva: saját pontos
+      kulcs → saját ujjlenyomat → csak azután a közösségi csomag.
+
+  MK4 — Beküldés (LabelSharing, LabelSubmitActivity). ALAPBÓL KI, a terv
+      szerint. Egy készülék egy szavazat (véletlen azonosító, semmit nem
+      árul el). A veszélyes szavak jelölve mennek. A jóváhagyó ablak
+      ELSŐKÉNT, hangosan kimondja, mi megy el.
+
+  MK5 — Hangtérkép (ScreenMap, ScreenMapPlayer). Jobbra-majd-fel.
+      SZERKEZET, NEM LELTÁR: sávokra bont ott, ahol a függőleges hézag
+      nagyobb a szokásosnál. NÉGY HANGNYELV, mert ez hallásélmény és nem
+      logika — jobbra-majd-le vált és rögtön le is játssza.
+      Tempó Nyugodt/Normál/Gyors; alapból Nyugodt, mert az első próba
+      visszajelzése az volt, hogy „ledarálja".
+      ⚠️ A NYERTES HANGNYELV MÉG NINCS KIVÁLASZTVA.
+
+  MK6 — a felderítés hangnyelvének igazítása. Az alapgépezet készen volt.
+
+  MK8 — Műveletsorok (macro csomag). Balra-majd-fel indít és állít le.
+      A LÉPÉS NEM KOORDINÁTA, hanem ujjlenyomat + címke.
+      Négy megállási pont: nem találja / bizonytalan / veszélyes szó /
+      balra söprés. Kapcsolóknál a KÍVÁNT ÁLLAPOTOT jegyzi meg, nem a
+      megnyomást — különben a „hotspot bekapcsolás" nevű műveletsor
+      kikapcsolná a hotspotot, ha az már be volt kapcsolva.
+      ELSŐ ÉLES PRÓBA SIKERES (hotspot bekapcsolás, 3 lépés).
+      Elérhető: Eszközök → Műveletsorok, és a képernyőolvasó almenüjéből.
+      Elena is érti: „műveletsor <név>" — bizonytalanul NEM indít, inkább
+      felsorolja a lehetőségeket.
+
+  MK9 — Megosztás. Új modul-típus: "routepack". A hármas küszöb ITT NEM
+      érvényes: egy műveletsor lépéssorozat, hárman nem küldenék be
+      ugyanazt, és a tévedés ára is nagyobb (megnyom valamit a nevedben).
+      Adatvédelem: a lépésnevek a KÉPERNYŐRŐL származnak, lehet bennük
+      összeg vagy ismerős neve — ezért küldés előtt mind felolvasásra
+      kerül.
+
+  MK7 — 2026-08-30-án ELVETVE (közös hangnyelv a Windowsszal).
+  MK10, MK11 — külső dologra várnak, lásd 9. szakasz.
+
+  HIBAJAVÍTÁS ugyanebben a körben: a Beállításokban minden menüsor
+  KÉTSZER hangzott el. A megnyomható sor a gyerekei szövegéből kapja a
+  nevét, aztán a bejárás a gyerekbe lépve ugyanazt megtalálta. A walk()
+  most magával viszi, mit mondott már el a sor — de az önállóan működő
+  elemek (kapcsoló, mező, gomb) SOHA nem esnek ki a szűrésen.
+  Élesben ellenőrizve.
 
   !! FONTOS — MELYIK VARIÁNS VAN A TELEFONON !!
   A telefonon a DEBUG variáns fut (com.superdl.launcher.debug), NEM a release.

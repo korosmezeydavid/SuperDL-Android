@@ -39,6 +39,12 @@ object BackupManager {
         "bluetooth_assistant",
         "elena_wake_prefs",           // saját felébresztő mondatok
         "superdl_hearing_aid",
+        "superdl_screenreader_labels", // SAJÁT ELNEVEZÉSEK a névtelen gombokhoz
+        "superdl_screenreader_fingerprints", // ...és az elem-ujjlenyomataik
+        "superdl_screenreader_pack_discards", // elvetett közösségi címkék: a te döntésed
+        "superdl_screenreader_sharing", // a megosztás kapcsolója és a küldő-azonosító
+        "superdl_task_routes",         // a betanított műveletsorok
+        "superdl_route_pack_discards", // elvetett letöltött műveletsorok
         "keyguard_pin_assist",
         "com.superdl.launcher_preferences",
         "com.superdl.launcher.debug_preferences"

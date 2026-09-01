@@ -7,6 +7,11 @@ enum class MenuAction {
     CONTACTS,       // Névjegyből hívás diktálással
     CONTACT_BOOK,   // Névjegyzék böngészése
     CONTACT_SYNC,   // Névjegyek szinkronizálása
+    CONTACT_UI_STATUS,        // Névjegyzék beállítások felolvasása
+    CONTACT_UI_LETTER_TOGGLE, // Betűindex ki és be
+    CONTACT_UI_FULL_NUMBER,   // Teljes telefonszám ki és be
+    CONTACT_EXPORT,           // Névjegyek mentése fájlba (vCard)
+    CONTACT_IMPORT,           // Névjegyek visszatöltése fájlból
     DIAL,           // Számtárcsázás
     SMS_READ,       // SMS olvasás
     SMS_SENT_READ,  // Kimenő SMS olvasás
@@ -49,6 +54,13 @@ enum class MenuAction {
     SCREEN_READER_EXPLORE,  // Képernyőolvasó: felderítés érintéssel ki/be
     SCREEN_READER_NOTIF,    // Képernyőolvasó: érkező értesítések bemondása
     SCREEN_READER_AUTOREAD, // Képernyőolvasó: automatikus felolvasás új képernyőn
+    SCREEN_READER_LABELS,   // Saját elnevezések kezelése: lista, átnevezés, törlés
+    SCREEN_READER_MAP_STYLE, // Hangtérkép: melyik hangnyelv szóljon
+    SCREEN_READER_MAP_TEMPO, // Hangtérkép: nyugodt, normál vagy gyors
+    SCREEN_READER_STEREO_TEST, // Bal-jobb próba: hallatszik-e egyáltalán az irány
+    TASK_ROUTES,            // Műveletsorok: lista, indítás, törlés
+    SCREEN_READER_SHARE_TOGGLE, // Elnevezések megosztása ki/be (alapból KI)
+    SCREEN_READER_SHARE_SEND,   // Elnevezések beküldése most
     SCREEN_READER_PANIC,    // Képernyőolvasó AZONNALI leállítása (biztonsági retesz)
     ALARM_DELETE,   // Ébresztő törlése
     ALARM_SKIP,     // Ébresztések kihagyása (N következő alkalom kihagyása)
@@ -88,9 +100,12 @@ enum class MenuAction {
     MUSIC_SPEAK_STOP,  // Zene: beszéljen-e leállításnál (ki/be)
     MUSIC_SPEAK_SEEK,  // Zene: beszéljen-e tekerésnél (ki/be)
     YOUTUBE,        // YouTube keresés + lejátszás
+    YOUTUBE_SAVER_MODE,      // YouTube: takarékos mód (csak hang, háttérben is szól)
+    YOUTUBE_STOP_BACKGROUND, // YouTube: a háttérben szóló hang leállítása
     RADIO_HUNGARIAN,   // Rádió: magyar állomások betöltése és lejátszás
     RADIO_FAVORITES,   // Rádió: mentett kedvenc állomások
     RADIO_SEARCH,      // Rádió: állomás keresése név szerint (hangos)
+    RADIO_FAV_DELETE,  // Rádió: megunt kedvenc eltávolítása
     RADIO_RECORDINGS,  // Rádió: elmentett felvételek listája
     RADIO_SCHEDULE,    // Rádió: időzített felvételek kezelése
     NEWS_READ,      // Hírek felolvasása (RSS)
@@ -161,6 +176,7 @@ enum class MenuAction {
     SOUND_TRAINING, // Program hangjainak megismerése
     SETUP_WIZARD,   // Beállítás varázsló – végigvezet a hiányzó engedélyeken
     SETUP_STATUS,   // Beállítás állapot felolvasása
+    SETUP_RESTART,  // Beállítás varázsló elölről (a későbbre hagyottakat is)
     DIAGNOSTICS,    // Diagnosztika – mi nem működik és miért
     BATTERY_OPT_REQUEST, // Korlátlan háttérfutás kérése (akku-optimalizálás alól)
     AUTOSTART_SETUP,     // Gyártói automatikus indítás (Xiaomi, Huawei, Oppo...)
@@ -170,6 +186,7 @@ enum class MenuAction {
     BOOK_RECENT,    // Nem rég olvasott könyvek
     BOOK_BOOKMARKS, // Mentett könyvjelzők
     BOOK_BOOKMARK_DELETE, // Könyvjelző törlése
+    BOOK_DELETE,    // Könyv végleges törlése a telefonról
     BOOK_RESUME,    // Utoljára olvasott könyv folytatása
     BOOK_FOLDER_SET,   // Egyéni könyvmappa beállítása
     BOOK_FOLDER_READ,  // Egyéni könyvmappa felolvasása
@@ -430,6 +447,14 @@ object MenuTree {
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),
             MenuItem("fav_delete", "Kedvenc törlése", MenuAction.FAVORITES_DELETE),
             MenuItem("contact_create", "Új névjegy létrehozása", MenuAction.CONTACT_CREATE),
+            MenuItem("contact_settings", "Névjegyzék beállítások", MenuAction.SUBMENU, listOf(
+                MenuItem("contact_ui_status", "Jelenlegi beállítások", MenuAction.CONTACT_UI_STATUS),
+                MenuItem("contact_ui_letter", "Betűindex ki és be", MenuAction.CONTACT_UI_LETTER_TOGGLE),
+                MenuItem("contact_ui_number", "Teljes telefonszám ki és be", MenuAction.CONTACT_UI_FULL_NUMBER),
+                MenuItem("contact_export", "Névjegyek mentése fájlba", MenuAction.CONTACT_EXPORT),
+                MenuItem("contact_import", "Névjegyek visszatöltése fájlból", MenuAction.CONTACT_IMPORT),
+                MenuItem("contact_settings_back", "Vissza", MenuAction.SUBMENU)
+            )),
             MenuItem("call_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
@@ -549,13 +574,16 @@ object MenuTree {
                 MenuItem("yt_favorites", "Kedvenc videóim", MenuAction.YOUTUBE_FAVORITES),
                 MenuItem("yt_channels", "Követett csatornák", MenuAction.YOUTUBE_CHANNELS),
                 MenuItem("yt_resume", "Utoljára nézett folytatása", MenuAction.YOUTUBE_RESUME),
+                MenuItem("yt_saver", "Takarékos mód", MenuAction.YOUTUBE_SAVER_MODE),
+                MenuItem("yt_stop_bg", "Háttérlejátszás leállítása", MenuAction.YOUTUBE_STOP_BACKGROUND),
                 MenuItem("yt_back", "Vissza", MenuAction.SUBMENU)
             )),
             MenuItem("radio", "Internetes rádió", MenuAction.SUBMENU, listOf(
                 MenuItem("radio_hungarian", "Magyar állomások", MenuAction.RADIO_HUNGARIAN),
                 MenuItem("radio_favorites", "Kedvenc állomásaim", MenuAction.RADIO_FAVORITES),
                 MenuItem("radio_search", "Állomás keresése", MenuAction.RADIO_SEARCH),
-                MenuItem("radio_recordings", "Felvételeim", MenuAction.RADIO_RECORDINGS),
+                MenuItem("radio_fav_delete", "Kedvenc állomás törlése", MenuAction.RADIO_FAV_DELETE),
+                MenuItem("radio_recordings", "Rádió felvételek megnyitása", MenuAction.RADIO_RECORDINGS),
                 MenuItem("radio_schedule", "Időzített felvételek", MenuAction.RADIO_SCHEDULE),
                 MenuItem("radio_back", "Vissza", MenuAction.SUBMENU)
             )),
@@ -579,6 +607,7 @@ object MenuTree {
             MenuItem("book_recent", "Nem rég olvasott könyvek", MenuAction.BOOK_RECENT),
             MenuItem("book_bookmarks", "Könyvjelzők", MenuAction.BOOK_BOOKMARKS),
             MenuItem("book_bookmark_delete", "Könyvjelző törlése", MenuAction.BOOK_BOOKMARK_DELETE),
+            MenuItem("book_delete", "Könyv törlése", MenuAction.BOOK_DELETE),
             MenuItem("book_resume", "Olvasás folytatása", MenuAction.BOOK_RESUME),
             MenuItem("book_folder_set", "Könyvmappa beállítása", MenuAction.BOOK_FOLDER_SET),
             MenuItem("book_folder_read", "Könyvmappa felolvasása", MenuAction.BOOK_FOLDER_READ),
@@ -649,6 +678,12 @@ object MenuTree {
         )),
 
         MenuItem("tools", "Eszközök", MenuAction.SUBMENU, listOf(
+            // A MŰVELETSOROK ITT IS. A képernyőolvasó almenüjében is ott
+            // maradnak (oda tartoznak, mert az veszi fel és az játssza le) —
+            // de aki csak EL AKAR INDÍTANI egy betanított műveletsort, annak
+            // ne kelljen a képernyőolvasó beállításai közt keresgélnie.
+            // Ez nem beállítás, hanem eszköz.
+            MenuItem("task_routes_tools", "Műveletsorok", MenuAction.TASK_ROUTES),
             MenuItem("steps", "Lépésszámláló", MenuAction.SUBMENU, listOf(
                 MenuItem("steps_today", "Mai összesítő", MenuAction.STEPS_TODAY),
                 MenuItem("steps_live", "Élő mérés és sebesség", MenuAction.STEPS_LIVE),
@@ -763,6 +798,13 @@ object MenuTree {
                     MenuItem("sr_notif", "Értesítések bemondása", MenuAction.SCREEN_READER_NOTIF),
                     MenuItem("sr_explore", "Felderítés érintéssel", MenuAction.SCREEN_READER_EXPLORE),
                     MenuItem("sr_explore_hold", "Felderítés indítási ideje", MenuAction.SCREEN_READER_EXPLORE_HOLD),
+                    MenuItem("sr_labels", "Saját elnevezések", MenuAction.SCREEN_READER_LABELS),
+                    MenuItem("sr_map_style", "Hangtérkép hangnyelve", MenuAction.SCREEN_READER_MAP_STYLE),
+                    MenuItem("sr_map_tempo", "Hangtérkép tempója", MenuAction.SCREEN_READER_MAP_TEMPO),
+                    MenuItem("sr_stereo_test", "Bal-jobb próba", MenuAction.SCREEN_READER_STEREO_TEST),
+                    MenuItem("task_routes", "Műveletsorok", MenuAction.TASK_ROUTES),
+                    MenuItem("sr_share_toggle", "Elnevezések megosztása", MenuAction.SCREEN_READER_SHARE_TOGGLE),
+                    MenuItem("sr_share_send", "Elnevezések beküldése", MenuAction.SCREEN_READER_SHARE_SEND),
                     MenuItem("kb_picker", "Billentyűzet választása", MenuAction.KEYBOARD_PICKER),
                     MenuItem("kb_settings", "Billentyűzetek engedélyezése", MenuAction.KEYBOARD_SETTINGS),
                     MenuItem("kb_matrix_cell", "Mátrix: gombok távolsága", MenuAction.KEYBOARD_MATRIX_CELL),
@@ -774,6 +816,7 @@ object MenuTree {
                 )),
                 MenuItem("setup_wizard", "Beállítás varázsló", MenuAction.SETUP_WIZARD),
                 MenuItem("setup_status", "Beállítás állapota", MenuAction.SETUP_STATUS),
+                MenuItem("setup_restart", "Beállítás varázsló elölről", MenuAction.SETUP_RESTART),
                 MenuItem("diagnostics", "Diagnosztika", MenuAction.DIAGNOSTICS),
                 MenuItem("battery_opt", "Korlátlan háttérfutás engedélyezése", MenuAction.BATTERY_OPT_REQUEST),
                 MenuItem("autostart", "Automatikus indítás a gyártónál", MenuAction.AUTOSTART_SETUP),

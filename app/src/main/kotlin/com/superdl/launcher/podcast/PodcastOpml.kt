@@ -40,12 +40,105 @@ object PodcastOpml {
         return list.distinctBy { it.feedUrl }
     }
 
-    /** Beolvasás fájlból (a felhasználó által választott OPML). */
-    fun parseStream(input: InputStream): List<Podcast> = try {
-        input.bufferedReader().use { parse(it.readText()) }
-    } catch (e: Exception) {
-        Log.w(TAG, "parseStream failed", e)
-        emptyList()
+    /**
+     * FELSŐ KORLÁT A BEOLVASÁSRA — 1 megabájt.
+     *
+     * MIÉRT: egy podcast-feliratkozáslista pár tíz kilobájt. Ami ennél
+     * nagyságrendekkel nagyobb, az nem OPML, hanem valami más, amit a
+     * felhasználó véletlenül választott ki a fájlválasztóban — vakon ez
+     * könnyen megesik.
+     */
+    const val MAX_BYTES = 1024 * 1024
+
+    /** A beolvasás eredménye: vagy a lista, vagy egy KIMONDHATÓ hiba. */
+    data class ImportResult(
+        val podcasts: List<Podcast>,
+        val error: String? = null
+    )
+
+    /**
+     * Beolvasás fájlból (a felhasználó által választott OPML).
+     *
+     * A RÉGI VÁLTOZAT MEGÖLTE A PROGRAMOT. A teljes fájlt egyetlen String-be
+     * olvasta, méret- és formátum-ellenőrzés nélkül. Egy véletlenül kiválasztott
+     * videóra ez 268 megabájtos foglalást jelentett — OutOfMemoryError, és a
+     * folyamat halála. A felhasználó ebből annyit látott, hogy semmi nem történik.
+     *
+     * Most három őr van rajta:
+     *  1. legfeljebb 1 megabájtot olvasunk be, azon túl megállunk
+     *  2. az első pár száz bájt alapján eldöntjük, OPML-e egyáltalán
+     *  3. Throwable-t kapunk el, nem csak Exception-t — az OutOfMemoryError
+     *     ugyanis Error, nem Exception, ezért szállt fel szabadon
+     */
+    fun parseStreamChecked(input: InputStream): ImportResult = try {
+        val text = readLimited(input)
+        when {
+            text == null -> ImportResult(
+                emptyList(),
+                "Ez a fájl túl nagy egy podcast-listához. Egy feliratkozáslista " +
+                    "néhány tíz kilobájt szokott lenni. Valószínűleg nem azt a fájlt " +
+                    "választottad ki, amit szerettél volna."
+            )
+            text.isBlank() -> ImportResult(emptyList(), "Ez a fájl üres.")
+            !looksLikeOpml(text) -> ImportResult(
+                emptyList(),
+                "Ez a fájl nem podcast-lista. A podcast-listák pont o p m l végű " +
+                    "fájlok, ezeket más podcast alkalmazásból tudod kimenteni."
+            )
+            else -> {
+                val list = parse(text)
+                if (list.isEmpty()) {
+                    ImportResult(
+                        emptyList(),
+                        "Ebben a listában nem találtam podcastot."
+                    )
+                } else {
+                    ImportResult(list)
+                }
+            }
+        }
+    } catch (t: Throwable) {
+        // SZÁNDÉKOSAN Throwable: az OutOfMemoryError nem Exception, és eddig
+        // pont ezért ölte meg a háttérszálat, azon keresztül az egész programot.
+        Log.w(TAG, "parseStream failed", t)
+        ImportResult(
+            emptyList(),
+            "Ezt a fájlt nem sikerült beolvasni. Lehet, hogy sérült, vagy nem " +
+                "podcast-lista."
+        )
+    }
+
+    /** A régi belépési pont — megmarad, hogy a meglévő hívások se törjenek el. */
+    fun parseStream(input: InputStream): List<Podcast> =
+        parseStreamChecked(input).podcasts
+
+    /**
+     * Legfeljebb MAX_BYTES beolvasása. Ha a fájl ennél hosszabb, NULL —
+     * és a maradékot el sem olvassuk.
+     */
+    private fun readLimited(input: InputStream): String? {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var total = 0
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            total += read
+            // Egy bájttal a korlát fölött már tudjuk, hogy túl nagy.
+            if (total > MAX_BYTES) return null
+            out.write(buffer, 0, read)
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
+
+    /**
+     * OPML-nek látszik-e. Nem szigorú érvényesítés, csak józan ész:
+     * az első pár száz karakterben ott kell lennie az opml vagy az outline
+     * nyitó jelölésnek.
+     */
+    private fun looksLikeOpml(text: String): Boolean {
+        val head = text.take(2000).lowercase()
+        return head.contains("<opml") || head.contains("<outline")
     }
 
     /** A feliratkozásokból OPML-szöveget készít (exporthoz). */

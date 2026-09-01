@@ -1,0 +1,107 @@
+CÍMKECSOMAG FORMÁTUM — SuperDL Android
+=======================================
+Készült: 2026-08-30 (MK3)
+
+MIÉRT FONTOS EZ A FÁJL
+----------------------
+A címkecsomagot a program egy ZÁRT felsorolásból ismeri fel (ModuleType.LABEL_PACK).
+Ez azt jelenti, hogy a formátum megváltoztatásához ÚJ ALKALMAZÁS-VERZIÓ kell —
+mindenkinek frissítenie kellene. Ezért van a formátumban több olyan mező, ami ma
+még üres: olcsóbb most beletenni, mint fél év múlva kiadni miatta egy frissítést.
+
+Ha egy csomag "formatum" száma nagyobb, mint amit a telepített program ismer,
+a program KIHAGYJA az egész csomagot. Nem találgat, nem ért félig.
+A jelenleg támogatott formátum: 1.
+
+
+HOVA KERÜL
+----------
+A csomag ugyanaz, mint bármelyik másik modul: ADAT, nem kód. A katalógusban
+(mobil-katalogus.json) a "tipus" mezője legyen "labelpack", a "kategoria"
+mezője "cimkek". Onnantól a Modulboltban az "Elnevezések" csoportban jelenik meg,
+és a napi kétszeri frissítés-ellenőrző magától észreveszi az új verziót.
+
+
+A CSOMAGFÁJL
+------------
+{
+  "formatum": 1,
+  "id": "kozlekedes",
+  "nev": "Közlekedés",
+  "verzio": 3,
+  "visszavont": [],
+  "alkalmazasok": [
+    {
+      "csomag": "hu.pelda.jegyapp",
+      "nevek": [
+        {
+          "kulcs": "hu.pelda.jegyapp|id|hu.pelda.jegyapp:id/buy_button",
+          "cimke": "Jegyvásárlás",
+          "megjegyzes": "Ez viszi a fizetéshez",
+          "eredet": "szerkeszto",
+          "verziotol": "",
+          "verzioig": "",
+          "ujjlenyomat": ""
+        }
+      ]
+    }
+  ]
+}
+
+
+A MEZŐK
+-------
+formatum     Kötelező. Ma 1. Ennél nagyobb szám = a program kihagyja a csomagot.
+id           A modul azonosítója, egyezzen a katalógusbelivel.
+nev          Ez hangzik el a címkekezelőben: "letöltött név a Közlekedés csomagból".
+verzio       Egész szám. Növeld, ha a csomag változott — ettől frissül a telefonokon.
+visszavont   Kulcsok listája. Ami itt szerepel, az a következő frissítéssel
+             ELTŰNIK mindenkinél. Egy rossz címkét nem elég beadni tudni,
+             visszaszedni is kell.
+
+alkalmazasok[].csomag   Az alkalmazás csomagneve (pl. hu.pelda.jegyapp).
+alkalmazasok[].nevek[]  A címkék ehhez az alkalmazáshoz.
+
+  kulcs        KÖTELEZŐ. Pontosan az az alak, amit a program is használ:
+                 csomagnév|id|belső-azonosító     ← ez a jó
+                 csomagnév|pos|rácsX:rácsY        ← ez törékeny, kerüld
+               A "pos" alakot csak akkor add ki, ha az elemnek tényleg nincs
+               belső azonosítója — és akkor tegyél mellé ujjlenyomatot.
+  cimke        KÖTELEZŐ. Ez hangzik el a gomb helyett. Rövid, tárgyilagos.
+  megjegyzes   Nem kötelező. "Ez az, ami tényleg elküldi." Egy vak felhasználónál
+               a félelem gyakran nem az, hogy nem tudja, mi a gomb, hanem hogy
+               nem tudja, mi történik, ha megnyomja.
+  eredet       "szerkeszto" = szerkesztő hagyta jóvá
+               "harman"     = három ember mondta ugyanezt (MK4)
+               üres         = "az eredete nincs feltüntetve"
+               A címkekezelő ezt mondja ki. Ez a bizalom alapja: minden kiadott
+               címkénél látszik, HOGYAN élesedett.
+  verziotol    Ma nem használt. Az alkalmazás-verziótartománynak van fenntartva.
+  verzioig     Ma nem használt.
+  ujjlenyomat  Nem kötelező, de ERŐSEN ajánlott. Ezzel a címke akkor is talál,
+               ha az elem elmozdult. Enélkül csak pontos kulcs-egyezésnél működik.
+               Alakja (pontosvesszővel tagolva, lásd ElementFingerprint.serialize):
+                 viewId;osztály;szülőOsztály;testvérIndex;testvérSzám;
+                 xArány;yArány;szélességArány;magasságArány;kattintható;kapcsoló
+               Például:
+                 hu.pelda.jegyapp:id/buy_button;android.widget.Button;
+                 android.widget.LinearLayout;2;5;0.5;0.82;0.9;0.07;1;0
+
+
+AMIT A CSOMAG SOHA NEM TARTALMAZHAT
+-----------------------------------
+Képernyőszöveget, nevet, összeget, üzenetet — semmilyen tartalmat. Csak
+szerkezetet és a beírt címkét. Ez most, szerkesztett csomagoknál is szabály,
+mert az MK4 beküldésénél már késő lenne bevezetni.
+
+
+HOGYAN VISELKEDIK A TELEFONON
+-----------------------------
+1. A SAJÁT CÍMKE MINDIG VERI A KÖZÖSÉT. A képernyőolvasó előbb a saját pontos
+   kulcsot nézi, aztán a saját ujjlenyomatot, és CSAK UTÁNA a csomagot.
+2. Ha az egyezés nem elég erős, a program nem állít, hanem valószínűsít:
+   "valószínűleg Jegyvásárlás, gomb".
+3. Minden letöltött címke ELVETHETŐ a címkekezelőben, és az elvetés túléli a
+   csomag frissítését. Vissza is kérhető.
+4. Aki saját nevet ad egy letöltött címkének, azzal felülírja — nem kell külön
+   "felülírás" fogalom, aki nevet ad, az felülír.

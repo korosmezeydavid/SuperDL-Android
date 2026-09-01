@@ -1559,6 +1559,9 @@ object PortalControlPages {
                 "A rendszer szerepkör-választó képernyőjén kell kiválasztani a SuperDL-t."
             SetupRequirements.RequestKind.SYSTEM_SCREEN ->
                 "A rendszer beállításai között kell bekapcsolni."
+            SetupRequirements.RequestKind.MANUAL ->
+                "A gyártó saját beállításai között kell bekapcsolni. Ezt a program " +
+                    "nem tudja leellenőrizni, ezért a varázslóban rákérdez, sikerült-e."
         }
 
         return """

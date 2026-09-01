@@ -26,23 +26,78 @@ object ScreenReaderNavigator {
         if (root == null) return emptyList()
         val out = mutableListOf<AccessibilityNodeInfo>()
         try {
-            walk(root, out)
+            walk(root, out, spokenByRow = null)
         } catch (_: Exception) {
         }
         return out
     }
 
-    private fun walk(node: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
+    /**
+     * @param spokenByRow amit egy FÖLÖTTES megnyomható sor MÁR bemondott.
+     *        Ami ebben szerepel, azt a soron belül nem mondjuk el újra.
+     */
+    private fun walk(
+        node: AccessibilityNodeInfo,
+        out: MutableList<AccessibilityNodeInfo>,
+        spokenByRow: String?
+    ) {
         if (out.size >= MAX_NODES) return
         if (!node.isVisibleToUser) return
 
-        if (isMeaningful(node)) {
+        var covered = spokenByRow
+        var added = false
+
+        if (isMeaningful(node) && !isAlreadySpoken(node, covered)) {
             out.add(node)
+            added = true
         }
+
+        // Ha ez egy megnyomható SOR, és bekerült, akkor amit ő bemond, azt a
+        // gyerekei már nem mondhatják el újra.
+        if (added && node.isClickable) {
+            labelOf(node)?.let { covered = it }
+        }
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            walk(child, out)
+            walk(child, out, covered)
         }
+    }
+
+    /**
+     * ELHANGZOTT-E MÁR EZ A SZÖVEG a fölöttes soron?
+     *
+     * A BAJ, AMIT ORVOSOL: a rendszerbeállításokban (és sok más alkalmazásban)
+     * egy menüsor így néz ki: egy megnyomható doboz, aminek MAGÁNAK nincs
+     * felirata, benne pedig egy szöveg. A doboz a gyerekei szövegéből kapja a
+     * nevét — ezért mondja azt, hogy "Hotspot". Aztán a bejárás belelép a
+     * dobozba, megtalálja ugyanazt a szöveget, és MÉGEGYSZER bemondja.
+     * A felhasználó két söprést pazarol minden egyes menüpontra.
+     *
+     * MIÉRT NEM EGYSZERŰEN A GYEREKEKET HAGYJUK KI: mert egy soron belül lehet
+     * ÖNÁLLÓ dolog is — egy kapcsoló a sor végén, egy külön megnyomható gomb.
+     * Azokhoz oda kell tudni jutni. Ezért nem a helye alapján zárunk ki
+     * valamit, hanem az alapján, hogy ELHANGZOTT-E MÁR.
+     *
+     * MIÉRT PONTOS EGYEZÉS, NEM RÉSZLET-KERESÉS: ha csak azt néznénk, hogy a
+     * sor felirata TARTALMAZZA-e a gyerek szövegét, akkor a "Ki" feliratú
+     * kapcsolót elnyelné egy "Wi-Fi kikapcsolva" nevű sor. Ezért a sor
+     * feliratát felbontjuk ugyanazokra a részekre, amikből összeállt, és csak
+     * a teljes egyezést tekintjük ismétlésnek.
+     */
+    private fun isAlreadySpoken(node: AccessibilityNodeInfo, spokenByRow: String?): Boolean {
+        if (spokenByRow == null) return false
+
+        // Az ÖNÁLLÓAN MŰKÖDŐ elemek soha nem esnek ki: ezekhez oda kell jutni,
+        // akkor is, ha a feliratuk ugyanaz, mint a soré.
+        if (node.isEditable || node.isCheckable || node.isClickable) return false
+
+        val own = node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: return false
+
+        if (spokenByRow.equals(own, ignoreCase = true)) return true
+        return spokenByRow.split(", ").any { it.trim().equals(own, ignoreCase = true) }
     }
 
     /**

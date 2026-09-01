@@ -177,6 +177,46 @@ class ScreenReaderSounds(context: Context) {
     }
 
     /**
+     * BÁRMELY HANG a képernyő egy pontjára helyezve — a hangtérképhez.
+     *
+     * A playAtScreenPosition mindig ugyanazt a vékony pittyegést szólaltatja
+     * meg, mert ott EGY elem helyét kell közölni. A hangtérképnél viszont a
+     * hangszín hordozza, MI van ott — más a gomb, más a lista, más a beírómező.
+     * Ezért kell egy változat, ahol a hang maga is választható.
+     *
+     * @param x 0.0 = bal szél, 1.0 = jobb szél
+     * @param y 0.0 = a képernyő teteje, 1.0 = alja
+     * @param pitchRange mekkora hangmagasság-tartományt fogjon át a függőleges
+     *        helyzet. A kisebb érték megőrzi a hang jellegét (hogy fel lehessen
+     *        ismerni, MI szól), a nagyobb pontosabban mutatja, HOL van.
+     */
+    fun playMapped(
+        sound: Sound,
+        x: Float,
+        y: Float,
+        volume: Float = 0.6f,
+        pitchRange: Float = 0.8f
+    ) {
+        if (!ready) return
+        val id = ids[sound] ?: return
+        val safeX = x.coerceIn(0f, 1f)
+        val safeY = y.coerceIn(0f, 1f)
+
+        // A képernyő TETEJE a magas hang — ugyanaz a szabály, mint a
+        // felderítésnél. Ha a kettő máshogy szólna, kétszer kellene megtanulni.
+        val center = 1f + pitchRange / 2f
+        val rate = (center - safeY * pitchRange).coerceIn(0.5f, 2.0f)
+
+        val leftVolume = ((1f - safeX) * 0.85f + 0.15f) * volume
+        val rightVolume = (safeX * 0.85f + 0.15f) * volume
+
+        try {
+            pool.play(id, leftVolume, rightVolume, 1, 0, rate)
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
      * ÜRES TERÜLET JELZÉSE felderítés közben.
      *
      * Nagyon halk, rövid kattanás. Azért kell, mert enélkül a felhasználó nem

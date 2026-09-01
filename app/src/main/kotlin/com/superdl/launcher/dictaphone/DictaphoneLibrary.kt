@@ -5,11 +5,13 @@ import java.io.File
 
 object DictaphoneLibrary {
 
-    fun recordingsDir(context: Context): File {
-        val dir = File(context.getExternalFilesDir(null), "ProfiDiktafon")
-        if (!dir.exists()) dir.mkdirs()
-        return dir
-    }
+    /**
+     * A felvételek helye: /Recordings/Diktafon — nyilvános mappa, amit a
+     * fájlkezelő és a számítógép is lát. (Régen a program saját mappájába
+     * kerültek, ahova az Android 11 óta senki nem lát be.)
+     */
+    fun recordingsDir(context: Context): File =
+        com.superdl.launcher.files.RecordingsDirs.dictaphone(context)
 
     fun createOutputFile(context: Context, format: DictaphoneFormat): File {
         val stamp = System.currentTimeMillis()

@@ -94,6 +94,14 @@ object CatalogClient {
             JSONObject(text)
             moduleFile(context, module.id).writeText(text, Charsets.UTF_8)
             CatalogStore.markInstalled(context, module.id, module.version, module.type)
+            // A címkecsomagok memóriában vannak; egy új vagy frissült csomag
+            // után újra kell olvasni őket, különben a régit mondaná tovább.
+            if (module.type == ModuleType.LABEL_PACK) {
+                com.superdl.launcher.screenreader.LabelPackStore.invalidate()
+            }
+            if (module.type == ModuleType.ROUTE_PACK) {
+                com.superdl.launcher.macro.RoutePackStore.invalidate()
+            }
             Log.i(TAG, "modul letoltve: ${module.id} v${module.version}")
             null
         } catch (e: Exception) {
