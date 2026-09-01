@@ -666,7 +666,13 @@ class ScreenReaderService : AccessibilityService() {
 
     // ── GESZTUSOK ───────────────────────────────────────────────────────────
 
-    override fun onGesture(gestureId: Int): Boolean {
+    override fun onGesture(physicalGestureId: Int): Boolean {
+        // A FELÜLET ELFORGATÁSA. A beérkező FIZIKAI mozdulatot lefordítjuk arra,
+        // amit alap kezelésben ugyanez a jelentés lenne — így az alábbi teljes
+        // gesztus-tábla változatlan maradhat, és nem kell két szabályrendszert
+        // fejben tartani (a SuperDL felületén és külső appban ugyanaz az ujj).
+        val gestureId = com.superdl.launcher.gestures.AccessibilityGestureMap
+            .toNormal(physicalGestureId)
         // AZONNALI KIKAPCSOLÁS: ha közben letiltották (vagy vészleállítás jött),
         // engedjük vissza az érintéseket a rendszernek. Enélkül a telefon
         // "halottnak" tűnne: az olvasó elfogná a mozdulatokat, de nem csinálna
@@ -679,7 +685,11 @@ class ScreenReaderService : AccessibilityService() {
         // TANULÓ MÓD: itt SEMMI nem történik élesben — csak tanítunk.
         // Ezért mindent megelőz: a rossz mozdulatnak sincs következménye.
         if (TrainingState.isActive) {
-            handleTrainingGesture(gestureId)
+            // A TANULÓ MÓD A FIZIKAI MOZDULATOT KAPJA, nem a lefordítottat:
+            // ott azt tanuljuk, amit az ujj csinál. A lecke a "lefelé söprés"
+            // nevet mondja, és a hatását — elforgatva a hatás más lesz, de a
+            // mozdulat neve maradjon őszinte.
+            handleTrainingGesture(physicalGestureId)
             return true
         }
         // MŰVELETSOR LEJÁTSZÁSA KÖZBEN a gesztusok mást jelentenek: jobbra
@@ -2619,7 +2629,23 @@ class ScreenReaderService : AccessibilityService() {
      */
     private fun say(text: String) {
         lastSpoken = text
-        tts?.speak(text)
+        // A GESZTUS-ISKOLA SZÖVEGÉT NEM FORDÍTJUK EL.
+        //
+        // Az órák és a vizsga a VALÓDI, FIZIKAI mozdulatot nevezik meg
+        // („Söpörj JOBBRA, hogy megnyomd"), és a gyakorlat is a fizikai
+        // gesztust várja vissza. Ha a szófordító elforgatott módban ezt is
+        // átírná, a tanárnő „felfelé"-t mondana, közben jobbra söprést várna
+        // — vagyis pont a tanulás közben hazudna a program. Egy tanuló, aki
+        // épp most ismerkedik a mozdulatokkal, ezt magára venné.
+        //
+        // Ugyanaz az elv, mint a „Felület elforgatása" menüpont szabályánál:
+        // ami MÁR fizikai irányokban beszél, azt nem fordítjuk le újra.
+        val prepared = if (TrainingState.mode != TrainingState.Mode.OFF) {
+            com.superdl.launcher.gestures.GestureWords.literal(text)
+        } else {
+            text
+        }
+        tts?.speak(prepared)
     }
 
     /**

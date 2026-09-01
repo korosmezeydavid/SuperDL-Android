@@ -47,15 +47,43 @@ class SwipeGestureListener(
         return if (abs(diffX) > abs(diffY)) {
             // Vízszintes söprés
             if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                if (diffX > 0) onSwipeRight() else onSwipeLeft()
+                dispatch(
+                    if (diffX > 0) GestureOrientation.Physical.RIGHT
+                    else GestureOrientation.Physical.LEFT
+                )
                 true
             } else false
         } else {
             // Függőleges söprés
             if (abs(diffY) > SWIPE_THRESHOLD && abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
-                if (diffY > 0) onSwipeDown() else onSwipeUp()
+                dispatch(
+                    if (diffY > 0) GestureOrientation.Physical.DOWN
+                    else GestureOrientation.Physical.UP
+                )
                 true
             } else false
+        }
+    }
+
+    /**
+     * A FELÜLET ELFORGATÁSA ITT TÖRTÉNIK — EGY HELYEN, AZ EGÉSZ PROGRAMRA.
+     *
+     * A SuperDL 41 képernyője ugyanezt az osztályt használja. Ha a leképezést
+     * itt cseréljük, mind a 41 egyszerre fordul el — és ez nem kényelmi
+     * kérdés: egyetlen kimaradt képernyő vakon azonnal zavarba ejtő lenne,
+     * mert ott hirtelen a régi szabály élne.
+     *
+     * A VISSZAHÍVÁSOK NEVE SZÁNDÉKOSAN NEM VÁLTOZOTT. Az `onSwipeUp` a hívó
+     * oldalán mindig azt jelenti, hogy "előző elem" — csak épp nem biztos,
+     * hogy felfelé söpréssel érkezik. Így egyetlen képernyőt sem kellett
+     * átírni, és egy későbbi fejlesztő sem tud véletlenül félrenyúlni.
+     */
+    private fun dispatch(physical: GestureOrientation.Physical) {
+        when (GestureOrientation.logicalOf(physical)) {
+            GestureOrientation.Logical.PREVIOUS -> onSwipeUp()
+            GestureOrientation.Logical.NEXT -> onSwipeDown()
+            GestureOrientation.Logical.ENTER -> onSwipeRight()
+            GestureOrientation.Logical.BACK -> onSwipeLeft()
         }
     }
 }

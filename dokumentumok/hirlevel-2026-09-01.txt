@@ -1,0 +1,274 @@
+SUPER DL HÍRLEVÉL
+2026. szeptember 1.
+
+Kedves Tesztelők!
+
+Hosszú nap volt, és sok minden elkészült. Ez a hírlevél végigmegy rajta —
+azon is, ami már a telefonodon van, és azon is, ami még csak nálam.
+
+Két részre osztottam. Az első rész az 1.56.0, amit MA MÁR LETÖLTHETSZ.
+A második rész az, ami azóta készült el, és a következő kiadással jön.
+A legvégén elmondom, hogyan frissíts.
+
+==========================================================
+ELSŐ RÉSZ — 1.56.0, MÁR ELÉRHETŐ
+==========================================================
+
+MEGTALÁLOD VÉGRE A FELVÉTELEIDET
+
+Ez a nap legfontosabb javítása, mert eddig egy funkció félig működött, és
+ez rosszabb, mint ha nem lenne.
+
+A rádiófelvételek és a diktafon felvételei eddig egy olyan mappába kerültek,
+amit az Android 11 óta EGYETLEN fájlkezelő sem lát — még a miénk sem, még
+teljes fájlhozzáféréssel sem. A portál lejátszotta őket, de te nem tudtad
+átmásolni, elküldeni, biztonsági mentésbe tenni. Gyakorlatilag a felvételeid
+be voltak zárva.
+
+Mostantól nyilvános mappákba mennek:
+
+    Felvételek / Radio
+    Felvételek / Diktafon
+
+A régi felvételek automatikusan átköltöznek. Fontos: a program ELŐBB MÁSOL,
+és csak akkor töröl, ha a másolat mérete stimmel. Egy felvétel sem veszhet el
+a költözés közben — ez nem volt kérdés.
+
+A fájlkezelőben van egy új gyorshely is: "Felvételek". Egy söpréssel ott vagy.
+
+
+CSOPORTOS MŰVELETEK A FÁJLKEZELŐBEN
+
+Hatszáz kép törlése egyesével nem funkció, hanem büntetés. Ezért:
+
+Minden mappa alján van egy "Menü" sor. Abban:
+
+    Kijelölés indítása
+
+Utána végigmész a listán, és amit ki akarsz jelölni, azt kijelölöd. A program
+minden lépésnél mondja, hány elem van kiválasztva. Ha megvagy:
+
+    Törlés  /  Mozgatás  /  Másolás
+
+Mozgatásnál és másolásnál kapsz egy célmappa-listát, és a program RÁKÉRDEZ:
+"Ide akarod beilleszteni? [mappanév]". Fel- vagy lefelé söpréssel elveted a
+kérdést. Vagyis véletlenül nem tudsz hatszáz fájlt rossz helyre önteni.
+
+Új még: a MAPPÁKON a jobbra söprés nem lépteti be azonnal, hanem előjön egy
+menü — ugyanúgy, ahogy a fájloknál. A belépés ott az első pont, tehát ha
+csak be akarsz menni, az két mozdulat lett egy helyett. Cserébe a mappával
+végre tudsz is csinálni valamit.
+
+Egy őszinte hiányosság: a csoportos műveletek KERESÉSI TALÁLATOK között
+még nem érhetők el. Ha ez zavar, szólj, és pótolom.
+
+
+NÉVJEGYZÉK — MOSTANTÓL TE DÖNTESZ
+
+Új beállítási panel a névjegyzékben:
+
+- Betűindex ki és be. Van, aki egyben szereti látni a névjegyeket, betűk
+  szerinti csoportosítás nélkül. Eddig nem volt választás.
+- Telefonszám mutatása. Eddig mindenhol csak az utolsó négy számjegyet
+  mondta a program. Ez adatvédelem — de ha egyedül vagy otthon, és fel
+  akarod olvastatni a saját listádat, akkor csak bosszúság. Mostantól
+  kapcsolható.
+- Névjegy mentése fájlba, és visszatöltése. Szabványos vCard formátum,
+  tehát bármelyik másik telefon elfogadja. A visszatöltés felismeri, ha
+  egy szám már megvan, és nem duplázza meg.
+
+
+A BEÁLLÍTÁS VARÁZSLÓ ÚJJÁÉPÜLT
+
+Ez volt a nap legnagyobb tétele, és a te ötleted volt.
+
+Eddig a varázsló csak azokat az engedélyeket kérte, amiket az Android magától
+felkínál. Csakhogy a SuperDL-hez ennél több kell, és a többit egy vak ember
+egy friss telefonon, TalkBackkel, önállóan gyakorlatilag nem találja meg.
+
+Mostantól a varázsló FRISS TELEPÍTÉSNÉL MAGÁTÓL ELINDUL, és végigvisz
+mindenen:
+
+- alapértelmezett kezdőképernyő
+- alapértelmezett telefon alkalmazás  (ez most már ALAPVETŐ, nem opció)
+- alapértelmezett SMS alkalmazás
+- teljes fájlhozzáférés
+- a SuperDL billentyűzet engedélyezése, ÉS a kiválasztása
+- képernyőolvasó
+- PIN-segéd
+- rátét más alkalmazások fölé
+- korlátlan háttérfutás
+- gyártói automatikus indítás (Xiaomi, Huawei, Oppo)
+
+És ami a lényeg: MINDEGYIK ELŐTT ELMONDJA, MIÉRT KELL. Nem azt kérjük, hogy
+bízz bennünk vakon. Azt mondjuk meg, mi lesz jobb tőle, és mi nem fog
+működni nélküle.
+
+Az alapvető pontokon nem enged tovább. A többit el lehet halasztani, és a
+program később visszatér rájuk.
+
+Ha végig akarod játszani a saját telefonodon is:
+Beállítások / Haladó és technikai / Beállítás varázsló elölről
+
+
+PODCASTOK — MEGINT MŰKÖDIK
+
+Bejelentetted, hogy nem tölt be a népszerű lista, és a keresés sem ad
+találatot. Két oka volt, mindkettő javítva:
+
+Az Apple átköltöztette azt a szolgáltatást, ahonnan a toplistát kértük.
+Most az új helyet kérdezzük, a régi maradt tartaléknak.
+
+A keresés pedig eldobta azokat a találatokat, amiknél hiányzott egy mező —
+így néha mindent eldobott. Most már két menetben keres, és ha tényleg nincs
+találat, MEGMONDJA, MI A HIBA. Nem néma csend lesz, hanem egy mondat, amit
+el tudsz nekem küldeni.
+
+
+KÉT HIBA A HIBAJELENTÉSEDBŐL
+
+A rádióból nem lehetett kivenni a megunt kedvencet. A törlés kódja megvolt,
+csak menüpont nem tartozott hozzá. Most már van.
+
+A podcast-lista importálása össze tudta omlasztani a programot. Egy nagy
+fájlt a régi kód EGYBEN olvasott be a memóriába — egy 268 megabájtos fájlnál
+ez azonnali összeomlás. Most darabonként olvas, van felső határ, és ellenőrzi,
+hogy egyáltalán podcast-lista-e a fájl. Ami még fontosabb: ez a fajta hiba
+korábban átcsúszott a védőhálón, mert technikailag nem "kivétel", hanem
+"végzetes hiba" — most ezt is elkapjuk.
+
+
+APRÓSÁGOK, AMIK NEM APRÓSÁGOK
+
+- Könyv törlése a könyvtárból, a hozzá tartozó könyvjelzőkkel együtt.
+- Zeneszám törlése LEJÁTSZÁS KÖZBEN, és ugrás a következőre. Aki
+  végighallgat egy rossz felvételt, mielőtt kitörölhetné, az kétszer
+  bünteti magát.
+- A tárhely-engedély kérése javítva.
+
+
+==========================================================
+MÁSODIK RÉSZ — AMI MA KÉSZÜLT EL, ÉS MÉG NINCS KIADVA
+==========================================================
+
+Ezek megvannak, fordulnak, de a következő verzióval jönnek. Azért írok
+róluk, mert szeretném, ha tudnád, mi vár rád.
+
+
+FELÜLET ELFORGATÁSA
+
+Ez a tesztelők ötlete volt, és nagyon jó ötlet.
+
+Aki iPhone-ról jött, az a listákban BALRA-JOBBRA pöccint, nem fel-le. Ez nem
+butaság és nem lustaság: évek beidegződése, és vakon ezt a legnehezebb
+átszoktatni. Egyszerűbb a programot elforgatni, mint az ujjat.
+
+Beállítások / Felület elforgatása — három állapot között forog körbe:
+
+  ALAP:              fel-le lépkedsz, jobbra belépsz, balra visszalépsz
+  ELFORGATVA JOBBRA: balra-jobbra lépkedsz, FELFELÉ belépsz, lefelé kilépsz
+  ELFORGATVA BALRA:  balra-jobbra lépkedsz, LEFELÉ belépsz, felfelé kilépsz
+
+A választásod elmentődik. Váltáskor a program kimondja a TELJES új szabályt,
+nem csak a mód nevét — hogy ne kelljen vakon próbálgatnod, merre söpörj.
+
+És ami a lényeg: MINDENHOL érvényes. Mind a 41 képernyőn, a képernyőolvasóban
+is, tehát más alkalmazásokban is. Egy kimaradt képernyő vakon pontosan olyan
+rossz lenne, mintha az egész nem működne.
+
+Sőt: a program a KIMONDOTT UTASÍTÁSOKAT is átfordítja. Elforgatva nem fogja
+azt mondani, hogy "söpörj jobbra a megnyitáshoz", mert az hazugság lenne — és
+egy hazug utasítás vakon rosszabb a semminél, hiszen azt hinnéd, te rontod el.
+
+Egy dolog szándékosan NEM fordul el: a mátrix billentyűzet. Az nem lista,
+hanem térbeli rács — ott a fel-le-bal-jobb a gombok elrendezése. Elforgatva
+használhatatlan lenne.
+
+
+A VARÁZSLÓ BILLENTYŰZET-LÉPÉSE — JAVÍTVA
+
+Jelezted, hogy sikerült kiválasztani a mátrix billentyűzetet, aztán ugyanaz a
+képernyő jött vissza. Igazad volt: a program az ENGEDÉLYEZŐ listát nyitotta
+meg újra, nem a VÁLASZTÓT. Most már a valódi billentyűzet-választó jön elő.
+
+
+S.O.S. — VISSZASZÁMLÁLÁS, DE CSAK HA KÉRED
+
+A készülő S.O.S. láncnál lesz egy tíz másodperces visszaszámlálás a 112
+hívása előtt, balra söpréssel megszakítható. Ez vészfék: zsebben véletlenül
+indított riasztásból ne legyen valódi mentőhívás.
+
+Te azt kérted, ezt is lehessen eldönteni — igazad van, mert vészhelyzetben
+tíz másodperc is sok. Már benne van:
+
+Beállítások / S.O.S. paraméterek / Visszaszámlálás ki és be
+
+Kikapcsolva a riasztás AZONNAL indul, megállítási lehetőség nélkül. A program
+ezt ki is mondja, amikor kikapcsolod. Gondold végig, melyik való neked — erre
+nincs jó általános válasz.
+
+
+FÁJLKEZELŐ: ÁTNEVEZÉS
+
+Eddig azt mondta, "a következő verzióban jön". Megjött. Diktálod az új nevet,
+a kiterjesztés magától megmarad — nem lehet véletlenül tönkretenni egy fájlt
+azzal, hogy lemarad a végéről a pont-mp3.
+
+
+RÁDIÓ: IDŐZÍTETT FELVÉTEL
+
+Ez is placeholder volt. Mostantól beállíthatod, hogy a program magától
+felvegyen egy adást: melyik állomást, mikor kezdje, meddig tartson. Túléli az
+újraindítást és a programfrissítést is. A felvétel a Felvételek / Radio
+mappába kerül, ahol meg is találod.
+
+
+==========================================================
+EGY DÖNTÉS, AMIT TE HOZTÁL
+==========================================================
+
+A hangtérképnek négy hangnyelve van, és eddig az volt a terv, hogy majd
+kiválasztjuk a győztest. A te döntésed: MIND A NÉGY MARAD, választható,
+mert ez fülre és emberre változik.
+
+Ez helyes döntés, és örülök, hogy te hoztad meg. Nem én ülök a te füleddel.
+
+
+==========================================================
+HOGYAN FRISSÍTS
+==========================================================
+
+A telefon MAGÁTÓL SZÓL. A SuperDL naponta kétszer megnézi, van-e újabb
+verzió, és ha talál, mondja. Nem kell semmit csinálnod, csak igent mondani.
+
+Ha nem akarod megvárni:
+
+    Beállítások / Katalógus / Frissítés keresése
+
+Ha kézzel telepítenél, a kiadás itt van:
+github.com/korosmezeydavid/SuperDL — a legfrissebb kiadásnál a SuperDL.apk
+
+A frissítés a beállításaidat, a névjegyeidet, a könyvjelzőidet és a saját
+elnevezéseidet nem bántja.
+
+
+==========================================================
+AMIT KÉREK TŐLED
+==========================================================
+
+Négy dolgot még senki nem próbált ki élesben, és ezeket nem tudom magamtól
+megnézni:
+
+1. A varázsló VÉGIGJÁTSZÁSA igazi friss telepítésen. Az én telefonomon
+   minden engedély eleve megvan, tehát a varázsló nagy része elő se jön.
+2. A felvételek átköltöztetése olyan telefonon, ahol tényleg vannak régi
+   felvételek.
+3. A podcast toplista és keresés — most már működnie kell. Ha nem, a program
+   megmondja, mi a hiba: azt a mondatot küldd el nekem.
+4. Csoportos törlés egy TÉNYLEG nagy mappán. Hatszáz képen még nem futott.
+
+Ha valami nem stimmel, írj. A hibajelentéseitek nélkül ez a nap nem lett
+volna ennyi.
+
+Köszönöm,
+Kőrösmezey Dávid

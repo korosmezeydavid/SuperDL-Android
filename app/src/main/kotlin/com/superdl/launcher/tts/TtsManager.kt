@@ -423,7 +423,7 @@ class TtsManager(
             return
         }
         onUtteranceDone = null
-        val prepared = PronunciationDictionary.apply(appContext, text)
+        val prepared = PronunciationDictionary.apply(appContext, orient(text))
         // MÁSODIK MOTOR: ha a felhasználó kért ilyet, a program saját
         // üzenetei azon szólnak. Ha nem sikerül, a szokásos úton megy tovább.
         if (speakWithRoleEngine(prepared, role)) return
@@ -460,7 +460,7 @@ class TtsManager(
         onUtteranceDone = onDone
         applyRole(role)
         val id = "SDL_DONE_${System.currentTimeMillis()}"
-        val prepared = PronunciationDictionary.apply(appContext, text)
+        val prepared = PronunciationDictionary.apply(appContext, orient(text))
         applyLanguageFor(prepared)
         tts.speak(
             prepared,
@@ -490,6 +490,17 @@ class TtsManager(
         handler.post(action)
     }
 
+    /**
+     * A FELÜLET ELFORGATÁSA A BESZÉDBEN.
+     *
+     * Elforgatott módban a program utasításai („söpörj fel-le") hazugsággá
+     * válnának. Ez az egyetlen hely, ahol MINDEN kimondott mondat átmegy,
+     * ezért itt fordítjuk át — így nem maradhat ki képernyő, és a később
+     * írt mondatok is automatikusan jók lesznek.
+     */
+    private fun orient(text: String): String =
+        com.superdl.launcher.gestures.GestureWords.translate(text)
+
     fun speakAdd(text: String) {
         if (initFailed) return
         if (!isReady) {
@@ -499,7 +510,7 @@ class TtsManager(
         // A hozzáfűzött mondat a MÁR beállított nyelven szól: nem váltunk
         // közben, mert az félbeszakítaná a folyamatban lévő beszédet.
         tts.speak(
-            PronunciationDictionary.apply(appContext, text),
+            PronunciationDictionary.apply(appContext, orient(text)),
             TextToSpeech.QUEUE_ADD,
             speakParams(),
             "SDL_ADD_${System.currentTimeMillis()}"

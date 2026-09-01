@@ -1,6 +1,32 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-09-01 | **Verzió:** 1.56.0 (versionCode 102)
+**Utolsó frissítés:** 2026-09-01 | **Verzió:** 1.57.0 (versionCode 103)
+
+> **2026-09-01 este: KIADVA — 1.57.0. AZ S.O.S. TELJES LÁNCA ÉS A FELÜLET
+> ELFORGATÁSA.**
+>
+> **A legfontosabb: JAVÍTVA EGY SÚLYOS S.O.S. HIBA.** Az 1.56.0-ig a lánc nem
+> nézte a hívás állapotát: húsz másodperc után rátárcsázott a következő számra
+> **akkor is, ha az elsőt felvették** — vagyis el tudta vágni pont azt a
+> hívást, ami sikerült. Mostantól a SuperDL alapértelmezett telefon
+> alkalmazásként látja a hívásállapotot (`SosCallWatcher`).
+>
+> **Új: az S.O.S. teljes lánca.** Négy SMS AZONNAL kimegy a helyzettel (akkor
+> is, ha felveszik a hívást — a hívás azt intézi, hogy tudjanak rólad, az SMS
+> azt, hogy megtaláljanak), aztán két kör hívás, végül 112. A hangpostát nem
+> heurisztikával szűrjük: a lánc a hívás vége után mindig folytatódik, a
+> felhasználó állítja le az S.O.S. újraindításával. **Élesben tesztelve.**
+>
+> **Új: Felület elforgatása** (`Beállítások → Felület elforgatása`) — a négy
+> söprés jelentése átrendezhető iPhone-szokásra, mind a 41 képernyőn és a
+> képernyőolvasóban. Két hibával, amit a tesztelés hozott elő: a szabály
+> kimondása kétszeresen fordult (a program lefordította a saját tanítását), és
+> a szófordító elrontotta volna a navigációs útvonal-leírásokat is („fordulj
+> jobbra a saroknál"). Mindkettő javítva — lásd `gestures/GestureWords.kt`.
+>
+> Továbbá: varázsló billentyűzet-választó javítás, S.O.S. visszaszámlálás
+> ki-be kapcsolható, fájlkezelő átnevezés, rádió időzített felvétel.
+> GitHub kiadás: `v1.57.0`, a `verzio.json` frissítve a `mobil` ágon.
 
 > **2026-09-01: KIADVA — 1.56.0.** Beállítás varázsló friss telepítéshez,
 > csoportos fájlműveletek, felvételek a `/Recordings/` mappában, névjegyzék

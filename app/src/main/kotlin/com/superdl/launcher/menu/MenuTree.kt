@@ -177,6 +177,11 @@ enum class MenuAction {
     SETUP_WIZARD,   // Beállítás varázsló – végigvezet a hiányzó engedélyeken
     SETUP_STATUS,   // Beállítás állapot felolvasása
     SETUP_RESTART,  // Beállítás varázsló elölről (a későbbre hagyottakat is)
+    GESTURE_ORIENTATION,      // Felület elforgatása – a söprések jelentésének átrendezése
+    GESTURE_ORIENTATION_HELP, // A jelenlegi kezelés szabályainak felolvasása
+    SOS_COUNTDOWN_TOGGLE, // S.O.S. visszaszámlálás ki és be
+    RADIO_SCHEDULE_ADD,   // Rádió: időzített felvétel hozzáadása
+    RADIO_SCHEDULE_LIST,  // Rádió: időzített felvételek listája
     DIAGNOSTICS,    // Diagnosztika – mi nem működik és miért
     BATTERY_OPT_REQUEST, // Korlátlan háttérfutás kérése (akku-optimalizálás alól)
     AUTOSTART_SETUP,     // Gyártói automatikus indítás (Xiaomi, Huawei, Oppo...)
@@ -584,7 +589,8 @@ object MenuTree {
                 MenuItem("radio_search", "Állomás keresése", MenuAction.RADIO_SEARCH),
                 MenuItem("radio_fav_delete", "Kedvenc állomás törlése", MenuAction.RADIO_FAV_DELETE),
                 MenuItem("radio_recordings", "Rádió felvételek megnyitása", MenuAction.RADIO_RECORDINGS),
-                MenuItem("radio_schedule", "Időzített felvételek", MenuAction.RADIO_SCHEDULE),
+                MenuItem("radio_schedule", "Időzített felvétel hozzáadása", MenuAction.RADIO_SCHEDULE_ADD),
+                MenuItem("radio_schedule_list", "Időzített felvételeim", MenuAction.RADIO_SCHEDULE_LIST),
                 MenuItem("radio_back", "Vissza", MenuAction.SUBMENU)
             )),
             MenuItem("media_back", "Vissza a főmenübe", MenuAction.SUBMENU)
@@ -776,6 +782,8 @@ object MenuTree {
                 MenuItem("catalog_update", "Frissítés keresése", MenuAction.CATALOG_UPDATE),
                 MenuItem("catalog_back", "Vissza", MenuAction.SUBMENU)
             )),
+            MenuItem("gesture_orientation", "Felület elforgatása", MenuAction.GESTURE_ORIENTATION),
+            MenuItem("gesture_orientation_help", "Jelenlegi kezelés felolvasása", MenuAction.GESTURE_ORIENTATION_HELP),
             MenuItem("advanced", "Haladó és technikai", MenuAction.SUBMENU, listOf(
                 MenuItem("acc_status", "Kisegítő szolgáltatások állapota", MenuAction.ACCESSIBILITY_STATUS),
                 MenuItem("safe_mode", "Biztonságos mód", MenuAction.SAFE_MODE_STATUS),
@@ -828,6 +836,7 @@ object MenuTree {
                 MenuItem("sos_set_3", "S.O.S. szám 3 beállítása", MenuAction.SOS_SET_3),
                 MenuItem("sos_set_4", "S.O.S. szám 4 beállítása", MenuAction.SOS_SET_4),
                 MenuItem("sos_read", "S.O.S. számok felolvasása", MenuAction.SOS_READ_ALL),
+                MenuItem("sos_countdown", "Visszaszámlálás ki és be", MenuAction.SOS_COUNTDOWN_TOGGLE),
                 MenuItem("sos_settings_back", "Vissza a beállításokhoz", MenuAction.SUBMENU)
             )),
             MenuItem("patrol_master", "Teljes őrség ki-be", MenuAction.BATTERY_PATROL_TOGGLE),

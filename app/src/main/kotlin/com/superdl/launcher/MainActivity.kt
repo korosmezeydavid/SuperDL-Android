@@ -148,6 +148,9 @@ import com.superdl.launcher.radio.RadioPlaylistHolder
 import com.superdl.launcher.radio.RadioRecorder
 import com.superdl.launcher.radio.RadioStation
 import com.superdl.launcher.radio.RadioStore
+import com.superdl.launcher.radio.RadioScheduleEntry
+import com.superdl.launcher.radio.RadioScheduleStore
+import com.superdl.launcher.radio.RadioScheduleScheduler
 import com.superdl.launcher.weather.WeatherHelper
 import com.superdl.launcher.contacts.ContactBookItem
 import com.superdl.launcher.contacts.ContactContextAction
@@ -330,7 +333,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var tvItem: TextView
-    private lateinit var tvHint: TextView
+    // NEM sima TextView: a HintText az a pont, ahol elforgatott felületnél
+    // a súgósor irányszavai és nyilai átfordulnak. Lásd: gestures/HintText.kt
+    private lateinit var tvHint: com.superdl.launcher.gestures.HintText
     private lateinit var tvPosition: TextView
 
     private lateinit var tts: TtsManager
@@ -720,7 +725,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         tvItem = findViewById(R.id.tvItem)
-        tvHint = findViewById(R.id.tvHint)
+        tvHint = com.superdl.launcher.gestures.HintText(findViewById(R.id.tvHint))
         tvPosition = findViewById(R.id.tvPosition)
 
         tts = TtsManager(this)
@@ -994,6 +999,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MusicBrowse -> navigateMusicList(flow, -1)
             is AppFlow.RadioBrowse -> navigateRadioList(flow, -1)
             is AppFlow.RadioFavoriteDeleteConfirm -> repeatRadioFavoriteDeleteConfirm(flow.station)
+            is AppFlow.RadioScheduleStationPick -> navigateRadioSchedulePick(flow, -1)
+            is AppFlow.RadioScheduleDurationPick -> navigateRadioScheduleDuration(flow, -1)
+            is AppFlow.RadioScheduleRepeatPick -> navigateRadioScheduleRepeat(flow, -1)
+            is AppFlow.RadioScheduleBrowse -> navigateRadioScheduleList(flow, -1)
+            is AppFlow.RadioScheduleDeleteConfirm -> repeatRadioScheduleDeleteConfirm(flow.entry)
             is AppFlow.AlarmDeleteConfirm -> repeatAlarmDeleteConfirm(flow.alarm)
             is AppFlow.MedicationCycleBrowse -> navigateMedicationCycle(flow, -1)
             is AppFlow.MedicationTimeOfDayBrowse -> navigateMedicationTimeOfDay(flow, -1)
@@ -1173,6 +1183,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MusicBrowse -> navigateMusicList(flow, +1)
             is AppFlow.RadioBrowse -> navigateRadioList(flow, +1)
             is AppFlow.RadioFavoriteDeleteConfirm -> repeatRadioFavoriteDeleteConfirm(flow.station)
+            is AppFlow.RadioScheduleStationPick -> navigateRadioSchedulePick(flow, +1)
+            is AppFlow.RadioScheduleDurationPick -> navigateRadioScheduleDuration(flow, +1)
+            is AppFlow.RadioScheduleRepeatPick -> navigateRadioScheduleRepeat(flow, +1)
+            is AppFlow.RadioScheduleBrowse -> navigateRadioScheduleList(flow, +1)
+            is AppFlow.RadioScheduleDeleteConfirm -> repeatRadioScheduleDeleteConfirm(flow.entry)
             is AppFlow.AlarmDeleteConfirm -> repeatAlarmDeleteConfirm(flow.alarm)
             is AppFlow.MedicationCycleBrowse -> navigateMedicationCycle(flow, +1)
             is AppFlow.MedicationTimeOfDayBrowse -> navigateMedicationTimeOfDay(flow, +1)
@@ -1463,6 +1478,11 @@ class MainActivity : AppCompatActivity() {
                 onRadioListActivate(flow)
             }
             is AppFlow.RadioFavoriteDeleteConfirm -> deleteRadioFavorite(flow)
+            is AppFlow.RadioScheduleStationPick -> onRadioScheduleStationPicked(flow)
+            is AppFlow.RadioScheduleDurationPick -> onRadioScheduleDurationPicked(flow)
+            is AppFlow.RadioScheduleRepeatPick -> saveRadioSchedule(flow)
+            is AppFlow.RadioScheduleBrowse -> enterRadioScheduleDeleteConfirm(flow)
+            is AppFlow.RadioScheduleDeleteConfirm -> deleteRadioSchedule(flow)
             is AppFlow.NotificationBrowse -> tts.speak(flow.notifications[flow.index].speakFull())
             is AppFlow.NewsFeedBrowse -> loadNewsFromFeed(flow.feeds[flow.index])
             is AppFlow.NewsBrowse -> openNewsArticle(flow)
@@ -1581,6 +1601,15 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.RadioFavoriteDeleteConfirm -> {
                 activeFlow = AppFlow.RadioBrowse(flow.stations, flow.index, deleteMode = true)
+                updateFlowDisplay()
+                tts.speak("Törlés megszakítva.")
+            }
+            is AppFlow.RadioScheduleStationPick -> exitFlow("Időzítés megszakítva.")
+            is AppFlow.RadioScheduleDurationPick -> exitFlow("Időzítés megszakítva.")
+            is AppFlow.RadioScheduleRepeatPick -> exitFlow("Időzítés megszakítva.")
+            is AppFlow.RadioScheduleBrowse -> exitFlow("Időzített felvételek bezárva.")
+            is AppFlow.RadioScheduleDeleteConfirm -> {
+                activeFlow = AppFlow.RadioScheduleBrowse(flow.entries, flow.index)
                 updateFlowDisplay()
                 tts.speak("Törlés megszakítva.")
             }
@@ -2148,6 +2177,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SOS_SET_3 -> startSosNumberSetup(3)
             MenuAction.SOS_SET_4 -> startSosNumberSetup(4)
             MenuAction.SOS_READ_ALL -> readAllSosNumbers()
+            MenuAction.SOS_COUNTDOWN_TOGGLE -> toggleSosCountdown()
+            MenuAction.GESTURE_ORIENTATION -> cycleGestureOrientation()
+            MenuAction.GESTURE_ORIENTATION_HELP -> speakGestureOrientation()
             MenuAction.TIME_NOW -> tts.speak(InfoHelper.speakDateTime())
             MenuAction.ALARM_SET -> startAlarmSetFlow()
             MenuAction.ALARM_READ_NEXT -> speakNextAlarm()
@@ -2782,6 +2814,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.RADIO_FAV_DELETE -> startRadioFavoritesFlow(deleteMode = true)
             MenuAction.RADIO_RECORDINGS -> startRadioRecordingsFlow()
             MenuAction.RADIO_SCHEDULE -> startRadioScheduleFlow()
+            MenuAction.RADIO_SCHEDULE_ADD -> startRadioScheduleFlow()
+            MenuAction.RADIO_SCHEDULE_LIST -> startRadioScheduleListFlow()
             MenuAction.WEATHER -> startWeatherFlow()
             MenuAction.WEATHER_CITY -> startWeatherCityFlow()
             MenuAction.DAY_GREETING -> speakDayGreeting()
@@ -5231,6 +5265,41 @@ class MainActivity : AppCompatActivity() {
             // már késő, akkor a rendszer ablaka beszél.
             tts.speakThen("${req.title}. ${req.speakWhy()} Most jön a rendszer kérdése.") {
                 ActivityCompat.requestPermissions(this, req.permissions.toTypedArray(), PERM_REQUEST)
+            }
+            return
+        }
+
+        // A BILLENTYŰZET KIVÁLASZTÁSA NEM BEÁLLÍTÁS-OLDAL, HANEM FELUGRÓ LISTA.
+        //
+        // ÉLES HIBA VOLT: a "kiválasztás" lépés ugyanarra a képernyőre vitt,
+        // ahol a billentyűzetet BEKAPCSOLNI lehet — a felhasználó tehát
+        // másodszor is ugyanazt látta, és nem értette, mit rontott el.
+        // Az aktuális billentyűzetet az Android csak ezzel a rendszer-listával
+        // engedi váltani, beállítás-oldal nincs hozzá.
+        if (req.id == "keyboard_selected") {
+            activeFlow = AppFlow.SetupWizardAwaitReturn(req, flow.firstRun)
+            updateFlowDisplay()
+            tts.speakThen(
+                "${req.title}. ${req.speakWhy()} " +
+                    "Most felugrik a billentyűzet-választó lista. Válaszd ki benne a " +
+                    "Mátrix billentyűzetet. Ha bezárult, söpörj balra, és ellenőrizzük."
+            ) {
+                val ok = try {
+                    val imm = getSystemService(INPUT_METHOD_SERVICE)
+                        as? android.view.inputmethod.InputMethodManager
+                    imm?.showInputMethodPicker()
+                    imm != null
+                } catch (_: Exception) {
+                    false
+                }
+                if (!ok) {
+                    tts.speak(
+                        "A választó listát nem sikerült megnyitni. Kézzel így megy: " +
+                            "kezdj el írni bárhol, és az értesítési sávban megjelenik a " +
+                            "billentyűzet-váltás."
+                    )
+                    returnToSetupWizard(flow.firstRun)
+                }
             }
             return
         }
@@ -8804,8 +8873,196 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    // ==================== IDŐZÍTETT RÁDIÓFELVÉTEL ====================
+
+    /**
+     * ÚJ IDŐZÍTETT FELVÉTEL — négy lépés: állomás, idő, hossz, ismétlés.
+     *
+     * MIÉRT LÉPÉSENKÉNT, ÉS NEM EGY MONDATBÓL: egy diktált „vedd fel a
+     * Kossuthot holnap tíz órakor fél óráig" mondat félreértése némán rossz
+     * felvételt eredményezne — a felhasználó pedig csak akkor venné észre,
+     * amikor a műsort keresné. Négy rövid lépés lassabb, de nem téved.
+     */
     private fun startRadioScheduleFlow() {
-        tts.speak("Az időzített felvétel hamarosan érkezik. Ezzel majd beállíthatod, hogy egy adott állomást adott időben automatikusan felvegyen.")
+        val stations = RadioStore.getStations(this).ifEmpty { RadioStore.BUILTIN }
+        if (stations.isEmpty()) {
+            tts.speak("Nincs állomás, amit felvehetnék. Előbb ments el egy kedvenc rádiót.")
+            return
+        }
+        activeFlow = AppFlow.RadioScheduleStationPick(stations, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Időzített felvétel. Melyik állomást vegyem fel? " +
+                "Söpörj fel-le a válogatáshoz, jobbra a kiválasztáshoz, balra vissza. " +
+                "${stations.first().name}"
+        )
+    }
+
+    private fun navigateRadioSchedulePick(flow: AppFlow.RadioScheduleStationPick, delta: Int) {
+        val next = (flow.index + delta + flow.stations.size) % flow.stations.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.stations[next].name)
+    }
+
+    /** Az állomás megvan — jöhet az időpont diktálása. */
+    private fun onRadioScheduleStationPicked(flow: AppFlow.RadioScheduleStationPick) {
+        val station = flow.stations[flow.index]
+        // A PONTOS ÉBRESZTŐT ELLENŐRIZZÜK MOST, nem a felvétel elmaradásakor.
+        if (!AlarmScheduler.canScheduleExact(this)) {
+            tts.speak(
+                "Figyelem: a pontos ébresztő nincs engedélyezve, ezért a felvétel " +
+                    "késhet néhány perccel. A Beállítás varázslóban engedélyezhető. " +
+                    "A beütemezés folytatódik."
+            )
+        }
+        voiceInput.listen(
+            prompt = "${station.name}. Mikor kezdődjön a felvétel? Mondd az időt, " +
+                "például: tíz óra harminc.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val time = com.superdl.launcher.voice.VoiceTimeParser.parse(spoken)
+                if (time == null) {
+                    tts.speak("Nem értettem az időt. Az időzítés megszakítva.")
+                    exitFlow("Vissza a menübe.")
+                    return@listen
+                }
+                enterRadioScheduleDuration(station, time.first, time.second)
+            },
+            onError = { exitFlow("Időzítés megszakítva.") }
+        )
+    }
+
+    /** A választható felvételi hosszak — a tipikus műsorhosszak. */
+    private val radioScheduleDurations = listOf(15, 30, 45, 60, 90, 120, 180)
+
+    private fun enterRadioScheduleDuration(station: RadioStation, hour: Int, minute: Int) {
+        // Alapból a fél óra: a leggyakoribb műsorhossz.
+        val startIndex = radioScheduleDurations.indexOf(30).coerceAtLeast(0)
+        activeFlow = AppFlow.RadioScheduleDurationPick(station, hour, minute, startIndex)
+        updateFlowDisplay()
+        tts.speak(
+            "Kezdés: %d óra %02d perc. Meddig vegyem fel? ".format(hour, minute) +
+                "Söpörj fel-le a hossz között, jobbra a kiválasztáshoz. " +
+                "${speakDuration(radioScheduleDurations[startIndex])}"
+        )
+    }
+
+    private fun navigateRadioScheduleDuration(flow: AppFlow.RadioScheduleDurationPick, delta: Int) {
+        val next = (flow.index + delta + radioScheduleDurations.size) % radioScheduleDurations.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(speakDuration(radioScheduleDurations[next]))
+    }
+
+    private fun speakDuration(minutes: Int): String = when {
+        minutes < 60 -> "$minutes perc"
+        minutes % 60 == 0 -> "${minutes / 60} óra"
+        else -> "${minutes / 60} óra ${minutes % 60} perc"
+    }
+
+    /** Az ismétlés lehetőségei — a nevük egyben a kimondott szöveg. */
+    private val radioScheduleRepeats: List<Pair<String, Set<Int>>> = listOf(
+        "Egyszer" to emptySet(),
+        "Minden nap" to setOf(1, 2, 3, 4, 5, 6, 7),
+        "Hétköznap" to setOf(2, 3, 4, 5, 6),
+        "Hétvégén" to setOf(1, 7)
+    )
+
+    private fun onRadioScheduleDurationPicked(flow: AppFlow.RadioScheduleDurationPick) {
+        val minutes = radioScheduleDurations[flow.index]
+        activeFlow = AppFlow.RadioScheduleRepeatPick(flow.station, flow.hour, flow.minute, minutes, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${speakDuration(minutes)}. Milyen gyakran ismétlődjön? " +
+                "Söpörj fel-le, jobbra a mentéshez. ${radioScheduleRepeats[0].first}"
+        )
+    }
+
+    private fun navigateRadioScheduleRepeat(flow: AppFlow.RadioScheduleRepeatPick, delta: Int) {
+        val next = (flow.index + delta + radioScheduleRepeats.size) % radioScheduleRepeats.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(radioScheduleRepeats[next].first)
+    }
+
+    private fun saveRadioSchedule(flow: AppFlow.RadioScheduleRepeatPick) {
+        val (_, days) = radioScheduleRepeats[flow.index]
+        val entry = RadioScheduleEntry(
+            id = 0,
+            stationName = flow.station.name,
+            streamUrl = flow.station.streamUrl,
+            hour = flow.hour,
+            minute = flow.minute,
+            durationMinutes = flow.durationMinutes,
+            days = days
+        )
+        val saved = RadioScheduleStore.add(this, entry)
+        if (saved == null) {
+            exitFlow("Nem sikerült elmenteni: túl sok időzített felvétel van. Törölj egyet.")
+            return
+        }
+        RadioScheduleScheduler.schedule(this, saved)
+        sounds.play(SoundType.ACTION_OK)
+        exitFlow(
+            "Beütemezve: ${saved.speakPreview()}. " +
+                "A felvétel a Rádió felvételek megnyitása menüpontban lesz."
+        )
+    }
+
+    /** A beütemezett felvételek listája — jobbra söprés törli. */
+    private fun startRadioScheduleListFlow() {
+        val entries = RadioScheduleStore.getAll(this)
+        if (entries.isEmpty()) {
+            tts.speak(
+                "Nincs beütemezett felvétel. Az Időzített felvétel hozzáadása " +
+                    "menüponttal tudsz újat felvenni."
+            )
+            return
+        }
+        activeFlow = AppFlow.RadioScheduleBrowse(entries, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${entries.size} beütemezett felvétel. ${RadioScheduleScheduler.speakNext(this)} " +
+                "Söpörj fel-le a válogatáshoz, jobbra a törléshez, balra vissza. " +
+                "${entries.first().speakPreview()}"
+        )
+    }
+
+    private fun navigateRadioScheduleList(flow: AppFlow.RadioScheduleBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.entries.size) % flow.entries.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.entries[next].speakPreview())
+    }
+
+    private fun enterRadioScheduleDeleteConfirm(flow: AppFlow.RadioScheduleBrowse) {
+        val entry = flow.entries[flow.index]
+        activeFlow = AppFlow.RadioScheduleDeleteConfirm(entry, flow.entries, flow.index)
+        updateFlowDisplay()
+        repeatRadioScheduleDeleteConfirm(entry)
+    }
+
+    private fun repeatRadioScheduleDeleteConfirm(entry: RadioScheduleEntry) {
+        tts.speak(
+            "Törlöd ezt az időzítést? ${entry.speakPreview()}. " +
+                "Söpörj jobbra a törléshez, balra a mégsehez."
+        )
+    }
+
+    private fun deleteRadioSchedule(flow: AppFlow.RadioScheduleDeleteConfirm) {
+        RadioScheduleScheduler.cancel(this, flow.entry.id)
+        RadioScheduleStore.delete(this, flow.entry.id)
+        val remaining = RadioScheduleStore.getAll(this)
+        sounds.play(SoundType.ACTION_OK)
+        if (remaining.isEmpty()) {
+            exitFlow("Törölve. Nincs több beütemezett felvétel.")
+            return
+        }
+        val nextIndex = flow.index.coerceAtMost(remaining.size - 1)
+        activeFlow = AppFlow.RadioScheduleBrowse(remaining, nextIndex)
+        updateFlowDisplay()
+        tts.speak("Törölve. ${remaining.size} időzítés maradt. ${remaining[nextIndex].speakPreview()}")
     }
 
     // ==================== OFFLINE SZÁMBILLENTYŰZET ====================
@@ -14506,12 +14763,76 @@ class MainActivity : AppCompatActivity() {
     // ==================== S.O.S. ====================
 
     private fun activateSos() {
+        // AZ ÚJRAINDÍTÁS = LEÁLLÍTÁS. Ha már fut egy lánc, ez a menüpont
+        // megállítja. Nem új gesztus és nem új képernyő: vészhelyzetben
+        // megtanulni valami újat nem lehet, ezért ugyanaz a mozdulat állítja
+        // le, ami elindította. A program ezt minden hívás után ki is mondja.
+        if (com.superdl.launcher.sos.SosService.isRunning) {
+            startService(
+                Intent(this, com.superdl.launcher.sos.SosService::class.java)
+                    .setAction(com.superdl.launcher.sos.SosService.ACTION_STOP)
+            )
+            tts.speak("S.O.S. leállítva.")
+            return
+        }
         val numbers = SosPreferences.getNumbers(this).filter { it.isNotBlank() }
         if (numbers.isEmpty()) {
             tts.speak("Nincs beállítva S.O.S. telefonszám. Kérlek add meg a beállításokban.")
             return
         }
+        // A VISSZASZÁMLÁLÁS KIKAPCSOLHATÓ (S.O.S. paraméterek menü).
+        // Aki kikapcsolta, az tudatosan vállalta: nála a riasztás azonnal indul.
+        if (!SosPreferences.isCountdownEnabled(this)) {
+            executeSos()
+            return
+        }
         startSosCountdown()
+    }
+
+    /**
+     * FELÜLET ELFORGATÁSA — végigforgat a három kezelési módon.
+     *
+     * MIÉRT KÖRBEFORGATÁS ÉS NEM LISTA: három lehetőség van, és a menüpont
+     * kimondja, mi lett belőle. Egy almenü itt csak egy fölösleges szint
+     * lenne. Ha valaki elrontja, kétszer aktiválja és visszaér az alapra.
+     *
+     * A váltás AZONNAL él, a menüben is: a következő söprést már az új
+     * szabály szerint értelmezi a program. Ezért mondjuk ki a teljes
+     * szabályt, nem csak a mód nevét — különben a felhasználó vakon
+     * próbálgatná, merre kell most söpörnie.
+     */
+    private fun cycleGestureOrientation() {
+        val next = com.superdl.launcher.gestures.GestureOrientation.cycle(this)
+        tts.speak(next.speakRule())
+    }
+
+    /** A jelenlegi kezelés szabályai — váltás nélkül. */
+    private fun speakGestureOrientation() {
+        val mode = com.superdl.launcher.gestures.GestureOrientation.mode(this)
+        tts.speak(mode.speakRule())
+    }
+
+    /**
+     * A visszaszámlálás ki- és bekapcsolása.
+     *
+     * MIÉRT NEM MI DÖNTJÜK EL: a visszaszámlálás védelem a véletlen riasztás
+     * ellen, de veszteség is — vészhelyzetben másodpercek. Hogy melyik számít
+     * többet, az embere válogatja.
+     */
+    private fun toggleSosCountdown() {
+        val next = !SosPreferences.isCountdownEnabled(this)
+        SosPreferences.setCountdownEnabled(this, next)
+        tts.speak(
+            if (next) {
+                "Visszaszámlálás bekapcsolva. Az S.O.S. $SOS_COUNTDOWN_SECONDS másodperc " +
+                    "múlva indul, addig egy balra söpréssel megállítható. Ez véd a " +
+                    "véletlenül, zsebben indított riasztástól."
+            } else {
+                "Visszaszámlálás kikapcsolva. Az S.O.S. AZONNAL indul, megállítási " +
+                    "lehetőség nélkül. Gondold végig: egy véletlen indítás is valódi " +
+                    "riasztás lesz."
+            }
+        )
     }
 
     private fun startSosCountdown() {
@@ -16511,6 +16832,32 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.RadioFavoriteDeleteConfirm -> {
                 tvItem.text = flow.station.name
                 tvPosition.text = "Kedvenc törlése  •  biztos?"
+                tvHint.text = "➡ törlés  •  ⬅ mégse"
+            }
+            is AppFlow.RadioScheduleStationPick -> {
+                tvItem.text = flow.stations[flow.index].name
+                tvPosition.text = "Időzítés  •  állomás  •  ${flow.index + 1} / ${flow.stations.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ tovább  •  ⬅ mégse"
+            }
+            is AppFlow.RadioScheduleDurationPick -> {
+                tvItem.text = speakDuration(radioScheduleDurations[flow.index])
+                tvPosition.text = "Időzítés  •  hossz  •  %02d:%02d".format(flow.hour, flow.minute)
+                tvHint.text = "⬆⬇ választás  •  ➡ tovább  •  ⬅ mégse"
+            }
+            is AppFlow.RadioScheduleRepeatPick -> {
+                tvItem.text = radioScheduleRepeats[flow.index].first
+                tvPosition.text = "Időzítés  •  ismétlés  •  ${flow.station.name}"
+                tvHint.text = "⬆⬇ választás  •  ➡ mentés  •  ⬅ mégse"
+            }
+            is AppFlow.RadioScheduleBrowse -> {
+                val e = flow.entries[flow.index]
+                tvItem.text = "${e.stationName}  ${"%02d:%02d".format(e.hour, e.minute)}"
+                tvPosition.text = "Időzített felvételek  •  ${flow.index + 1} / ${flow.entries.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ törlés  •  ⬅ vissza"
+            }
+            is AppFlow.RadioScheduleDeleteConfirm -> {
+                tvItem.text = flow.entry.stationName
+                tvPosition.text = "Időzítés törlése  •  biztos?"
                 tvHint.text = "➡ törlés  •  ⬅ mégse"
             }
             is AppFlow.NumericDictationAwait -> {

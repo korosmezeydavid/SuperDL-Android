@@ -51,6 +51,12 @@ class SuperInCallService : InCallService() {
     }
 
     private fun handleCallState(call: Call, state: Int) {
+        // AZ S.O.S. LÁNCNAK TUDNIA KELL, FELVETTÉK-E. Enélkül a lánc vakon
+        // várt húsz másodpercet, és rátárcsázott arra a hívásra is, ami
+        // sikerült. A jelentés akkor is elmegy, ha nincs S.O.S. — a
+        // SosCallWatcher maga dobja el, ha nem tartozik rá.
+        com.superdl.launcher.sos.SosCallWatcher.onCallState(state)
+
         val number = call.details.handle?.schemeSpecificPart.orEmpty()
         val presentation = call.details.handlePresentation
         val name = resolveCallerName(number)

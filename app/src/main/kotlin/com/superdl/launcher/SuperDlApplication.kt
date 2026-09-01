@@ -99,6 +99,13 @@ class SuperDlApplication : Application() {
         } catch (e: Exception) {
             Log.w(TAG, "ContactPrefs.warm hiba: ${e.message}")
         }
+        // A gesztus-irányítás módja: a söprések értelmezése minden képernyőn
+        // és az ernyőolvasóban is ebből dolgozik, ezért még indulás előtt kell.
+        try {
+            com.superdl.launcher.gestures.GestureOrientation.warm(this)
+        } catch (e: Exception) {
+            Log.w(TAG, "GestureOrientation.warm hiba: ${e.message}")
+        }
         try {
             QuietModeHelper.reconcileOnStartup(this)
         } catch (e: Exception) {

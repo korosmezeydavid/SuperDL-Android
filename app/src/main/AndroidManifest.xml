@@ -496,7 +496,7 @@
         <service
             android:name=".sos.SosService"
             android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+            android:foregroundServiceType="phoneCall|location" />
 
         <!-- Profi Diktafon – stúdió minőségű hangfelvétel -->
         <service
@@ -654,6 +654,23 @@
             android:name=".youtube.YoutubeAudioService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Időzített rádiófelvétel: az ébresztő ezt indítja, és percekig fut.
+             Előtér-szolgáltatás, hogy a rendszer ne ölje meg félbe. -->
+        <service
+            android:name=".radio.RadioRecordService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".radio.RadioScheduleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Saját médialejátszó: a fájlkezelőből megnyitott zene és videó.
              Enélkül egy friss telepítésű telefonon a felhasználó a SAJÁT

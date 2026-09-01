@@ -414,7 +414,8 @@ class FileManagerActivity : AppCompatActivity() {
     private fun performAction(action: FileAction) {
         val target = actionTarget ?: return
         val writes = action in setOf(
-            FileAction.DELETE, FileAction.MOVE, FileAction.ZIP, FileAction.UNZIP
+            FileAction.DELETE, FileAction.MOVE, FileAction.ZIP, FileAction.UNZIP,
+            FileAction.RENAME
         )
         if (writes && !requireStorageAccess()) return
 
@@ -426,10 +427,7 @@ class FileManagerActivity : AppCompatActivity() {
             FileAction.UNZIP -> runZipTask(kicsomagol = true, file = target.file)
             FileAction.ZIP -> runZipTask(kicsomagol = false, file = target.file)
             FileAction.DETAILS -> tts.speak(target.speakDetails(this))
-            FileAction.RENAME -> tts.speak(
-                "Az átnevezés diktálással a következő verzióban jön. " +
-                    "Addig a portálon vagy gépről tudod átnevezni."
-            )
+            FileAction.RENAME -> startRename(target)
             FileAction.COPY -> startDestinationPick(listOf(target.file), move = false)
             FileAction.MOVE -> startDestinationPick(listOf(target.file), move = true)
             FileAction.SEARCH -> startSearch()
@@ -783,6 +781,76 @@ class FileManagerActivity : AppCompatActivity() {
             )
         } catch (_: Exception) {
         }
+    }
+
+    // ==================== Átnevezés ====================
+
+    /**
+     * ÁTNEVEZÉS DIKTÁLÁSSAL.
+     *
+     * A KITERJESZTÉST MEGTARTJUK. Ha valaki a "nyaralas.jpg" fájlt átnevezi
+     * "tengerpart"-ra, akkor "tengerpart.jpg" lesz belőle — nem "tengerpart".
+     * Kiterjesztés nélkül a telefon nem tudná, mi az a fájl, és a kép többé
+     * nem nyílna meg. Vakon ez észrevehetetlen hiba lenne.
+     *
+     * MAPPÁNÁL nincs kiterjesztés, ott a diktált név a teljes név.
+     */
+    private fun startRename(target: FileItem) {
+        screen = Screen.BROWSE
+        updateDisplay()
+        val what = if (target.isDirectory) "mappa" else "fájl"
+        voiceInput.listen(
+            prompt = "Mi legyen az új neve? Mostani neve: ${target.name}. " +
+                if (target.isDirectory) "Mondd az új $what nevet."
+                else "A kiterjesztést nem kell mondanod, azt megtartom.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken -> applyRename(target, spoken) },
+            onError = {
+                tts.speak("Az átnevezés megszakítva.")
+                updateDisplay()
+            }
+        )
+    }
+
+    private fun applyRename(target: FileItem, spoken: String) {
+        val wanted = spoken.trim()
+        if (wanted.isBlank()) {
+            tts.speak("Nem értettem a nevet. Az átnevezés megszakítva.")
+            updateDisplay()
+            return
+        }
+        val oldExt = if (target.isDirectory) "" else target.file.extension
+        // Ha a diktált név MÁR tartalmazza a helyes kiterjesztést, nem tesszük rá kétszer.
+        val newName = when {
+            oldExt.isBlank() -> wanted
+            wanted.endsWith(".$oldExt", ignoreCase = true) -> wanted
+            else -> "$wanted.$oldExt"
+        }
+        if (newName.equals(target.name, ignoreCase = true)) {
+            tts.speak("Ez ugyanaz a név. Nem változott semmi.")
+            updateDisplay()
+            return
+        }
+        if (java.io.File(target.file.parentFile, newName).exists()) {
+            tts.speak("Ilyen nevű elem már van ebben a mappában. Válassz másik nevet.")
+            updateDisplay()
+            return
+        }
+        val oldPath = target.file.absolutePath
+        val ok = FileManagerHelper.rename(target.file, newName)
+        if (ok) {
+            scanPaths(listOf(oldPath, java.io.File(target.file.parentFile, newName).absolutePath))
+            sounds.play(SoundType.ACTION_OK)
+            tts.speak("Átnevezve: $newName.")
+            loadDir(currentDir, announce = false)
+        } else {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(
+                "Az átnevezés nem sikerült. Lehet, hogy a név nem megengedett " +
+                    "karaktert tartalmaz, vagy nincs jogosultság ehhez a mappához."
+            )
+        }
+        updateDisplay()
     }
 
     // ==================== Keresés ====================

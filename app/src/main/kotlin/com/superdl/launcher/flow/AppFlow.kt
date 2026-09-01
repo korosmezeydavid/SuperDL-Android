@@ -359,6 +359,44 @@ sealed class AppFlow {
         val deleteMode: Boolean = false
     ) : AppFlow()
 
+    /**
+     * IDŐZÍTETT FELVÉTEL — állomásválasztás. A `forSchedule` jelzi, hogy a
+     * lista most nem lejátszásra, hanem időzítésre gyűjt állomást.
+     */
+    data class RadioScheduleStationPick(
+        val stations: List<com.superdl.launcher.radio.RadioStation>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Időzített felvétel: mennyi ideig vegyen fel. */
+    data class RadioScheduleDurationPick(
+        val station: com.superdl.launcher.radio.RadioStation,
+        val hour: Int,
+        val minute: Int,
+        val index: Int
+    ) : AppFlow()
+
+    /** Időzített felvétel: egyszeri vagy ismétlődő. */
+    data class RadioScheduleRepeatPick(
+        val station: com.superdl.launcher.radio.RadioStation,
+        val hour: Int,
+        val minute: Int,
+        val durationMinutes: Int,
+        val index: Int
+    ) : AppFlow()
+
+    /** A beütemezett felvételek listája (jobbra: törlés megerősítése). */
+    data class RadioScheduleBrowse(
+        val entries: List<com.superdl.launcher.radio.RadioScheduleEntry>,
+        val index: Int
+    ) : AppFlow()
+
+    data class RadioScheduleDeleteConfirm(
+        val entry: com.superdl.launcher.radio.RadioScheduleEntry,
+        val entries: List<com.superdl.launcher.radio.RadioScheduleEntry>,
+        val index: Int
+    ) : AppFlow()
+
     /** Kedvenc rádió eltávolításának megerősítése. */
     data class RadioFavoriteDeleteConfirm(
         val station: com.superdl.launcher.radio.RadioStation,
