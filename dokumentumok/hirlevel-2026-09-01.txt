@@ -3,15 +3,16 @@ SUPER DL HÍRLEVÉL
 
 Kedves Tesztelők!
 
-Hosszú nap volt, és sok minden elkészült. Ez a hírlevél végigmegy rajta —
-azon is, ami már a telefonodon van, és azon is, ami még csak nálam.
+Hosszú nap volt, és sok minden elkészült. MA KÉT KIADÁS SZÜLETETT:
+az 1.56.0 délután, az 1.57.0 este. Mindkettő letölthető, a telefonod
+magától szólni fog.
 
-Két részre osztottam. Az első rész az 1.56.0, amit MA MÁR LETÖLTHETSZ.
-A második rész az, ami azóta készült el, és a következő kiadással jön.
-A legvégén elmondom, hogyan frissíts.
+MIVEL KEZDD: ha csak egy dolgot olvasol el ebből a hírlevélből, akkor a
+második rész elejét, az S.O.S.-ről. Egy komoly hiba volt benne, ami mostanáig
+minden telefonon ott volt.
 
 ==========================================================
-ELSŐ RÉSZ — 1.56.0, MÁR ELÉRHETŐ
+ELSŐ RÉSZ — 1.56.0
 ==========================================================
 
 MEGTALÁLOD VÉGRE A FELVÉTELEIDET
@@ -148,11 +149,67 @@ APRÓSÁGOK, AMIK NEM APRÓSÁGOK
 
 
 ==========================================================
-MÁSODIK RÉSZ — AMI MA KÉSZÜLT EL, ÉS MÉG NINCS KIADVA
+MÁSODIK RÉSZ — 1.57.0
 ==========================================================
 
-Ezek megvannak, fordulnak, de a következő verzióval jönnek. Azért írok
-róluk, mert szeretném, ha tudnád, mi vár rád.
+AZ S.O.S. — EGY KOMOLY HIBA, ÉS EGY TELJES ÚJ LÁNC
+
+Kezdem a hibával, mert ez a fontosabb.
+
+Az S.O.S. eddig végighívta a négy számot, számonként húsz másodpercet várva.
+Csakhogy NEM NÉZTE MEG, FELVETTÉK-E A HÍVÁST. Húsz másodperc után akkor is
+tárcsázta a következő számot, ha az elsőt már felvették és éppen beszéltél.
+
+Vagyis az S.O.S. EL TUDTA VÁGNI PONT AZT A HÍVÁST, AMI SIKERÜLT.
+
+Nem elméleti hiba: ez volt az elsődleges működés, minden telefonon.
+Ha az S.O.S.-re számítasz, ez az a verzió, amire frissítened kell.
+
+Mostantól a SuperDL alapértelmezett telefon alkalmazásként LÁTJA a hívás
+állapotát — kicseng, felvették, bontva. (Ezért lett az 1.56.0-ban a telefon
+alkalmazás ALAPVETŐ a varázslóban. A kettő összefügg.)
+
+
+ÉS AMI MOSTANTÓL TÖRTÉNIK S.O.S.-KOR
+
+1. A telefon AZONNAL kiküldi mind a NÉGY SZÁMRA az üzenetet:
+
+     "eltévedtem, vagy bajban vagyok!"
+     + a pontos koordinátáid
+     + egy KATTINTHATÓ TÉRKÉP-LINK
+     + a pontosság és az időpont
+
+   Az SMS AKKOR IS KIMEGY, HA FELVESZIK A HÍVÁST. Ez tudatos döntés: a hívás
+   azt intézi el, hogy valaki TUDJON rólad, az SMS azt, hogy MEG IS TALÁLJON.
+   Ha felveszik, az első kérdés úgyis az lesz, hogy "hol vagy?" — és pánikban,
+   vakon, egy ismeretlen utcasarkon erre pont nem tudsz válaszolni. Az üzenet
+   akkor már ott van a segítő telefonján. Koordinátát ijedten senki nem gépel
+   be, ezért van benne a link.
+
+   Az SMS azért megy ki legelőször, mert az a legszívósabb: kimegy olyan
+   hálózaton is, ahol a hívás már nem, és akkor is, ha a telefon mindjárt
+   lemerül.
+
+2. Az utolsó ismert helyzetedet AZONNAL használjuk, és közben mérünk friss
+   GPS-t. A GPS-re várni pánikban nem lehet, az percekbe telhet. Ha a friss
+   mérés lényegesen pontosabb, megy egy rövid pontosító üzenet.
+
+3. Utána indul a hívás-lánc: két kör a négy számon, számonként 25 másodperc
+   csengetés. Ha felveszik, megvárjuk a beszélgetés végét.
+
+4. A HANGPOSTA NEM ÁLLÍTJA MEG A LÁNCOT. Nem tippeljük meg, ember vette-e fel
+   vagy gép — egy rossz tipp azt jelentené, hogy rábontunk arra, aki két
+   másodperc alatt felvette. Ezért a lánc a hívás után MINDIG folytatódik.
+
+5. LEÁLLÍTÁS: INDÍTSD EL ÚJRA AZ S.O.S.-T. Nem új gesztus, nem új képernyő —
+   vészhelyzetben újat tanulni nem lehet. A program ezt minden hívás után
+   ki is mondja.
+
+6. Két kör után jön a 112, tíz másodperces visszaszámlálással — ha nem
+   kapcsoltad ki a Beállítások / S.O.S. paraméterek alatt.
+
+Ezt élesben teszteltük, valódi telefonokkal. Az üzenet kiment, a koordináta
+pár méteren belül stimmelt.
 
 
 FELÜLET ELFORGATÁSA
@@ -184,6 +241,28 @@ Egy dolog szándékosan NEM fordul el: a mátrix billentyűzet. Az nem lista,
 hanem térbeli rács — ott a fel-le-bal-jobb a gombok elrendezése. Elforgatva
 használhatatlan lenne.
 
+És a gesztus-iskola sem fordul el. Az órák a VALÓDI mozdulatot tanítják, és
+a gyakorlat is azt várja vissza — ha ott a tanárnő "felfelé"-t mondana,
+közben jobbra söprést várna, a kezdő magára venné a hibát.
+
+KÉT HIBA, AMIT A TESZTELÉS HOZOTT ELŐ — ÉS AMIT ÉRDEMES TUDNI
+
+Az első: amikor a program kimondta az új szabályt, LEFORDÍTOTTA A SAJÁT
+TANÍTÁSÁT. A szabály szövege maga is így hangzik, hogy "balra söprés az
+előző elem" — és a szófordító ezt is átírta. Vagyis pont az a mondat
+hazudott, aminek a helyes kezelést kellett volna megtanítania. Javítva.
+
+A második komolyabb, és ezt még senki nem jelentette, mert nem derült ki:
+a szófordító a NAVIGÁCIÓS ÚTVONAL-LEÍRÁSOKAT is elrontotta volna. A
+"fordulj jobbra a saroknál" mondatból elforgatva "fordulj felfelé a
+saroknál" lett volna — vakon, az utcán, egy kereszteződésben.
+
+Most már csak olyan mondatban cserél irányszót, amiben ott van a kezelés
+jellegzetes jele: "söprés", "söpörj", vagy a "fel-le" páros. Egy útvonal-
+leírásban ezek nincsenek benne, tehát hozzá se nyúl. Ahol nem biztos, ott
+nem nyúl hozzá — egy le nem fordított utasítás legrosszabb esetben
+kényelmetlen, egy elrontott irány az utcán veszély.
+
 
 A VARÁZSLÓ BILLENTYŰZET-LÉPÉSE — JAVÍTVA
 
@@ -194,12 +273,11 @@ meg újra, nem a VÁLASZTÓT. Most már a valódi billentyűzet-választó jön 
 
 S.O.S. — VISSZASZÁMLÁLÁS, DE CSAK HA KÉRED
 
-A készülő S.O.S. láncnál lesz egy tíz másodperces visszaszámlálás a 112
-hívása előtt, balra söpréssel megszakítható. Ez vészfék: zsebben véletlenül
-indított riasztásból ne legyen valódi mentőhívás.
+Az S.O.S. láncban tíz másodperces visszaszámlálás előzi meg a 112 hívását.
+Ez vészfék: zsebben véletlenül indított riasztásból ne legyen valódi
+mentőhívás.
 
-Te azt kérted, ezt is lehessen eldönteni — igazad van, mert vészhelyzetben
-tíz másodperc is sok. Már benne van:
+Ezt is el lehet dönteni, mert vészhelyzetben tíz másodperc is sok:
 
 Beállítások / S.O.S. paraméterek / Visszaszámlálás ki és be
 
@@ -210,7 +288,7 @@ nincs jó általános válasz.
 
 FÁJLKEZELŐ: ÁTNEVEZÉS
 
-Eddig azt mondta, "a következő verzióban jön". Megjött. Diktálod az új nevet,
+Eddig azt mondta, "a következő verzióban jön". Megjött az 1.57.0-val. Diktálod az új nevet,
 a kiterjesztés magától megmarad — nem lehet véletlenül tönkretenni egy fájlt
 azzal, hogy lemarad a végéről a pont-mp3.
 
@@ -246,7 +324,8 @@ Ha nem akarod megvárni:
     Beállítások / Katalógus / Frissítés keresése
 
 Ha kézzel telepítenél, a kiadás itt van:
-github.com/korosmezeydavid/SuperDL — a legfrissebb kiadásnál a SuperDL.apk
+github.com/korosmezeydavid/SuperDL-Android/releases — a v1.57.0 kiadásnál
+a SuperDL.apk
 
 A frissítés a beállításaidat, a névjegyeidet, a könyvjelzőidet és a saját
 elnevezéseidet nem bántja.
@@ -256,7 +335,7 @@ elnevezéseidet nem bántja.
 AMIT KÉREK TŐLED
 ==========================================================
 
-Négy dolgot még senki nem próbált ki élesben, és ezeket nem tudom magamtól
+Öt dolgot még senki nem próbált ki élesben, és ezeket nem tudom magamtól
 megnézni:
 
 1. A varázsló VÉGIGJÁTSZÁSA igazi friss telepítésen. Az én telefonomon
@@ -266,6 +345,11 @@ megnézni:
 3. A podcast toplista és keresés — most már működnie kell. Ha nem, a program
    megmondja, mi a hiba: azt a mondatot küldd el nekem.
 4. Csoportos törlés egy TÉNYLEG nagy mappán. Hatszáz képen még nem futott.
+5. A felület elforgatása a TE napi használatodban. Nálam működik, de én
+   ismerem a programot. Az igazi próba az, ha valaki egy hétig így használja.
+
+És egy kérés az S.O.S.-hez: HA KIPRÓBÁLOD, SZÓLJ ELŐRE ANNAK, AKIT FELHÍVSZ.
+Egy próbariasztás is valódi riasztásnak látszik a másik oldalon.
 
 Ha valami nem stimmel, írj. A hibajelentéseitek nélkül ez a nap nem lett
 volna ennyi.
