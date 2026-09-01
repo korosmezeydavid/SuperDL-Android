@@ -1,6 +1,13 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-08-30 | **Verzió:** 1.55.0 (versionCode 101)
+**Utolsó frissítés:** 2026-09-01 | **Verzió:** 1.56.0 (versionCode 102)
+
+> **2026-09-01: KIADVA — 1.56.0.** Beállítás varázsló friss telepítéshez,
+> csoportos fájlműveletek, felvételek a `/Recordings/` mappában, névjegyzék
+> beállítások, könyv/zene/rádió törlés. Javítva: OPML-import összeomlás
+> (OutOfMemoryError), podcast toplista és keresés. Az alapértelmezett telefon
+> alkalmazás FONTOS helyett **ALAPVETŐ** lett — az S.O.S. lánc a hívásállapotra
+> épül. GitHub kiadás: `v1.56.0`, a `verzio.json` frissítve a `mobil` ágon.
 
 > **2026-08-30: NAGY KÖR — a képernyőolvasó öt új képessége.** Elem-ujjlenyomat,
 > címkekezelő, címkecsomagok, hangtérkép, műveletsorok, beküldés. Részletek a
