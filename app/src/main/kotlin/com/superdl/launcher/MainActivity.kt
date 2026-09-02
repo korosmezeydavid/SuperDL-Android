@@ -2208,6 +2208,49 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SOS_SET_4 -> startSosNumberSetup(4)
             MenuAction.SOS_READ_ALL -> readAllSosNumbers()
             MenuAction.SOS_COUNTDOWN_TOGGLE -> toggleSosCountdown()
+            MenuAction.TOUCH_CALIBRATION ->
+                com.superdl.launcher.braille.TouchCalibrationActivity.start(this)
+            MenuAction.BRAILLE_PRACTICE ->
+                com.superdl.launcher.braille.BraillePracticeActivity.start(this)
+            MenuAction.BRAILLE_LAYOUT -> {
+                val next = com.superdl.launcher.braille.BrailleLayoutPrefs.cycleLayout(this)
+                // A VÁLTÁS TÖRLI A MEGTANULT UJJHELYEKET, és ezt KIMONDJUK.
+                // A másik elrendezésben teljesen máshol vannak az ujjak; a
+                // régi pozíciókkal minden betű hibás lenne. Jobb újra mérni,
+                // mint csendben rosszat írni.
+                tts.speak(
+                    "${next.label}. ${next.speakDescription()} " +
+                        "A kezed helyét újra meg kell tanítanom: menj a Braille, " +
+                        "a kezem megtanítása menüpontra."
+                )
+            }
+            MenuAction.BRAILLE_ORIENTATION -> {
+                val next = com.superdl.launcher.braille.BrailleLayoutPrefs.cycleOrientation(this)
+                tts.speak(
+                    "${next.label} tartás. ${next.speakHold()} " +
+                        "A kezed helyét újra meg kell tanítanom: menj a Braille, " +
+                        "a kezem megtanítása menüpontra."
+                )
+            }
+            MenuAction.BRAILLE_HELP ->
+                tts.speak(com.superdl.launcher.braille.BrailleHelp.speak(this))
+            MenuAction.BRAILLE_MODE -> {
+                // A MÉRÉS AJÁNL, A FELHASZNÁLÓ DÖNT.
+                // Eddig csak a mérés döntött, és nem volt hova nyúlni.
+                com.superdl.launcher.braille.TouchCapability.cycleMode(this)
+                tts.speak(com.superdl.launcher.braille.TouchCapability.speakChoice(this))
+            }
+            MenuAction.BRAILLE_STATUS -> {
+                val learned = com.superdl.launcher.braille.BrailleAnchors.load(this).size
+                val known = if (learned >= 6) "Mind a hat pontot megtanultam."
+                else if (learned > 0) "Eddig $learned pontot tanultam meg a hatból."
+                else "A kezedet még nem tanultam meg."
+                tts.speak(
+                    com.superdl.launcher.braille.TouchCapability.speakChoice(this) +
+                        " " + com.superdl.launcher.braille.BrailleLayoutPrefs.speakCurrent(this) +
+                        " $known"
+                )
+            }
             MenuAction.GESTURE_ORIENTATION -> cycleGestureOrientation()
             MenuAction.GESTURE_ORIENTATION_HELP -> speakGestureOrientation()
             MenuAction.TIME_NOW -> tts.speak(InfoHelper.speakDateTime())
@@ -2271,6 +2314,13 @@ class MainActivity : AppCompatActivity() {
                 tts.speak(
                     if (on) "Diktálási tipp bekapcsolva."
                     else "Diktálási tipp kikapcsolva."
+                )
+            }
+            MenuAction.VERBOSITY_KEYBOARD -> {
+                val on = com.superdl.launcher.tts.VerbosityPrefs.toggleKeyboardIntro(this)
+                tts.speak(
+                    if (on) "Billentyűzet-tájékoztató bekapcsolva. Megnyitáskor elmondom a mozdulatokat."
+                    else "Billentyűzet-tájékoztató kikapcsolva. Megnyitáskor csak a billentyűzet nevét mondom."
                 )
             }
             MenuAction.KEYBOARD_PASSWORD -> {
@@ -6960,7 +7010,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 tts.speak("Letöltve. Indítom a telepítőt — erősítsd meg a telepítést.")
                 if (!com.superdl.launcher.catalog.AppUpdateInstaller.install(this, file)) {
-                    tts.speak("A telepítő nem indítható.")
+                    // MEGMONDJUK, MI A BAJ. A puszta „nem indítható" mondatból
+                    // sem a felhasználó, sem a fejlesztő nem tud kiindulni —
+                    // és pont ez a mondat rejtett el egy hibát hetekig.
+                    tts.speak(
+                        com.superdl.launcher.catalog.AppUpdateInstaller.lastInstallError
+                            ?: "A telepítő nem indítható."
+                    )
                 }
             }
         }.start()

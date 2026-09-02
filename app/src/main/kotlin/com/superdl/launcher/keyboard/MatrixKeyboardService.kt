@@ -91,9 +91,14 @@ class MatrixKeyboardService : InputMethodService(), MatrixKeypadView.Listener {
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         if (!restarting) {
+            // A TÁJÉKOZTATÓ KIKAPCSOLHATÓ („Mennyit magyarázzon"), a név nem.
             tts?.speak(
-                "Mátrix billentyűzet. Tedd le az ujjad, csúsztasd a betű felé, " +
-                    "és engedd fel a beíráshoz."
+                if (com.superdl.launcher.tts.VerbosityPrefs.isKeyboardIntro(this)) {
+                    "Mátrix billentyűzet. Tedd le az ujjad, csúsztasd a betű felé, " +
+                        "és engedd fel a beíráshoz."
+                } else {
+                    "Mátrix billentyűzet."
+                }
             )
         }
     }

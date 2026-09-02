@@ -492,6 +492,20 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.SuperDL" />
 
+        <!-- Braille: hány ujjat érez a kijelző (mérés, nem rendszer-lekérdezés) -->
+        <activity
+            android:name=".braille.TouchCalibrationActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <!-- Braille próbapad: írás tét nélkül, éles billentyűzet előtt -->
+        <activity
+            android:name=".braille.BraillePracticeActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
         <!-- S.O.S. Service -->
         <service
             android:name=".sos.SosService"
@@ -694,6 +708,38 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/matrix_keyboard" />
+        </service>
+
+        <!-- Braille billentyűzet: hatpontos magyar irodalmi Braille, három
+             írásmóddal (hat ujj, két menet, sín). A mátrix testvére: külön
+             tétel a rendszer billentyűzet-választójában (Alph döntése). -->
+        <service
+            android:name=".braille.BrailleKeyboardService"
+            android:exported="true"
+            android:label="@string/braille_keyboard_label"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/braille_keyboard" />
+        </service>
+
+        <!-- SuperDL Diktálás: a legegyszerűbb bevitel — a szövegmező
+             megnyílásakor azonnal hallgat, csippentésre bezár. Mozdulat
+             nélkül. Annak, aki se mátrixot, se Braille-t nem akar. -->
+        <service
+            android:name=".keyboard.DictationKeyboardService"
+            android:exported="true"
+            android:label="@string/dictation_keyboard_label"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/dictation_keyboard" />
         </service>
 
         <!-- Super DL képernyőolvasó: külső alkalmazások kezelése a négy gesztussal.

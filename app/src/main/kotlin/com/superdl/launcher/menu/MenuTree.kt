@@ -177,6 +177,13 @@ enum class MenuAction {
     SETUP_WIZARD,   // Beállítás varázsló – végigvezet a hiányzó engedélyeken
     SETUP_STATUS,   // Beállítás állapot felolvasása
     SETUP_RESTART,  // Beállítás varázsló elölről (a későbbre hagyottakat is)
+    TOUCH_CALIBRATION,        // A kéz megtanulása – a Braille-bevitel alapja
+    BRAILLE_PRACTICE,         // Braille próbapad – írás tét nélkül
+    BRAILLE_LAYOUT,           // Cella vagy zongora elrendezés
+    BRAILLE_ORIENTATION,      // Álló vagy fekvő tartás
+    BRAILLE_STATUS,           // A jelenlegi Braille-beállítás felolvasása
+    BRAILLE_MODE,             // Írásmód: hat ujj, két menet vagy sín
+    BRAILLE_HELP,             // A teljes Braille-súgó felolvasása
     GESTURE_ORIENTATION,      // Felület elforgatása – a söprések jelentésének átrendezése
     GESTURE_ORIENTATION_HELP, // A jelenlegi kezelés szabályainak felolvasása
     SOS_COUNTDOWN_TOGGLE, // S.O.S. visszaszámlálás ki és be
@@ -286,6 +293,7 @@ enum class MenuAction {
     VERBOSITY_APP_INFO, // Részletesség: külső alkalmazás tájékoztató ki/be
     VERBOSITY_COUNTS,   // Részletesség: darabszámok ki/be
     VERBOSITY_PUNCT,    // Részletesség: diktálási tipp ki/be
+    VERBOSITY_KEYBOARD, // Részletesség: billentyűzet-tájékoztató ki/be
     KEYBOARD_PASSWORD,  // Billentyűzet: jelszó-karakterek kimondása ki/be
     TTS_ROLE_ENGINE,    // Külön beszédmotor a program saját üzeneteihez
     TTS_VOICE_ROLES,    // Hangszerepek: más hang a program üzeneteihez
@@ -788,10 +796,21 @@ object MenuTree {
         )),
 
         MenuItem("settings", "Beállítások", MenuAction.SUBMENU, listOf(
+            // A PROGRAM FRISSÍTÉSE A BEÁLLÍTÁSOK ELSŐ PONTJA (2026-09-02).
+            //
+            // MIÉRT KERÜLT IDE: eddig a „Katalógus" almenüben volt, „Frissítés
+            // keresése" néven. A Katalógus viszont a LETÖLTHETŐ MODULOKRÓL
+            // szól — senki nem ott keresi azt, hogy „frissítsd a programot".
+            // Maga a fejlesztő sem találta meg a saját programjában, amikor
+            // frissíteni akart. Ha ő nem találja, egy tesztelő biztosan nem.
+            //
+            // A név is változott: „Program frissítése" — ez mondja meg, hogy
+            // MI frissül. A „Frissítés keresése" nem árulta el, hogy a
+            // programról vagy a modulokról van-e szó.
+            MenuItem("app_update", "Program frissítése", MenuAction.CATALOG_UPDATE),
             MenuItem("catalog", "Katalógus", MenuAction.SUBMENU, listOf(
                 MenuItem("catalog_browse", "Elérhető modulok", MenuAction.CATALOG_BROWSE),
                 MenuItem("catalog_installed", "Letöltött modulok", MenuAction.CATALOG_INSTALLED),
-                MenuItem("catalog_update", "Frissítés keresése", MenuAction.CATALOG_UPDATE),
                 MenuItem("catalog_back", "Vissza", MenuAction.SUBMENU)
             )),
             MenuItem("gesture_orientation", "Felület elforgatása", MenuAction.GESTURE_ORIENTATION),
@@ -801,7 +820,7 @@ object MenuTree {
                 MenuItem("safe_mode", "Biztonságos mód", MenuAction.SAFE_MODE_STATUS),
                 MenuItem("failure_test", "Hibatűrés próbája", MenuAction.FAILURE_SELF_TEST),
                 MenuItem("simple_mode", "Egyszerű mód ki és be", MenuAction.SIMPLE_MODE_TOGGLE),
-                MenuItem("screen_reader", "Képernyőolvasó és billentyűzet", MenuAction.SUBMENU, listOf(
+                MenuItem("screen_reader", "Képernyőolvasó", MenuAction.SUBMENU, listOf(
                     MenuItem("sr_toggle", "Képernyőolvasó ki és be", MenuAction.SCREEN_READER_TOGGLE),
                     MenuItem("sr_setup", "Engedélyezés a rendszerben", MenuAction.SCREEN_READER_SETUP),
                     MenuItem("sr_status", "Állapot", MenuAction.SCREEN_READER_STATUS),
@@ -825,14 +844,39 @@ object MenuTree {
                     MenuItem("task_routes", "Műveletsorok", MenuAction.TASK_ROUTES),
                     MenuItem("sr_share_toggle", "Elnevezések megosztása", MenuAction.SCREEN_READER_SHARE_TOGGLE),
                     MenuItem("sr_share_send", "Elnevezések beküldése", MenuAction.SCREEN_READER_SHARE_SEND),
-                    MenuItem("kb_picker", "Billentyűzet választása", MenuAction.KEYBOARD_PICKER),
-                    MenuItem("kb_settings", "Billentyűzetek engedélyezése", MenuAction.KEYBOARD_SETTINGS),
-                    MenuItem("kb_matrix_cell", "Mátrix: gombok távolsága", MenuAction.KEYBOARD_MATRIX_CELL),
-                    MenuItem("kb_matrix_speed", "Mátrix: pörgetés sebessége", MenuAction.KEYBOARD_MATRIX_SPEED),
-                    MenuItem("kb_matrix_help", "Mátrix mozdulatai", MenuAction.KEYBOARD_MATRIX_HELP),
-                    MenuItem("kb_text_bank", "Szövegtár tartalma", MenuAction.KEYBOARD_TEXT_BANK),
                     MenuItem("sr_panic", "AZONNALI leállítás", MenuAction.SCREEN_READER_PANIC),
                     MenuItem("sr_back", "Vissza", MenuAction.SUBMENU)
+                )),
+                // BILLENTYŰZET — külön ág, mert egyben zsúfolt volt.
+                // Ami MINDEN billentyűzetre igaz, az itt van; ami csak
+                // egy billentyűzetre, az a saját almenüjében.
+                MenuItem("keyboard", "Billentyűzet", MenuAction.SUBMENU, listOf(
+                    MenuItem("kb_picker", "Billentyűzet választása", MenuAction.KEYBOARD_PICKER),
+                    MenuItem("kb_settings", "Billentyűzetek engedélyezése", MenuAction.KEYBOARD_SETTINGS),
+                    MenuItem("kb_text_bank", "Szövegtár tartalma", MenuAction.KEYBOARD_TEXT_BANK),
+                    MenuItem("kb_matrix", "Mátrix billentyűzet", MenuAction.SUBMENU, listOf(
+                        MenuItem("kb_matrix_help", "Súgó: a mátrix mozdulatai", MenuAction.KEYBOARD_MATRIX_HELP),
+                        MenuItem("kb_matrix_cell", "Gombok távolsága", MenuAction.KEYBOARD_MATRIX_CELL),
+                        MenuItem("kb_matrix_speed", "Pörgetés sebessége", MenuAction.KEYBOARD_MATRIX_SPEED),
+                        MenuItem("kb_matrix_back", "Vissza", MenuAction.SUBMENU)
+                    )),
+                    // A sorrend a HASZNÁLAT sorrendje: előbb eldöntöd,
+                    // HÁNY ujjal írsz, aztán hogyan fogod a telefont és hova
+                    // teszed az ujjaidat, aztán megtanítod a kezed, és csak
+                    // utána próbálsz írni. Fordítva egyik sem működik.
+                    MenuItem("kb_braille", "Braille billentyűzet", MenuAction.SUBMENU, listOf(
+                        // A SÚGÓ AZ ELSŐ. „Duplasúgás a sztereó" — a menüpontok
+                        // egyenként beszélnek, de a rendszert csak a súgó mondja el.
+                        MenuItem("kb_braille_help", "Súgó", MenuAction.BRAILLE_HELP),
+                        MenuItem("kb_braille_mode", "Írásmód: hány ujjal írok", MenuAction.BRAILLE_MODE),
+                        MenuItem("kb_braille_orient", "Tartás: álló vagy fekvő", MenuAction.BRAILLE_ORIENTATION),
+                        MenuItem("kb_braille_layout", "Elrendezés: cella vagy zongora", MenuAction.BRAILLE_LAYOUT),
+                        MenuItem("kb_touch_calib", "A kezem megtanítása", MenuAction.TOUCH_CALIBRATION),
+                        MenuItem("kb_braille_practice", "Braille próba", MenuAction.BRAILLE_PRACTICE),
+                        MenuItem("kb_braille_status", "Beállítás felolvasása", MenuAction.BRAILLE_STATUS),
+                        MenuItem("kb_braille_back", "Vissza", MenuAction.SUBMENU)
+                    )),
+                    MenuItem("kb_back", "Vissza", MenuAction.SUBMENU)
                 )),
                 MenuItem("setup_wizard", "Beállítás varázsló", MenuAction.SETUP_WIZARD),
                 MenuItem("setup_status", "Beállítás állapota", MenuAction.SETUP_STATUS),
@@ -928,6 +972,7 @@ object MenuTree {
                     MenuItem("verb_app", "Alkalmazás-tájékoztató", MenuAction.VERBOSITY_APP_INFO),
                     MenuItem("verb_counts", "Darabszámok bemondása", MenuAction.VERBOSITY_COUNTS),
                     MenuItem("verb_punct", "Diktálási tipp", MenuAction.VERBOSITY_PUNCT),
+                    MenuItem("verb_keyboard", "Billentyűzet-tájékoztató", MenuAction.VERBOSITY_KEYBOARD),
                     MenuItem("verb_password", "Jelszó betűinek kimondása", MenuAction.KEYBOARD_PASSWORD),
                     MenuItem("verb_back", "Vissza", MenuAction.SUBMENU)
                 )),

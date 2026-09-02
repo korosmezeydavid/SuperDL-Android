@@ -284,4 +284,6 @@
     <string name="screen_reader_description">A Super DL képernyőolvasó a megszokott négy mozdulattal teszi kezelhetővé a külső alkalmazásokat: fel és le söpréssel lépkedhetsz az elemek között, jobbra söpréssel megnyomhatod őket, balra söpréssel visszaléphetsz. Csak külső alkalmazásokban aktív, a Super DL saját felületén nem avatkozik be.</string>
     <string name="matrix_keyboard_label">Super DL mátrix billentyűzet</string>
     <string name="keyboard_test_hint">Írj ide a billentyűzettel</string>
+    <string name="braille_keyboard_label">Super DL Braille billentyűzet</string>
+    <string name="dictation_keyboard_label">Super DL Diktálás</string>
 </resources>

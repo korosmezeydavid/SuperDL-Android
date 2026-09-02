@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SuperDL Diktálás beviteli mód leírása.
+    A szövegmező megnyílásakor azonnal hallgat; csippentésre bezár.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.superdl.launcher.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true" />

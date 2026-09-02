@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SuperDL Braille billentyűzet beviteli mód leírása.
+    Hatpontos magyar irodalmi Braille, három írásmóddal.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.superdl.launcher.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true" />

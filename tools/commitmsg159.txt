@@ -1,0 +1,28 @@
+1.59.0: Braille billentyűzet három írásmóddal, Super DL Diktálás
+
+Braille:
+- BrailleKeyboardService: valódi InputMethodService, külön tétel a rendszer
+  választójában; teljes képernyős felület, a kijelző koordinátáival, a
+  képernyő forgatására átszámolt pontokkal
+- BrailleTouchRecognizer: a próbapad és a billentyűzet KÖZÖS motorja
+  (cella módok, két menet időkorláttal, sín, csippentés, kéz-követés)
+- Tábla: hét összetett betű, Alph javított írásjelei (pont 2-5-6,
+  felkiáltójel 2-3-5, idézőjel 2-3-6/3-5-6, zárójel 2-3-4-6/1-3-5-6),
+  nagybetűs szó (4-6 kétszer), jel-réteg az 5-ös ponttal (szabvány)
+- Kalibrálás egy menetben, hat ujjal, automatikus elrendezés-felismeréssel
+- Sín mód (RailInput), írásmód választó, billentyűhang, súgó
+- Szóköznél a szó kimondása, törlésnél a maradék
+
+Diktálás:
+- DictationKeyboardService: azonnal hallgat, folyamatosan; három üres kör
+  után megáll; csippentés zár (azonnali rejtés); jelszómezőben nem diktál
+
+Egyéb:
+- Menü: Billentyűzet külön ág (Mátrix / Braille almenük)
+- Mennyit magyarázzon: billentyűzet-tájékoztató ki/be
+- Billentyűzet választása: mind a három SuperDL billentyűzet
+- Fekvő tartás: a töltő jobbra
+- Képernyőolvasó: BrailleInputActive kapcsoló, refreshTouchOwnership
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

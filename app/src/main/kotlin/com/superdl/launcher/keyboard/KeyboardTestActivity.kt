@@ -38,8 +38,19 @@ class KeyboardTestActivity : Activity() {
     private var inTestMode = false
     private var choiceIndex = 0
 
+    /**
+     * A SUPERDL BILLENTYŰZETEI. A harmadik elem a rendszer listájában
+     * látható NÉV — ezt mondjuk ki, hogy a választóban meg lehessen találni.
+     *
+     * MIÉRT NEM VÁLTUNK PROGRAMBÓL: egy alkalmazás nem állíthat be másik
+     * billentyűzetet a felhasználó helyett (ehhez rendszerjog kell). Amit
+     * tehetünk: megnyitjuk a rendszer választóját, és MEGMONDJUK, mit
+     * válasszon. Ez őszinte, és két mozdulat.
+     */
     private val choices = listOf(
-        "Mátrix billentyűzet" to "egy ujjal, telefonszám elrendezés"
+        Triple("Mátrix billentyűzet", "egy ujjal, telefonszám elrendezés", "Super DL mátrix billentyűzet"),
+        Triple("Braille billentyűzet", "hatpontos Braille, három írásmóddal", "Super DL Braille billentyűzet"),
+        Triple("Diktálás", "csak beszélsz, mozdulat nélkül; csippentés zár", "Super DL Diktálás")
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,6 +116,7 @@ class KeyboardTestActivity : Activity() {
     private fun startTest() {
         inTestMode = true
         val chosen = choices[choiceIndex].first
+        val systemName = choices[choiceIndex].third
 
         root.removeAllViews()
         val field = EditText(this).apply {
@@ -128,10 +140,21 @@ class KeyboardTestActivity : Activity() {
             imm.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)
         }, 300L)
 
-        tts.speak(
-            "$chosen kipróbálása. Ha nem ez jött elő, a billentyűzeten belül " +
-                "HÁROM ujjal előhívhatod a választót."
-        )
+        // A RENDSZER VÁLASZTÓJA JÖN, ÉS MEGMONDJUK, MIT KERESS BENNE.
+        // Programból nem válthatunk helyette — de a listában a név elég.
+        tts.speakThen(
+            "$chosen kipróbálása. Most a rendszer listája jön: válaszd ki benne " +
+                "a $systemName tételt. Utána írhatsz a mezőbe."
+        ) {
+            field.postDelayed({
+                try {
+                    val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showInputMethodPicker()
+                } catch (_: Exception) {
+                    tts.speak("A választó nem nyitható meg. A billentyűzeten belül két ujjal felfelé söpörve előhívhatod.")
+                }
+            }, 400L)
+        }
     }
 
     // ── Gesztusok ───────────────────────────────────────────────────────────

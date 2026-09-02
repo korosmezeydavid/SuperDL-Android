@@ -118,22 +118,63 @@ object AppUpdateInstaller {
     }
 
     /**
+     * A LEGUTÓBBI HIBA OKA, emberi nyelven.
+     *
+     * MIÉRT KELL: eddig a telepítés kudarcából csak annyi jutott el a
+     * felhasználóhoz, hogy „a telepítő nem indítható" — az igazi ok
+     * (`IllegalArgumentException` a FileProvider-ből) egy `catch`-ben
+     * csendben elveszett. Egy vak tesztelő ebből semmit nem tud kezdeni,
+     * és a fejlesztő sem, amíg elő nem veszi a naplót.
+     */
+    @Volatile
+    var lastInstallError: String? = null
+        private set
+
+    /**
      * A TELEPÍTŐ elindítása. A rendszer kéri a megerősítést a felhasználótól.
      */
-    fun install(context: Context, apk: File): Boolean = try {
-        val uri = FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", apk
-        )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    fun install(context: Context, apk: File): Boolean {
+        lastInstallError = null
+
+        if (!apk.exists() || apk.length() <= 0L) {
+            lastInstallError = "A letöltött fájl hiányzik vagy üres."
+            Log.w(TAG, "telepito: hianyzo vagy ures fajl: ${apk.absolutePath}")
+            return false
         }
-        context.startActivity(intent)
-        true
-    } catch (e: Exception) {
-        Log.w(TAG, "telepito inditas hiba: ${e.message}")
-        false
+        if (!canInstall(context)) {
+            lastInstallError =
+                "Nincs engedélyed telepítésre. A Beállítások, Program frissítése " +
+                    "pontban a program megnyitja neked ezt a kapcsolót."
+            return false
+        }
+
+        val uri = try {
+            FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", apk
+            )
+        } catch (e: Exception) {
+            // EZ VOLT A HIBA 2026-09-02-ig: a letöltés helye nem szerepelt a
+            // res/xml/file_paths.xml-ben, ezért a FileProvider elutasította.
+            lastInstallError =
+                "A telepítőfájlt nem sikerült átadni a rendszernek. " +
+                    "Ez a program hibája, kérlek jelentsd."
+            Log.w(TAG, "FileProvider hiba (${apk.absolutePath}): ${e.message}", e)
+            return false
+        }
+
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            lastInstallError = "A rendszer telepítője nem indult el: ${e.message}"
+            Log.w(TAG, "telepito inditas hiba: ${e.message}", e)
+            false
+        }
     }
 
     /** A letöltött telepítő törlése (sikeres frissítés után). */

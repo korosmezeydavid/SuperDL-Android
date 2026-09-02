@@ -368,12 +368,15 @@ class ScreenReaderService : AccessibilityService() {
      * Fut-e éppen beviteli billentyűzet? Ha igen, az olvasó elengedi az
      * érintéseket, hogy a billentyűzet kaphassa meg őket.
      */
-    private fun updateKeyboardSuspension() {
+    internal fun updateKeyboardSuspension() {
         val keyboardShowing = try {
             windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
         } catch (_: Exception) {
             false
-        }
+        // A BRAILLE-BEVITEL NEM BEVITELI ABLAK, hanem sima képernyő — a fenti
+        // felismerés vak rá. Ezért kérdezzük meg tőle magától is; enélkül az
+        // olvasó elfogná a pontleütéseket, és a Braille-írás nem működne.
+        } || com.superdl.launcher.braille.BrailleInputActive.isActive
         if (keyboardShowing == keyboardSuspended) return
         keyboardSuspended = keyboardShowing
         android.util.Log.i(
@@ -558,6 +561,21 @@ class ScreenReaderService : AccessibilityService() {
         @Volatile
         var live: ScreenReaderService? = null
             private set
+
+        /**
+         * „ÚJRAGONDOLD, KELL-E MOST AZ ÉRINTÉS-KEZELÉS."
+         *
+         * A Braille-bevitel hívja, amikor megnyílik vagy bezárul. NEM várunk
+         * ablak-eseményre: az késhet vagy elmaradhat, és akkor az olvasó
+         * ottmaradna félreállva — vagyis a telefon némán. Ez a fajta hiba
+         * vakon nem kellemetlenség, hanem a készülék elvesztése.
+         */
+        fun refreshTouchOwnership() {
+            try {
+                live?.updateKeyboardSuspension()
+            } catch (_: Throwable) {
+            }
+        }
         /**
          * Ezeken NEM vesszük át az érintés-kezelést.
          *

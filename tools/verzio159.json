@@ -1,0 +1,7 @@
+{
+  "megjegyzes": "A SuperDL mobil legfrissebb verziója. A telefon naponta kétszer ránéz erre a fájlra, és szól, ha újabb van. Kiadáskor EZT a fájlt kell frissíteni.",
+  "verzio": "1.59.0",
+  "letoltes": "https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk",
+  "kiadva": "2026-09-02",
+  "ujdonsagok": "ÚJ: Braille billentyűzet. Hatpontos magyar irodalmi Braille, összetett betűkkel, számokkal, írásjelekkel és jel-réteggel — valódi billentyűzet, ami bármelyik alkalmazás szövegmezőjébe ír. Három írásmód: hat ujjal egyszerre, két menetben három ujjal, vagy egyetlen ujjal a sínen, ami bármilyen telefonon működik. A kezed megtanítása egy mozdulat: ráteszed mind a hat ujjadat. Szóköznél kimondja a szót, törlésnél megmondja, mi maradt. ÚJ: Super DL Diktálás billentyűzet — belépsz a szövegmezőbe, és a telefon hallgat, mozdulat nélkül; összecsippentéssel zárod. Engedélyezés: Beállítások, Haladó, Billentyűzet, Billentyűzetek engedélyezése. A Braille almenü élén Súgó. A billentyűzetek bemutatója kikapcsolható a Mennyit magyarázzon menüben."
+}

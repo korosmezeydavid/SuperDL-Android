@@ -1,4 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    A FileProvider MEGOSZTHATÓ MAPPÁI.
+
+    MIÉRT LETT ÁTÍRVA (2026-09-02):
+
+    Ebben a fájlban KORÁBBAN EGYETLEN SOR volt: a diktafon mappája. Csakhogy
+    a FileProvider szigorúan csak azokat a mappákat ismeri, amik itt fel
+    vannak sorolva — minden más fájlra IllegalArgumentException-t dob.
+
+    Emiatt két dolog SOHA nem működött, senkinél:
+
+    1. A PROGRAM FRISSÍTÉSE. A letöltött telepítő a belső `files/frissites`
+       mappába kerül, ami itt nem szerepelt. A letöltés lefutott, aztán a
+       telepítő indítása elbukott: „a telepítő nem indítható". Vagyis a
+       beépített frissítés utolsó lépése mindig elhasalt — pont az a
+       funkció, amit a hírlevélben a tesztelőknek ajánlottunk.
+
+    2. A FÁJLKEZELŐ „megnyitás másik alkalmazással" pontja. Az bármelyik
+       fájlra hivatkozhat a megosztott tárhelyen, de csak a diktafon
+       mappáját ismerte a rendszer.
+
+    A tanulság ugyanaz, mint a névjegy-összeomlásnál: a hiba nem a kódban
+    volt, hanem egy DEKLARÁCIÓBAN, amit senki nem nézett meg — és a
+    kivételt egy `catch` csendben elnyelte, csak egy udvarias mondat maradt
+    belőle.
+-->
 <paths>
+
+    <!-- A letöltött frissítés telepítője: files/frissites/…apk -->
+    <files-path name="frissites" path="frissites/" />
+
+    <!-- Bármi más a belső tárhelyről, amit meg kell osztanunk. -->
+    <files-path name="belso" path="." />
+    <cache-path name="gyorsitotar" path="." />
+
+    <!-- A diktafon felvételei (ez volt itt eddig egyedül). -->
     <external-files-path name="dictaphone" path="ProfiDiktafon/" />
+    <external-files-path name="app_kulso" path="." />
+    <external-cache-path name="kulso_gyorsitotar" path="." />
+
+    <!--
+        A MEGOSZTOTT TÁRHELY — ez kell a fájlkezelőnek, hogy bármelyik fájlt
+        át tudja adni egy másik alkalmazásnak (kép, hang, PDF megnyitása).
+
+        BIZTONSÁG: a provider `exported="false"`, és csak azokra a fájlokra
+        adunk hozzáférést, amikre KIFEJEZETTEN engedélyt adunk egy
+        Intent-tel. Ez nem nyitja meg a tárhelyet senkinek magától.
+    -->
+    <external-path name="kulso" path="." />
+    <root-path name="teljes" path="/storage/" />
+
 </paths>
