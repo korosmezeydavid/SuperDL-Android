@@ -98,8 +98,20 @@ object CrashLogHandler {
         val sw = StringWriter()
         throwable.printStackTrace(PrintWriter(sw))
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        // A VERZIÓ IS BEKERÜL A FEJLÉCBE.
+        //
+        // Enélkül egy hetekkel korábbi, MÁR JAVÍTOTT összeomlás úgy néz ki a
+        // hibajelentésben, mintha az imént történt volna — és a keresés arra
+        // a hibára megy el, ami már nincs. Pontosan ez történt 2026-09-01-én:
+        // egy 1.54.9-es bankjegy-hiba nyoma jelent meg egy 1.57.0-s
+        // jelentésben, és az első fél óra rossz nyomon ment el.
+        val version = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+        } catch (_: Exception) {
+            "?"
+        }
         val entry = buildString {
-            appendLine("=== $timestamp ===")
+            appendLine("=== $timestamp | verzió: $version ===")
             appendLine("Thread: ${thread.name}")
             append(sw.toString())
             appendLine()

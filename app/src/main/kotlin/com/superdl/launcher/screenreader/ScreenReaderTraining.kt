@@ -1,6 +1,7 @@
 package com.superdl.launcher.screenreader
 
 import android.accessibilityservice.AccessibilityService
+import com.superdl.launcher.gestures.GestureOrientation
 
 /**
  * GESZTUS-TANULÁS — Elena tanárnő órái.
@@ -26,7 +27,75 @@ object ScreenReaderTraining {
         val examTask: String
     )
 
-    val LESSONS: List<Lesson> = listOf(
+    /**
+     * AZ ÓRÁK, ELFORGATÁSSAL EGYÜTT.
+     *
+     * MIÉRT NEM EGYSZERŰ LISTA: a `RAW_LESSONS` az ALAP kezeléshez íródott —
+     * ott a lefelé söprés a következő elem. Elforgatott módban ez nem igaz,
+     * és a tanulás közben hazudni a legrosszabb, amit tehetünk: aki most
+     * ismerkedik a mozdulatokkal, a hibát MAGÁRA VESZI, nem a programra.
+     *
+     * Ezért a négy alapmozdulat óráját a jelenlegi kezelésből építjük fel:
+     * a CÉL marad ugyanaz („lépj a következő elemre"), a MOZDULAT az, ami
+     * követi az elforgatást. A vizsga válasza is így stimmel — különben a
+     * helyes mozdulatot hibának néznénk.
+     */
+    val LESSONS: List<Lesson> get() = RAW_LESSONS.map { orientAware(it) }
+
+    private fun orientAware(lesson: Lesson): Lesson {
+        val logical = when (lesson.gestureId) {
+            AccessibilityService.GESTURE_SWIPE_DOWN -> GestureOrientation.Logical.NEXT
+            AccessibilityService.GESTURE_SWIPE_UP -> GestureOrientation.Logical.PREVIOUS
+            AccessibilityService.GESTURE_SWIPE_RIGHT -> GestureOrientation.Logical.ENTER
+            AccessibilityService.GESTURE_SWIPE_LEFT -> GestureOrientation.Logical.BACK
+            // Az összetett mozdulatok (le-majd-fel, két ujjal…) nem
+            // navigálnak, hanem külön funkciót indítanak — azokat nem
+            // forgatjuk el, tehát az órájuk is változatlan.
+            else -> return lesson
+        }
+        val physical = GestureOrientation.physicalOf(logical)
+        if (physical == normalPhysicalOf(logical)) return lesson
+
+        return lesson.copy(
+            gestureId = gestureIdOf(physical),
+            name = "söprés " + directionWord(physical),
+            instruction = instructionFor(logical, directionWord(physical).uppercase())
+        )
+    }
+
+    private fun normalPhysicalOf(logical: GestureOrientation.Logical) = when (logical) {
+        GestureOrientation.Logical.NEXT -> GestureOrientation.Physical.DOWN
+        GestureOrientation.Logical.PREVIOUS -> GestureOrientation.Physical.UP
+        GestureOrientation.Logical.ENTER -> GestureOrientation.Physical.RIGHT
+        GestureOrientation.Logical.BACK -> GestureOrientation.Physical.LEFT
+    }
+
+    private fun gestureIdOf(physical: GestureOrientation.Physical) = when (physical) {
+        GestureOrientation.Physical.UP -> AccessibilityService.GESTURE_SWIPE_UP
+        GestureOrientation.Physical.DOWN -> AccessibilityService.GESTURE_SWIPE_DOWN
+        GestureOrientation.Physical.LEFT -> AccessibilityService.GESTURE_SWIPE_LEFT
+        GestureOrientation.Physical.RIGHT -> AccessibilityService.GESTURE_SWIPE_RIGHT
+    }
+
+    private fun directionWord(physical: GestureOrientation.Physical) = when (physical) {
+        GestureOrientation.Physical.UP -> "felfelé"
+        GestureOrientation.Physical.DOWN -> "lefelé"
+        GestureOrientation.Physical.LEFT -> "balra"
+        GestureOrientation.Physical.RIGHT -> "jobbra"
+    }
+
+    private fun instructionFor(logical: GestureOrientation.Logical, dir: String) = when (logical) {
+        GestureOrientation.Logical.NEXT ->
+            "Ez egy hosszú lista. Söpörj $dir, hogy a következő elemre lépj."
+        GestureOrientation.Logical.PREVIOUS ->
+            "Most vissza. Söpörj $dir az előző elemhez."
+        GestureOrientation.Logical.ENTER ->
+            "Találtál egy gombot. Söpörj $dir, hogy megnyomd."
+        GestureOrientation.Logical.BACK ->
+            "Meggondoltad magad. Söpörj $dir a visszalépéshez."
+    }
+
+    private val RAW_LESSONS: List<Lesson> = listOf(
         // ── ALAPOK ──────────────────────────────────────────────────────────
         Lesson(
             AccessibilityService.GESTURE_SWIPE_DOWN, "söprés lefelé",

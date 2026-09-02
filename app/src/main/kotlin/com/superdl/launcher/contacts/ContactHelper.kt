@@ -97,7 +97,30 @@ object ContactHelper {
         return null
     }
 
-    fun listAllWithPhone(context: Context, limit: Int = 500): List<ContactMatch> {
+    /**
+     * MINDEN NÉVJEGY TELEFONSZÁMMAL.
+     *
+     * A `try` NEM ÓVATOSKODÁS. Engedély nélkül a rendszer nem üres listát
+     * ad, hanem SecurityException-t DOB — és ez a függvény háttérből,
+     * broadcast receiver-ből is fut, ahol egy eldobott kivétel nem hiba,
+     * hanem AZONNALI PROGRAMHALÁL. Ez omlasztotta össze a programot
+     * indításkor, amíg a névjegy-engedély nem volt megadva.
+     * (Hibajelentés: 2026-09-01, Ulefone Armor 24.)
+     *
+     * Üres lista jobb, mint egy halott program: a hívó így el tudja
+     * mondani a felhasználónak, hogy nincs névjegy — ez igaz és kezelhető.
+     */
+    fun listAllWithPhone(context: Context, limit: Int = 500): List<ContactMatch> = try {
+        listAllWithPhoneUnsafe(context, limit)
+    } catch (t: Throwable) {
+        android.util.Log.w(
+            "ContactHelper",
+            "Nevjegy lekerdezes sikertelen: ${t.javaClass.simpleName}: ${t.message}"
+        )
+        emptyList()
+    }
+
+    private fun listAllWithPhoneUnsafe(context: Context, limit: Int): List<ContactMatch> {
         val results = linkedMapOf<String, ContactMatch>()
         val projection = arrayOf(
             ContactsContract.CommonDataKinds.Phone.CONTACT_ID,

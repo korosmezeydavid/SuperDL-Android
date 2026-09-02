@@ -164,6 +164,7 @@ import com.superdl.launcher.contacts.ContactStore
 import com.superdl.launcher.contacts.ContactSyncHelper
 import com.superdl.launcher.contacts.ContactSyncScheduler
 import com.superdl.launcher.email.EmailAccountHelper
+import com.superdl.launcher.email.EmailAction
 import com.superdl.launcher.email.EmailDiagnostics
 import com.superdl.launcher.email.EmailHelper
 import com.superdl.launcher.email.EmailRecipient
@@ -337,6 +338,17 @@ class MainActivity : AppCompatActivity() {
     // a súgósor irányszavai és nyilai átfordulnak. Lásd: gestures/HintText.kt
     private lateinit var tvHint: com.superdl.launcher.gestures.HintText
     private lateinit var tvPosition: TextView
+
+    /**
+     * A TOVÁBBÍTANDÓ LEVÉL, amíg a címzett megvan.
+     *
+     * Azért mező, mert a továbbítás átmegy a szokásos „kinek küldjem" →
+     * „tárgy" → „szöveg" folyamaton, és annak a lépéseit nem akartuk
+     * megduplázni egy külön továbbítás-ággal. A `null`-ra állítás KÖTELEZŐ
+     * a folyamat végén: egy bent felejtett levél a KÖVETKEZŐ, teljesen más
+     * levélbe idézné bele magát.
+     */
+    private var pendingForwardMail: ImapMail? = null
 
     private lateinit var tts: TtsManager
     private lateinit var voiceInput: VoiceInput
@@ -1060,6 +1072,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NoteReading -> noteReader.repeatChunk()
             is AppFlow.EmailInboxBrowse -> navigateEmailInbox(flow, -1)
             is AppFlow.EmailReadBody -> speakEmailBody(flow)
+            is AppFlow.EmailActionMenu -> navigateEmailActionMenu(flow, -1)
             is AppFlow.ShoppingListPick -> navigateShoppingListPick(flow, -1)
             is AppFlow.ShoppingListBrowse -> navigateShoppingList(flow, -1)
             is AppFlow.ShoppingItemContextMenu -> navigateShoppingItemContextMenu(flow, -1)
@@ -1249,6 +1262,7 @@ class MainActivity : AppCompatActivity() {
             )
             is AppFlow.EmailInboxBrowse -> navigateEmailInbox(flow, +1)
             is AppFlow.EmailReadBody -> speakEmailBody(flow)
+            is AppFlow.EmailActionMenu -> navigateEmailActionMenu(flow, +1)
             is AppFlow.ShoppingListPick -> enterShoppingListContextMenu(flow)
             is AppFlow.ShoppingListBrowse -> navigateShoppingList(flow, +1)
             is AppFlow.ShoppingItemContextMenu -> navigateShoppingItemContextMenu(flow, +1)
@@ -1498,6 +1512,11 @@ class MainActivity : AppCompatActivity() {
                 flow.title, flow.dayStartMs, flow.startHour, flow.startMinute
             )
             is AppFlow.EmailInboxBrowse -> openEmailBody(flow)
+            // AZ ELOLVASOTT LEVÉLNÉL A JOBBRA SÖPRÉS EDDIG NEM CSINÁLT SEMMIT.
+            // Most ez hozza elő a levél műveleteit — ugyanaz a mozdulat,
+            // ami mindenhol máshol is „belépés".
+            is AppFlow.EmailReadBody -> enterEmailActionMenu(flow)
+            is AppFlow.EmailActionMenu -> onEmailActionActivate(flow)
             is AppFlow.ShoppingListPick -> onShoppingListPickActivate(flow)
             is AppFlow.ShoppingListBrowse -> enterShoppingItemContextMenu(flow)
             is AppFlow.ShoppingItemContextMenu -> onShoppingItemContextActivate(flow)
@@ -1833,6 +1852,7 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 speakEmailHeader(flow.mails[flow.index], flow.index + 1, flow.mails.size)
             }
+            is AppFlow.EmailActionMenu -> returnToEmailBody(flow)
             is AppFlow.ShoppingListPick -> exitFlow("Bevásárlólista bezárva.")
             is AppFlow.ShoppingListBrowse -> exitFlow("Bevásárlólista bezárva.")
             is AppFlow.ShoppingItemContextMenu -> returnToShoppingBrowse(flow.listName, flow.items, flow.itemIndex)
@@ -2062,6 +2082,11 @@ class MainActivity : AppCompatActivity() {
             error -> feedbackError()
             success -> feedbackSuccess()
         }
+        // A TOVÁBBÍTANDÓ LEVELET ITT ENGEDJÜK EL. Bármi módon ér véget a
+        // folyamat — elküldés, mégse, félreértett diktálás —, a levél nem
+        // maradhat bent: különben a KÖVETKEZŐ, teljesen más levélbe idézné
+        // bele magát, és a felhasználó ezt nem is látná.
+        pendingForwardMail = null
         if (activeFlow is AppFlow.GpsRadarBrowse ||
             activeFlow is AppFlow.GpsRadarGuiding ||
             activeFlow is AppFlow.GpsRadarLoading
@@ -2152,7 +2177,12 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SMS_SENT_READ -> startSmsSentFlow()
             MenuAction.SMS_WRITE -> startSmsComposeFlow()
             MenuAction.CHAT_OPEN -> com.superdl.launcher.chat.ChatActivity.start(this)
-            MenuAction.EMAIL_WRITE -> startEmailComposeFlow()
+            MenuAction.EMAIL_WRITE -> {
+                // Menüből indított ÚJ levél: soha ne hozzon magával egy
+                // korábbi, félbehagyott továbbítást.
+                pendingForwardMail = null
+                startEmailComposeFlow()
+            }
             MenuAction.EMAIL_IMPORT -> startEmailImportFlow()
             MenuAction.EMAIL_ADD -> startEmailAddFlow()
             MenuAction.EMAIL_LIST -> startEmailListFlow()
@@ -3503,7 +3533,16 @@ class MainActivity : AppCompatActivity() {
             speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
             onResult = { spoken ->
                 // A diktált szabad szöveg központozása és szépítése.
-                val body = SpeechPunctuation.apply(spoken)
+                val dictated = SpeechPunctuation.apply(spoken)
+                // TOVÁBBÍTÁSNÁL a saját szöveg ELÉ kerül, az eredeti levél
+                // pedig alá, világos elválasztóval. Így üres saját szöveggel
+                // is értelmes marad — a továbbítás lényege az eredeti levél.
+                val forwarded = pendingForwardMail
+                val body = if (forwarded != null) {
+                    EmailAction.forwardBody(forwarded, dictated)
+                } else {
+                    dictated
+                }
                 if (body.isBlank()) {
                     exitFlow("Az e-mail szövege üres.")
                     return@listen
@@ -10864,6 +10903,114 @@ class MainActivity : AppCompatActivity() {
         tts.speak(flow.mail.speakBodyPreview())
     }
 
+    // ── A LEVÉL MŰVELETEI — válasz, továbbítás, mentés ───────────────────
+    //
+    // MIÉRT ITT VAN, ÉS NEM KÜLÖN MENÜPONTBAN:
+    // eddig az „E-mail írása" a levelek olvasásától messze, külön menüpont
+    // volt. Vagyis pont akkor nem tudtál válaszolni, amikor épp elolvastad a
+    // levelet — ki kellett lépni, megkeresni az írás menüpontot, és ott újra
+    // bediktálni a címzettet, akinek a levele az imént szólt a füledbe.
+    // Látó ember erre rákattint; vaknak ez öt fölösleges lépés volt.
+
+    private fun enterEmailActionMenu(flow: AppFlow.EmailReadBody) {
+        activeFlow = AppFlow.EmailActionMenu(flow.mail, flow.mails, flow.index, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Levél műveletek. Söpörj fel-le a választáshoz, jobbra a végrehajtáshoz, " +
+                "balra vissza a levélhez."
+        )
+        tts.speakAdd(EmailAction.all.first().label)
+    }
+
+    private fun navigateEmailActionMenu(flow: AppFlow.EmailActionMenu, delta: Int) {
+        val actions = EmailAction.all
+        val next = (flow.actionIndex + delta + actions.size) % actions.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(actions[next].label)
+    }
+
+    private fun returnToEmailBody(flow: AppFlow.EmailActionMenu) {
+        activeFlow = AppFlow.EmailReadBody(flow.mail, flow.mails, flow.index)
+        updateFlowDisplay()
+        tts.speak("Vissza a levélhez.")
+    }
+
+    private fun onEmailActionActivate(flow: AppFlow.EmailActionMenu) {
+        when (EmailAction.all[flow.actionIndex]) {
+            EmailAction.BACK -> returnToEmailBody(flow)
+            EmailAction.READ_AGAIN -> {
+                activeFlow = AppFlow.EmailReadBody(flow.mail, flow.mails, flow.index)
+                updateFlowDisplay()
+                tts.speak(flow.mail.speakBodyPreview())
+            }
+            EmailAction.NEW_MAIL -> {
+                pendingForwardMail = null
+                startEmailComposeFlow()
+            }
+            EmailAction.REPLY -> startEmailReply(flow.mail, forward = false)
+            EmailAction.FORWARD -> startEmailReply(flow.mail, forward = true)
+            EmailAction.SAVE_SENDER -> saveEmailSender(flow)
+        }
+    }
+
+    /**
+     * VÁLASZ ÉS TOVÁBBÍTÁS.
+     *
+     * A KÜLÖNBSÉG CSAK A CÍMZETTBEN VAN: válasznál a feladó a címzett és
+     * megvan a tárgy is, tehát EGYENESEN a szöveg diktálásához ugrunk —
+     * ez a lényeg, ezért a fél napos kerülőút megszűnt. Továbbításnál a
+     * címzettet még meg kell adni, de a tárgyat és a törzset már visszük.
+     */
+    private fun startEmailReply(mail: ImapMail, forward: Boolean) {
+        if (SmtpConfigStore.get(this) == null) {
+            tts.speak(
+                "Nincs beállítva e-mail fiók. A Beállítások, E-mail fiók menüpontban add meg."
+            )
+            return
+        }
+        if (forward) {
+            pendingForwardMail = mail
+            tts.speak("Továbbítás. Kinek küldjem?")
+            startEmailComposeFlow()
+            return
+        }
+        val address = EmailAction.senderAddress(mail.from)
+        if (address.isBlank()) {
+            // ŐSZINTÉN MEGMONDJUK. Egy értelmetlen címre küldött válasz
+            // rosszabb, mint a beismert kudarc: azt hinnéd, elment.
+            tts.speak(
+                "Ennek a levélnek nincs válaszolható feladó-címe. " +
+                    "Használd az Új levél írása pontot."
+            )
+            return
+        }
+        val recipient = EmailRecipient(address, EmailAction.senderLabel(mail.from))
+        val subject = EmailAction.replySubject(mail.subject)
+        tts.speak(
+            "Válasz neki: ${recipient.label}. Tárgy: $subject. Mondd a levél szövegét."
+        )
+        proceedToEmailBody(recipient, subject)
+    }
+
+    private fun saveEmailSender(flow: AppFlow.EmailActionMenu) {
+        val address = EmailAction.senderAddress(flow.mail.from)
+        if (address.isBlank()) {
+            tts.speak("Ennek a levélnek nincs menthető feladó-címe.")
+            return
+        }
+        val label = EmailAction.senderLabel(flow.mail.from)
+        val saved = try {
+            EmailStore.add(this, EmailRecipient(address, label))
+        } catch (t: Throwable) {
+            false
+        }
+        tts.speak(
+            if (saved) "$label elmentve a címjegyzékbe."
+            else "A mentés nem sikerült. Lehet, hogy megtelt a címjegyzék."
+        )
+    }
+
     fun launchVoiceAssistantFromMediaButton() {
         if (!BluetoothAssistantStore.isEnabled(this)) return
         val locked = LockSession.needsUnlock(this)
@@ -17066,7 +17213,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.EmailReadBody -> {
                 tvItem.text = flow.mail.subject
                 tvPosition.text = "Levél felolvasása  •  ${flow.index + 1} / ${flow.mails.size}"
-                tvHint.text = "⬆⬇ ismétlés  •  ⬅ lista"
+                tvHint.text = "⬆⬇ ismétlés  •  ➡ műveletek  •  ⬅ lista"
+            }
+            is AppFlow.EmailActionMenu -> {
+                tvItem.text = EmailAction.all[flow.actionIndex].label
+                tvPosition.text = "Levél műveletek  •  " +
+                    "${flow.actionIndex + 1} / ${EmailAction.all.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza"
             }
             is AppFlow.ShoppingListPick -> {
                 tvItem.text = flow.names[flow.index]

@@ -448,6 +448,21 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    /**
+     * AZ ELOLVASOTT LEVÉL MŰVELETEI — válasz, továbbítás, mentés.
+     *
+     * Az elolvasott levélnél egy jobbra söprés hozza elő. A `mail` és a
+     * `mails` végig vele utazik, hogy a művelet után VISSZA lehessen térni
+     * pontosan oda, ahol a felhasználó volt — vakon az elveszett pozíció a
+     * legbosszantóbb dolog.
+     */
+    data class EmailActionMenu(
+        val mail: com.superdl.launcher.email.ImapMail,
+        val mails: List<com.superdl.launcher.email.ImapMail>,
+        val index: Int,
+        val actionIndex: Int
+    ) : AppFlow()
+
     data class ShoppingListPick(
         val names: List<String>,
         val index: Int

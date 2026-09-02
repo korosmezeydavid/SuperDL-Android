@@ -125,14 +125,86 @@ object BugReport {
         "?"
     }
 
-    /** Az összeomlás-napló UTOLSÓ része — a teljes fájl túl hosszú lenne. */
+    /**
+     * AZ UTOLSÓ ÖSSZEOMLÁS — A FEJLÉCÉVEL EGYÜTT.
+     *
+     * A KORÁBBI VÁLTOZAT HIBÁS VOLT, ÉS EZ DRÁGÁN DERÜLT KI. Egyszerűen az
+     * utolsó 25 SORT vágta ki a fájlból — csakhogy egy stack trace hosszabb
+     * ennél, tehát a `=== dátum ===` fejléc MINDIG lemaradt. Így a jelentés
+     * egy időpont nélküli nyomot mutatott, ami úgy nézett ki, mintha az
+     * imént történt volna.
+     *
+     * 2026-09-01-én ez egy hetekkel korábbi, MÁR JAVÍTOTT bankjegy-hiba
+     * nyomát tette be egy friss jelentésbe, és a hibakeresés első fél órája
+     * rossz nyomon ment el — miközben a valódi hiba (a névjegy-szinkron
+     * összeomlása) egészen máshol volt.
+     *
+     * Ez nem szépséghiba: egy vak tesztelő nem tudja ellenőrizni a jelentés
+     * tartalmát, azt küldi el, amit a program összerak. Ha a program
+     * félrevezet, a tesztelő is félrevezet, akaratlanul.
+     *
+     * Mostantól a BEJEGYZÉS ELEJÉTŐL vágunk, és ha a nyom régi vagy más
+     * verzióból való, azt KIMONDJUK.
+     */
     private fun crashLogTail(context: Context): String = try {
         val file = java.io.File(context.filesDir, "crash_log.txt")
         if (!file.exists()) "" else {
             val lines = file.readLines()
-            lines.takeLast(25).joinToString("\n")
+            // Az utolsó bejegyzés kezdete. A fejléc alakja: "=== dátum | verzió: x ==="
+            val start = lines.indexOfLast { it.startsWith("=== ") }
+            val entry = if (start >= 0) lines.drop(start) else lines.takeLast(30)
+            val header = entry.firstOrNull().orEmpty()
+            val warning = stalenessWarning(context, header)
+            (if (warning.isBlank()) entry else listOf(warning) + entry)
+                .take(32)
+                .joinToString("\n")
         }
     } catch (_: Exception) {
         ""
+    }
+
+    /**
+     * FIGYELMEZTETÉS, HA A NYOM NEM MOSTANI.
+     *
+     * Két külön ok, és mindkettő számít:
+     *  - MÁS VERZIÓ: akkor a hiba lehet, hogy már javítva van.
+     *  - RÉGI (7 napnál idősebb): akkor valószínűleg nem ahhoz van köze,
+     *    amit a felhasználó most tapasztalt.
+     *
+     * Inkább jelezzünk feleslegesen, mint hogy egyszer is elhallgassuk:
+     * a fölösleges figyelmeztetés egy mondat, az elhallgatott elavultság
+     * fél nap keresés a rossz helyen.
+     */
+    private fun stalenessWarning(context: Context, header: String): String {
+        val reasons = mutableListOf<String>()
+
+        val version = Regex("verzió:\\s*([^=\\s]+)").find(header)?.groupValues?.getOrNull(1)
+        if (version == null) {
+            reasons += "verzió ismeretlen (régi naplóformátum)"
+        } else if (version != appVersion(context).substringBefore(" ")) {
+            reasons += "MÁS VERZIÓBAN történt ($version), lehet, hogy már javítva van"
+        }
+
+        val stamp = Regex("===\\s*(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})")
+            .find(header)?.groupValues?.getOrNull(1)
+        if (stamp != null) {
+            try {
+                val format = java.text.SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss",
+                    java.util.Locale.getDefault()
+                )
+                val whenMs = format.parse(stamp)?.time ?: 0L
+                val days = (System.currentTimeMillis() - whenMs) / 86_400_000L
+                if (days >= 7) reasons += "$days napja történt"
+            } catch (_: Exception) {
+            }
+        }
+
+        return if (reasons.isEmpty()) {
+            ""
+        } else {
+            "  FIGYELEM: ez a nyom nem feltétlenül a most jelzett hibáé — " +
+                reasons.joinToString("; ") + "."
+        }
     }
 }

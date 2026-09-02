@@ -1,0 +1,1 @@
+SuperDL 1.58.0 — összeomlás-javítás és az e-mail átszervezése

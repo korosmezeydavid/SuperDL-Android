@@ -1,6 +1,29 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-09-01 | **Verzió:** 1.57.0 (versionCode 103)
+**Utolsó frissítés:** 2026-09-02 | **Verzió:** 1.58.0 (versionCode 104)
+
+> **2026-09-02: KIADVA — 1.58.0. ÖSSZEOMLÁS-JAVÍTÁS ÉS AZ E-MAIL ÁTSZERVEZÉSE.**
+>
+> **A legfontosabb: a program összeomlott, ha nem volt névjegy-engedély.**
+> A `ContactSyncReceiver` és a `BootReceiver` engedély nélkül hívta a
+> névjegy-lekérdezést, ami nem üres listát ad, hanem `SecurityException`-t
+> DOB — egy `onReceive`-ben az azonnali programhalál. **Minden friss
+> telepítőt érintett.** Ráadásul a `BootReceiver` nyolc lépése egy közös
+> blokkban futott, tehát ez **el tudta némítani a másnapi ébresztőt is**.
+> Javítva: engedély-ellenőrzés, `Throwable`-védőháló, és a `BootReceiver`
+> minden lépése külön védőhálót kapott.
+>
+> **E-mail átszervezés.** Az elolvasott levélnél jobbra söprésre előjön a
+> művelet-menü: válasz, továbbítás, feladó mentése, új levél. A válasznál a
+> címzett és a tárgy magától kitöltődik — három diktálásból egy lett.
+> A menü is átrendezve: `Postafiók megnyitása` → `Új levél írása` → ritkák.
+>
+> **Gesztus-iskola:** az órák és a vizsga követik a felület elforgatását.
+> Eddig a helyes mozdulatot hibának nézte volna elforgatott módban.
+>
+> **Hibajelentő:** az összeomlás-nyom mellé időpont és verzió kerül, és ha
+> a nyom más verzióból való vagy 7 napnál régebbi, a jelentés figyelmeztet.
+> (Ez egy fél órás téves nyomozás után született — lásd `report/BugReport.kt`.)
 
 > **2026-09-01 este: KIADVA — 1.57.0. AZ S.O.S. TELJES LÁNCA ÉS A FELÜLET
 > ELFORGATÁSA.**

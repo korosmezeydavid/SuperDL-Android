@@ -475,9 +475,21 @@ object MenuTree {
                 )),
                 MenuItem("sms_sub_back", "Vissza", MenuAction.SUBMENU)
             )),
+            // AZ E-MAIL MENÜ ÁTRENDEZVE (2026-09-02).
+            //
+            // A RÉGI SORREND ROSSZ VOLT, és a felhasználó mondta ki, miért:
+            // az „E-mail írása" külön menüpont volt, a levelek olvasásától
+            // messze — vagyis pont akkor NEM tudtál válaszolni, amikor épp
+            // elolvastad a levelet.
+            //
+            // Az új rend: elöl a POSTAFIÓK (ez a napi művelet, ide lépsz be
+            // legtöbbször), utána az ÚJ LEVÉL, és csak azután a ritkán
+            // használt címjegyzék és fiókbeállítás. A válasz és a továbbítás
+            // pedig NEM menüpont, hanem ott van, ahol kell: a levélnél,
+            // egy jobbra söpréssel.
             MenuItem("email_sub", "E-mail", MenuAction.SUBMENU, listOf(
-                MenuItem("email_imap_read", "E-mailek olvasása", MenuAction.EMAIL_IMAP_READ),
-                MenuItem("email_write", "E-mail diktálása és küldése", MenuAction.EMAIL_WRITE),
+                MenuItem("email_imap_read", "Postafiók megnyitása", MenuAction.EMAIL_IMAP_READ),
+                MenuItem("email_write", "Új levél írása", MenuAction.EMAIL_WRITE),
                 MenuItem("email_contacts_sub", "E-mail címjegyzék", MenuAction.SUBMENU, listOf(
                     MenuItem("email_list", "Mentett e-mail címek", MenuAction.EMAIL_LIST),
                     MenuItem("email_add", "E-mail cím hozzáadása", MenuAction.EMAIL_ADD),

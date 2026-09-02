@@ -93,20 +93,71 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 }
 
+/**
+ * INDÍTÁS UTÁNI HELYREÁLLÍTÁS — ébresztők, gyógyszer, naptár, időzítő.
+ *
+ * MIÉRT KAP MINDEN LÉPÉS KÜLÖN VÉDŐHÁLÓT:
+ *
+ * Ez a nyolc lépés korábban egyetlen blokkban futott. Egy `onReceive`-ben
+ * eldobott kivétel nem hiba, hanem AZONNALI PROGRAMHALÁL — és a halál
+ * pillanatában a SORBAN HÁTRALÉVŐ LÉPÉSEK IS ELMARADNAK.
+ *
+ * Élesben ez történt: a névjegy-szinkron `SecurityException`-t dobott
+ * (nem volt még meg a névjegy-engedély), a program meghalt bekapcsoláskor,
+ * és ezzel EGYÜTT ELMARADT AZ ÉBRESZTŐK ÚJRAÜTEMEZÉSE IS. Vagyis egy
+ * névjegy-engedély hiánya el tudta némítani a másnap reggeli ébresztőt.
+ * Vakon, egy munkanap előtt ez nem apróság.
+ * (Hibajelentés: 2026-09-01, Ulefone Armor 24, Android 13.)
+ *
+ * Mostantól minden lépés a saját hibájába bukik bele, a többi fut tovább.
+ * A sorrend is számít: ami a felhasználó szempontjából a legfontosabb —
+ * az ébresztő és a gyógyszer-emlékeztető — az megy elöl.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                AlarmScheduler.rescheduleAll(context)
-                com.superdl.launcher.medication.MedicationScheduler.rescheduleAll(context)
-                com.superdl.launcher.calendar.CalendarReminderScheduler.rescheduleUpcoming(context)
-                com.superdl.launcher.timer.TimerManager.resumeIfNeeded(context)
-                com.superdl.launcher.battery.BatteryPatrolManager.start(context)
-                com.superdl.launcher.feedback.DeviceStateSoundManager.start(context)
-                com.superdl.launcher.contacts.ContactSyncScheduler.reschedule(context)
-                com.superdl.launcher.contacts.ContactSyncHelper.syncIfNeeded(context)
+                step("ebresztok") { AlarmScheduler.rescheduleAll(context) }
+                step("gyogyszer") {
+                    com.superdl.launcher.medication.MedicationScheduler.rescheduleAll(context)
+                }
+                step("naptar") {
+                    com.superdl.launcher.calendar.CalendarReminderScheduler
+                        .rescheduleUpcoming(context)
+                }
+                step("idozito") {
+                    com.superdl.launcher.timer.TimerManager.resumeIfNeeded(context)
+                }
+                step("akku-orseg") {
+                    com.superdl.launcher.battery.BatteryPatrolManager.start(context)
+                }
+                step("keszulek-hangok") {
+                    com.superdl.launcher.feedback.DeviceStateSoundManager.start(context)
+                }
+                step("nevjegy-utemezes") {
+                    com.superdl.launcher.contacts.ContactSyncScheduler.reschedule(context)
+                }
+                step("nevjegy-szinkron") {
+                    com.superdl.launcher.contacts.ContactSyncHelper.syncIfNeeded(context)
+                }
             }
+        }
+    }
+
+    /**
+     * `Throwable`, nem `Exception`: az `OutOfMemoryError` sem `Exception`,
+     * és bekapcsoláskor, amikor egyszerre indul minden alkalmazás, épp az a
+     * legvalószínűbb pillanat, amikor elfogy a memória.
+     */
+    private inline fun step(name: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (t: Throwable) {
+            android.util.Log.w(
+                "BootReceiver",
+                "Indulasi lepes '$name' hibara futott: ${t.javaClass.simpleName}: ${t.message}"
+            )
         }
     }
 }
