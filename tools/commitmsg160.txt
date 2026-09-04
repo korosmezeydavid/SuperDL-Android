@@ -1,0 +1,33 @@
+1.60.0 - Sugo mindenhez, S.O.S. hivomondat, gyorsabb kezeles
+
+SUGO (56 tema, help/HelpTexts.kt)
+- Minden almenu aljara automatikus Sugo pont (MenuTree.withHelp), ha van tema.
+- Jatekszabalyok almenu a Jatekokban: jatekonkent HELP pont (help::game_*).
+- Nevjegy: "Sugo: igy mukodik a program" (help::main) es
+  "Sugo - minden alkalmazas" (MenuAction.HELP_INDEX, AppFlow.HelpIndexBrowse).
+- Minden sugo ot szakasza: Mire valo / Hogyan kezdd / Mozdulatok itt /
+  Ha valami nem megy / Fejlesztes tamogatasa.
+- A szovegek a kodbol ellenorzott mozdulatokat irjak le.
+
+S.O.S. HIVOMONDAT
+- sos/SosPhraseStore.kt: betanitott mondatok (min. 2 szo, 12 karakter, max 5).
+- ElenaWakeListenService: a hivomondat MEGELOZI az ebreszto mondatokat.
+- MainActivity: ACTION_SOS_FROM_VOICE -> activateSos(), tanito es lista folyam.
+- Menu: S.O.S. hivomondat tanitasa / S.O.S. hivomondataim.
+
+GYORSABB KEZELES (Alph kerese)
+- speakThen -> speakAndRun ott, ahol a muvelet nema atmenet: beallitas
+  varazslo rendszerkepernyoi es billentyuzet-valaszto, kulso alkalmazas
+  inditasa, kedvenc alkalmazas, USB fajlatvitel, akku-optimalizalas,
+  automatikus inditas, rendszer PIN seged, ertesites-hozzaferes.
+- A rendszer ENGEDELYKERDESE elott szandekosan marad a speakThen.
+
+JAVITASOK
+- EnvironmentScannerActivity: EXTRA_SNAPSHOT_MODE kiolvasva; az ENV_SCANNER
+  folyamatos figyelessel indul.
+- FaceCameraActivity: szelfi modban a face_camera_intro_selfie szolal meg.
+- finishSearchArticleReading: a hir vegen vissza a hirlistaba.
+- handleSwipeLeft: holt ExternalAppBrowse ag torolve, a kategoriakhoz lep vissza.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

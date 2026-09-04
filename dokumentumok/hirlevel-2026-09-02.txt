@@ -1,0 +1,281 @@
+SUPER DL HÍRLEVÉL
+2026. szeptember 2.
+
+Kedves Tesztelők!
+
+Megint két kiadás egy napon: az 1.58.0 délelőtt, az 1.59.0 este. És ez a
+nap más volt, mint a tegnapi: nem javítottunk, hanem MEGÉPÜLT VALAMI, ami
+eddig nem volt. Mostantól Braille-lel írhatsz a telefonodon.
+
+MIVEL KEZDD: a "HOGYAN FRISSÍTS" résszel, a hírlevél végén. Ez most nem
+formaság — egy régi hiba miatt erre a verzióra még kézzel kell frissíteni,
+és aki ezt nem olvassa el, az hiába várja a telefonjától.
+
+==========================================================
+ELSŐ RÉSZ — 1.58.0 (délelőtt)
+==========================================================
+
+A PROGRAM ÖSSZEOMLOTT A FRISS TELEPÍTŐKNÉL
+
+Ha még nem volt megadva a névjegy-engedély, a program leállt — bekapcsoláskor
+és a napi névjegy-frissítéskor. Vagyis MINDEN friss telepítőnél. Aki jelezte,
+azt látta, hogy "az asszisztens beállításakor leáll" — valójában egy
+háttéresemény ölte meg ugyanabban a pillanatban.
+
+Ami ennél rosszabb: ez a hiba a MÁSNAPI ÉBRESZTŐT is el tudta némítani. A
+bekapcsolás utáni helyreállítás nyolc lépése egyetlen közös blokkban futott,
+és amikor a névjegy-lépés elhasalt, a többi se futott le.
+
+Javítva, három szinten. Minden indulási lépés külön védőhálót kapott — egy
+elhasaló lépés többé nem viheti magával a többit.
+
+
+E-MAIL: VÁLASZ OTT, AHOL A LEVÉL VAN
+
+Eddig az "E-mail írása" külön menüpont volt, messze a levelek olvasásától.
+Pont akkor nem tudtál válaszolni, amikor elolvastad a levelet: ki kellett
+lépni, és újra bediktálni annak a címét, akinek a levele az imént szólt a
+füledbe.
+
+Mostantól az elolvasott levélnél a JOBBRA SÖPRÉS előhozza:
+
+    Válasz a feladónak   — címzett és tárgy magától kitöltve, jön a diktálás
+    Továbbítás           — az eredeti levelet idézve
+    Levél újraolvasása
+    Feladó mentése a címjegyzékbe
+    Új levél írása
+    Vissza a levélhez
+
+Három diktálásból egy lett. Nincs "Re: Re: Re:". És ha a levélnek nincs
+válaszolható feladója (hírlevél, no-reply), a program ezt KIMONDJA, és nem
+küld a semmibe.
+
+
+APRÓBB, DE NEM MELLÉKES
+
+- A gesztus-iskola követi a Felület elforgatását. Eddig az alap kezelést
+  tanította, és a helyes mozdulatot hibának nézte volna a vizsgán.
+- A hibajelentés kiírja, MIKOR és MELYIK VERZIÓBAN történt az összeomlás.
+  Egy hetekkel korábbi, már javított hiba eddig úgy nézett ki, mintha az
+  imént történt volna — és a keresés arra ment el.
+
+
+==========================================================
+MÁSODIK RÉSZ — 1.59.0 (este)
+==========================================================
+
+BRAILLE BILLENTYŰZET
+
+Hatpontos magyar irodalmi Braille. A magyar q és z, mind a hét összetett
+betű (cs, gy, ly, ny, sz, ty, zs), ékezetek, számok, írásjelek, és egy
+jel-réteg a ritkább jeleknek. Nem próbapad: VALÓDI BILLENTYŰZET, ami
+bármelyik alkalmazás szövegmezőjébe ír. E-mailbe, keresőbe, üzenetbe.
+
+A táblát nem fejből írtuk. A LibLouis hivatalos magyar táblájából indult,
+és a tesztelés során két körben javítva lett — ahol a kettő eltért, a
+felhasználó keze döntött, nem a táblázat. Ez a helyes sorrend.
+
+
+HÁROM MÓDON ÍRHATSZ
+
+Nem minden telefon érez hat ujjat egyszerre. Az Android azt ígéri, hogy
+"ötöt vagy többet" — vagyis pont a hatot nem garantálja. Ezért a Braille
+nálunk nem egyetlen megoldás, hanem három:
+
+    IGAZI BRAILLE   hat ujjal, egyszerre. A leggyorsabb.
+    KÉT MENET       három ujjal: előbb a bal oszlop, aztán a jobb. Ehhez
+                    gyakorlatilag minden érintőkijelző elég.
+    SÍN             egyetlen ujjal. Bármilyen telefonon, kalibrálás nélkül.
+
+A sín így megy: leteszed az ujjad bárhova — az lesz a sín közepe, a második
+sor. Fel-le mozgatva sort választasz, balra lépve a sor bal pontját ütöd
+le, jobbra lépve a jobbat. Visszatérsz a sínre, jöhet a következő pont.
+Ha megállsz egy pillanatra, a program bemondja, hol vagy. Felengeded: kész
+a betű. Lassabb, mint hat ujjal — de aki tud Braille-t, annak a cella a
+fejében van, és ez akkor is gyorsabb lehet, mint betűt keresni.
+
+A program megméri, hány ujjat érez a telefonod, és ajánl egy módot. De a
+mérés AJÁNL, te DÖNTESZ: az Írásmód menüpontban bármelyiket választhatod.
+
+
+HOGYAN KEZDJ NEKI
+
+1. Beállítások / Haladó és technikai / Billentyűzet /
+   Billentyűzetek engedélyezése — a rendszer listájában kapcsold be a
+   "Super DL Braille billentyűzet"-et.
+2. Billentyűzet / Braille billentyűzet / Súgó — egyben elmondja az egészet.
+3. A kezem megtanítása — TEDD RÁ MIND A HAT UJJADAT EGYSZERRE, úgy, ahogy
+   írni fogsz. A program magától felismeri, hogy két oszlopba (cella) vagy
+   egy sorba (zongora) tetted-e őket. Nem kell előre megmondanod.
+   Ha kevesebbet érez, újrapróbálhatod, vagy lefelé söpörve két menetben
+   mérhetsz.
+4. Braille próba — itt gyakorolhatsz, tét nélkül. A leírt szöveg nem megy
+   sehova.
+5. Egy szövegmezőben: Billentyűzet választása, és írj.
+
+A billentyűzet a TELJES KIJELZŐ. Nincs "a billentyűzet területe" — az egész
+képernyő az, mert a kezed helyét a kalibrálásból ismeri. Ezt a tesztelés
+találta meg: az első változat az alsó hatvan százalék volt, és csak a
+legalsó ujj találta el.
+
+
+A MOZDULATOK
+
+    Üres cella (letétel pont nélkül)   szóköz — ÉS KIMONDJA A SZÓT, amit
+                                       betűnként írtál. Így derül ki az
+                                       elírás, mielőtt továbbmennél.
+    Egy ujj balra                      törlés — és megmondja, MI TŰNT EL
+                                       ÉS MI MARADT
+    Három ujj balra                    az egész szó törlése
+    Egy ujj lefelé                     hol vagyok: utolsó szavak, mód, réteg
+    Két ujj lefelé                     új sor
+    Két ujj felfelé                    billentyűzet-váltás
+    Összecsippentés                    bezárás — ugyanaz, mint a mátrixnál
+
+Sín módban: két ujj koppintás = törlés, három ujj = felolvasás.
+
+
+JELZŐK ÉS A JEL-RÉTEG
+
+Szám: 3-4-5-6, utána az a-tól j-ig az 1-től 0-ig. A vessző, kettőspont,
+pont és kötőjel bent tartja a szám módot — a "3,14" és a "2026-09-02" egy
+jelzővel megy.
+
+Nagybetű: 4-6 egyszer a következő betűre. KÉTSZER az egész szóra, szóközig.
+A kettőnek külön hangja van, hogy tudd, hányat ütöttél.
+
+Jel-réteg: az 5-ös pont. Ez nem a mi találmányunk — a magyar Braille
+szabványa így írja a ritkább jeleket. Ötös pont után a következő cella nem
+betű, hanem jel: 5 + d = dollár, 5 + vessző = per jel, 5 + nyitó zárójel =
+kapcsos zárójel. Ötös pont kétszer: zárolva, amíg vissza nem kapcsolod.
+
+Ugyanaz a szabály mindenhol: EGYSZER EGY CELLÁRA, KÉTSZER AMÍG VISSZA NEM
+KAPCSOLOD. Egy szabályt kell megtanulni, nem hármat.
+
+
+A KÉZ KÖVETÉSE
+
+Írás közben a kéz elcsúszik. Pár betű után az ujjak már máshol érnek le, a
+pontok meg ott maradnának — és azt hinnéd, TE írsz rosszul. Ezért a program
+minden betű után utánamegy az ujjaidnak. Pár perc után sem kell
+újrakalibrálni.
+
+És ha a képernyő más állásban van, mint amiben kalibráltál — mert a
+billentyűzet nem tudja elforgatni az alkalmazást —, a pontokat átszámolja,
+és szól: "fogd a telefont ugyanúgy, mint a kalibrálásnál".
+
+
+BILLENTYŰHANG
+
+Minden ujjnál egy halk kattanás, betűnél, szóköznél, törlésnél a maga
+hangja. A rendszer saját billentyűhangjai — tehát ha kikapcsoltad a
+beállításokban, itt is csendben marad, nem kell külön kapcsoló.
+
+
+SUPER DL DIKTÁLÁS — A LEGEGYSZERŰBB BEVITEL
+
+Egy HARMADIK választható billentyűzet, annak, aki se mátrixot, se Braille-t
+nem akar.
+
+Belépsz a szövegmezőbe, és a telefon HALLGAT. Mondod, beírja, újra hallgat.
+Semmilyen mozdulat nem kell. Írásjeleket is mondhatsz — "pont", "vessző",
+"kérdőjel" —, ugyanúgy, mint a mátrix diktálásánál.
+
+Ha kész vagy, ÖSSZECSIPPENTESZ. Ez az egyetlen mozdulat, amit tudni kell.
+
+És ami vakon a legfontosabb: a mikrofon nem marad nyitva a végtelenségig.
+Ha háromszor egymás után nem ért semmit, MEGÁLL, és megmondja, hogy
+koppintásra folytatja. Egy csendben nyitva maradt mikrofont nem lehet
+észrevenni — ezért nem hagyjuk, hogy legyen ilyen.
+
+Két ujjal balra az utolsó szót törli. Jelszómezőben nem diktál.
+
+Engedélyezés ugyanott, ahol a Braille: a rendszer listájában a
+"Super DL Diktálás".
+
+
+A MENÜ IS RENDET KAPOTT
+
+A "Képernyőolvasó és billentyűzet" túl zsúfolt lett. Szétvált:
+
+    Képernyőolvasó      — csak a felolvasós dolgok
+    Billentyűzet        — választás, engedélyezés, szövegtár, és benne:
+        Mátrix billentyűzet
+        Braille billentyűzet  (a Súgó az első pont)
+
+Új a "Mennyit magyarázzon" alatt: BILLENTYŰZET-TÁJÉKOZTATÓ. Ha
+kikapcsolod, a billentyűzetek megnyitáskor csak a nevüket mondják, nem a
+teljes bemutatót. Kezdőnek a bemutató a tanulás fele — de aki naponta ír,
+annak minden mezőnél újra végighallgatni bosszúság. A név viszont mindig
+elhangzik: vakon tudni kell, melyik jött elő.
+
+És a "Billentyűzet választása" mostantól mind a három SuperDL billentyűzetet
+ismeri. Egy őszinte megjegyzés hozzá: egy alkalmazás nem állíthat be másik
+billentyűzetet helyetted, ehhez rendszerjog kellene. Amit tehetünk: a
+választásod után megnyitjuk a rendszer választóját, és megmondjuk, mit
+keress benne.
+
+
+AMI MÉG NINCS KÉSZ
+
+Ezt inkább leírom, mint hogy a te füled találja meg:
+
+- A tábla két forrásból egyezik, de tételről tételre végig nem hallgatott.
+  Ha egy betű rosszat ad, ÍRD MEG, MELYIK — pontokkal együtt. Egy rossz
+  cella hetekig észrevétlen maradna.
+- A jel-rétegen néhány jel (egyenlőségjel, és-jel, euró, százalék) helye
+  még nincs eldöntve.
+- A sín küszöbei — mekkora lépés a sorváltás, mekkora az oldalra lépés —
+  tippen alapulnak. Ha szűknek vagy tágnak érzed, szólj.
+- Kurzor mozgatás, kijelölés, másolás a Braille-ből: még nincs.
+
+
+==========================================================
+HOGYAN FRISSÍTS — EZT MINDENKÉPP OLVASD EL
+==========================================================
+
+A PROGRAMON BELÜLI FRISSÍTÉS EDDIG SENKINÉL NEM MŰKÖDÖTT.
+
+Ha próbáltad, "a telepítő nem indítható" üzenettel kilépett. A program a
+letöltött fájlt nem tudta átadni a rendszernek: egyetlen mappát engedett
+megosztani, és nem azt, amelyikbe a frissítés került. Ez a hiba a kezdetek
+óta bent volt, és a tegnapi hírlevél "a telefon magától szól" mondata ezért
+nem volt igaz. Elnézést érte.
+
+Javítva — de a javítás csak az 1.59.0-ban van. Tehát:
+
+ERRE A VERZIÓRA MÉG KÉZZEL KELL FRISSÍTENI.
+
+    github.com/korosmezeydavid/SuperDL-Android/releases
+    a v1.59.0 kiadásnál a SuperDL.apk
+
+Töltsd le, telepítsd. EZUTÁN már a program maga intézi: naponta kétszer
+keres, és szól, ha van újabb. Kézzel: Beállítások / Program frissítése —
+ez most az első menüpont, nem kell keresni.
+
+A frissítés a beállításaidat, a névjegyeidet, a könyvjelzőidet és a saját
+elnevezéseidet nem bántja.
+
+
+==========================================================
+AMIT KÉREK TŐLED
+==========================================================
+
+1. A BRAILLE PRÓBÁT, mielőtt élesben írnál vele. Ott tét nélkül derül ki,
+   ha valami nem stimmel.
+2. Egy IGAZI E-MAILT Braille-lel, elejétől a végéig — címzett, tárgy,
+   szöveg, küldés. Ez az átvételi próba, és még senki nem csinálta végig.
+3. A DIKTÁLÁS-t egy zajos helyen. Meg kell állnia, nem pöröghet.
+4. A SÍNT, ha a telefonod nem érez hat ujjat. Ez a mód a legkevésbé
+   próbált, és a legtöbb embernek pont erre lesz szüksége.
+5. És a legfontosabb: HA EGY BETŰ ROSSZAT AD, ÍRD MEG, MELYIK, ÉS MILYEN
+   PONTOKKAL. A tábla csak úgy lesz százszázalékos, ha a ti fületek is
+   végigmegy rajta.
+
+A hibajelentések nélkül a mai nap se lett volna ennyi. A sín ötlete, a
+tábla javításai, és az, hogy "csak a hatos pont jön be" — mind a mai
+tesztelésből jött, nem a tervezőasztalról. Ez a program úgy készül, hogy
+ti is írjátok.
+
+Köszönöm,
+Kőrösmezey Dávid

@@ -1,0 +1,159 @@
+SUPER DL — MI VÁLTOZOTT A JÚLIUSI SPECIFIKÁCIÓ ÓTA
+Kísérőlevél a Mobilinfo csapatnak
+2026. szeptember 2.
+
+Kedves Mobilinfo csapat!
+
+Júliusban az 1.54.9-es verzióról kaptatok egy részletes telepítési és
+engedélyezési leírást. Azóta öt kiadás jelent meg, az utolsó ma este:
+az 1.59.0. Ez a levél nem megy bele a részletekbe — egy helyre szedi össze,
+mi jött azóta, hogy tudjátok, mire számítsatok a telefonon.
+
+A LEGFONTOSABB ELŐRE: ERRE A VERZIÓRA KÉZZEL KELL FRISSÍTENI.
+A részletek a levél végén, a letöltő linkkel együtt.
+
+
+--------------------------------------------------------------------------
+FÁJLKEZELÉS ÉS FELVÉTELEK
+--------------------------------------------------------------------------
+
+- A rádió- és diktafon-felvételek mostantól NYILVÁNOS mappába kerülnek
+  (Felvételek / Radio, Felvételek / Diktafon). Eddig olyan helyre mentek,
+  amit az Android 11 óta egyetlen fájlkezelő sem látott — a felhasználó nem
+  tudta átmásolni vagy elküldeni őket. A régi felvételek automatikusan
+  átköltöznek.
+- Csoportos műveletek a fájlkezelőben: kijelölés, aztán törlés, mozgatás
+  vagy másolás egyben. A program minden lépésnél mondja, hány elem van
+  kijelölve, és mozgatásnál rákérdez a célmappára.
+- Fájl átnevezése diktálással; a kiterjesztés magától megmarad.
+- Rádió: időzített felvétel — állomás, kezdés, hossz. Túléli az
+  újraindítást.
+
+
+--------------------------------------------------------------------------
+BEÁLLÍTÁS VARÁZSLÓ — FRISS TELEPÍTÉSHEZ
+--------------------------------------------------------------------------
+
+Ez érint titeket a legközvetlenebbül. Friss telepítésnél a varázsló
+MAGÁTÓL ELINDUL, és végigvisz mindenen, amit a júliusi specifikáció
+6. pontja kézzel sorolt fel: kezdőképernyő, telefon alkalmazás, SMS
+alkalmazás, teljes fájlhozzáférés, billentyűzet, képernyőolvasó, PIN-segéd,
+rátét, háttérfutás, gyártói automatikus indítás.
+
+Mindegyik előtt elmondja, MIÉRT kell. Az alapvető pontokon nem enged tovább,
+a többit el lehet halasztani. Bármikor újrajátszható:
+Beállítások / Haladó és technikai / Beállítás varázsló elölről.
+
+Egy változás a specifikációhoz képest: az ALAPÉRTELMEZETT TELEFON
+ALKALMAZÁS mostantól alapvető, nem opcionális. Az S.O.S. miatt — lásd lent.
+
+
+--------------------------------------------------------------------------
+S.O.S. — TELJES ÚJ LÁNC
+--------------------------------------------------------------------------
+
+Egy komoly hibát javítottunk: az S.O.S. eddig nem nézte meg, felvették-e a
+hívást, és húsz másodperc után továbblépett — el tudta vágni pont azt a
+hívást, ami sikerült. Ezért kell alapértelmezett telefon alkalmazásnak
+lennie: így látja a hívás állapotát.
+
+Ami most történik S.O.S.-kor: azonnal SMS mind a négy számra a pontos
+koordinátákkal és egy kattintható térkép-linkkel (akkor is, ha a hívást
+felveszik); friss GPS mérés közben; két kör hívás a négy számon; a
+hangposta nem állítja meg a láncot; két kör után 112, tíz másodperces
+visszaszámlálással, ami kikapcsolható. Leállítás: az S.O.S. újraindítása.
+
+Élesben tesztelve.
+
+
+--------------------------------------------------------------------------
+FELÜLET ELFORGATÁSA
+--------------------------------------------------------------------------
+
+Aki iPhone-ról jön, az a listákban balra-jobbra pöccint, nem fel-le.
+Beállítások / Felület elforgatása: három állapot (alap, elforgatva jobbra,
+elforgatva balra). Mind a 41 képernyőn és a képernyőolvasóban is érvényes,
+és a kimondott utasításokat is átfordítja. A mátrix billentyűzet és a
+gesztus-iskola szándékosan nem fordul el.
+
+
+--------------------------------------------------------------------------
+NÉVJEGYZÉK, E-MAIL, PODCAST, PÉNZFELISMERŐ
+--------------------------------------------------------------------------
+
+- Névjegyzék: betűindex ki-be, telefonszám mutatása ki-be, mentés és
+  visszatöltés vCard fájlba.
+- E-mail: az elolvasott levélnél jobbra söpréssel válasz, továbbítás,
+  feladó mentése — a válasznál a címzett és a tárgy magától kitöltődik.
+- Podcast: a toplista és a keresés megint működik (az Apple átköltöztette a
+  szolgáltatást); ha nincs találat, a program megmondja, mi a hiba.
+- A forint-bankjegy felismerő új felismerő motort kapott (1.55.0).
+- Több összeomlás javítva, köztük egy, ami minden friss telepítőnél
+  előjött, ha a névjegy-engedély még nem volt megadva.
+
+
+--------------------------------------------------------------------------
+MA: BRAILLE BILLENTYŰZET ÉS DIKTÁLÓ BILLENTYŰZET
+--------------------------------------------------------------------------
+
+Az 1.59.0 két új billentyűzetet hoz. Mindkettő a rendszer
+billentyűzet-választójában külön tétel, a mátrix mellett — vagyis a
+specifikáció 6. pontja két új engedélyezendő tétellel bővül:
+
+    Super DL Braille billentyűzet
+    Super DL Diktálás
+
+Engedélyezés: Beállítások / Haladó és technikai / Billentyűzet /
+Billentyűzetek engedélyezése — a rendszer listájában bekapcsolni.
+
+BRAILLE: hatpontos magyar irodalmi Braille, összetett betűkkel (cs, gy, ly,
+ny, sz, ty, zs), ékezetekkel, számokkal, írásjelekkel és jel-réteggel.
+Valódi billentyűzet, bármelyik alkalmazás szövegmezőjébe ír. Három
+írásmód: hat ujjal egyszerre; két menetben három ujjal; vagy egyetlen
+ujjal a "sínen", ami bármilyen telefonon működik. A kéz megtanítása egy
+mozdulat: a felhasználó ráteszi mind a hat ujját, a program felismeri az
+elrendezést. Szóköznél kimondja a szót, törlésnél megmondja, mi maradt.
+A Braille almenü élén Súgó, ami egyben elmondja az egészet.
+
+Egy technikai megjegyzés nektek: nem minden telefon érez hat ujjat
+egyszerre. A program MEGMÉRI, és ajánl egy módot — de a felhasználó
+felülbírálhatja. A sín mód azért van, hogy olyan telefonon is lehessen
+Braille-lel írni, ami csak egy-két érintést tud.
+
+DIKTÁLÁS: a felhasználó belép a szövegmezőbe, és a telefon hallgat.
+Mondja, beírja, újra hallgat — mozdulat nélkül. Összecsippentéssel zárja.
+Ha háromszor nem ért semmit, megáll, és nem hagyja nyitva a mikrofont.
+Jelszómezőben nem diktál.
+
+
+--------------------------------------------------------------------------
+FRISSÍTÉS — EZT MINDENKÉPP
+--------------------------------------------------------------------------
+
+A programon belüli frissítés a kezdetek óta nem működött: a telepítő
+"nem indítható" üzenettel kilépett. Az 1.59.0 javítja — de a javítás csak
+ebben a verzióban van, tehát ERRE A VERZIÓRA MÉG KÉZZEL KELL FRISSÍTENI.
+Ezután a program már magától frissül: naponta kétszer keres, és szól.
+
+Letöltés (mindig a legfrissebb):
+
+    https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A kiadás oldala, a részletes kiadási jegyzettel:
+
+    https://github.com/korosmezeydavid/SuperDL-Android/releases/tag/v1.59.0
+
+Aktuális verzió: 1.59.0 (versionCode 105). Csomagnév változatlan:
+com.superdl.launcher. A júliusi specifikáció engedély-listája érvényes;
+ami hozzájött, az a két új billentyűzet a rendszer választójában.
+
+A frissítés a beállításokat, névjegyeket, könyvjelzőket és saját
+elnevezéseket nem bántja.
+
+Ha bármi kérdés van, vagy egy telefonon mást tapasztaltok, mint amit ez a
+levél ígér, írjatok — a tesztelői visszajelzés az, amiből ez a program
+készül.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+korosmezey.david.richard@gmail.com

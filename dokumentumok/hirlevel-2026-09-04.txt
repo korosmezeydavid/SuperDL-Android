@@ -1,0 +1,151 @@
+SUPER DL ANDROID — 1.60.0 HÍRLEVÉL
+2026. szeptember 4.
+
+Kedves Tesztelők!
+
+Megjelent az 1.60.0. Ez a kiadás nem új funkciók halmaza, hanem valami,
+ami eddig hiányzott: a program mostantól ELMAGYARÁZZA MAGÁT. És közben
+gyorsabb is lett annak, aki már tudja, mit csinál.
+
+
+1. SÚGÓ MINDEN ALKALMAZÁSHOZ
+
+Ötvenhat súgó került a programba. Minden alkalmazás-ág alján van egy
+Súgó menüpont — a Zene alján, a Podcastnál, a Közlekedésnél, az
+Eszközöknél, a Beállításokban, mindenhol.
+
+Minden súgó ugyanabból az öt szakaszból áll, mindig ugyanabban a
+sorrendben:
+
+  1. Mire való
+  2. Hogyan kezdd
+  3. Mozdulatok itt
+  4. Ha valami nem megy
+  5. Fejlesztés támogatása
+
+Így mindig tudod, hányadik szakaszban mit találsz, és ha csak elakadtál,
+a negyedikre ugorhatsz. A szakaszok között fel-le söpréssel lépkedsz,
+jobbra söpréssel felolvassa.
+
+Fontos: ezek a súgók NEM általánosságokat mondanak. Minden leírt mozdulat
+a kódból van ellenőrizve, egyesével. Ezért olyasmi is bennük van, amit a
+menü magától nem árul el:
+
+  - a könyvolvasóban a jobbra söprés KÖNYVJELZŐT tesz, nem lapoz,
+    a felfelé söprés pedig visszalapoz, nem ismétel;
+  - a diktafonnál a balra söprés MENT, nem eldob — eldobó mozdulat nincs;
+  - a Patika Őrangyal napszak-választójában a balra söprés a TOVÁBB;
+  - a bevásárlólistánál a lefelé söprés a lista MŰVELETEIT nyitja;
+  - az internetes keresőben a felfelé söprés a KÖVETKEZŐ találat;
+  - a kártya-felismerő sikertelen felismerésre nem mond semmit — a csend
+    jelenti azt.
+
+A NÉVJEGY ELEJÉN két új pont:
+
+  Súgó: így működik a program — az egész programot elmondja, a négy
+  söprés jelentésétől az egyszerű módig és a rejtett mozdulatokig. Ezt
+  érdemes egyszer végighallgatni annak, aki most ismerkedik vele.
+
+  Súgó — minden alkalmazás — mind az ötvenhat súgó egy abc-rendes
+  listában. Aki tudja, MIT keres, de nem tudja, hol van a menüben, itt
+  egy lépésben megtalálja.
+
+
+2. JÁTÉKSZABÁLYOK
+
+A Játékok almenüben új pont: Játékszabályok. Mind a hét játékhoz külön
+leírás — UNO, Kvíz, Akasztófa, Blackjack, Póker, Félkarú rabló, Mille
+Bornes. És nemcsak a kezelést mondja el, hanem MAGÁT A JÁTÉKSZABÁLYT is:
+aki soha nem játszott Mille Bornes-t vagy pókert, ebből megtanulhatja.
+
+A leírt szabályok a programban lévő VALÓDI szabályok, nem a hivatalosak.
+Ahol eltérnek, ott ez ki is van mondva — például a Blackjackben a
+döntetlen is a te győzelmed, a Pókerben pedig nem te választod ki, melyik
+lapot dobod el, csak azt, hányat.
+
+
+3. S.O.S. HÍVÓMONDAT — A VÉSZJELZÉS HANGGAL IS INDÍTHATÓ
+
+Ez a kiadás legfontosabb új funkciója.
+
+A Beállítások, S.O.S. paraméterek almenüben van egy új pont: S.O.S.
+hívómondat tanítása. Bemondasz egy egész mondatot — például: kérem hívja
+a segítséget. A program megismétli, és jobbra söpréssel mented.
+
+Onnantól, ha ezt a mondatot kimondod, és az Elena figyelő be van
+kapcsolva, a segítségkérő lánc ELINDUL: nem kell elé az Elena szó, nem
+kell parancs, és nem kérdez vissza semmit.
+
+Három védelem van benne a téves riasztás ellen:
+
+  - a mondatnak legalább két szóból és tizenkét betűből kell állnia —
+    egy szó beszélgetés közben is elhangozhat, egy egész mondat nem
+    szokott véletlenül kicsúszni;
+  - a felismert szövegben a TELJES mondatnak benne kell lennie, egy közös
+    szó nem elég;
+  - a Visszaszámlálás beállítás erre is vonatkozik: bekapcsolva öt
+    másodperced van egy balra söpréssel megállítani.
+
+Legfeljebb öt mondat tanítható; a listájuk az S.O.S. hívómondataim
+menüpontban van. Ha a mondatot futó lánc közben mondod ki, LEÁLLÍTJA —
+ugyanúgy, mint a menüpont.
+
+
+4. GYORSABB KEZELÉS
+
+Eddig több helyen csak azután nyílt meg valami, hogy a felolvasás
+befejeződött. Aki tudja, mi jön, fölöslegesen várt — és ez naponta
+sokszor ismétlődő időveszteség volt.
+
+Mostantól azonnal nyílik, a magyarázat pedig közben szól: a Beállítás
+varázsló rendszerképernyői, a külső alkalmazások indítása, a
+billentyűzet-választó, az USB fájlátvitel, a korlátlan háttérfutás és az
+automatikus indítás beállítása, a rendszer PIN segéd és az
+értesítés-hozzáférés.
+
+Egyetlen helyen maradt a régi működés, szándékosan: a rendszer
+ENGEDÉLYKÉRDÉSEINÉL. Aki vakon mond igent egy engedélyre, annak joga van
+előbb megtudni, mire mondott igent.
+
+
+5. JAVÍTÁSOK
+
+  - A környezeti kitekintő eddig akkor is pillanatkép-módban nyílt, ha a
+    folyamatos figyelést kérted (például Elenától). Most a Kitekintő
+    valóban folyamatos figyeléssel indul.
+  - A kamera szelfi módban videót ígért a hangerőgombokkal, ami ott nem
+    működik. Most a saját, helyes bevezetője szólal meg.
+  - A végigolvasott hír eddig a főmenüben kötött ki; most visszatér a
+    hírlistába, tehát több hír egymás után végighallgatható.
+  - A Minden alkalmazás kategóriáiból a balra söprés kidobott az
+    egészből; most a kategórialistához lép vissza.
+
+
+6. AMI NEM VÁLTOZOTT
+
+A Kedvenc hívása továbbra is azonnal tárcsáz, visszakérdezés nélkül. Ez
+nem hiba, hanem szándék: a kedvenc épp az, akit gondolkodás nélkül akarsz
+hívni.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+Aki az 1.59.0-t használja, annak a program magától is felajánlja a
+frissítést.
+
+
+AMIT KÜLÖN MEGKÖSZÖNNÉK
+
+Hallgassátok végig néhány súgót — főleg olyan részekét, amiket ritkán
+használtok. Ha valahol azt halljátok, hogy a súgó mást mond, mint ami
+történik, az HIBA, és nagyon fontos, hogy szóljatok: egy pontatlan súgó
+rosszabb a semminél, mert a felhasználó magát hibáztatja.
+
+És ha valaki kipróbálja az S.O.S. hívómondatot, előtte szóljon annak,
+akinek a száma be van állítva — a lánc valódi hívásokat indít.
+
+Jó tesztelést!
+
+Kőrösmezey Dávid

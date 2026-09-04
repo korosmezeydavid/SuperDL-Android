@@ -90,6 +90,32 @@ sealed class AppFlow {
 
     data class SosCountdown(val secondsLeft: Int) : AppFlow()
 
+    /**
+     * A Névjegy „Súgó — minden alkalmazás" listája: minden megírt súgó egy
+     * helyen, hogy ne kelljen az adott almenüig eljutni érte.
+     */
+    data class HelpIndexBrowse(
+        val topics: List<Pair<String, com.superdl.launcher.help.HelpTexts.HelpTopic>>,
+        val index: Int
+    ) : AppFlow()
+
+    /** S.O.S. hívómondat betanítása: a program a mondatot hallgatja. */
+    object SosPhraseAwait : AppFlow()
+
+    /** A bemondott hívómondat megerősítése mentés előtt. */
+    data class SosPhraseConfirm(val phrase: String) : AppFlow()
+
+    /**
+     * A betanított hívómondatok listája. A törlés KÉTLÉPCSŐS: az első jobbra
+     * söprés csak megkérdezi (`confirming`), a második töröl — vészjelző
+     * mondatot véletlenül elveszíteni rossz lenne.
+     */
+    data class SosPhraseBrowse(
+        val phrases: List<com.superdl.launcher.sos.SosPhraseStore.SosPhrase>,
+        val index: Int,
+        val confirming: Boolean = false
+    ) : AppFlow()
+
     object AlarmAwaitTime : AppFlow()
     data class AlarmAwaitLabel(val hour: Int, val minute: Int) : AppFlow()
     data class AlarmRepeatBrowse(
@@ -615,7 +641,15 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
-    data class LegalBrowse(val sections: List<com.superdl.launcher.legal.LegalSection>, val index: Int) : AppFlow()
+    /**
+     * Szakaszos szövegböngésző. A jogi szövegeké volt; 2026-09-03-tól a
+     * SÚGÓ, a TÁMOGATÁS és az EGYÜTTMŰKÖDŐK is ezen mennek — ezért van cím.
+     */
+    data class LegalBrowse(
+        val sections: List<com.superdl.launcher.legal.LegalSection>,
+        val index: Int,
+        val title: String = "Jogi információ"
+    ) : AppFlow()
 
     data class BookLibraryBrowse(
         val books: List<com.superdl.launcher.book.BookEntry>,

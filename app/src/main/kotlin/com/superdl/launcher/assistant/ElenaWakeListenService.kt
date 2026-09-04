@@ -185,6 +185,18 @@ class ElenaWakeListenService : Service() {
     private fun handleRecognition(raw: String) {
         if (raw.isBlank()) return
         val corrected = com.superdl.launcher.voice.SpeechCorrections.apply(raw)
+
+        // S.O.S. HÍVÓMONDAT — ELSŐBBSÉGET ÉLVEZ.
+        //
+        // Ez a mondat NEM felébreszt, hanem CSELEKSZIK. Nem kell elé az
+        // "Elena" szó, és nem kell utána parancs: aki bajban van, annak egy
+        // mondatot kell kimondania, nem kettőt. Ezért nézzük meg ELŐBB, mint
+        // a felébresztő mondatokat.
+        if (com.superdl.launcher.sos.SosPhraseStore.matches(this, corrected)) {
+            launchSosFromVoice()
+            return
+        }
+
         if (!ElenaWakeHelper.containsWakePhrase(corrected, this)) return
 
         val command = ElenaWakeHelper.stripWakePrefix(corrected, this).orEmpty()
@@ -205,6 +217,32 @@ class ElenaWakeListenService : Service() {
             } else {
                 putExtra(MainActivity.EXTRA_WAKE_GREETING_ONLY, true)
             }
+        }
+        try {
+            startActivity(launch)
+        } catch (_: Exception) {
+            ElenaWakeStore.listeningPaused = false
+            scheduleListen(2000L)
+        }
+    }
+
+    /**
+     * A vészjelző mondat elhangzott: előhozzuk a programot, és elindítjuk a
+     * láncot. A figyelést szüneteltetjük, hogy a saját beszédünket ne
+     * hallgassa vissza — az S.O.S. után a program úgyis a láncot vezényli.
+     */
+    private fun launchSosFromVoice() {
+        ElenaWakeStore.listeningPaused = true
+        stopActiveListening()
+        val launch = Intent(this, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_SOS_FROM_VOICE
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            )
+            putExtra(MainActivity.EXTRA_SOS_FROM_VOICE, true)
         }
         try {
             startActivity(launch)

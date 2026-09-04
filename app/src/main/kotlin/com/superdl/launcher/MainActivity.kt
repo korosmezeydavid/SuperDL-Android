@@ -324,6 +324,13 @@ class MainActivity : AppCompatActivity() {
         /** A fájlkezelő ezzel kéri a könyvolvasót egy PDF-hez vagy ePub-hoz. */
         const val EXTRA_OPEN_BOOK_PATH = "open_book_path"
         const val EXTRA_WAKE_GREETING_ONLY = "wake_greeting_only"
+
+        /**
+         * A betanított S.O.S. hívómondat elhangzott a háttérfigyelőben.
+         * Nem asszisztens-indítás: a lánc AZONNAL indul, kérdés nélkül.
+         */
+        const val ACTION_SOS_FROM_VOICE = "com.superdl.launcher.action.SOS_FROM_VOICE"
+        const val EXTRA_SOS_FROM_VOICE = "sos_from_voice"
         const val ACTION_LAUNCH_VOICE_ASSISTANT = "com.superdl.launcher.action.LAUNCH_VOICE_ASSISTANT"
         const val ACTION_VOICE_ASSIST = "android.intent.action.VOICE_ASSIST"
         private const val TRAINING_DOUBLE_SWIPE_MS = 1500L
@@ -1023,6 +1030,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationListBrowse -> navigateMedicationList(flow, -1)
             is AppFlow.MedicationDeleteConfirm -> repeatMedicationDeleteConfirm(flow.reminder)
             is AppFlow.MedicationConfirm -> repeatMedicationConfirm(flow)
+            is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
+            is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, -1)
+            is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, -1)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, -1)
             is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
             is AppFlow.SetupWizardConfirmManual -> repeatManualConfirm(flow)
@@ -1208,6 +1218,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationListBrowse -> navigateMedicationList(flow, +1)
             is AppFlow.MedicationDeleteConfirm -> repeatMedicationDeleteConfirm(flow.reminder)
             is AppFlow.MedicationConfirm -> repeatMedicationConfirm(flow)
+            is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
+            is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, +1)
+            is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, +1)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, +1)
             is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
             is AppFlow.SetupWizardConfirmManual -> repeatManualConfirm(flow)
@@ -1395,6 +1408,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ContactContextMenu -> onContactContextActivate(flow)
             is AppFlow.ContactDeleteConfirm -> deleteContactFromBook(flow)
             is AppFlow.SosCountdown -> tts.speak("Visszaszámlálás folyamatban. Söpörj balra a leállításhoz.")
+            is AppFlow.SosPhraseConfirm -> saveSosPhrase(flow.phrase)
+            is AppFlow.SosPhraseBrowse -> onSosPhraseListActivate(flow)
+            is AppFlow.HelpIndexBrowse -> onHelpIndexActivate(flow)
             is AppFlow.AlarmListBrowse -> onAlarmListActivate(flow)
             is AppFlow.AlarmRepeatBrowse -> onAlarmRepeatActivate(flow)
             is AppFlow.AlarmConfirm -> saveAlarm(flow.hour, flow.minute, flow.label)
@@ -1526,7 +1542,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.EmailSmtpPickAccount -> onEmailSmtpPickAccountActivate(flow)
             is AppFlow.YoutubeBrowse -> enterYoutubePlayConfirm(flow.videos, flow.index)
             is AppFlow.YoutubePlayConfirm -> playYoutubeVideo(flow.video)
-            is AppFlow.LegalBrowse -> tts.speak(flow.sections[flow.index].speakFull())
+            is AppFlow.LegalBrowse -> onLegalSectionActivate(flow)
             is AppFlow.GuideBrowse -> tts.speak(flow.sections[flow.index].speakFull())
             is AppFlow.TransitBrowse -> enterTransitContextMenu(flow)
             is AppFlow.TransitContextMenu -> onTransitContextActivate(flow)
@@ -1582,6 +1598,21 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             is AppFlow.SosCountdown -> cancelSosCountdown()
+            is AppFlow.SosPhraseAwait -> {
+                voiceInput.cancel()
+                exitFlow("Vészjelző mondat tanítása megszakítva.")
+            }
+            is AppFlow.SosPhraseConfirm -> exitFlow("Vészjelző mondat tanítása megszakítva.")
+            is AppFlow.HelpIndexBrowse -> exitFlow("Súgó lista bezárva.")
+            is AppFlow.SosPhraseBrowse -> {
+                if (flow.confirming) {
+                    activeFlow = flow.copy(confirming = false)
+                    updateFlowDisplay()
+                    tts.speak("Törlés megszakítva.")
+                } else {
+                    exitFlow("Vészjelző mondatok bezárva.")
+                }
+            }
             is AppFlow.AlarmDeleteConfirm -> {
                 activeFlow = AppFlow.AlarmListBrowse(flow.alarms, flow.index, deleteMode = true)
                 updateFlowDisplay()
@@ -1810,7 +1841,6 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.NumericDictationAwait -> exitNumericDictationAwait(flow)
             is AppFlow.NumberPadInput -> onNumberPadBackspace(flow)
-            is AppFlow.ExternalAppBrowse -> exitFlow("Külső alkalmazások bezárva.")
             is AppFlow.FavoriteAppsBrowse -> exitFlow("Kedvenc alkalmazások bezárva.")
             is AppFlow.FavoriteAppsCandidateBrowse -> exitFlow("Kedvenc hozzáadása megszakítva.")
             is AppFlow.FavoriteContactCandidateBrowse -> exitFlow("Kedvenc hozzáadása megszakítva.")
@@ -1926,6 +1956,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.UpdateOffer -> exitFlow("Frissítés elhalasztva.")
             is AppFlow.AppCategoryPick -> exitFlow("Alkalmazások bezárva.")
             // Egy kategórián belülről VISSZA a kategóriákhoz, ne ki az egészből.
+            //
+            // 2026-09-03 JAVÍTÁS: ez az ág HOLT KÓD volt — feljebb, a
+            // számbillentyűzet mellett állt egy másik ExternalAppBrowse ág,
+            // ami mindig előbb futott le, és kiléptetett az egészből. Aki
+            // rossz kategóriába lépett, a főmenüben kötött ki, és kezdhette
+            // elölről. A felső ágat töröltük, ez maradt.
             is AppFlow.ExternalAppBrowse -> startExternalAppsFlow()
             is AppFlow.QuizPick -> exitFlow("Kvíz bezárva.")
             is AppFlow.QuizPlay -> exitFlow(
@@ -2207,6 +2243,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SOS_SET_3 -> startSosNumberSetup(3)
             MenuAction.SOS_SET_4 -> startSosNumberSetup(4)
             MenuAction.SOS_READ_ALL -> readAllSosNumbers()
+            MenuAction.SOS_PHRASE_TRAIN -> startSosPhraseTraining()
+            MenuAction.SOS_PHRASE_LIST -> startSosPhraseListFlow()
             MenuAction.SOS_COUNTDOWN_TOGGLE -> toggleSosCountdown()
             MenuAction.TOUCH_CALIBRATION ->
                 com.superdl.launcher.braille.TouchCalibrationActivity.start(this)
@@ -2591,6 +2629,10 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
+            MenuAction.HELP -> openHelpFor(item)
+            MenuAction.HELP_INDEX -> startHelpIndexFlow()
+            MenuAction.SUPPORT -> startSupportFlow()
+            MenuAction.CREDITS -> startCreditsFlow()
             MenuAction.MODULE_LAUNCH -> launchModuleFromMenu(item)
             MenuAction.MODULES_BROWSE -> startModuleBrowse()
             MenuAction.FOCUS_STATUS -> speakFocusStatus()
@@ -2953,7 +2995,10 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.ENV_SCANNER -> {
                 tts.speak("Környezeti kitekintő indítása. A kamera felismeri a tárgyakat.")
-                startActivity(Intent(this, EnvironmentScannerActivity::class.java))
+                startActivity(
+                    Intent(this, EnvironmentScannerActivity::class.java)
+                        .putExtra(EnvironmentScannerActivity.EXTRA_SNAPSHOT_MODE, false)
+                )
             }
             MenuAction.ENV_SNAPSHOT -> {
                 startActivity(
@@ -5267,7 +5312,11 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Ezen az Android verzión ez nem állítható.")
             return
         }
-        tts.speakThen(
+        // A KÉPERNYŐ AZONNAL NYÍLIK, a magyarázat közben szól (2026-09-03).
+        // Alph kérése: „a felhasználó hadd haladjon a saját ütemében". Aki
+        // tudja, mi jön, ne várja végig a mondatot; aki nem, annak a mondat
+        // közben is elhangzik minden.
+        tts.speakAndRun(
             "Most megnyílik a rendszer kérdése. Válaszd az engedélyezést, " +
                 "hogy a gyógyszer emlékeztető és az ébresztő időben szóljon."
         ) {
@@ -5300,7 +5349,7 @@ class MainActivity : AppCompatActivity() {
             tts.speak(AutostartHelper.speakStatus(this))
             return
         }
-        tts.speakThen(
+        tts.speakAndRun(
             "Most megnyílik a ${AutostartHelper.manufacturerLabel()} automatikus indítás " +
                 "beállítása. Keresd meg a SuperDL-t a listában, és kapcsold be. " +
                 "Ez azért kell, hogy a gyógyszer emlékeztető a háttérből is megszólaljon. " +
@@ -5368,7 +5417,9 @@ class MainActivity : AppCompatActivity() {
         if (req.id == "keyboard_selected") {
             activeFlow = AppFlow.SetupWizardAwaitReturn(req, flow.firstRun)
             updateFlowDisplay()
-            tts.speakThen(
+            // A LISTA AZONNAL FELUGRIK, a magyarázat közben szól. Aki már
+            // tudja, mit keres, ne várja végig a mondatot (Alph, 2026-09-03).
+            tts.speakAndRun(
                 "${req.title}. ${req.speakWhy()} " +
                     "Most felugrik a billentyűzet-választó lista. Válaszd ki benne a " +
                     "Mátrix billentyűzetet. Ha bezárult, söpörj balra, és ellenőrizzük."
@@ -5404,7 +5455,10 @@ class MainActivity : AppCompatActivity() {
         // MIÉRT MONDJUK EL ELŐRE: a rendszerképernyő NEM a SuperDL, ott a
         // TalkBack szólal meg. Ha nem mondjuk meg előre, mit keressen, a
         // felhasználó egy idegen képernyőn találja magát kapaszkodó nélkül.
-        tts.speakThen(
+        // 2026-09-03: A KÉPERNYŐ AZONNAL NYÍLIK, nem várjuk meg a mondat végét.
+        // A magyarázat a rendszerképernyőn is végigszól, tehát nem vész el —
+        // aki viszont tudja, mit keres, ne álljon és várjon. (Alph kérése.)
+        tts.speakAndRun(
             "${req.title}. ${req.speakWhy()} " +
                 "Most megnyílik a rendszer beállítás képernyője. " +
                 "${systemScreenHint(req)} " +
@@ -8360,7 +8414,7 @@ class MainActivity : AppCompatActivity() {
             tts.speak(status)
             return
         }
-        tts.speakThen(status) {
+        tts.speakAndRun(status) {
             if (!UsbTransferHelper.openUsbSettings(this)) {
                 tts.speak(
                     "Nem sikerült megnyitni az USB beállításokat ezen a telefonon. " +
@@ -9583,7 +9637,7 @@ class MainActivity : AppCompatActivity() {
             tts.speak("A rendszer PIN segéd már engedélyezve van.")
             return
         }
-        tts.speakThen(
+        tts.speakAndRun(
             "Megnyitom a Kisegítő lehetőségek menüt. " +
                 "Kapcsold be a Super DL rendszer PIN segéd szolgáltatást."
         ) {
@@ -10062,7 +10116,11 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-        tts.speakThen(ExternalAppHelper.assistantLaunchWarning(this)) {
+        // 2026-09-03: a tájékoztató BEKAPCSOLVA is azonnal indít. A mondat
+        // közben nyílik az alkalmazás — aki hallani akarja, hallja, aki nem,
+        // az nem vár rá. (Alph: „a felhasználó hadd haladjon a saját
+        // ütemében".)
+        tts.speakAndRun(ExternalAppHelper.assistantLaunchWarning(this)) {
             if (!ExternalAppHelper.launch(this, app)) {
                 tts.speak("Az alkalmazás nem indítható: ${app.label}")
             } else {
@@ -10199,7 +10257,7 @@ class MainActivity : AppCompatActivity() {
             FavoriteAppType.EXTERNAL -> {
                 // Külső alkalmazásnál a képernyőolvasót is bekapcsoljuk.
                 enableScreenReaderForExternalApp()
-                tts.speakThen(ExternalAppHelper.assistantLaunchWarning(this)) {
+                tts.speakAndRun(ExternalAppHelper.assistantLaunchWarning(this)) {
                     val app = com.superdl.launcher.apps.ExternalApp(favorite.id, favorite.label)
                     if (!ExternalAppHelper.launch(this, app)) {
                         tts.speak("A kedvenc alkalmazás nem indítható: ${favorite.label}")
@@ -10446,6 +10504,19 @@ class MainActivity : AppCompatActivity() {
             activeFlow = AppFlow.SearchResultBrowse(flow.results, flow.resultIndex, flow.query)
             updateFlowDisplay()
             tts.speak("$message Vissza a találatoknál.")
+            return
+        }
+        // HÍR VÉGÉN VISSZA A HÍRLISTÁHOZ (2026-09-03 javítás).
+        //
+        // Eddig a végigolvasott hír a FŐMENÜBEN kötött ki: aki tíz hírt
+        // akart végighallgatni, minden hír után újra be kellett lépnie a
+        // Hírek felolvasása menüpontba, és megkeresnie, hol tartott. A balra
+        // söprés már eddig is a listához vitt vissza — a végignak is oda kell.
+        val newsFlow = (activeFlow as? AppFlow.NewsArticleReading)?.newsFlow
+        if (newsFlow != null) {
+            activeFlow = newsFlow
+            updateFlowDisplay()
+            tts.speak("$message Vissza a hírlistában.")
             return
         }
         if (voiceAssistantReturnPending) {
@@ -11125,7 +11196,7 @@ class MainActivity : AppCompatActivity() {
             if (intent != null) {
                 activeFlow = AppFlow.Menu
                 updateDisplay()
-                tts.speakThen(
+                tts.speakAndRun(
                     "Az értesítések olvasásához kapcsold be a Super DL-t az értesítés hozzáférés listában."
                 ) {
                     try {
@@ -13935,7 +14006,34 @@ class MainActivity : AppCompatActivity() {
             intent.action == ACTION_VOICE_ASSIST
     }
 
+    /**
+     * A BETANÍTOTT S.O.S. HÍVÓMONDAT elhangzott a háttérfigyelőben.
+     *
+     * Itt NINCS asszisztens, nincs kérdés, nincs menü: ugyanaz történik,
+     * mintha a felhasználó az S.O.S. menüpontot választotta volna. Ha a
+     * visszaszámlálás be van kapcsolva, öt másodperce van meggondolni magát
+     * (balra söprés) — ez a védőháló a téves felismerés ellen. Aki a
+     * visszaszámlálást kikapcsolta, annál a lánc azonnal indul.
+     *
+     * Ha épp FUT egy lánc, az activateSos() leállítja — így a mondat
+     * kimondása másodszor a leállítás is lehet.
+     */
+    private fun handleSosFromVoiceIfNeeded(intent: Intent?): Boolean {
+        if (intent == null) return false
+        val requested = intent.getBooleanExtra(EXTRA_SOS_FROM_VOICE, false) ||
+            intent.action == ACTION_SOS_FROM_VOICE
+        if (!requested) return false
+        intent.removeExtra(EXTRA_SOS_FROM_VOICE)
+        intent.action = null
+        voiceInput.cancel()
+        tts.stop()
+        pendingVoiceAction = null
+        mainHandler.postDelayed({ activateSos() }, 250)
+        return true
+    }
+
     private fun queueVoiceAssistantLaunchIfNeeded(intent: Intent?) {
+        if (handleSosFromVoiceIfNeeded(intent)) return
         if (!shouldLaunchVoiceAssistant(intent)) return
         voiceInput.cancel()
         tts.stop()
@@ -14433,7 +14531,10 @@ class MainActivity : AppCompatActivity() {
             MenuAction.ENV_SCANNER -> {
                 voiceAssistantReturnPending = true
                 tts.speak("Környezeti kitekintő indítása.")
-                startActivity(Intent(this, EnvironmentScannerActivity::class.java))
+                startActivity(
+                    Intent(this, EnvironmentScannerActivity::class.java)
+                        .putExtra(EnvironmentScannerActivity.EXTRA_SNAPSHOT_MODE, false)
+                )
             }
             MenuAction.ENV_SNAPSHOT -> {
                 voiceAssistantReturnPending = true
@@ -14950,7 +15051,7 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Nincs megjeleníthető szöveg.")
             return
         }
-        activeFlow = AppFlow.LegalBrowse(sections, 0)
+        activeFlow = AppFlow.LegalBrowse(sections, 0, title)
         updateFlowDisplay()
         tts.speak("$title. ${sections.size} rész. Söpörj fel-le navigálás, jobbra teljes felolvasás, balra vissza.")
         tts.speakAdd(sections.first().speakPreview())
@@ -14960,7 +15061,234 @@ class MainActivity : AppCompatActivity() {
         val next = (flow.index + delta + flow.sections.size) % flow.sections.size
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
-        tts.speak(flow.sections[next].speakPreview())
+        val section = flow.sections[next]
+        // Ha a szakasznak MŰVELETE van, azt már az előnézetben megmondjuk —
+        // vakon tudni kell, hogy a jobbra söprés itt nem felolvas, hanem csinál.
+        tts.speak(
+            when (section.action) {
+                null -> section.speakPreview()
+                is com.superdl.launcher.legal.SectionAction.OpenSupport ->
+                    "${section.title}. Jobbra söpréssel megnyitod."
+                is com.superdl.launcher.legal.SectionAction.OpenUrl ->
+                    "${section.title}. Jobbra söpréssel megnyitod a böngészőben."
+                is com.superdl.launcher.legal.SectionAction.Copy ->
+                    "${section.title}. Jobbra söpréssel a vágólapra másolod."
+            }
+        )
+    }
+
+    /**
+     * JOBBRA SÖPRÉS EGY SZAKASZON: felolvasás — vagy a szakasz MŰVELETE, ha
+     * van neki. A művelet előtt a szöveget is elmondjuk röviden, hogy a
+     * felhasználó tudja, mi történik, ne csak azt, hogy történt valami.
+     */
+    private fun onLegalSectionActivate(flow: AppFlow.LegalBrowse) {
+        val section = flow.sections[flow.index]
+        when (val action = section.action) {
+            null -> tts.speak(section.speakFull())
+            is com.superdl.launcher.legal.SectionAction.OpenSupport -> startSupportFlow()
+            is com.superdl.launcher.legal.SectionAction.OpenUrl -> {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(action.url)))
+                    tts.speak("Megnyitom a böngészőben.")
+                } catch (_: Exception) {
+                    tts.speak("Nem sikerült megnyitni. A cím: ${action.url}")
+                }
+            }
+            is com.superdl.launcher.legal.SectionAction.Copy -> {
+                try {
+                    val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("SuperDL", action.text))
+                    tts.speak(action.spoken)
+                } catch (_: Exception) {
+                    tts.speak("A vágólapra másolás nem sikerült.")
+                }
+            }
+        }
+    }
+
+    // ==================== SÚGÓ, TÁMOGATÁS, EGYÜTTMŰKÖDŐK ====================
+
+    /**
+     * SÚGÓ EGY MENÜÁGHOZ. A menüpont azonosítója `help::<ág>`; a szöveg a
+     * `HelpTexts`-ből jön. Ha nincs hozzá szöveg, azt KIMONDJUK — egy néma
+     * súgó vakon rosszabb, mint egy hiányzó.
+     */
+    private fun openHelpFor(item: MenuItem) {
+        val key = item.id.removePrefix(com.superdl.launcher.help.HelpTexts.MENU_ID_PREFIX)
+        val topic = com.superdl.launcher.help.HelpTexts.forMenu(key)
+        if (topic == null) {
+            tts.speak("Ehhez a részhez még nem készült el a súgó.")
+            return
+        }
+        startLegalBrowseFlow(topic.sections, topic.title)
+    }
+
+    /**
+     * TÁMOGATÁS — LEHETŐSÉG, NEM KÉRÉS. Ez a képernyő SOHA nem jön elő
+     * magától: nincs felugró üzenet, nincs számláló, nincs „már egy hete
+     * használod". Csak ha a felhasználó idejön, vagy egy súgó végén ő söpör
+     * rá. Ez nem stílus, hanem szabály.
+     */
+    private fun startSupportFlow() {
+        startLegalBrowseFlow(
+            com.superdl.launcher.help.SupportInfo.sections(),
+            com.superdl.launcher.help.SupportInfo.TITLE
+        )
+    }
+
+    private fun startCreditsFlow() {
+        startLegalBrowseFlow(
+            com.superdl.launcher.help.Credits.sections(),
+            com.superdl.launcher.help.Credits.TITLE
+        )
+    }
+
+    /**
+     * SÚGÓ — MINDEN ALKALMAZÁS.
+     *
+     * Az összes megírt súgó egy listában, a Névjegy alatt. Aki tudja, MIT
+     * keres, de nem tudja, hol van a menüben, itt egy lépésben megtalálja.
+     * A lista abc-rendben áll, hogy kereshető legyen.
+     */
+    private fun startHelpIndexFlow() {
+        val topics = com.superdl.launcher.help.HelpTexts.all()
+            .sortedBy { it.second.title.lowercase(java.util.Locale("hu", "HU")) }
+        if (topics.isEmpty()) {
+            tts.speak("Nincs elérhető súgó.")
+            return
+        }
+        activeFlow = AppFlow.HelpIndexBrowse(topics, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${topics.size} súgó. Söpörj fel-le választás, jobbra felolvasás, " +
+                "balra vissza."
+        )
+        tts.speakAdd(topics[0].second.title)
+    }
+
+    private fun navigateHelpIndex(flow: AppFlow.HelpIndexBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.topics.size) % flow.topics.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.topics[next].second.title)
+    }
+
+    private fun onHelpIndexActivate(flow: AppFlow.HelpIndexBrowse) {
+        val topic = flow.topics.getOrNull(flow.index)?.second ?: return
+        startLegalBrowseFlow(topic.sections, topic.title)
+    }
+
+    // ==================== S.O.S. HÍVÓMONDAT ====================
+
+    /**
+     * HANGOS VÉSZJELZÉS — Alph kérése (2026-09-03).
+     *
+     * A betanított mondatot az Elena figyelő hallgatja. Ha elhangzik, NEM
+     * ébred fel az asszisztens és nem kérdez semmit: indul az S.O.S. lánc.
+     * Ezért van szigorúbb feltétel a mondatra (legalább két szó, tizenkét
+     * karakter) — egy szó beszélgetés közben is elhangozhat.
+     */
+    private fun startSosPhraseTraining() {
+        ensureMicAndRun {
+            activeFlow = AppFlow.SosPhraseAwait
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a vészjelző mondatot. Egész mondat legyen, legalább két szó — " +
+                    "például: kérem hívja a segítséget. Ha ezt bemondod, az S.O.S. azonnal indul.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    voiceInput.cancel()
+                    val phrase = spoken.trim()
+                    val reason = com.superdl.launcher.sos.SosPhraseStore.rejectReason(this, phrase)
+                    if (reason != null) {
+                        exitFlow(reason)
+                        return@listen
+                    }
+                    activeFlow = AppFlow.SosPhraseConfirm(phrase)
+                    updateFlowDisplay()
+                    repeatSosPhraseConfirm(phrase)
+                },
+                onError = { exitFlow("Nem értettem a mondatot. Próbáld újra a menüből.") }
+            )
+        }
+    }
+
+    private fun repeatSosPhraseConfirm(phrase: String) {
+        tts.speak(
+            "A vészjelző mondat: $phrase. Ha ezt kimondod, és az Elena figyelő be van " +
+                "kapcsolva, azonnal indul az S.O.S. Elmented? Söpörj jobbra a mentéshez, " +
+                "söprés balra a mégsehez. Ismétlés: söprés fel."
+        )
+    }
+
+    private fun saveSosPhrase(phrase: String) {
+        if (!com.superdl.launcher.sos.SosPhraseStore.add(this, phrase)) {
+            exitFlow("A mondat mentése nem sikerült.", error = true)
+            return
+        }
+        val listening = com.superdl.launcher.assistant.ElenaWakeStore.isListenEnabled(this)
+        val extra = if (listening) {
+            ""
+        } else {
+            " Figyelem: az Elena figyelő most ki van kapcsolva, enélkül a mondatot nem " +
+                "hallja meg a program. Az Asszisztens menüben kapcsold be."
+        }
+        exitFlow("Vészjelző mondat mentve: $phrase.$extra", success = true)
+    }
+
+    private fun startSosPhraseListFlow() {
+        val phrases = com.superdl.launcher.sos.SosPhraseStore.all(this)
+        if (phrases.isEmpty()) {
+            tts.speak(com.superdl.launcher.sos.SosPhraseStore.speakAll(this))
+            return
+        }
+        activeFlow = AppFlow.SosPhraseBrowse(phrases, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "${phrases.size} vészjelző mondat. Söpörj fel-le választás, jobbra törlés, " +
+                "balra vissza."
+        )
+        tts.speakAdd(phrases[0].phrase)
+    }
+
+    private fun navigateSosPhraseList(flow: AppFlow.SosPhraseBrowse, delta: Int) {
+        if (flow.confirming) {
+            repeatSosPhraseDeleteConfirm(flow)
+            return
+        }
+        val next = (flow.index + delta + flow.phrases.size) % flow.phrases.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.phrases[next].phrase)
+    }
+
+    private fun repeatSosPhraseDeleteConfirm(flow: AppFlow.SosPhraseBrowse) {
+        val phrase = flow.phrases.getOrNull(flow.index) ?: return
+        tts.speak(
+            "Törlöd ezt a vészjelző mondatot? ${phrase.phrase}. Söpörj jobbra a törléshez, " +
+                "söprés balra a mégsehez."
+        )
+    }
+
+    private fun onSosPhraseListActivate(flow: AppFlow.SosPhraseBrowse) {
+        val phrase = flow.phrases.getOrNull(flow.index) ?: return
+        if (!flow.confirming) {
+            activeFlow = flow.copy(confirming = true)
+            updateFlowDisplay()
+            repeatSosPhraseDeleteConfirm(activeFlow as AppFlow.SosPhraseBrowse)
+            return
+        }
+        com.superdl.launcher.sos.SosPhraseStore.remove(this, phrase.id)
+        val remaining = com.superdl.launcher.sos.SosPhraseStore.all(this)
+        if (remaining.isEmpty()) {
+            exitFlow("Vészjelző mondat törölve. Nincs több betanított mondat.", success = true)
+            return
+        }
+        val index = flow.index.coerceAtMost(remaining.lastIndex)
+        activeFlow = AppFlow.SosPhraseBrowse(remaining, index)
+        updateFlowDisplay()
+        tts.speak("Vészjelző mondat törölve. ${remaining[index].phrase}")
     }
 
     // ==================== S.O.S. ====================
@@ -16243,6 +16571,31 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateFlowDisplay() {
         when (val flow = activeFlow) {
+            is AppFlow.HelpIndexBrowse -> {
+                tvItem.text = flow.topics.getOrNull(flow.index)?.second?.title ?: ""
+                tvPosition.text = "Súgó  •  ${flow.index + 1} / ${flow.topics.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ felolvasás  •  ⬅ vissza"
+            }
+            AppFlow.SosPhraseAwait -> {
+                tvItem.text = "Mondd a vészjelző mondatot"
+                tvPosition.text = "S.O.S. hívómondat"
+                tvHint.text = "Egész mondat, legalább két szó  •  ⬅ mégse"
+            }
+            is AppFlow.SosPhraseConfirm -> {
+                tvItem.text = flow.phrase
+                tvPosition.text = "S.O.S. hívómondat  •  mentés?"
+                tvHint.text = "➡ mentés  •  ⬅ mégse  •  ⬆ ismétlés"
+            }
+            is AppFlow.SosPhraseBrowse -> {
+                tvItem.text = flow.phrases.getOrNull(flow.index)?.phrase ?: ""
+                tvPosition.text =
+                    "S.O.S. hívómondatok  •  ${flow.index + 1} / ${flow.phrases.size}"
+                tvHint.text = if (flow.confirming) {
+                    "➡ törlés megerősítése  •  ⬅ mégse"
+                } else {
+                    "⬆⬇ választás  •  ➡ törlés  •  ⬅ vissza"
+                }
+            }
             AppFlow.PodcastLoading -> {
                 tvItem.text = "Podcast betöltése…"
                 tvPosition.text = "Podcast"
@@ -17460,8 +17813,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.LegalBrowse -> {
                 val section = flow.sections[flow.index]
                 tvItem.text = section.title
-                tvPosition.text = "Jogi információ  •  ${flow.index + 1} / ${flow.sections.size}"
-                tvHint.text = "⬆⬇ navigálás  •  ➡ felolvas  •  ⬅ vissza"
+                tvPosition.text = "${flow.title}  •  ${flow.index + 1} / ${flow.sections.size}"
+                tvHint.text = if (section.action == null) "⬆⬇ navigálás  •  ➡ felolvas  •  ⬅ vissza"
+                else "⬆⬇ navigálás  •  ➡ megnyit  •  ⬅ vissza"
             }
             is AppFlow.GuideBrowse -> {
                 val section = flow.sections[flow.index]

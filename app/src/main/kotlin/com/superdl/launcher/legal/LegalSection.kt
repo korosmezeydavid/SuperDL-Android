@@ -1,8 +1,29 @@
 package com.superdl.launcher.legal
 
+/**
+ * EGY SZAKASZ MŰVELETE — amit a jobbra söprés csinál a szakaszon.
+ *
+ * MIÉRT KELL (2026-09-03): a szakaszos böngésző eddig csak FELOLVASOTT.
+ * A súgó végén a „Fejlesztés támogatása" viszont át kell hogy vigyen a
+ * Támogatás képernyőre, a Revolut-szakaszon meg kell nyílnia a linknek, az
+ * IBAN-nál vágólapra kell kerülnie a számnak. Ahol nincs művelet, ott marad
+ * a teljes felolvasás — semmi nem változik a jogi szövegeknél.
+ */
+sealed class SectionAction {
+    /** Átugrás a Támogatás képernyőre. */
+    object OpenSupport : SectionAction()
+
+    /** Egy webcím megnyitása a böngészőben. */
+    data class OpenUrl(val url: String) : SectionAction()
+
+    /** Szöveg a vágólapra, és amit közben kimondunk. */
+    data class Copy(val text: String, val spoken: String) : SectionAction()
+}
+
 data class LegalSection(
     val title: String,
-    val body: String
+    val body: String,
+    val action: SectionAction? = null
 ) {
     fun speakPreview(): String = title
 

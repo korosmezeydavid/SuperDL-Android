@@ -1,0 +1,51 @@
+Kedves Mobilinfósok!
+
+Megjelent a Super DL Android 1.60.0.
+
+A Super DL egy teljes kezdőképernyő vakoknak: telefon, üzenet, e-mail,
+zene, podcast, rádió, könyvek, navigáció, gyógyszer-emlékeztető, S.O.S.,
+játékok — mind hanggal, söprésekkel, a képernyő nézése nélkül. Van benne
+saját képernyőolvasó a külső alkalmazásokhoz, saját Braille és mátrix
+billentyűzet, és egy hangos asszisztens, Elena.
+
+Ez a mostani kiadás arról szól, hogy a program végre elmagyarázza magát.
+
+MI ÚJ
+
+Súgó mindenhez. Ötvenhat súgó került bele: minden alkalmazás-ág alján van
+egy Súgó menüpont, ami az adott részt egészében elmondja — mire való,
+hogyan kezdd, mit csinál ott a négy söprés, és mit tegyél, ha elakadsz.
+A Névjegy elején pedig két új pont: az egyik az egész programot mutatja
+be, a másik egy abc-rendes listában adja mind az ötvenhat súgót.
+
+Játékszabályok. A Játékok almenüben mind a hét játékhoz külön leírás
+készült — és nemcsak a kezelést mondja el, hanem magát a játékszabályt is.
+Aki soha nem játszott UNO-t vagy Mille Bornes-t, ebből megtanulhatja.
+
+S.O.S. hívómondat. Betaníthatsz egy mondatot — például: kérem hívja a
+segítséget —, és ha kimondod, a segítségkérő lánc azonnal elindul: SMS a
+helyzeteddel a megadott számokra, aztán sorban hívja őket, végül a 112-t.
+Nem kell hozzá gomb, nem kell menü, és nem kérdez vissza. Hogy véletlenül
+ne induljon el, a mondatnak legalább két szóból kell állnia.
+
+Gyorsabb kezelés. Eddig több helyen meg kellett várni, míg a program
+végigmondja a magyarázatot, mire megnyílt valami. Mostantól azonnal
+nyílik, a magyarázat pedig közben szól.
+
+Néhány hiba is javítva: a környezeti kitekintő, a szelfi kamera
+bevezetője, a hírek végigolvasása és az alkalmazás-kategóriákból való
+visszalépés.
+
+LETÖLTÉS
+
+A programot le kell tölteni, nincs benne az áruházban:
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A telepítéshez engedélyezni kell az ismeretlen forrásból való telepítést.
+Aki már használja, annak a program magától felajánlja a frissítést.
+
+A program ingyenes, és az is marad.
+
+Üdvözlettel,
+Kőrösmezey Dávid

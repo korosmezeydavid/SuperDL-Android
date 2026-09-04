@@ -30,6 +30,10 @@ enum class MenuAction {
     KEYBOARD_MATRIX_CELL,   // Mátrix: gombok távolsága (4 fokozat)
     KEYBOARD_MATRIX_SPEED,  // Mátrix: pörgetés sebessége (4 fokozat)
     KEYBOARD_MATRIX_HELP,   // Mátrix: mozdulatok felolvasása
+    HELP,            // Alkalmazás-súgó (az azonosító: help::<almenü-id>, lásd HelpTexts)
+    HELP_INDEX,      // Névjegy: az összes súgó egy listában
+    SUPPORT,         // Névjegy: Fejlesztés támogatása (Revolut, bankszámla)
+    CREDITS,         // Névjegy: Köszönet és együttműködők
     MODULE_LAUNCH,   // Telepített bővítmény indítása (az azonosítóban a csomagnév)
     MODULES_BROWSE,  // Telepített program-modulok listája és indítása
     FOCUS_LIST,      // Időzített fókusz: a szabályok felsorolása és kezelése
@@ -215,7 +219,9 @@ enum class MenuAction {
     SOS_SET_2,      // S.O.S. szám 2 beállítása
     SOS_SET_3,      // S.O.S. szám 3 beállítása
     SOS_SET_4,      // S.O.S. szám 4 beállítása
-    SOS_READ_ALL,   // S.O.S. számok felolvasása
+    SOS_READ_ALL,     // S.O.S. számok felolvasása
+    SOS_PHRASE_TRAIN, // S.O.S. hívómondat betanítása (hangos vészjelzés)
+    SOS_PHRASE_LIST,  // A betanított S.O.S. hívómondatok listája és törlése
     ABOUT_APP,      // Az alkalmazásról
     ABOUT_DEVELOPER,// Fejlesztő
     CONTACT_EMAIL,  // Fejlesztői e-mail
@@ -403,6 +409,11 @@ object MenuTree {
             items = items.filter { it.id in SIMPLE_MODE_IDS }
         }
 
+        // 2/B. SÚGÓ minden almenü aljára, amelyhez van megírt súgószöveg
+        //      (HelpTexts). "Duplasúgás a sztereó": a menü maga is súg, de
+        //      egy összefüggő, teljes leírás külön menüpontból is elérhető.
+        items = withHelp(items)
+
         // 3. TELEPÍTETT BŐVÍTMÉNYEK beillesztése a saját kategóriájukba
         val modules = try {
             com.superdl.launcher.store.ModuleDiscovery.findModules(context)
@@ -434,6 +445,33 @@ object MenuTree {
             }
             item.copy(children = newChildren)
         }
+    }
+
+    /**
+     * Súgó-menüpont beszúrása minden olyan almenü aljára (a "Vissza" elé),
+     * amelyhez a HelpTexts tartalmaz témát, és amelyben még nincs súgó.
+     * Bármilyen mélyen működik; a Braille és a Mátrix almenü saját, kézzel
+     * írt súgóját érintetlenül hagyja (ott már van Súgó feliratú pont).
+     */
+    private fun withHelp(items: List<MenuItem>): List<MenuItem> = items.map { item ->
+        if (item.children.isEmpty()) return@map item
+        val children = withHelp(item.children)
+        val hasHelp = children.any { it.action == MenuAction.HELP || it.label == "Súgó" }
+        if (hasHelp || !com.superdl.launcher.help.HelpTexts.hasTopic(item.id)) {
+            return@map item.copy(children = children)
+        }
+        val helpItem = MenuItem(
+            id = "${com.superdl.launcher.help.HelpTexts.MENU_ID_PREFIX}${item.id}",
+            label = "Súgó",
+            action = MenuAction.HELP
+        )
+        val backIndex = children.indexOfLast { it.label.startsWith("Vissza") }
+        val newChildren = if (backIndex >= 0) {
+            children.toMutableList().apply { add(backIndex, helpItem) }
+        } else {
+            children + helpItem
+        }
+        item.copy(children = newChildren)
     }
 
     /** Egy menüpont eltávolítása a fából, bármilyen mélyen is van. */
@@ -624,6 +662,21 @@ object MenuTree {
             MenuItem("game_poker", "Póker ötlapos húzás", MenuAction.GAME_POKER),
             MenuItem("game_slot", "Félkarú rabló", MenuAction.GAME_SLOT),
             MenuItem("game_mille_bornes", "Mille Bornes", MenuAction.GAME_MILLE_BORNES),
+            // JÁTÉKSZABÁLYOK — Alph kérése (2026-09-03): „legyen a játékoknál
+            // szabály súgó is, mert lehet hogy van aki nem ismeri de játszaná
+            // ha megértené". Ezek nem a menüépítő automatikus Súgó-pontjai:
+            // maguk a játékok LEVELEK a menüben, oda nem lehet Súgót szúrni,
+            // ezért kapnak egy közös almenüt, játékonként egy leírással.
+            MenuItem("game_rules", "Játékszabályok", MenuAction.SUBMENU, listOf(
+                MenuItem("help::game_uno", "UNO szabályai", MenuAction.HELP),
+                MenuItem("help::game_quiz", "Kvíz szabályai", MenuAction.HELP),
+                MenuItem("help::game_hangman", "Akasztófa szabályai", MenuAction.HELP),
+                MenuItem("help::game_blackjack", "Blackjack szabályai", MenuAction.HELP),
+                MenuItem("help::game_poker", "Póker szabályai", MenuAction.HELP),
+                MenuItem("help::game_slot", "Félkarú rabló szabályai", MenuAction.HELP),
+                MenuItem("help::game_mille_bornes", "Mille Bornes szabályai", MenuAction.HELP),
+                MenuItem("game_rules_back", "Vissza a játékokhoz", MenuAction.SUBMENU)
+            )),
             MenuItem("games_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
@@ -893,6 +946,8 @@ object MenuTree {
                 MenuItem("sos_set_4", "S.O.S. szám 4 beállítása", MenuAction.SOS_SET_4),
                 MenuItem("sos_read", "S.O.S. számok felolvasása", MenuAction.SOS_READ_ALL),
                 MenuItem("sos_countdown", "Visszaszámlálás ki és be", MenuAction.SOS_COUNTDOWN_TOGGLE),
+                MenuItem("sos_phrase_train", "S.O.S. hívómondat tanítása", MenuAction.SOS_PHRASE_TRAIN),
+                MenuItem("sos_phrase_list", "S.O.S. hívómondataim", MenuAction.SOS_PHRASE_LIST),
                 MenuItem("sos_settings_back", "Vissza a beállításokhoz", MenuAction.SUBMENU)
             )),
             MenuItem("patrol_master", "Teljes őrség ki-be", MenuAction.BATTERY_PATROL_TOGGLE),
@@ -989,13 +1044,20 @@ object MenuTree {
         )),
 
         MenuItem("about", "Névjegy és jogi információk", MenuAction.SUBMENU, listOf(
+            // A KÉT SÚGÓ A NÉVJEGY ELEJÉN. Aki nem tudja, hol keresse a
+            // segítséget, a Névjegyben keresi — és itt találja mind a
+            // programegész leírását, mind az összes alkalmazás-súgót.
+            MenuItem("help::main", "Súgó: így működik a program", MenuAction.HELP),
+            MenuItem("help_index", "Súgó — minden alkalmazás", MenuAction.HELP_INDEX),
             MenuItem("sound_training", "Program hangjainak megismerése", MenuAction.SOUND_TRAINING),
             MenuItem("bug_report", "Hibajelentés küldése", MenuAction.BUG_REPORT),
             MenuItem("hidden_gestures", "Rejtett mozdulatok", MenuAction.HIDDEN_GESTURES_HELP),
             MenuItem("training_playground", "Tanuló mód, funkciók bemutatása", MenuAction.TRAINING_PLAYGROUND),
             MenuItem("about_app", "Az alkalmazásról", MenuAction.ABOUT_APP),
             MenuItem("about_dev", "Fejlesztő: Kőrösmezey Dávid", MenuAction.ABOUT_DEVELOPER),
+            MenuItem("credits", "Köszönet és együttműködők", MenuAction.CREDITS),
             MenuItem("contact_email", "Kapcsolat e-mailben", MenuAction.CONTACT_EMAIL),
+            MenuItem("support", "Fejlesztés támogatása", MenuAction.SUPPORT),
             MenuItem("privacy", "Adatvédelmi tájékoztató", MenuAction.PRIVACY_POLICY),
             MenuItem("terms", "Felhasználási feltételek", MenuAction.TERMS_OF_USE),
             MenuItem("legal", "Jogi nyilatkozat", MenuAction.LEGAL_NOTICE),

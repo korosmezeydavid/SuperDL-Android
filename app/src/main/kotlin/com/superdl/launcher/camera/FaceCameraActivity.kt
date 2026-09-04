@@ -211,8 +211,21 @@ class FaceCameraActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    /**
+     * A BEVEZETŐ A VALÓSÁGOT MONDJA (2026-09-03 javítás).
+     *
+     * Korábban mindig a hátlapi kamera szövege hangzott el — akkor is, ha
+     * szelfi módban indult a képernyő. Az pedig videó indítást ígért a
+     * hangerő gombokkal, ami szelfin nem működik: a felhasználó hiába
+     * próbálta, és magát hibáztatta. Szelfi módban most a saját szövege
+     * szólal meg, amiben nincs videó.
+     */
     private fun buildIntroSpeech(): String =
-        getString(R.string.face_camera_intro)
+        if (selfieMode) {
+            getString(R.string.face_camera_intro_selfie)
+        } else {
+            getString(R.string.face_camera_intro)
+        }
 
     private fun announceCurrentCamera() {
         val label = if (selfieMode) {

@@ -60,6 +60,13 @@ class EnvironmentScannerActivity : AppCompatActivity() {
 
     // Egyesített mód: megnyitáskor pillanatkép ("Mi van előttem?"), a
     // folyamatos figyelés (régi Kitekintő) le söpréssel kapcsolható be-ki.
+    //
+    // 2026-09-03 JAVÍTÁS: az EXTRA_SNAPSHOT_MODE deklarálva volt, a hívó át
+    // is adta — de SOSEM olvastuk ki, ezért a "Környezeti kitekintő" néven
+    // indított képernyő is pillanatkép-módba nyílt. Aki a kitekintőt kérte
+    // (Elenától is), az folyamatos figyelést várt, és csendet kapott.
+    // Mostantól az indító dönt: alapból pillanatkép, a kitekintő pedig
+    // valóban folyamatos figyeléssel indul.
     private var snapshotMode = true
     private var continuousEnabled = false
     private val snapshotActive = AtomicBoolean(false)
@@ -71,6 +78,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_environment_scanner)
+        snapshotMode = intent.getBooleanExtra(EXTRA_SNAPSHOT_MODE, true)
         title = getString(R.string.env_scanner_title)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -190,8 +198,12 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             return
         }
 
+        // KITEKINTŐ MÓD: aki ezt kérte, folyamatos figyelést vár — ezért itt
+        // eleve bekapcsolva indul, nem kell hozzá külön söprés. Kikapcsolni
+        // ugyanúgy a le söprés tudja.
+        continuousEnabled = true
         tts.runWhenReady { tts.speak(getString(R.string.env_scanner_intro)) }
-        setStatusText(getString(R.string.env_scanner_status_ready))
+        setStatusText("Folyamatos figyelés")
         startCamera()
         setScanningEnabled(true)
     }
