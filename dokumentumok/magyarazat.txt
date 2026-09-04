@@ -1,0 +1,192 @@
+MIÉRT NINCS A SUPER DL A PLAY ÁRUHÁZBAN
+— és miért nem kell ettől félni
+
+Kőrösmezey Dávid, 2026. szeptember
+
+
+EZ A LEGGYAKORIBB KÉRDÉS
+
+„Ha rendes program, miért nem az áruházból töltöm le?"
+
+Jogos kérdés, és megérdemli az egyenes választ. Nem azért nincs fent,
+mert valamit rejtegetnék. Azért nincs fent, mert a Super DL pont abba a
+kategóriába esik, ahol a Google a legszigorúbb — és ez a szigor nem a
+vak felhasználók ellen szól, csak épp őket is eltalálja.
+
+
+1. A KISEGÍTŐ SZOLGÁLTATÁS: A LEGERŐSEBB ENGEDÉLY ANDROIDON
+
+A Super DL — mint minden képernyőolvasó — egy úgynevezett kisegítő
+szolgáltatást (AccessibilityService) használ. Ez az az engedély, amivel
+egy program látja, mi van a képernyőn, és helyetted meg is tudja nyomni.
+Enélkül nincs képernyőolvasó, nincs gesztusvezérlés idegen
+alkalmazásokban, nincs semmi abból, amiért a Super DL létezik.
+
+Ugyanez az engedély viszont a legerősebb is, amit egy alkalmazás
+megkaphat. Ezért a Google évek óta szigorítja: a Play Áruházban külön
+engedélykérő űrlapot kell kitölteni, a felhasználást indokolni kell, és
+a szabály szó szerint kimondja, hogy a nem bejelentett vagy megtévesztő
+használat az alkalmazás felfüggesztéséhez, sőt a fejlesztői fiók
+megszüntetéséhez vezethet.
+
+A Google szabályzata azt is felsorolja, mi számít valódi kisegítő
+eszköznek: képernyőolvasó, kapcsolós bevitel, hangvezérlés, Braille
+eszköz. A Super DL ezek közül több is egyszerre. Papíron tehát
+beleférne — a gyakorlatban viszont ez a kategória az, amit a
+legalaposabban és a legszigorúbban vizsgálnak, és ahol egyetlen
+félreértett funkció miatt hetekre-hónapokra leállhat minden.
+
+Egy egyszemélyes, ingyenes fejlesztésnél ez nem elméleti kockázat. Ha
+holnap felfüggesztik a fiókot egy félreértés miatt, nemcsak a frissítés
+áll le: eltűnik a program azok telefonjáról is, akik számára ez a
+telefon egyetlen használható felülete.
+
+
+2. EZ NEM KIVÉTEL — A VAKOKNAK KÉSZÜLT PROGRAMOK JELENTŐS RÉSZE ÍGY TERJED
+
+Ha csak a Super DL lenne ilyen, gyanús lenne. De nem az.
+
+JIESHUO, régebbi nevén COMMENTARY SCREEN READER. Talán a legfejlettebb
+alternatív képernyőolvasó Androidon: hangvezérlés, virtuális képernyő,
+szövegfelismerés, karakterenkénti olvasás, saját gesztusok. Vakok
+tízezrei használják világszerte, három változatban. És NEM a Play
+Áruházból jön: közvetlenül a fejlesztő letöltő-oldaláról, APK
+fájlként. Ettől még ez az egyik legtöbbre tartott vakos program.
+
+SYNAPPTIC. Teljes akadálymentes kezelőfelület vak és gyengénlátó
+felhasználóknak — nagyjából az, amit a Super DL is csinál, csak fizetős.
+Nem az áruházból telepíted: a fejlesztőtől kapod, licenccel. És olyan
+szervezetek árulják, mint a brit RNIB — a Királyi Vakok Intézete — vagy
+a Vision Australia. Ha egy nemzeti vakszövetség a saját boltjában árul
+egy Play Áruházon kívül terjesztett programot, akkor a „nem az
+áruházból van, tehát gyanús" gondolat egyszerűen nem áll meg.
+
+És ez így van sok más szakmai eszköznél is: a szűk, speciális
+közönségnek készült programok gyakran azért maradnak kívül, mert a nagy
+áruházak szabályai nagy alkalmazásokra vannak szabva. A szabály nem
+rossz — csak nem ránk lett kitalálva.
+
+
+3. AKKOR MINDENT LEHET TELEPÍTENI? NEM. EGYÁLTALÁN NEM.
+
+Fontos, hogy ezt ne értsük félre. Abból, hogy VAN megbízható program az
+áruházon kívül, nem következik, hogy MINDEN megbízható, ami ott van.
+Sőt: a telefonos csalások jelentős része pontosan azon múlik, hogy
+valakit rábeszélnek egy telepítésre.
+
+Amit a telefon az „ismeretlen forrás" engedéllyel kérdez, az komoly
+kérdés. Az Android ezzel azt mondja: innentől én nem tudok kezeskedni,
+te döntesz. Ezért a döntést tudatosan kell meghozni.
+
+AMIT SOHA NE TELEPÍTS:
+
+- Amit telefonon beszéltek rá. Ha valaki hív, hogy „a bank
+  biztonsági osztálya vagyunk, telepítsen egy programot" — az csalás,
+  kivétel nélkül. Bank, szolgáltató, hivatal SOHA nem kér ilyet.
+- Amit üzenetben kapott linkről kellene letölteni, főleg ha sürget.
+- Amit valaki „feltört", „ingyenessé tett", „prémium" változatként
+  kínál. Ott a program bele van nyúlva — pont ez a leggyakoribb út,
+  ahogy kártevő kerül a telefonra.
+- És különösen: olyan program, ami KISEGÍTŐ SZOLGÁLTATÁST kér, de nem
+  kisegítő eszköz. Ha egy játék, egy „telefonjavító" vagy egy
+  „akkumulátor-optimalizáló" a kisegítő lehetőségeknél akar
+  bekapcsolódni, azonnal töröld. Ezzel az engedéllyel gyakorlatilag
+  mindent lát és mindent megnyom a telefonodon.
+
+MIRŐL ISMERSZ MEG EGY MEGBÍZHATÓ, ÁRUHÁZON KÍVÜLI PROGRAMOT:
+
+- Tudod, ki csinálja, és eléred. Van neve, arca, elérhetősége.
+- Mindig UGYANARRÓL a helyről töltöd. Egy hivatalos oldal, egy
+  hivatalos letöltési cím — nem tíz különböző „apk-gyűjtő" oldal.
+- Számít-e a közösség véleménye: használják-e mások, beszélnek-e róla,
+  van-e visszajelzési lehetőség.
+- Illik-e egymáshoz, amit csinál, és amit kér. Egy zseblámpa
+  alkalmazásnak semmi dolga a névjegyeiddel.
+- Frissül-e. Az elhagyott program idővel maga lesz a kockázat.
+
+
+4. AMI VÁLTOZIK: FEJLESZTŐI ELLENŐRZÉS
+
+Érdemes tudni, mert hallani fogsz róla, és ijesztőbben szokták tálalni,
+mint amilyen.
+
+A Google bevezet egy fejlesztői ellenőrzést az áruházon kívül terjesztett
+programokra is. A lényeg: a fejlesztőnek igazolnia kell, KI Ő. A Google
+saját tájékoztatója szó szerint így fogalmaz: „azt igazoljuk, ki a
+fejlesztő, nem a program tartalmát vizsgáljuk, és nem azt, honnan
+származik."
+
+Az időrend: 2026. szeptember 30-tól négy országban — Brazília,
+Indonézia, Szingapúr, Thaiföld —, majd 2027-től szélesebb körben.
+
+És ami a legfontosabb, szintén a Google szövegéből: „A sideloading az
+Android alapja, és nem megy sehová." Az ellenőrzött fejlesztők
+ugyanúgy terjeszthetik közvetlenül a programjaikat.
+
+Magyarul: ez nem tiltás, hanem személyazonosítás. A Super DL-nek ez nem
+akadály — a fejlesztő azonosítja magát, és a program marad ott, ahol
+van.
+
+
+5. KONKRÉTAN A SUPER DL
+
+HONNAN TÖLTSD LE. Egyetlen hivatalos hely van:
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+Ez a GitHub, ugyanaz a szolgáltatás, ahol a program forráskódja is van.
+A programon belüli automatikus frissítés is innen dolgozik: a telefon
+naponta kétszer megnézi, van-e újabb, és szól, ha igen. Ha valahol
+máshol találkozol „Super DL" néven letölthető fájllal, azt ne telepítsd,
+és szólj nekem.
+
+AZ ALÁÍRÁS. Minden kiadás ugyanazzal a fejlesztői kulccsal van aláírva.
+Ennek gyakorlati haszna van: ha egy telepítést az Android azzal utasít
+vissza, hogy „más az aláírása", az azt jelenti, hogy amit letöltöttél,
+NEM tőlem való. Ilyenkor ne erőltesd, és ne töröld le a meglévőt —
+inkább szólj.
+
+MIT KÉR ÉS MIÉRT. A Super DL sok engedélyt kér, és ez elsőre sok lehet.
+De mindegyik abból következik, hogy ez egy teljes kezdőképernyő: a
+telefon-engedély a híváshoz és a hívásnaplóhoz, az SMS a
+üzenetekhez, a névjegyek a névjegyzékhez, a helymeghatározás a
+navigációhoz és az S.O.S.-hez, a kamera az olvasókhoz és
+felismerőkhöz, a mikrofon a diktáláshoz, a kisegítő szolgáltatás a
+képernyőolvasóhoz. Egyik sem díszítés, és a program minden esetben
+megmondja, mire kéri. Ami az adatkezelést illeti, a részleteket a
+Névjegy, Adatvédelmi tájékoztató menüpont tartalmazza.
+
+NINCS BENNE HIRDETÉS, ÉS NEM KÉR PÉNZT. A támogatás lehetőség, nem
+kérés: a Névjegy, Fejlesztés támogatása menüpontban van, és soha nem jön
+elő magától.
+
+
+6. HA EGY MONDATBAN KELL
+
+Az „áruházból való-e" nem ugyanaz a kérdés, mint a „megbízható-e".
+Az áruház egy szűrő — hasznos szűrő —, de nem az igazság mércéje, és
+vannak jó programok, amiket kiszűr. A Super DL ezek közé tartozik, és
+ugyanabba a társaságba, ahová a vakok által világszerte használt
+Jieshuo vagy a nemzeti vakszövetségek által árult Synapptic.
+
+Amit tőled kérek, az nem vakbizalom, hanem tudatosság: töltsd le mindig
+ugyanarról a helyről, ne telepíts semmit, amire telefonon beszélnek rá,
+és ha valami nem stimmel, kérdezz meg.
+
+
+FORRÁSOK
+
+Google Play — a kisegítő API használatának szabályzata:
+https://support.google.com/googleplay/android-developer/answer/10964491
+
+Google — fejlesztői ellenőrzés az áruházon kívüli programokra:
+https://support.google.com/android-developer-console/answer/16561738
+
+Jieshuo (Commentary) képernyőolvasó, közvetlen letöltéssel:
+https://blindhelp.net/software/jieshuo
+
+Synapptic — akadálymentes kezelőfelület, a fejlesztőtől:
+https://www.synapptic.com/
+
+Synapptic az RNIB boltjában:
+https://shop.rnib.org.uk/products/synapptic-software-for-android-devices
