@@ -132,6 +132,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!--
+      Adatátvitel a háttérben: a WiFi fájlportál és a megosztási feltöltés.
+      Android 14 óta a "dataSync" típusú szolgáltatáshoz KÖTELEZŐ ez a külön
+      engedély; enélkül a rendszer kivétellel megöli az indulást — vagyis a
+      portál sem indulna el az újabb telefonokon.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- YouTube takarékos mód: a hang a képernyő lezárása után is szól -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Lépésszámláló: a beépített lépésérzékelő használatához -->
@@ -370,6 +377,30 @@
 
         <service
             android:name=".files.WifiPortalService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Fájl- és mappamegosztás -->
+        <activity
+            android:name=".share.ShareActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <service
+            android:name=".share.ShareUploadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <activity
+            android:name=".share.WormholeCodeInputActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="stateVisible|adjustResize"
+            android:theme="@style/Theme.SuperDL" />
+
+        <service
+            android:name=".share.WormholeService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

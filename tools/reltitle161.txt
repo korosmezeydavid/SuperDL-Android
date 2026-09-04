@@ -1,0 +1,1 @@
+SuperDL 1.61.0 — A beállítás varázsló zsákutcájának javítása, és fájlmegosztás

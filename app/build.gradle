@@ -17,8 +17,8 @@ android {
         applicationId "com.superdl.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 106
-        versionName "1.60.0"
+        versionCode 107
+        versionName "1.61.0"
     }
 
     signingConfigs {
@@ -104,6 +104,21 @@ android {
 }
 
 dependencies {
+    // GÉPRŐL GÉPRE FÁJLKÜLDÉS (magic-wormhole).
+    //
+    // A `libs/whmobile.aar` a `wormhole-go` mappa Go forrásából készül,
+    // gomobile-lal — az építőszkript: `tools/build_wormhole_aar.ps1`.
+    // MIÉRT ÍGY: a windowsos SuperDL p2p modulja is magic-wormhole-t
+    // használ; ugyanaz a protokoll, ugyanaz a kód-szótár, tehát a telefon
+    // és a gép EGYMÁSNAK tud küldeni. Androidra nincs parancssori
+    // wormhole, amit alfolyamatként lehetne hajtani, ezért a protokoll
+    // beforgatott könyvtárként érkezik (wormhole-william, MIT licenc).
+    //
+    // Az AAR bent van a tárolóban, hogy a program a Go eszközlánc nélkül
+    // is fordítható maradjon; újraépíteni csak akkor kell, ha a Go forrás
+    // változik.
+    implementation files('libs/whmobile.aar')
+
     // Titkosított tárolás érzékeny adatokhoz (pl. e-mail jelszó):
     // a kulcsot az eszköz hardveres kulcstárolója (Keystore) védi.
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'

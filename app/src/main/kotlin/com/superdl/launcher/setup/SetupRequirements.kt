@@ -489,7 +489,9 @@ object SetupRequirements {
      * a SuperDL nem az, aminek szánták.
      */
     fun blocking(context: Context): List<Requirement> =
-        missing(context).filter { it.severity == Severity.ESSENTIAL }
+        missing(context).filter {
+            it.severity == Severity.ESSENTIAL && !SetupPrefs.isSkipped(context, it.id)
+        }
 
     /**
      * Egymondatos, felolvasható összefoglaló.

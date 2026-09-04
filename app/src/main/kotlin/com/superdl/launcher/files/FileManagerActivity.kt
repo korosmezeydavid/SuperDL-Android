@@ -92,6 +92,7 @@ class FileManagerActivity : AppCompatActivity() {
         UNZIP("Kicsomagolás"),
         ZIP("Tömörítés"),
         DETAILS("Adatok"),
+        SHARE("Megosztás"),
         RENAME("Átnevezés"),
         COPY("Másolás máshova"),
         MOVE("Áthelyezés máshova"),
@@ -386,6 +387,10 @@ class FileManagerActivity : AppCompatActivity() {
         }
         if (!ZipHelper.isZip(target.file)) list.add(FileAction.ZIP)
         list.add(FileAction.DETAILS)
+        // MEGOSZTÁS: mappára is. Mappát csak becsomagolva lehet küldeni, és a
+        // becsomagolást a program elvégzi — a felhasználónak ne kelljen
+        // előbb tömörítenie, aztán újra megkeresnie a zipet.
+        list.add(FileAction.SHARE)
         list.add(FileAction.RENAME)
         list.add(FileAction.COPY)
         list.add(FileAction.MOVE)
@@ -427,6 +432,7 @@ class FileManagerActivity : AppCompatActivity() {
             FileAction.UNZIP -> runZipTask(kicsomagol = true, file = target.file)
             FileAction.ZIP -> runZipTask(kicsomagol = false, file = target.file)
             FileAction.DETAILS -> tts.speak(target.speakDetails(this))
+            FileAction.SHARE -> startShare(target)
             FileAction.RENAME -> startRename(target)
             FileAction.COPY -> startDestinationPick(listOf(target.file), move = false)
             FileAction.MOVE -> startDestinationPick(listOf(target.file), move = true)
@@ -444,6 +450,47 @@ class FileManagerActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    /**
+     * MEGOSZTÁS — fájlra azonnal, mappára becsomagolás után.
+     *
+     * MIÉRT CSOMAGOLUNK: mappát egyetlen megosztási út sem tud átvinni, sem a
+     * rendszer megosztása, sem egy feltöltés. A felhasználónak ezt nem kell
+     * tudnia; a program megcsinálja, és MEGMONDJA, hogy megcsinálta — a
+     * mappa mellett ott marad egy új zip, és az ne legyen meglepetés.
+     */
+    private fun startShare(item: FileItem) {
+        if (!item.isDirectory) {
+            screen = Screen.BROWSE
+            actionTarget = null
+            updateDisplay()
+            com.superdl.launcher.share.ShareActivity.shareFile(this, item.file)
+            return
+        }
+        if (!requireStorageAccess()) return
+        screen = Screen.BROWSE
+        actionTarget = null
+        updateDisplay()
+        tts.speak(
+            "Mappát csak becsomagolva lehet megosztani. Becsomagolom ${item.name} " +
+                "tartalmát a mappa mellé, aztán jön a megosztás. Ez eltarthat egy ideig."
+        )
+        Thread {
+            val result = ZipHelper.compress(item.file)
+            runOnUiThread {
+                val zip = result.target
+                if (result.ok && zip != null) {
+                    sounds.play(SoundType.ACTION_OK)
+                    scanPaths(listOf(zip.absolutePath))
+                    loadDir(currentDir, announce = false)
+                    com.superdl.launcher.share.ShareActivity.shareFile(this, zip)
+                } else {
+                    sounds.play(SoundType.ACTION_ERROR)
+                    tts.speak("A becsomagolás nem sikerült, ezért a megosztás elmarad. ${result.message}")
+                }
+            }
+        }.start()
     }
 
     private fun doSingleDelete(item: FileItem) {

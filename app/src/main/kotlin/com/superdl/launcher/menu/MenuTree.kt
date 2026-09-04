@@ -89,6 +89,9 @@ enum class MenuAction {
     USB_FILE_TRANSFER, // USB fájlátvitel be/ki (a rendszer USB-képernyőjén)
     FILE_MANAGER,      // Fájlkezelő
     WIFI_PORTAL,       // WiFi fájlportál be/ki (feltöltés gépről böngészővel)
+    SHARE_PICK,        // Fájl megosztása: a fájlkezelő nyílik, ott a Megosztás pont
+    SHARE_HISTORY,     // Megosztási előzmények: mit hova töltöttünk fel, meddig él
+    SHARE_RECEIVE,     // Fájl fogadása kóddal (gépről gépre, magic-wormhole)
     PODCAST_TOP,        // Podcast: népszerű műsorok (ország szerint)
     PODCAST_SEARCH,     // Podcast: keresés
     PODCAST_SUBSCRIPTIONS, // Podcast: feliratkozásaim
@@ -368,6 +371,25 @@ object MenuTree {
     )
 
     /**
+     * A FÁJLÁTVITEL ALMENÜJE — két helyen ugyanaz.
+     *
+     * A Média alatt marad (ott szokták meg), és az Eszközök alatt is
+     * megjelenik (oda való). Egyetlen lista, hogy soha ne csússzon szét a kettő.
+     *
+     * ⚠️ A [suffix] NEM dísz: az azonosító vezérli a súgót (`help::<id>`), a
+     * szűrőket és az egyszerű módot. Két egyforma azonosítótól a súgó-beszúró
+     * két „Súgó" pontot tenne ugyanabba a menübe.
+     */
+    private fun transferChildren(suffix: String): List<MenuItem> = listOf(
+        MenuItem("share_pick$suffix", "Fájl vagy mappa megosztása", MenuAction.SHARE_PICK),
+        MenuItem("share_receive$suffix", "Fájl fogadása kóddal", MenuAction.SHARE_RECEIVE),
+        MenuItem("share_history$suffix", "Megosztási előzmények", MenuAction.SHARE_HISTORY),
+        MenuItem("usb_transfer$suffix", "Fájlátvitel géppel", MenuAction.USB_FILE_TRANSFER),
+        MenuItem("wifi_portal$suffix", "WiFi fájlportál be és ki", MenuAction.WIFI_PORTAL),
+        MenuItem("transfer_back$suffix", "Vissza", MenuAction.SUBMENU)
+    )
+
+    /**
      * A menü a beállításoknak megfelelően.
      *
      * Kétféle szűrés fut rajta:
@@ -617,11 +639,8 @@ object MenuTree {
                 MenuItem("music_group_back", "Vissza", MenuAction.SUBMENU)
             )),
             // FÁJLÁTVITEL: nem zene, ezért külön csoportban.
-            MenuItem("transfer_group", "Fájlátvitel", MenuAction.SUBMENU, listOf(
-                MenuItem("usb_transfer", "Fájlátvitel géppel", MenuAction.USB_FILE_TRANSFER),
-                MenuItem("wifi_portal", "WiFi fájlportál be és ki", MenuAction.WIFI_PORTAL),
-                MenuItem("transfer_back", "Vissza", MenuAction.SUBMENU)
-            )),
+            MenuItem("transfer_group", "Fájlátvitel és megosztás", MenuAction.SUBMENU,
+                transferChildren("")),
             MenuItem("podcast", "Podcast", MenuAction.SUBMENU, listOf(
                 MenuItem("podcast_top", "Népszerű podcastok", MenuAction.PODCAST_TOP),
                 MenuItem("podcast_search", "Podcast keresése", MenuAction.PODCAST_SEARCH),
@@ -771,6 +790,13 @@ object MenuTree {
                 MenuItem("steps_back", "Vissza", MenuAction.SUBMENU)
             )),
             MenuItem("file_manager", "Fájlkezelő", MenuAction.FILE_MANAGER),
+            // A FÁJLÁTVITEL ITT IS. A Média alatt marad, ahol eddig volt (aki
+            // ott szokta meg, ott találja) — de a fájlátvitel nem média, és
+            // aki fájlt akar küldeni, az az Eszközök közt keresi. Ugyanaz a
+            // lista, más azonosítóval: az azonosító a súgót és a szűrőket
+            // vezérli, két egyforma id-tól két „Súgó" pont keletkezne.
+            MenuItem("transfer_group_tools", "Fájlátvitel és megosztás", MenuAction.SUBMENU,
+                transferChildren("_t")),
             MenuItem("flashlight", "Zseblámpa", MenuAction.FLASHLIGHT),
             MenuItem("tools_readers", "Olvasók", MenuAction.SUBMENU, listOf(
                 MenuItem("qr", "Q R kód olvasó", MenuAction.QR_SCAN),

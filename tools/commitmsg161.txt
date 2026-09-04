@@ -1,0 +1,49 @@
+1.61.0 - A varazslo zsakutcajanak javitasa, es fajlmegosztas
+
+A ZSAKUTCA OKA
+A szerepkor-kerest (RoleManager.createRequestRoleIntent) sima startActivity-vel
+inditottuk. A rendszer szerepkero ablaka a hivo nevet a getCallingPackage()-bol
+olvassa, ami csak startActivityForResult eseten van kitoltve - enelkul az ablak
+neman bezarja magat. Igy az Alapertelmezett telefon alkalmazas es az
+Alapertelmezett uzenet alkalmazas megadhatatlan volt, es mivel ALAPVETO,
+kihagyni sem lehetett. Friss telepitesnel a felhasznalo bent ragadt.
+Samsungon es Xiaomin is jelentve. A hiba nem uj: a varazslobol ez a ket lepes
+soha nem mukodott.
+
+JAVITAS
+- A varazslo minden rendszerkepernyoje eredmenyre indul (setupSystemScreen),
+  igy a szerepkero ablak megjelenik, es a visszateres magatol ujramer.
+- A lista ott nyilik ki, ahol abbahagytuk.
+- Zsakutca soha: ket sikertelen probalkozas utan az ALAPVETO tetel is
+  kihagyhato; SetupRequirements.blocking() mostantol figyelembe veszi a
+  kihagyast, kulonben a kiut nem lenne valodi.
+- stillMissingHint(): ha a tetel a visszateres utan is hianyzik, a program
+  megmondja, miert lehet - kulon az Android 13+ Korlatozott beallitas zarra
+  (kepernyoolvaso, ertesites-hozzaferes, folerajzolas).
+- A Kepernyoolvaso engedelyezese menupont is kimondja a Korlatozott beallitas
+  feloldasat.
+- TtsManager: onStop figyelo, a speak() visszateresi erteke, es biztonsagi
+  idokorlat - egy megszakitott vagy el sem indult mondat tobbe nem nyeli el a
+  hozza kotott muveletet. Az egesz programra hat.
+- A "Megadva." visszajelzes tobbe nem vesz el (egy mondat lett a lista
+  bemondasaval).
+- setupWizardPending: az onRequestPermissionsResult ellenorzi, hogy a valasz
+  tenyleg a varazslo tetelehez tartozik-e.
+- AndroidManifest: FOREGROUND_SERVICE_DATA_SYNC - enelkul a WiFi fajlportal
+  Android 14-en nem indult el.
+
+FAJL- ES MAPPAMEGOSZTAS
+- Uj share/ csomag: CloudTarget, CloudUploader, ShareHistory,
+  ShareUploadService, ShareActivity, WormholeService, WormholeErrors,
+  WormholeCodeInputActivity.
+- Harom ut: rendszer megosztas; kod alapu geptol gepig atvitel
+  (magic-wormhole, wormhole-william MIT, gomobile AAR - kompatibilis a
+  windowsos p2p modullal); es ideiglenes felho-feltoltes hat tarhelyre,
+  a link magatol a vagolapra.
+- Megosztasi elozmenyek: mit hova, meddig el meg, torles a tarhelyrol.
+- FileManagerActivity: uj Megosztas muvelet, mappanal elobb becsomagol.
+- MenuTree: transferChildren() kozos almenu, az Eszkozok alatt is.
+- Sugo: share, p2p_share, share_history; transfer_group atirva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -41,10 +41,27 @@ object HelpTexts {
 
     data class HelpTopic(val title: String, val sections: List<LegalSection>)
 
-    /** Van-e súgó ehhez a menüághoz? A menüépítő ezt kérdezi. */
-    fun hasTopic(menuId: String): Boolean = topics.containsKey(menuId)
+    /**
+     * UGYANAZ A SÚGÓ MÁSIK AZONOSÍTÓRA.
+     *
+     * A fájlátvitel két helyen szerepel a menüben (Média és Eszközök), és a
+     * két példány azonosítója KÖTELEZŐEN különbözik — különben a súgó-beszúró
+     * két „Súgó" pontot tenne ugyanabba a listába. A szöveg viszont egy:
+     * lemásolva előbb-utóbb szétcsúszna, és a felhasználó két különböző
+     * választ kapna ugyanarra a kérdésre.
+     *
+     * A `topics` térképbe SZÁNDÉKOSAN nem tesszük bele: onnan épül a
+     * „Súgó — minden alkalmazás" lista, ott pedig ne szerepeljen kétszer
+     * ugyanaz.
+     */
+    private val ALIASES = mapOf("transfer_group_tools" to "transfer_group")
 
-    fun forMenu(menuId: String): HelpTopic? = topics[menuId]
+    private fun resolve(menuId: String): String = ALIASES[menuId] ?: menuId
+
+    /** Van-e súgó ehhez a menüághoz? A menüépítő ezt kérdezi. */
+    fun hasTopic(menuId: String): Boolean = topics.containsKey(resolve(menuId))
+
+    fun forMenu(menuId: String): HelpTopic? = topics[resolve(menuId)]
 
     /** Minden súgó, a Névjegy „Súgó — minden alkalmazás" listájához. */
     fun all(): List<Pair<String, HelpTopic>> = topics.entries.map { it.key to it.value }
@@ -162,19 +179,25 @@ object HelpTexts {
 
         // ── FÁJLÁTVITEL ─────────────────────────────────────────────────────
         "transfer_group" to topic(
-            title = "Fájlátvitel súgó",
+            title = "Fájlátvitel és megosztás súgó",
             purpose = "Fájlokat viszel át a számítógépről a telefonra — zenét, könyvet, " +
-                "bármit — anélkül, hogy látó segítségre lenne szükséged. Két úton " +
-                "megy: USB kábellel vagy WiFi-n, a böngészőn keresztül.",
+                "bármit — anélkül, hogy látó segítségre lenne szükséged, és innen " +
+                "küldesz is fájlt másnak. Négy út van: USB kábel, WiFi portál a " +
+                "böngészőn keresztül, küldés másik programmal, és feltöltés " +
+                "ideiglenes tárhelyre, ahonnan linket kapsz. Ez a menü két helyen " +
+                "is megvan, ugyanazzal a tartalommal: a Média és az Eszközök alatt.",
             start = "Ha van kábeled, a Fájlátvitel géppel menüpont a gyorsabb: dugd be " +
                 "a telefont a géphez, válaszd ezt a pontot, és a program megmondja, " +
                 "hogy áll a kapcsolat, majd megnyitja az USB beállításokat, ahol " +
                 "fájlátvitelre kell váltani. Kábel nélkül a WiFi fájlportál be és ki " +
                 "menüpontot használd: a telefon és a gép legyen ugyanazon a WiFi " +
                 "hálózaton, kapcsold be, és a program bemondja a címet és a PIN kódot, " +
-                "amit a gép böngészőjébe kell beírni.",
-            gestures = "Ez a két menüpont nem nyit külön képernyőt, csak beszél — nincs " +
-                "külön mozdulat. A portál címét és a PIN kódot a program kétszer " +
+                "amit a gép böngészőjébe kell beírni. Ha viszont te akarsz KÜLDENI " +
+                "valamit, a Fájl vagy mappa megosztása menüpont a belépő: az a " +
+                "Fájlkezelőt nyitja meg, ott kiválasztod a fájlt, jobbra söpörsz, " +
+                "és a Megosztás pontot választod. A részletek a Megosztás súgóban.",
+            gestures = "Az USB és a portál menüpontja nem nyit külön képernyőt, csak " +
+                "beszél — ott nincs külön mozdulat. A portál címét és a PIN kódot a program kétszer " +
                 "elmondja; ha nem sikerült megjegyezni, söpörj balra, és válaszd újra " +
                 "a menüpontot — de vigyázz, mert az kikapcsolja. A be- és kikapcsolás " +
                 "ugyanaz a menüpont: ha már fut, a következő választás leállítja.",
@@ -186,6 +209,113 @@ object HelpTexts {
                 "Fájlkezelővel mozgathatod tovább, például a zenéket a Music mappába. " +
                 "Ha végeztél, kapcsold ki a portált: amíg fut, a hálózaton az érheti " +
                 "el, aki tudja a PIN kódot."
+        ),
+
+        // ── MEGOSZTÁS ───────────────────────────────────────────────────────
+        "share" to topic(
+            title = "Megosztás súgó",
+            purpose = "Fájlt vagy mappát küldesz el valakinek. Három út van, és a " +
+                "különbség köztük NEM technikai, hanem az, hogy ki láthatja a " +
+                "fájlt — ezért is állnak ebben a sorrendben, lefelé nő a " +
+                "kockázat. A Küldés másik programmal átadja a fájlt egy másik " +
+                "alkalmazásnak — levélnek, csevegőprogramnak, Bluetoothnak —, és " +
+                "onnantól az dolgozik vele. A Küldés kóddal a másik gépre " +
+                "közvetlenül a másik készülékre viszi át, titkosítva, felhő " +
+                "nélkül; erről külön súgó szól. A Feltöltés ideiglenes tárhelyre " +
+                "felteszi a fájlt az internetre, és linket ad róla; ezt a linket " +
+                "bárhova beillesztheted, de FIGYELEM: aki megkapja, le is tudja " +
+                "tölteni, mert nincs rajta jelszó. Iratot, orvosi papírt, jelszót " +
+                "ne ezen az úton küldj.",
+            start = "A megosztás a Fájlkezelőből indul: söpörj a fájlok közt fel-le, " +
+                "a kiválasztotton jobbra, és a művelet-listában keresd a Megosztás " +
+                "pontot. Ugyanide jutsz a Fájlátvitel és megosztás menü Fájl vagy " +
+                "mappa megosztása pontjából is. Mappát is meg lehet osztani: azt a " +
+                "program előbb becsomagolja, és a becsomagolt fájl ott marad a " +
+                "mappa mellett. Feltöltésnél előbb tárhelyet választasz — a " +
+                "program mindegyikről elmondja, mekkora fájt fogad el, meddig él a " +
+                "fájl, és hogy csak egyszer lehet-e letölteni —, aztán jön egy " +
+                "kérdés, és csak az után indul el bármi.",
+            gestures = "Fel-le söpréssel lépkedsz, jobbra söpréssel választasz, balra " +
+                "söpréssel lépsz vissza. A megerősítő kérdésnél a jobbra söprés az " +
+                "igen; a balra söprés és a fel-le söprés is mégse — aki " +
+                "bizonytalanul lépkedni kezd, azt a program nem tekinti igennek. " +
+                "Feltöltés közben a jobbra söprés megmondja, hol tart, a balra " +
+                "söprés megszakítja. A kész link MAGÁTÓL a vágólapra kerül, tehát " +
+                "csak be kell illesztened oda, ahova küldöd.",
+            trouble = "Ha azt mondja, a fájl minden tárhelyhez túl nagy: tömöríts, vagy " +
+                "küldd USB-vel, illetve a WiFi portállal. Ha egy tárhely hibát ad, " +
+                "válassz másikat — ezek ingyenes szolgáltatások, néha nem " +
+                "működnek, és ez nem a telefonod hibája. Ha a feltöltés elakad: " +
+                "ellenőrizd, hogy van-e internet, és hogy nem fogyott-e el a mobil " +
+                "kereted. A feltöltés akkor is fut tovább, ha kilépsz a " +
+                "képernyőről; a végeredményt a program akkor is bemondja. Ha nincs " +
+                "a telefonon alkalmazás, ami elfogadná a fájlt, azt a program " +
+                "megmondja, és akkor az ideiglenes tárhely a járható út."
+        ),
+
+        "p2p_share" to topic(
+            title = "Küldés kóddal, gépről gépre súgó",
+            purpose = "Fájlt viszel át közvetlenül egy másik készülékre — a saját " +
+                "gépedre, vagy valakiére, aki szintén SuperDL-t használ. A fájl " +
+                "NEM kerül fel semmilyen tárhelyre, és végpontok között " +
+                "titkosítva megy: rajtatok kívül senki nem látja a tartalmát. " +
+                "Ugyanaz a megoldás, mint a windowsos SuperDL Fájlküldés gépről " +
+                "gépre modulja, tehát a telefon és a gép EGYMÁSNAK is tud küldeni. " +
+                "Amit viszont nem ígérünk többnek, mint amennyi: ha a két készülék " +
+                "nem talál egymásra közvetlenül, az adat egy továbbító szerveren " +
+                "folyik át — titkosítva, de nem közvetlenül.",
+            start = "Küldéshez válaszd ki a fájlt a Fájlkezelőben, jobbra söprés, " +
+                "Megosztás, majd Küldés kóddal a másik gépre. A program kap egy " +
+                "kódot: egy szám és két szó, kötőjelekkel. Ezt kell átadnod a " +
+                "másik oldalnak, és amint ott beírják, indul az átvitel. " +
+                "Fogadáshoz a Fájlátvitel és megosztás menü Fájl fogadása kóddal " +
+                "pontja kell, ott pedig vagy beilleszted a vágólapról a kapott " +
+                "kódot, vagy beírod billentyűzettel. A fogadott fájl a SuperDL, " +
+                "Fogadott mappába kerül.",
+            gestures = "A kód képernyőjén fel-le söpréssel lépkedsz a lehetőségek " +
+                "közt, jobbra söpréssel indítod: Mondd újra a kódot; Kód betűzve; " +
+                "Kód a vágólapra; Kód küldése üzenetben. A kód a vágólapra MAGÁTÓL " +
+                "is felkerül, amint megvan. Balra söprés megszakítja az átvitelt. " +
+                "Átvitel közben a jobbra söprés megmondja, hol tart.",
+            trouble = "A kód szavai ANGOLUL vannak, mert a protokoll nemzetközi — " +
+                "ezért a program betűzve is elmondja, és ezért van a Kód küldése " +
+                "üzenetben pont: a legbiztosabb, ha a másik fél nem hallás után " +
+                "írja be, hanem beilleszti. Ha azt mondja, rossz vagy elgépelt " +
+                "kód: pontosan a küldő kódját kell beírni, a kötőjelekkel együtt. " +
+                "Ha időtúllépést mond: a kód lejár, tehát indítsátok egyszerre, és " +
+                "a fogadó azonnal írja be. Ha azt mondja, a kódot már " +
+                "felhasználták: minden kód egyszer használható, kérj újat. Ha a " +
+                "közvetítő szerver nem érhető el: valószínűleg a hálózat, a tűzfal " +
+                "vagy egy V P N blokkolja — próbáljátok másik hálózatról. Az " +
+                "átvitel akkor is fut, ha kilépsz a képernyőről, és a végét a " +
+                "program bemondja."
+        ),
+
+        "share_history" to topic(
+            title = "Megosztási előzmények súgó",
+            purpose = "Nyilvántartja, mit töltöttél fel, melyik tárhelyre, mikor, és " +
+                "meddig él még a fájl. Ez nem kényelmi funkció: aki elküld egy " +
+                "linket, három nap múlva nem emlékszik rá, mit küldött és él-e " +
+                "még — és a link maga sem mondja meg.",
+            start = "A Fájlátvitel és megosztás menü Megosztási előzmények pontja " +
+                "nyitja meg, de a megosztás végén magától is ide érkezel. A lista " +
+                "elején az áll, ami HAMARABB lejár. Minden soron elhangzik a " +
+                "fájlnév, a mérete, a tárhely neve, és hogy mennyi ideje van még.",
+            gestures = "Fel-le söpréssel lépkedsz a tételek közt, jobbra söpréssel " +
+                "nyitod a műveleteket, balra söpréssel lépsz vissza. A műveletek: " +
+                "Link a vágólapra; Link megosztása, ami átadja egy másik " +
+                "alkalmazásnak; Link felolvasása betűzve, ha telefonba kell " +
+                "bemondanod; Törlés a tárhelyről, ahol a szolgáltató ezt " +
+                "megengedi; Sor törlése a listából; és ha van lejárt tétel, a " +
+                "Lejártak eltakarítása.",
+            trouble = "A Sor törlése a listából CSAK a nyilvántartásból veszi ki a " +
+                "tételt — a fájl a tárhelyen marad, amíg magától le nem jár. Ha " +
+                "tényleg meg akarsz szabadulni tőle, a Törlés a tárhelyről az, " +
+                "ami számít; ez a nulla iksz nulla pont es té és a filebin pont " +
+                "net esetén működik, a többinél meg kell várni a lejáratot, és " +
+                "ezt a program meg is mondja. A lejárt tételek még egy napig " +
+                "látszanak, hogy legyen válasz arra, miért nem működik egy " +
+                "tegnap küldött link."
         ),
 
         // ── YOUTUBE ─────────────────────────────────────────────────────────

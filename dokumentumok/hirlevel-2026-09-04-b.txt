@@ -1,0 +1,109 @@
+SuperDL 1.61.0 — fontos javítás, és megérkezett a fájlmegosztás
+
+Kedves Tesztelők!
+
+Ez a levél két dologról szól. Az elsővel kezdem, mert az fontosabb.
+
+
+EGY HIBÁT JAVÍTOTTUNK, AMI FRISS TELEPÍTÉSNÉL MEGBÉNÍTOTTA A PROGRAMOT
+
+Aki frissen telepítette a SuperDL-t, a beállítás varázslóban zsákutcába
+futhatott. Az "Alapértelmezett telefon alkalmazás" és az "Alapértelmezett
+üzenet alkalmazás" kérdése egyszerűen nem jött elő — ezeket viszont alapvető
+beállításként kihagyni sem lehetett. Se előre, se hátra.
+
+Samsungon és Xiaomin is előfordult, tehát nem egy készülék hibája volt,
+hanem a miénk.
+
+Az ok: a program rossz módon kérte a rendszertől ezt a két beállítást, és az
+Android ablaka ilyenkor némán bezárja magát. Semmi nem látszik, semmi nem
+hallatszik. A program pedig nem vette észre, hogy nem történt semmi.
+
+Ez a hiba nem most keletkezett. A varázslóból ez a két lépés soha nem
+működött — csak friss telepítésen derült ki, mert akinél ez a két beállítás
+már megvolt, annál a varázsló meg sem mutatta őket.
+
+Ami most változott:
+
+- A kérdések előjönnek.
+- A rendszerképernyőről visszatérve a program magától újramér, és ott
+  folytatja a listát, ahol abbahagytad.
+- ZSÁKUTCA TÖBBÉ NINCS. Ha egy alapvető beállítás kétszer nem sikerül, a
+  program kimondja, mit veszítesz vele, és továbbenged. Később a Beállítások
+  menü Beállítás varázsló pontjában bármikor pótolhatod.
+- Ha egy beállítás a visszatérés után is hiányzik, a program megmondja, miért
+  lehet — nem hallgat.
+
+Külön szólok egy dologról, amibe sokan bele fognak futni. Az Android 13-tól
+a rendszer letiltja annak a programnak az akadálymentesítési kapcsolóját,
+ami nem alkalmazásboltból jött — nálunk ez a képernyőolvasó, az
+értesítés-hozzáférés és a fölérajzolás. A kapcsoló ott van, meg is találod,
+csak nem enged. EZ NEM A TE HIBÁD. Feloldani így lehet:
+
+Beállítások, Alkalmazások, Super DL, a jobb felső sarokban a három pont
+menü, és abban a "Korlátozott beállítások engedélyezése".
+
+A program mostantól ezt magától elmondja, amikor kell.
+
+Javítottuk azt is, hogy a WiFi fájlportál Android 14-en és újabb rendszeren
+el sem indult.
+
+
+ÚJ: FÁJL- ÉS MAPPAMEGOSZTÁS
+
+A Fájlkezelőben minden fájlon és mappán ott az új "Megosztás" pont. Mappát a
+program előbb becsomagol, aztán oszt meg.
+
+Három út van, és a különbség köztük nem technikai, hanem az, hogy ki láthatja
+a fájlt:
+
+1. Küldés másik programmal. A fájl a telefonon marad, egy másik alkalmazás
+   viszi tovább: levél, csevegő, Bluetooth.
+
+2. Küldés kóddal a másik gépre. Közvetlenül a másik készülékre megy,
+   végpontok között titkosítva, felhő nélkül. Ugyanaz a megoldás, mint a
+   windowsos SuperDL fájlküldés modulja, tehát a telefon és a gép egymásnak
+   is tud küldeni. A kód egy szám és két szó; a program kimondja, betűzi is,
+   a vágólapra teszi, és egy mozdulattal üzenetben elküldheted. Fogadni a
+   Fájlátvitel és megosztás menü "Fájl fogadása kóddal" pontjával lehet.
+
+3. Feltöltés ideiglenes tárhelyre. Hat tárhely közül választhatsz, és a link
+   MAGÁTÓL a vágólapra kerül — csak be kell illesztened oda, ahova küldöd.
+
+A harmadikról egy mondatot külön is elmondok, mert a program is elmondja
+minden egyes feltöltés előtt: aki megkapja a linket, le tudja tölteni a
+fájlt, mert nincs rajta jelszó. Iratot, orvosi papírt, jelszót ne ezen az
+úton küldj. Erre való a második út.
+
+Van hozzá előzmény is: mit hova töltöttél fel, és meddig él még — "még két
+nap és négy óra". A linket újra vágólapra teheted, elküldheted, betűzve
+felolvastathatod, és ahol a tárhely engedi, utólag törölheted is.
+
+A Fájlátvitel és megosztás menü mostantól az Eszközök alatt is ott van. A
+Média alól nem vettük ki, tehát aki ott szokta meg, ott is megtalálja.
+
+Súgó természetesen készült hozzá: Megosztás, Megosztási előzmények, és a
+kóddal küldésről egy külön fejezet.
+
+A megosztás vadonatúj funkció. Ki van próbálva, de sok benne a mozgó
+alkatrész — ha hibába futsz, kérlek jelezd, és javítjuk.
+
+
+LETÖLTÉS
+
+A programot le kell tölteni, nincs benne az áruházban:
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A telepítéshez engedélyezni kell az ismeretlen forrásból való telepítést.
+Aki már használja, annak a program magától felajánlja a frissítést.
+
+A program ingyenes, és az is marad.
+
+Köszönöm a jelzéseket — ez a mostani javítás pontosan azért született meg,
+mert valaki szólt.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

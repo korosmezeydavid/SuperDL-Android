@@ -1034,7 +1034,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, -1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, -1)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, -1)
-            is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
+            is AppFlow.SetupWizardAwaitReturn ->
+                returnToSetupWizard(flow.firstRun, flow.requirement)
             is AppFlow.SetupWizardConfirmManual -> repeatManualConfirm(flow)
             is AppFlow.TimerUnitBrowse -> navigateTimerUnit(flow, -1)
             is AppFlow.TimerIntervalBrowse -> navigateTimerInterval(flow, -1)
@@ -1222,7 +1223,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, +1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, +1)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, +1)
-            is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
+            is AppFlow.SetupWizardAwaitReturn ->
+                returnToSetupWizard(flow.firstRun, flow.requirement)
             is AppFlow.SetupWizardConfirmManual -> repeatManualConfirm(flow)
             is AppFlow.TimerUnitBrowse -> navigateTimerUnit(flow, +1)
             is AppFlow.TimerIntervalBrowse -> navigateTimerInterval(flow, +1)
@@ -1427,7 +1429,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationDeleteConfirm -> deleteMedication(flow.reminder)
             is AppFlow.MedicationConfirm -> saveMedication(flow)
             is AppFlow.SetupWizardBrowse -> activateSetupRequirement(flow)
-            is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
+            is AppFlow.SetupWizardAwaitReturn ->
+                returnToSetupWizard(flow.firstRun, flow.requirement)
             is AppFlow.SetupWizardConfirmManual -> confirmManualRequirement(flow, done = true)
             is AppFlow.TimerUnitBrowse -> onTimerUnitActivate(flow)
             is AppFlow.TimerIntervalBrowse -> onTimerIntervalActivate(flow)
@@ -1671,7 +1674,8 @@ class MainActivity : AppCompatActivity() {
                 else exitFlow("Beállítás varázsló bezárva.")
             }
             // Visszatérés a rendszerképernyőről: nem kilépünk, hanem újramérünk.
-            is AppFlow.SetupWizardAwaitReturn -> returnToSetupWizard(flow.firstRun)
+            is AppFlow.SetupWizardAwaitReturn ->
+                returnToSetupWizard(flow.firstRun, flow.requirement)
             is AppFlow.SetupWizardConfirmManual -> confirmManualRequirement(flow, done = false)
             is AppFlow.SmsContextMenu -> returnToSmsInbox(flow.messages, flow.messageIndex, flow.folder)
             is AppFlow.SmsDeleteConfirm -> {
@@ -2782,6 +2786,17 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.SCREEN_READER_SETUP -> {
                 tts.speak("Megnyitom a kisegítő lehetőségeket. Keresd meg a Super DL képernyőolvasót, és kapcsold be.")
+                // A LEGGYAKORIBB ELAKADÁS, ÉS NEM A FELHASZNÁLÓ HIBÁJA:
+                // Android 13 óta az áruházon KÍVÜLRŐL telepített alkalmazásnak
+                // a rendszer letiltja az akadálymentesítési kapcsolóját. A
+                // kapcsoló ott van, meg is található, csak nem enged — és a
+                // rendszer erről vakon szinte semmit nem mond.
+                tts.speakAdd(
+                    "Ha a kapcsoló nem enged, az nem a te hibád: a Super DL nem " +
+                        "alkalmazásboltból jött, ezért az Android először letiltja. Így " +
+                        "oldható fel: Beállítások, Alkalmazások, Super DL, a három pont " +
+                        "menü, és abban a Korlátozott beállítások engedélyezése."
+                )
                 try {
                     startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 } catch (_: Exception) {
@@ -2915,6 +2930,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.USB_FILE_TRANSFER -> openUsbFileTransfer()
             MenuAction.FILE_MANAGER -> openFileManager()
             MenuAction.WIFI_PORTAL -> toggleWifiPortal()
+            MenuAction.SHARE_PICK -> openSharePicker()
+            MenuAction.SHARE_HISTORY -> openShareHistory()
+            MenuAction.SHARE_RECEIVE -> openShareReceive()
             MenuAction.PODCAST_TOP -> startPodcastTopFlow()
             MenuAction.PODCAST_SEARCH -> startPodcastSearchFlow()
             MenuAction.PODCAST_SUBSCRIPTIONS -> startPodcastSubscriptionsFlow()
@@ -4700,6 +4718,42 @@ class MainActivity : AppCompatActivity() {
 
     private var alarmToneEditId: Int = -1
 
+    /**
+     * A VARÁZSLÓ RENDSZERKÉPERNYŐI — EREDMÉNNYEL INDÍTVA.
+     *
+     * ÉLES HIBA VOLT, ÉS EZ VOLT A ZSÁKUTCA OKA (2026-09-04, friss Samsung):
+     * a szerepkör-kérést (`RoleManager.createRequestRoleIntent`) sima
+     * `startActivity`-vel indítottuk. A rendszer szerepkérő ablaka viszont a
+     * HÍVÓ NEVÉT a `getCallingPackage()`-ből olvassa ki, ami CSAK akkor van
+     * kitöltve, ha eredményre indították. Enélkül az ablak némán bezárja
+     * magát: a felhasználó semmit nem lát és nem hall.
+     *
+     * Így az „Alapértelmezett telefon alkalmazás" és az „Alapértelmezett
+     * üzenet alkalmazás" — mindkettő ALAPVETŐ, tehát nem hagyható későbbre —
+     * megadhatatlan volt. Aki friss telefonra telepítette, beragadt.
+     *
+     * Minden rendszerképernyő ezen az egy úton megy, mert így a visszatérés
+     * MAGÁTÓL újramér: nem a felhasználónak kell kitalálnia, hogy söpörnie
+     * kell még egyet.
+     */
+    private val setupSystemScreen = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        val flow = activeFlow
+        if (flow is AppFlow.SetupWizardAwaitReturn) {
+            // Kis késleltetés: a rendszer néha csak a képernyő bezárása UTÁN
+            // írja be az új állapotot, és egy korai mérés még a régit látná.
+            mainHandler.postDelayed({
+                if (activeFlow is AppFlow.SetupWizardAwaitReturn) {
+                    returnToSetupWizard(flow.firstRun, flow.requirement)
+                }
+            }, 400L)
+        }
+    }
+
+    /** Hányszor próbáltuk már megadni ugyanazt a tételt (a zsákutca ellen). */
+    private val setupAttempts = mutableMapOf<String, Int>()
+
     /** Melyik követelményre vár a varázsló a rendszer engedély-kérdése alatt. */
     private var setupWizardPending: String? = null
 
@@ -5222,13 +5276,37 @@ class MainActivity : AppCompatActivity() {
      */
     private fun skipSetupRequirement(flow: AppFlow.SetupWizardBrowse) {
         val req = flow.requirements.getOrNull(flow.index) ?: return
-        if (req.severity == SetupRequirements.Severity.ESSENTIAL) {
+        val attempts = setupAttempts[req.id] ?: 0
+        if (req.severity == SetupRequirements.Severity.ESSENTIAL && attempts < 2) {
             sounds.play(SoundType.ACTION_ERROR)
             tts.speak(
                 "Ezt nem lehet későbbre hagyni: ${req.title}. ${req.whatBreaks} " +
                     "Söpörj jobbra, és megmutatom, hol adhatod meg."
             )
             return
+        }
+        // ZSÁKUTCA SOHA.
+        //
+        // 2026-09-04, friss Samsung: a szerepkör-kérő ablak némán bezárta
+        // magát, az alapvető tételt tehát nem lehetett megadni — és mivel
+        // alapvető, kihagyni sem. A felhasználó bent ragadt a varázslóban egy
+        // telefonnal, amivel még segítséget sem tudott hívni.
+        //
+        // Az ok azóta megvan és javítva van, de a SZABÁLY marad: egy lépés
+        // csak addig lehet kötelező, amíg van rajta járható út. Ha kétszer
+        // nem sikerült, a program nem erősködik tovább — kimondja, mit
+        // veszít a felhasználó, és továbbenged.
+        val forced = req.severity == SetupRequirements.Severity.ESSENTIAL
+        if (forced) sounds.play(SoundType.ACTION_ERROR)
+        // EGYETLEN MONDATBAN. A figyelmeztetés és a következő tétel nem lehet
+        // két külön beszéd: a második FLUSH-sal elvágná az elsőt, és pont a
+        // fontosabbik veszne el.
+        val skipMessage = if (forced) {
+            "Ezt a telefon most nem engedi megadni: ${req.title}. Kihagyom, hogy tovább " +
+                "tudj menni. ${req.whatBreaks} Később a Beállítások menü Beállítás " +
+                "varázsló pontjában pótolhatod, vagy kézzel a telefon beállításaiban."
+        } else {
+            "${req.title}: későbbre hagyva. A Beállítás varázslóból bármikor előveheted."
         }
         SetupPrefs.skip(this, req.id)
         val remaining = flow.requirements.filterIndexed { i, _ -> i != flow.index }
@@ -5240,10 +5318,7 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.SetupWizardBrowse(remaining, nextIndex, flow.firstRun)
         updateFlowDisplay()
         val next = remaining[nextIndex]
-        tts.speak(
-            "${req.title}: későbbre hagyva. A Beállítás varázslóból bármikor előveheted. " +
-                "${next.index1Of(remaining, nextIndex)} ${next.speakDetail()}"
-        )
+        tts.speak("$skipMessage ${next.index1Of(remaining, nextIndex)} ${next.speakDetail()}")
     }
 
     /** A varázsló lezárása — első indításnál csak akkor, ha az alapvetők megvannak. */
@@ -5398,6 +5473,7 @@ class MainActivity : AppCompatActivity() {
             }
             // A rendszer kérdése után az onRequestPermissionsResult újramér.
             setupWizardPending = req.id
+            setupAttempts[req.id] = (setupAttempts[req.id] ?: 0) + 1
             // A MAGYARÁZAT A KÉRDÉS ELŐTT HANGZIK EL. Aki vakon mond igent egy
             // engedélyre, annak joga van tudni, mire mondott igent — utólag
             // már késő, akkor a rendszer ablaka beszél.
@@ -5446,6 +5522,7 @@ class MainActivity : AppCompatActivity() {
 
         val intent = SetupRequirements.systemIntentFor(this, req)
             ?: SetupRequirements.appSettingsIntent(this)
+        setupAttempts[req.id] = (setupAttempts[req.id] ?: 0) + 1
         activeFlow = if (req.kind == SetupRequirements.RequestKind.MANUAL) {
             AppFlow.SetupWizardConfirmManual(req, flow.firstRun)
         } else {
@@ -5465,7 +5542,10 @@ class MainActivity : AppCompatActivity() {
                 "Utána nyomd meg a vissza gombot, és ide visszatérve ellenőrizzük."
         ) {
             try {
-                startActivity(intent)
+                // EREDMÉNYRE INDÍTVA, NEM startActivity-vel. A szerepkör-kérő
+                // ablak a hívó nevét a getCallingPackage()-ből olvassa, ami
+                // csak így van kitöltve — enélkül némán bezárja magát.
+                setupSystemScreen.launch(intent)
             } catch (e: Exception) {
                 // A MainActivity nem naplóz (nincs Log import) — és itt nem is
                 // a napló a fontos: a felhasználónak kell megtudnia, hogy ez az
@@ -5474,7 +5554,7 @@ class MainActivity : AppCompatActivity() {
                     "Ezt a képernyőt nem sikerült megnyitni ezen a telefonon. " +
                         "Próbáld a rendszer beállításaiban kézzel: ${req.title}."
                 )
-                returnToSetupWizard()
+                returnToSetupWizard(flow.firstRun)
             }
         }
     }
@@ -5485,7 +5565,18 @@ class MainActivity : AppCompatActivity() {
      * MIÉRT: a felmérés pillanatfelvétel. Ha nem mérnénk újra, a varázsló azt
      * hinné, hogy a most megadott engedély még mindig hiányzik.
      */
-    private fun returnToSetupWizard(firstRun: Boolean = false) {
+    private fun returnToSetupWizard(
+        firstRun: Boolean = false,
+        attempted: SetupRequirements.Requirement? = null,
+        /**
+         * Amit a lista bemondása ELŐTT kell hallani.
+         *
+         * MIÉRT PARAMÉTER ÉS NEM KÜLÖN `tts.speak`: a beszéd QUEUE_FLUSH-sal
+         * megy, tehát két egymás utáni mondatból csak a MÁSODIK hangzik el.
+         * Így a „Megadva." típusú visszajelzés némán elveszett.
+         */
+        prefix: String = ""
+    ) {
         val missing = if (firstRun) {
             SetupRequirements.pending(this)
         } else {
@@ -5495,10 +5586,55 @@ class MainActivity : AppCompatActivity() {
             finishFirstRunSetup(firstRun)
             return
         }
-        activeFlow = AppFlow.SetupWizardBrowse(missing, 0, firstRun)
+        // HA ÉPP MOST PRÓBÁLTUK MEGADNI, ÉS MÉGIS HIÁNYZIK, azt nem hallgatjuk
+        // el. Enélkül a felhasználó ugyanazt a listát hallja újra, és azt hiszi,
+        // ő rontott el valamit — pedig lehet, hogy a telefon nem engedte.
+        val stillMissing = attempted != null && missing.any { it.id == attempted.id }
+        val hint = if (stillMissing && attempted != null) stillMissingHint(attempted) else ""
+
+        // A LISTA OTT NYÍLJON KI, AHOL ABBAHAGYTUK. Ha visszaugranánk a lista
+        // elejére, a felhasználó minden próbálkozás után elölről keresgélne.
+        val index = missing.indexOfFirst { it.id == attempted?.id }.coerceAtLeast(0)
+        activeFlow = AppFlow.SetupWizardBrowse(missing, index, firstRun)
         updateFlowDisplay()
-        val first = missing.first()
-        tts.speak("${SetupRequirements.speakSummary(this)} ${first.index1Of(missing)} ${first.speakDetail()}")
+        val current = missing[index]
+        val head = if (hint.isBlank()) SetupRequirements.speakSummary(this) else hint
+        tts.speak(
+            "${prefix.trim()} $head ${current.index1Of(missing, index)} ${current.speakDetail()}"
+                .trim()
+        )
+    }
+
+    /**
+     * MIÉRT NEM SIKERÜLT — és mi a következő lépés.
+     *
+     * A legfontosabb eset az áruházon kívüli telepítés „Korlátozott
+     * beállítás" zára: Android 13 óta a rendszer letiltja az
+     * akadálymentesítési szolgáltatást, az értesítés-hozzáférést és a
+     * fölérajzolást annak az alkalmazásnak, ami nem áruházból jött. A
+     * kapcsoló ilyenkor OTT VAN, csak nem enged. Aki ezt nem tudja, azt
+     * hiszi, rosszul csinálja — pedig csak egy rejtett menüpont hiányzik.
+     */
+    private fun stillMissingHint(req: SetupRequirements.Requirement): String {
+        val restricted = req.id in setOf(
+            "screen_reader", "pin_helper", "notification_listener", "overlay"
+        )
+        val kiut = "Ha nem sikerül, söpörj balra: kihagyhatod, és később pótolhatod."
+        return when {
+            restricted ->
+                "${req.title}: még mindig hiányzik. Ha a kapcsoló nem engedett, ez a " +
+                    "rendszer korlátozása, nem a te hibád: a SuperDL nem alkalmazásboltból " +
+                    "jött, ezért az Android először letiltja ezt a beállítást. Így oldható " +
+                    "fel: Beállítások, Alkalmazások, Super DL, a jobb felső sarokban a három " +
+                    "pont menü, és abban a Korlátozott beállítások engedélyezése. Utána " +
+                    "gyere vissza ide. $kiut"
+            req.kind == SetupRequirements.RequestKind.ROLE ->
+                "${req.title}: még mindig hiányzik. Ha a választó lista nem jött elő, " +
+                    "próbáld újra egy jobbra söpréssel, vagy állítsd be kézzel: Beállítások, " +
+                    "Alkalmazások, Alapértelmezett alkalmazások. $kiut"
+            else ->
+                "${req.title}: még mindig hiányzik. Söpörj jobbra az újrapróbáláshoz. $kiut"
+        }
     }
 
     /**
@@ -8371,6 +8507,32 @@ class MainActivity : AppCompatActivity() {
     private fun openFileManager() {
         tts.speak("Fájlkezelő indítása.")
         startActivity(Intent(this, FileManagerActivity::class.java))
+    }
+
+    /**
+     * FÁJL VAGY MAPPA MEGOSZTÁSA.
+     *
+     * A megosztás a FÁJLKEZELŐBŐL indul, mert ott vannak a fájlok — külön
+     * fájlválasztót építeni fölösleges második listát jelentene ugyanarról.
+     * A mondat megmondja, mi a következő mozdulat, hogy senki ne érezze:
+     * „megnyomtam a megosztást, és a fájlkezelő jött be, valami elromlott".
+     */
+    private fun openSharePicker() {
+        tts.speak(
+            "Válaszd ki, mit osztasz meg. Söpörj a fájlokon fel-le, a kiválasztotton " +
+                "jobbra, és ott keresd a Megosztás pontot. Mappát is lehet: azt a " +
+                "program becsomagolja."
+        )
+        startActivity(Intent(this, FileManagerActivity::class.java))
+    }
+
+    private fun openShareHistory() {
+        tts.speak("Megosztási előzmények.")
+        com.superdl.launcher.share.ShareActivity.openHistory(this)
+    }
+
+    private fun openShareReceive() {
+        com.superdl.launcher.share.ShareActivity.openReceive(this)
     }
 
     private fun toggleWifiPortal() {
@@ -18034,20 +18196,43 @@ class MainActivity : AppCompatActivity() {
         // A beállítás varázsló kérése: bármi lett az eredmény, ÚJRAMÉRÜNK és
         // visszatérünk a listához. A varázsló nem áll meg egy elutasításnál —
         // a felhasználó később is megadhatja.
+        // A VÁLASZ CSAK AKKOR A VARÁZSLÓÉ, HA TÉNYLEG AZ Ő ENGEDÉLYEIRŐL SZÓL.
+        //
+        // Korábban a beragadt `setupWizardPending` bármelyik KÉSŐBBI kérés
+        // válaszát elnyelte: egy mikrofon-engedélyre „Megadva" hangzott el, a
+        // program visszaugrott a varázslóba, és az eredeti művelet (diktálás,
+        // SMS-olvasás) némán elveszett.
         val wizardPending = setupWizardPending
-        setupWizardPending = null
         if (wizardPending != null) {
-            val granted = grantResults.isNotEmpty() &&
-                grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (granted) {
-                tts.speak("Megadva.")
-            } else {
-                tts.speak(
-                    "Ez az engedély most nem lett megadva. Később bármikor visszatérhetsz ide."
+            val req = SetupRequirements.all(this).firstOrNull { it.id == wizardPending }
+            val belongsToWizard = req != null && permissions.any { it in req.permissions }
+            if (belongsToWizard && req != null) {
+                setupWizardPending = null
+                val granted = grantResults.isNotEmpty() &&
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                // NEM HALLGATUNK ARRÓL, HOGY VAN KIÚT. Ha a rendszer kérdése
+                // elmarad vagy elutasítás jön, a felhasználónak tudnia kell,
+                // hogy nem ragadt bent.
+                val essential = req.severity == SetupRequirements.Severity.ESSENTIAL
+                val attempts = setupAttempts[req.id] ?: 0
+                val prefix = when {
+                    granted -> "Megadva."
+                    essential && attempts >= 2 ->
+                        "Ez az engedély most nem lett megadva. Ha a telefon nem hozza elő " +
+                            "a kérdést, söpörj balra: kihagyom, és később pótolhatod."
+                    else ->
+                        "Ez az engedély most nem lett megadva. Később bármikor " +
+                            "visszatérhetsz ide."
+                }
+                if (!granted) sounds.play(SoundType.ACTION_ERROR)
+                returnToSetupWizard(
+                    (activeFlow as? AppFlow.SetupWizardBrowse)?.firstRun == true,
+                    req,
+                    prefix
                 )
+                return
             }
-            returnToSetupWizard((activeFlow as? AppFlow.SetupWizardBrowse)?.firstRun == true)
-            return
+            // Idegen kérés válasza — a varázsló tovább vár a sajátjára.
         }
 
         if (pendingHotspotToggle) {

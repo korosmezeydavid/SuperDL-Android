@@ -93,21 +93,25 @@ class TtsManager(
             }
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (utteranceId?.startsWith("SDL_DONE_") == true) {
-                        val callback = onUtteranceDone
-                        onUtteranceDone = null
-                        callback?.let { handler.post(it) }
-                    }
-                }
+
+                override fun onDone(utteranceId: String?) = fireDone(utteranceId)
+
                 @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) {
-                    if (utteranceId?.startsWith("SDL_DONE_") == true) {
-                        val callback = onUtteranceDone
-                        onUtteranceDone = null
-                        callback?.let { handler.post(it) }
-                    }
-                }
+                override fun onError(utteranceId: String?) = fireDone(utteranceId)
+
+                /**
+                 * MEGSZAKÍTOTT BESZÉD — ÉS EZ NEM ELHANYAGOLHATÓ.
+                 *
+                 * Ha egy mondatot félbevág egy újabb beszéd (QUEUE_FLUSH), az
+                 * Android NEM `onDone`-t hív, hanem EZT. Enélkül a `speakThen`
+                 * visszahívása örökre elveszett: a beszédhez kötött MŰVELET
+                 * soha nem futott le, és a program némán nem csinált semmit.
+                 *
+                 * A beszéd tájékoztatás, nem feltétel. Egy félbeszakított
+                 * mondat után a művelet ATTÓL MÉG elvégzendő.
+                 */
+                override fun onStop(utteranceId: String?, interrupted: Boolean) =
+                    fireDone(utteranceId)
             })
             pendingOnReady?.let { handler.post(it) }
             pendingOnReady = null
@@ -447,6 +451,23 @@ class TtsManager(
     fun speakThen(text: String, onDone: () -> Unit) =
         speakThen(text, SpeechRole.CONTENT, onDone)
 
+    /**
+     * A BESZÉDHEZ KÖTÖTT MŰVELET ELSÜTÉSE — pontosan egyszer.
+     *
+     * Négy útról érkezhet: onDone, onError, onStop (megszakítás), és a
+     * biztonsági időkorlát. Amelyik előbb ér ide, az viszi.
+     */
+    private fun fireDone(utteranceId: String?) {
+        if (utteranceId?.startsWith("SDL_DONE_") != true) return
+        val callback = onUtteranceDone
+        onUtteranceDone = null
+        doneWatchdog?.let { handler.removeCallbacks(it) }
+        doneWatchdog = null
+        callback?.let { handler.post(it) }
+    }
+
+    private var doneWatchdog: Runnable? = null
+
     fun speakThen(text: String, role: SpeechRole, onDone: () -> Unit) {
         if (initFailed) {
             Log.w("TTS", "TTS nem elérhető, speakThen kihagyva")
@@ -457,17 +478,35 @@ class TtsManager(
             runWhenReady { speakThen(text, role, onDone) }
             return
         }
+        // Ha volt egy korábbi, még függő visszahívás, azt NEM ejtjük el:
+        // a mondata ugyan elmarad, a művelete viszont elvégzendő.
+        val previous = onUtteranceDone
         onUtteranceDone = onDone
+        doneWatchdog?.let { handler.removeCallbacks(it) }
+        previous?.let { handler.post(it) }
+
         applyRole(role)
         val id = "SDL_DONE_${System.currentTimeMillis()}"
         val prepared = PronunciationDictionary.apply(appContext, orient(text))
         applyLanguageFor(prepared)
-        tts.speak(
-            prepared,
-            TextToSpeech.QUEUE_FLUSH,
-            speakParams(),
-            id
-        )
+        val result = tts.speak(prepared, TextToSpeech.QUEUE_FLUSH, speakParams(), id)
+
+        if (result != TextToSpeech.SUCCESS) {
+            // A MOTOR EL SEM INDULT. Ilyenkor SEMMILYEN visszajelzés nem jön —
+            // se onDone, se onError, se onStop —, tehát a visszahívás örökre
+            // ott ragadna. Frissen telepített telefonon ez valóságos eset:
+            // a beszédmotor még tölthet le nyelvi adatot.
+            Log.w("TTS", "A speak() nem indult el ($result), a művelet azonnal fut")
+            fireDone(id)
+            return
+        }
+
+        // BIZTONSÁGI IDŐKORLÁT. Bármi történjék a motorral, a művelet elsül.
+        // Egy beszédmotor hibája soha nem akaszthatja meg a programot.
+        val timeout = 4000L + prepared.length * 90L
+        val watchdog = Runnable { fireDone(id) }
+        doneWatchdog = watchdog
+        handler.postDelayed(watchdog, timeout)
     }
 
     /**
