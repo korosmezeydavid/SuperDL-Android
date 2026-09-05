@@ -1,0 +1,136 @@
+Tisztelt Lőrincz Richárd Úr!
+
+Röviden csak annyit: a felvétele nem maradt papíron. Ugyanazon a napon
+kiadtuk a SuperDL 1.62.0 változatát, és abban benne van minden, amit az Ön
+anyaga alapján meg tudtunk csinálni — beleértve azt is, hogy legközelebb ne
+Önnek kelljen kitalálnia, mit mondjon nekünk.
+
+    https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+Az alábbiakban végigveszem, mi változott, és mit kérnénk Öntől.
+
+
+1. A BEÁLLÍTÁS VARÁZSLÓBÓL MOSTANTÓL HIBAJELENTÉST LEHET KÜLDENI
+------------------------------------------------------------------------
+Ez az Ön felvételének a legfontosabb hozadéka, és nem is a jelentett hibák
+miatt.
+
+Az Ön mondata — „idáig jutottam, nem tudok tovább jutni" — pontos volt, és
+mi mégsem tudtunk vele mit kezdeni, mert vakon Ön sem láthatta, hogy a
+rendszer ablaka megnyílt-e és csak üres, vagy meg sem nyílt. Ez a
+különbségtétel viszont teljesen más javítást igényel. Ezt a hiányt szüntettük
+meg.
+
+A varázsló listája egy tétellel hosszabb lett. A LEGVÉGÉN, a megszokott
+fel-le lépkedéssel elérhetően, mostantól ott áll:
+
+    „Nem megy tovább? Hibajelentés küldése"
+
+Jobbra söpréssel indul. Nem kell diktálnia semmit — aki ott akadt el, annak
+épp az a baja, hogy a készülék nem engedelmeskedik, nem kell még egy
+akadály. A küldés után a program visszaviszi a varázslóba, nem teszi ki a
+főmenübe.
+
+A jelentés nem azt írja le, MI hiányzik — azt Ön is elmondja. Azt írja le,
+MIÉRT nem sikerült:
+
+  - Feloldható-e egyáltalán a rendszer-szándék az adott készüléken
+    (resolveActivity). Ez a napló legfontosabb sora: ha itt az áll, hogy nem
+    oldható fel, akkor a program hiába indítja el a kérést, azon a
+    telefonon az a képernyő nem létezik ezen a néven. Ezt kívülről semmiből
+    nem lehet megtudni, és pontosan ez hiányzott nekünk az Ön esetében.
+  - Hányszor próbálta már az adott tételt (a varázsló számolja).
+  - Ki birtokolja MOST az üzenet-, a telefon- és a kezdőképernyő-szerepkört.
+    Ez az Ön 3. pontja: a rendszerben be van állítva, a program mégsem látja.
+  - Honnan lett telepítve a program, és hogy érintheti-e a „Korlátozott
+    beállítás" zár.
+  - Az engedélyezett kisegítő szolgáltatások listája és az érintés-felfedezés
+    (touch_exploration) állapota. Ez az Ön 4. pontja, a képernyőolvasó ügye.
+  - Minden tétel állapota — a megadottaké is —, szint és mód szerint.
+
+Küldeni három módon lehet: a saját levelezőjével, más alkalmazással, vagy
+mentéssel a telefonra (utóbbi a WiFi portálról letölthető).
+
+A jelentés SEMMILYEN személyes adatot nem tartalmaz: csomagneveket,
+engedélyállapotokat és rendszerverziót, semmi mást.
+
+Gyakorlati következmény az Ön számára: az előző levelemben kért logcat
+felvétele MÁR NEM SZÜKSÉGES. Ha bármelyik lépés elakad, elég a varázsló
+végén elküldenie a jelentést — abban benne lesz az is, amit a naplóból
+akartunk kiolvasni.
+
+
+2. A HANGERŐ — JAVÍTVA
+------------------------------------------------------------------------
+Az Ön észrevétele helytálló volt, és két, egymástól független oka volt.
+
+A beszéd hangtulajdonságain rajta volt a FLAG_AUDIBILITY_ENFORCED jelző,
+amely arra való, hogy a rendszer KIKÉNYSZERÍTSE a hallhatóságot (eredetileg
+a fényképezőgép zárhangjához, amelyet egyes joghatóságokban nem szabad
+elnémítani). Emellett a program sehol nem állította be a volumeControlStream
+értékét, ezért a hardveres gombok a csengőhang csatornáját szabályozták.
+
+Mindkettő megszűnt: a hangerő-gombok mostantól minden esetben a beszédet
+állítják, az onCreate és az onResume ponton egyaránt a tényleges
+beszédcsatornára kötve — tehát akkor is helyesen viselkedik, ha Ön időközben
+átváltja a beszéd csatornáját a beállításokban.
+
+
+3. AMIT AZ 1.60.0 ÓTA MÁR KORÁBBAN JAVÍTOTTUNK
+------------------------------------------------------------------------
+Emlékeztetőül: Ön az 1.60.0 változatot vizsgálta, és az abban tapasztalt
+beragadás (alapértelmezett telefon- és üzenetalkalmazás, hívásszűrő,
+korlátlan háttérfutás) az 1.61.0-ban már javítva lett. Az ok a szerepkör-
+kérések indítási módja volt: startActivity helyett startActivityForResult
+kell, mert a rendszer szerepkérő ablaka a hívó azonosítóját a
+getCallingPackage() értékéből olvassa, amely csak így van kitöltve.
+
+Emellé került a visszatéréskori automatikus újramérés, és — ami az Ön
+zsákutcáját megszünteti — két sikertelen próbálkozás után az ALAPVETŐ tétel
+is kihagyhatóvá válik.
+
+Ezeket Ön még nem próbálta, mert az 1.61.0 az Ön felvétele után jelent meg.
+
+
+4. EGYÉB JAVÍTÁSOK EBBEN A KIADÁSBAN
+------------------------------------------------------------------------
+  - A zenelejátszó eddig legfeljebb háromszáz számot mutatott, és a vágás a
+    cím szerint rendezett lista elején történt. A korlát megszűnt.
+  - A könyvek törlése három külön okból nem működött (hangoskönyvnél a
+    bejegyzés egy mappa; médiatáras bejegyzésnél nem fájl, hanem azonosító;
+    illetve ugyanaz a könyv kétszer is szerepelhetett a listában). Mindhárom
+    javítva, és a program mostantól ellenőrzi, hogy a törlés valóban
+    megtörtént-e, mielőtt sikert jelentene.
+
+
+5. AMIT KÉRÜNK ÖNTŐL
+------------------------------------------------------------------------
+ 1. Frissítés az 1.62.0 változatra, lehetőleg friss telepítéssel, ugyanazon
+    a Galaxy S24 Ultra készüléken.
+ 2. A beállítás varázsló végigvitele.
+ 3. HA BÁRMELYIK LÉPÉS ELAKAD: a lista legvégén küldje el a hibajelentést.
+    Ez az egyetlen kérésünk, minden mást tartalmaz.
+ 4. A képernyőolvasó érintés-kezelését illetően: ha az továbbra sem működik,
+    elég ugyanígy elküldenie a jelentést, és jeleznie, hogy a jelenség a
+    rendszer főképernyőjén és más alkalmazásokban (például a Beállításokban)
+    egyaránt fennáll-e.
+
+A hangerőre nem kérünk külön visszajelzést, hacsak nem tapasztal az
+elvárttól eltérőt.
+
+
+6. VÁLTOZATLAN KÉRÉS
+------------------------------------------------------------------------
+Kérjük, a mérést továbbra is tartalék készüléken végezze, és ugyanezt
+tolmácsolja mindenkinek, aki a programot kipróbálná.
+
+Megköszönöm még egyszer az idejét és az igényes munkát. Az a fajta
+visszajelzés, amit Ön küldött, ritka, és közvetlenül mérhető a hasznossága:
+ez a kiadás nagyrészt abból a huszonöt percből született.
+
+Tisztelettel:
+
+Kőrösmezey Dávid Richárd
+SuperDL
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

@@ -5729,6 +5729,12 @@ class MainActivity : AppCompatActivity() {
             "Válaszd az engedélyezést, hogy a program a háttérben is futhasson."
         "notification_listener" ->
             "Az értesítés-hozzáférés listájában kapcsold be a Super DL-t."
+        // Az asszisztenshez NINCS felugró kérdés: a rendszer csak a
+        // beállítás-oldalon engedi átállítani. Ezt ki kell mondani, különben a
+        // felhasználó azt hiszi, elmulasztott egy kérdést.
+        "role_assistant" ->
+            "A digitális asszisztens beállításnál válaszd a Super DL-t. " +
+                "Ehhez a rendszer nem tesz fel kérdést, itt a listából kell kiválasztani."
         else -> "Keresd meg a Super DL-t, és kapcsold be."
     }
 

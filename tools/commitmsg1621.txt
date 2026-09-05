@@ -1,0 +1,22 @@
+1.62.1 - Az elso eles varazslo-jelentes ket hibat fogott
+
+Cat S62 Pro, Android 11, 1.62.0 kiadasi valtozat. A jelentes szerint a
+role_assistant ket probalkozas utan is hianyzott, holott a szandek
+feloldhato volt.
+
+- SetupRequirements.systemIntentFor("role_assistant"): mostantol az
+  AssistantRoleHelper.createActivationIntent (VOICE_INPUT_SETTINGS es tarsai)
+  az elsodleges ut, a createRequestRoleIntent csak tartalek. Az asszisztens
+  szerepkor nem "requestable": a kero ablak meg sem jelenik, azonnal
+  RESULT_CANCELED-del ter vissza. A systemScreenHint kimondja, hogy itt nem
+  lesz felugro kerdes.
+- isNotificationListenerEnabled: a `contains(packageName)` reszszoveg-kereses
+  a .debug valtozat bejegyzesere is igazat adott, tehat a kiadasi valtozat
+  megadottnak hitte az ertesites-hozzaferest. Mostantol osszetevonkent,
+  csomagnev szerint hasonlit.
+- isKeyboardSelected: ugyanez a hiba `startsWith`-tel. Javitva.
+- SetupDiagnostics: uj sor - fent van-e a masik valtozat is es be van-e
+  kapcsolva (ket kepernyoolvaso egymasra beszel).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

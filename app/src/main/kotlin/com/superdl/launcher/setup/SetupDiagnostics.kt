@@ -53,6 +53,9 @@ object SetupDiagnostics {
         appendLine("  saját csomagnév: ${context.packageName}")
         appendLine()
 
+        appendLine("KÉT SUPERDL EGY TELEFONON: ${twoBuilds(context)}")
+        appendLine()
+
         appendLine("ÉRTESÍTÉS-HOZZÁFÉRÉS ENGEDÉLYEZETT SZOLGÁLTATÁSOK:")
         appendLine("  ${secure(context, "enabled_notification_listeners")}")
         appendLine("KISEGÍTŐ SZOLGÁLTATÁSOK (engedélyezett):")
@@ -182,6 +185,33 @@ object SetupDiagnostics {
         info?.activityInfo?.packageName ?: "nincs"
     } catch (_: Exception) {
         "nem lekérdezhető"
+    }
+
+    /**
+     * FENT VAN-E A MÁSIK VÁLTOZAT IS.
+     *
+     * A fejlesztői és a kiadási változat KÜLÖN alkalmazás (a csomagnév végén
+     * `.debug`), tehát egymás mellett is felférnek. Ilyenkor viszont KÉT
+     * képernyőolvasó és két PIN segéd van a rendszerben, és a kettő
+     * egymásra beszél — a felhasználó azt hallja, hogy „összevissza beszél a
+     * telefon". A rendszer listái ezt elárulják, ezért innen olvassuk ki:
+     * más alkalmazás lekérdezéséhez Android 11 óta külön jog kellene.
+     */
+    private fun twoBuilds(context: Context): String {
+        val mine = context.packageName
+        val other = if (mine.endsWith(".debug")) mine.removeSuffix(".debug") else "$mine.debug"
+        val haystack = listOf(
+            secure(context, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+            secure(context, "enabled_notification_listeners"),
+            secure(context, Settings.Secure.DEFAULT_INPUT_METHOD)
+        ).joinToString(":")
+        val seen = haystack.split(':').any { it.substringBefore('/').trim() == other }
+        return if (seen) {
+            "IGEN — a $other is fent van és be van kapcsolva. Ez ütközést okoz " +
+                "(két képernyőolvasó egymásra beszél), az egyiket el kell távolítani."
+        } else {
+            "nem látszik"
+        }
     }
 
     private fun secure(context: Context, key: String): String = try {

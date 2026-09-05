@@ -1,0 +1,7 @@
+{
+  "megjegyzes": "A SuperDL mobil legfrissebb verziója. A telefon naponta kétszer ránéz erre a fájlra, és szól, ha újabb van. Kiadáskor EZT a fájlt kell frissíteni.",
+  "verzio": "1.62.1",
+  "letoltes": "https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk",
+  "kiadva": "2026-09-05",
+  "ujdonsagok": "Az 1.62.0-ban jelent meg a hibajelentés a beállítás varázslóból. Az első éles jelentés néhány órán belül megérkezett, és rögtön két hibát fogott meg. JAVÍTVA: az Alapértelmezett asszisztens tétel nem volt megadható a varázslóból. Az Android a szerepköröket egy kérhető jelzővel írja le, és amelyiknél ez nincs bekapcsolva, ott a kérő ablak meg sem jelenik. Az asszisztens ilyen: kizárólag a beállítás-oldalán állítható. Mostantól a varázsló egyenesen oda visz, és kimondja, hogy itt nem lesz felugró kérdés, a listából kell kiválasztani a Super DL-t. JAVÍTVA: aki a fejlesztői és a kiadási változatot egyszerre használja, annál a program tévesen hitte megadottnak az értesítés-hozzáférést, mert a fejlesztői csomagnév a kiadási névvel kezdődik. Ugyanez a hiba a Mátrix billentyűzet kiválasztásánál is megvolt. ÚJ: ha a telefonon mindkét változat fent van és be van kapcsolva, a hibajelentés ezt külön kiírja, mert az valódi ütközés, két képernyőolvasó beszél egymásra. Ha a varázslóban bármi elakad, a lista legvégén van a Nem megy tovább, hibajelentés küldése tétel. Használat csak tartalék készüléken egyelőre, vagy saját felelősségre!"
+}

@@ -528,7 +528,20 @@ object SetupRequirements {
         when (requirement.id) {
             "role_sms" -> safeIntent { SmsRoleHelper.createRoleRequestIntent(context) }
             "role_dialer" -> safeIntent { DialerRoleHelper.createRoleRequestIntent(context) }
-            "role_assistant" -> safeIntent { AssistantRoleHelper.createRoleRequestIntent(context) }
+            // AZ ASSZISZTENS SZEREPKÖRT NEM SZABAD SZEREPKÖR-KÉRÉSSEL KÉRNI.
+            //
+            // 2026-09-05, első éles hibajelentés a varázslóból (Cat S62 Pro,
+            // Android 11): a tétel két próbálkozás után is hiányzott, holott a
+            // szándék feloldható volt. A magyarázat: az Android a szerepköröket
+            // „requestable" jelzővel írja le, és amelyik nem az, annál a kérő
+            // ablak MEG SEM JELENIK — azonnal RESULT_CANCELED-del visszatér.
+            // Az asszisztens ilyen: kizárólag a beállítás-oldalon állítható.
+            //
+            // Ezért itt a hangbeviteli beállítás-oldalra viszünk (ezt a
+            // createActivationIntent adja, és az több jelöltet is végigpróbál).
+            // Ha az sem oldható fel, marad a szerepkör-kérés utolsó esélynek.
+            "role_assistant" -> safeIntent { AssistantRoleHelper.createActivationIntent(context) }
+                ?: safeIntent { AssistantRoleHelper.createRoleRequestIntent(context) }
             "role_screening" -> safeIntent { CallFilterHelper.createRoleRequestIntent(context) }
             "exact_alarm" -> if (Build.VERSION.SDK_INT >= 31) {
                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
@@ -603,12 +616,26 @@ object SetupRequirements {
     private fun granted(context: Context, permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Engedélyezve van-e az ÉRTESÍTÉS-HOZZÁFÉRÉS.
+     *
+     * MIÉRT NEM `contains`: a csomagnevünk a fejlesztői változaté ELEJE
+     * (`com.superdl.launcher` és `com.superdl.launcher.debug`). Egy sima
+     * részszöveg-keresés tehát a fejlesztői változat bejegyzésére is igazat
+     * adott — a kiadási változat úgy hitte, megvan az engedélye, holott nem.
+     * 2026-09-05, az első éles varázsló-jelentés hozta ki, egy olyan
+     * telefonon, amin mindkét változat fent volt.
+     *
+     * Ezért összetevőnként hasonlítunk, és a CSOMAGNEVET külön nézzük.
+     */
     private fun isNotificationListenerEnabled(context: Context): Boolean = safe {
         val enabled = Settings.Secure.getString(
             context.contentResolver,
             "enabled_notification_listeners"
         ).orEmpty()
-        enabled.contains(context.packageName)
+        enabled.split(':').any { entry ->
+            entry.substringBefore('/').trim() == context.packageName
+        }
     }
 
     /**
@@ -676,12 +703,18 @@ object SetupRequirements {
         imm.enabledInputMethodList.any { it.packageName == context.packageName }
     }
 
-    /** Ki van-e VÁLASZTVA a mátrix billentyűzet (ez külön lépés a bekapcsolás után). */
+    /**
+     * Ki van-e VÁLASZTVA a mátrix billentyűzet (ez külön lépés a bekapcsolás után).
+     *
+     * A csomagnevet pontosan hasonlítjuk, nem `startsWith`-szel: a fejlesztői
+     * változat neve (`...launcher.debug`) a kiadásival kezdődik, tehát a
+     * kezdet-egyezés a másik változat billentyűzetére is igazat adna.
+     */
     private fun isKeyboardSelected(context: Context): Boolean = safe {
         val current = Settings.Secure.getString(
             context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
         ).orEmpty()
-        current.startsWith(context.packageName)
+        current.substringBefore('/').trim() == context.packageName
     }
 
     /** Rajzolhat-e a program más alkalmazások fölé (sötét mód függönye). */

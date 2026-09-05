@@ -1,0 +1,130 @@
+SuperDL 1.62.0 — ha elakadsz, mostantól egy söpréssel meg tudod mutatni, hol
+
+Kedves Tesztelők!
+
+Ez a kiadás egy tesztelői hangfelvételből született. Valaki fogta magát,
+felvett huszonöt percet arról, ahogy egy vadonatúj Samsungon végigmegy a
+beállításokon, és elmondta, mi hol akad el. Kevesebb mint egy nap alatt négy
+javítás lett belőle. Köszönöm neki — és mindenkinek, aki szól.
+
+
+A LEGFONTOSABB ÚJDONSÁG: HIBAJELENTÉS A BEÁLLÍTÁS VARÁZSLÓBÓL
+
+Van egy mondat, amit sokan leírtatok már nekem: "nem megy". És van egy
+kellemetlen igazság: ez nekem nem segítség. Nem azért, mert nem hiszem el,
+hanem mert vakon Te sem tudhatod, hogy a rendszer ablaka megnyílt-e és csak
+üres, vagy meg sem nyílt. Pedig ez a két eset teljesen más javítást igényel.
+
+Ezért a beállítás varázsló listája egy tétellel hosszabb lett. A LEGVÉGÉN,
+ugyanazzal a fel-le lépkedéssel elérhetően, mostantól ott van:
+
+    "Nem megy tovább? Hibajelentés küldése"
+
+Söpörj rajta jobbra, és a program elküldi nekem, mi akadt el ezen a
+telefonon. Nem kell diktálnod semmit: aki ott ragadt be, annak épp az a baja,
+hogy a készülék nem engedelmeskedik — nem teszek elé még egy akadályt.
+Küldés után a program visszavisz a varázslóba, nem tesz ki a főmenübe.
+
+Mi van a jelentésben? NEM az, hogy mi hiányzik — azt Te is elmondod. Hanem
+az, hogy miért nem sikerült:
+
+- Megnyitható-e egyáltalán a kért rendszerképernyő ezen a készüléken. Ez a
+  legfontosabb sor. Ha nem, akkor a program hiába indítja el, azon a
+  telefonon az a képernyő nem létezik ezen a néven — és ezt kívülről semmiből
+  nem lehet megtudni.
+- Hányszor próbáltad az adott beállítást.
+- Ki birtokolja MOST az üzenet-, a telefon- és a kezdőképernyő-szerepkört.
+  Ez az az eset, amikor a telefon beállításaiban be van állítva a SuperDL,
+  a program mégsem látja.
+- Honnan lett telepítve a program, és hogy érintheti-e a "Korlátozott
+  beállítás" zár.
+- Melyik kisegítő szolgáltatás van bekapcsolva, és él-e az
+  érintés-felfedezés.
+
+Küldeni háromféleképpen lehet, ahogy a rendes hibajelentésnél is: a saját
+leveleződdel, más alkalmazással, vagy mentéssel a telefonra — utóbbit a WiFi
+portálról töltheted le.
+
+SZEMÉLYES ADAT NINCS BENNE. Se névjegy, se üzenet, se helyzet, se jelszó.
+Csomagnevek, engedélyállapotok és a rendszer verziója, semmi más.
+
+
+A BESZÉDET VÉGRE LE LEHET HALKÍTANI
+
+A felvételen elhangzott, hogy a program "üvölt", és a hangerő gomb nem fog
+rajta. Igaz volt, és két oka volt.
+
+A beszéd hangján rajta volt egy jelző, amivel a rendszer KIKÉNYSZERÍTI a
+hallhatóságot. Ez eredetileg a fényképezőgép zárhangjához való — olyan
+helyeken, ahol jogszabály tiltja a némítását. Beszédhez semmi keresnivalója,
+és amíg ott volt, a Te hangerőd nem hatott rá.
+
+Emellett a hangerő gombok nem a beszéd csatornájára voltak kötve, ezért
+csendben a csengőhang hangerejét állították. Nyomtad a halkítást, a program
+meg ugyanolyan hangos maradt.
+
+Mindkettő megszűnt. A hangerő gombok mostantól mindig a beszédet halkítják,
+akkor is, ha közben átváltottad a beszéd csatornáját a beállításokban.
+
+
+A ZENELEJÁTSZÓ AZ ÖSSZES SZÁMOT LÁTJA
+
+Eddig háromszáz szám volt a felső határ. Ami ennél rosszabb: a vágás a cím
+szerint rendezett lista ELEJÉN történt, tehát akinek nyolcszáz száma volt, az
+az ábécé első háromszázát látta, a többiről pedig semmilyen visszajelzést nem
+kapott. Aki azt hitte, hogy a telefon nem találja a zenéit: nem Te
+tévedtél. A korlát megszűnt.
+
+
+A KÖNYVEKET VÉGRE LE LEHET TÖRÖLNI
+
+Aki azt tapasztalta, hogy mindent tud törölni, csak könyvet nem — annak
+igaza volt, és nem is a fájlengedéllyel volt baj. Három külön ok játszott
+össze, és a program mindhármat sima fájlként kezelte:
+
+- A hangoskönyv nem fájl, hanem MAPPA. Azt egyszerű fájltörléssel nem lehet
+  eltüntetni, a program mégis fájlhozzáférés hiányára panaszkodott — vagyis
+  rossz irányba küldött.
+- A médiatárból származó könyv szintén nem fájl, hanem azonosító. Ilyenkor a
+  program KIMONDTA, hogy törölve, és a könyv a következő listázásnál újra ott
+  volt. Ez a legrosszabb fajta hiba, mert semmilyen jelzés nincs róla.
+- Ugyanaz a könyv kétszer is szerepelhetett a listában, így a törlés csak az
+  egyik példányt tüntette el.
+
+Mostantól a program a bejegyzés fajtájának megfelelően töröl, és ELLENŐRZI,
+hogy tényleg eltűnt-e. Csak akkor mond sikert.
+
+
+HA MÉG AZ 1.60.0 VAN NÁLAD, EZT OLVASD EL
+
+Az előző kiadásban javítottuk a friss telepítésnél jelentkező zsákutcát: az
+"Alapértelmezett telefon alkalmazás" és az "Alapértelmezett üzenet
+alkalmazás" kérdése nem jött elő, ezeket viszont alapvetőként kihagyni sem
+lehetett. Samsungon és Xiaomin egyaránt előfordult. Ha ebbe futottál bele,
+ez a frissítés megoldja.
+
+
+LETÖLTÉS
+
+A programot le kell tölteni, nincs benne az áruházban:
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A telepítéshez engedélyezni kell az ismeretlen forrásból való telepítést.
+Aki már használja, annak a program magától felajánlja a frissítést.
+
+A program ingyenes, és az is marad.
+
+
+EGY KÉRÉS A VÉGÉRE
+
+Ha bármi nem megy, ne hagyd annyiban, és ne magadat hibáztasd. Menj be a
+Beállítások menü Beállítás varázsló pontjába, lépkedj le a lista végére, és
+söpörj jobbra. Egy mozdulat, és pontosan látni fogom, mi az, ami nem
+engedett. Ennél többet Te nem tudsz megtenni, és ennél többre nekem nincs is
+szükségem.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!
