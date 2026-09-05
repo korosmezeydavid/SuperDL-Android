@@ -1,0 +1,7 @@
+{
+  "megjegyzes": "A SuperDL mobil legfrissebb verziója. A telefon naponta kétszer ránéz erre a fájlra, és szól, ha újabb van. Kiadáskor EZT a fájlt kell frissíteni.",
+  "verzio": "1.62.0",
+  "letoltes": "https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk",
+  "kiadva": "2026-09-05",
+  "ujdonsagok": "ÚJ: hibajelentés a beállítás varázslóból. Ha valamelyik lépés nem akar menni, a lista legvégén van egy tétel, Nem megy tovább, hibajelentés küldése. Jobbra söpréssel elküldhető. A jelentés megmutatja, MIÉRT nem megy: melyik beállítás hiányzik, hányszor próbáltad, és hogy a rendszer megnyitotta-e egyáltalán a kért képernyőt ezen a készüléken. Küldés után a program visszavisz a varázslóba. Személyes adat nincs benne. JAVÍTVA: a beszédet végre le lehet halkítani. A hang egy olyan jelzővel szólt, amivel a rendszer kikényszeríti a hangerőt, és a hangerő gombok nem is a beszéd csatornájára voltak kötve. Mostantól a gombok mindig a beszédet halkítják. JAVÍTVA: a zenelejátszó eddig legfeljebb háromszáz számot látott, most már mindet. JAVÍTVA: a könyvek törlése. A hangoskönyv egy mappa, a médiatárból származó könyv pedig nem fájl, és a program mindkettőt sima fájlként próbálta törölni: az egyiknél hibát mondott, a másiknál azt mondta, törölve, de a könyv ott maradt. Ugyanaz a könyv kétszer is szerepelhetett a listában. Mostantól a program a bejegyzés fajtájának megfelelően töröl, és ellenőrzi, hogy tényleg eltűnt-e. Használat csak tartalék készüléken egyelőre, vagy saját felelősségre!"
+}

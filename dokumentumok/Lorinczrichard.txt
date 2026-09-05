@@ -1,0 +1,172 @@
+Tisztelt Lőrincz Richárd Úr!
+
+Engedje meg, hogy mindenekelőtt megköszönjem a hangfelvételt. Ritkán kap
+az ember ilyen jelentést: Ön nem csupán azt közölte, hogy „nem működik",
+hanem végigvezetett a teljes folyamaton, lépésről lépésre, megnevezve
+minden egyes tételt, és külön jelezte azt is, ami MŰKÖDÖTT. Ez utóbbi
+legalább olyan értékes, mint a hibalista, mert éppen ez határolta be, hol
+kell keresni az okot. A készülék pontos megnevezése, a rendszerverzió, a
+One UI változat és a biztonsági frissítés dátuma nélkül a felvétel fele
+ennyit érne. Köszönöm.
+
+Az alábbiakban összefoglalom, mi derült ki az anyagából, mit javítottunk
+már ki, és miben kérnénk a további segítségét.
+
+
+1. A HANGERŐ — VALÓDI HIBA VOLT, MEGVAN AZ OKA, JAVÍTVA
+------------------------------------------------------------------------
+Az Ön észrevétele („a SuperDL üvölt, és hiába nyomom a hangerő le
+gombot") a felvétel legértékesebb része volt, mert erre eddig nem volt
+magyarázatunk. Két, egymástól független ok játszott össze:
+
+a) A beszéd hangtulajdonságain rajta volt a FLAG_AUDIBILITY_ENFORCED
+   jelző. Ez a jelző arra való, hogy a rendszer kikényszerítse a hang
+   hallhatóságát — eredetileg a fényképezőgép zárhangjához, amelyet
+   egyes joghatóságokban nem szabad elnémítani. Amíg ez a jelző rajta
+   volt, a beszéd a rendszer által kikényszerített szinten szólalt meg,
+   és a felhasználói hangerő-szabályozás egyszerűen nem hatott rá.
+
+b) Az alkalmazás sehol nem állította be a volumeControlStream értékét.
+   Enélkül az Android alapértelmezése érvényesül: amennyiben éppen nem
+   szól hang, a hardveres hangerőgombok a csengőhang csatornáját
+   szabályozzák. Ez magyarázza a jelenséget, hogy Ön a halkítást
+   nyomkodta, a rendszer pedig a kisegítő, illetve a média csatorna
+   hangerejéről adott visszajelzést — a beszéd hangereje viszont
+   változatlan maradt.
+
+Mindkettőt kijavítottuk. A jelző lekerült, és a program mostantól az
+onCreate és az onResume életciklus-pontban egyaránt a beszéd tényleges
+csatornájára köti a hangerőgombokat, tehát akkor is helyesen viselkedik,
+ha Ön időközben a beállításokban átváltja a beszédcsatornát. A javítás a
+következő kiadásban jelenik meg.
+
+
+2. A BERAGADÓ BEÁLLÍTÁSI VARÁZSLÓ — ISMERT HIBA, MÁR JAVÍTVA
+------------------------------------------------------------------------
+Igen fontos körülmény, hogy Ön az 1.60.0 változatot vizsgálta. Az ebben
+tapasztalt zsákutcát egy nappal az Ön felvétele előtt sikerült
+azonosítanunk és javítanunk.
+
+Az ok a következő volt: a szerepkör-kéréseket (RoleManager
+createRequestRoleIntent) egyszerű startActivity hívással indítottuk,
+holott ezeket kötelező eredményre indítani. A rendszer szerepkérő
+ablaka a hívó azonosítóját a getCallingPackage() értékéből olvassa ki,
+amely kizárólag startActivityForResult esetén van kitöltve; enélkül
+null, és az ablak némán, hibaüzenet nélkül bezárja önmagát. Pontosan ezt
+látta Ön: a program bemondja, hogy „beállítás varázsló, várakozás", és
+onnantól semmi nem történik.
+
+Ez magyarázza azt is, amit Ön helyesen elkülönített: az értesítés-
+hozzáférés, az összes fájl kezelése, a billentyűzet-lista és a kisegítő
+szolgáltatások képernyője MEGNYÍLT Önnél, mert azok közönséges
+beállítás-oldalak. Nem nyílt meg ellenben az alapértelmezett üzenet
+alkalmazás, az alapértelmezett telefon alkalmazás, a hívásszűrő és a
+korlátlan háttérfutás — vagyis kizárólag a párbeszéd jellegű kérések.
+Ez a szétválás igazolta a diagnózist.
+
+A javítás három részből áll:
+ - minden ilyen kérés eredményre indul, tehát az ablak megjelenik;
+ - visszatéréskor a program magától újramér, és a lista ott nyílik ki,
+   ahol Ön abbahagyta;
+ - két sikertelen próbálkozás után az ALAPVETŐ tétel is kihagyhatóvá
+   válik balra söpréssel, és a program kimondja, mit veszít vele és hol
+   pótolhatja. Az Ön mondata — „ez alapvető engedély, és kihagyni sem
+   lehet" — pontosan azt a helyzetet írta le, amelyre ezt a kiutat
+   megépítettük.
+
+Tisztelettel kérjük tehát, hogy frissítsen az 1.61.0 változatra, és a
+mérést ugyanezen a készüléken, lehetőleg friss telepítésből, szíveskedjék
+megismételni.
+
+
+3. AMIBEN A SEGÍTSÉGÉT KÉRJÜK — KÉT NYITOTT KÉRDÉS
+------------------------------------------------------------------------
+A felvételéből két olyan jelenség derült ki, amelyet a rendelkezésünkre
+álló készülékeken nem tudunk reprodukálni, és amely az 1.61.0 javításain
+kívül esik.
+
+3.1. Az SMS-szerepkör felismerése
+
+Ön beszámolt arról, hogy miután a rendszer beállításaiban a SuperDL-t
+állította be alapértelmezett üzenetkezelőnek, a program ezt továbbra sem
+vette észre — miközben a telefon-szerepkört ugyanígy beállítva
+érzékelte. A program a szabályos Telephony.Sms.getDefaultSmsPackage()
+hívást használja, tehát ennek elvben helyesen kellene működnie.
+
+Két magyarázat maradt életben: vagy az 1.60.0 elavult állapotlistája
+okozta (ezt az 1.61.0 újramérése önmagában megszünteti), vagy a One UI
+nem fogadja el a SuperDL-t érvényes SMS-alkalmazásnak, és a beállítás
+némán visszaáll. Kérjük, az 1.61.0-val szíveskedjék megfigyelni:
+ - a rendszer beállításaiban a SuperDL beállítása után, oda visszatérve
+   MEGMARAD-e a SuperDL mint alapértelmezett üzenetkezelő;
+ - a SuperDL-be visszatérve a varázsló megadottnak látja-e a tételt.
+
+3.2. A képernyőolvasó érintés-kezelése — ez a súlyosabbik
+
+Ön azt jelezte, hogy a SuperDL képernyőolvasója be van kapcsolva, a
+másik kisegítő szolgáltatásunk (a PIN segítő) működik, a képernyőolvasó
+azonban nem: egyetlen érintés azonnal aktivál, felfedezés nélkül, és az
+ujj húzogatására nincs visszajelzés.
+
+Ez a jelenség eddig ismeretlen volt előttünk, és ez a legsúlyosabb a
+felvételen szereplő tételek közül, mert egy képernyőolvasó, amely a
+telefon többi alkalmazásán nem működik, a program lényegét veszi el.
+
+A háttér: a szolgáltatás az érintés-kezelést szándékosan nem a
+konfigurációs XML-ben kapcsolja be, hanem futásidőben kéri, és kizárólag
+akkor, amikor idegen alkalmazás van előtérben — így a SuperDL saját
+felületén és kikapcsolt állapotban semmit nem változtat a készülék
+megszokott működésén. A kérdés tehát az, hogy ez a futásidejű kapcsolás
+meg sem történt-e, vagy megtörtént, és a rendszer nem fogadta el.
+
+Amennyiben módjában áll, ezt egyetlen naplórészlet eldönti. A
+szolgáltatás minden váltást naplóz. Számítógépről, engedélyezett USB-s
+hibakeresés mellett:
+
+    adb logcat -s SDL_SCREENREADER
+
+Ezt elindítva, majd a SuperDL-ből egy másik alkalmazásba átlépve a napló
+egy „erintes-kezeles BE" vagy „erintes-kezeles KI" bejegyzést kell
+tartalmazzon. Amennyiben ilyen sor egyáltalán nem jelenik meg, az
+előtér-felismerésünk hibás; amennyiben megjelenik, de a viselkedés
+mégsem változik, a One UI utasítja el a kérést. A kettő gyökeresen
+eltérő javítást igényel, ezért volna számunkra rendkívül értékes.
+
+Ha a naplózás nem megoldható, az is nagy segítség, ha megfigyeli, hogy a
+jelenség kizárólag a rendszer főképernyőjén áll-e fenn, vagy más
+alkalmazásokban (például a Beállításokban) is.
+
+
+4. ÖSSZEFOGLALVA, AMIT KÉRÜNK
+------------------------------------------------------------------------
+ 1. Frissítés az 1.61.0 változatra, lehetőleg friss telepítéssel.
+ 2. A beállítási varázsló végigvitele, és annak visszajelzése, hogy az
+    alapértelmezett telefon- és üzenetalkalmazás, a hívásszűrő, valamint
+    a korlátlan háttérfutás rendszerablaka MEGJELENIK-E.
+ 3. Az SMS-szerepkör felismerésének ellenőrzése a 3.1. pont szerint.
+ 4. A képernyőolvasó érintés-kezelésének megfigyelése, lehetőség szerint
+    a 3.2. pontban leírt naplórészlettel.
+
+A hangerő javítására nem szükséges külön visszajelzés: az ok bizonyított
+és orvosolva van.
+
+
+5. EGY FONTOS FIGYELMEZTETÉS
+------------------------------------------------------------------------
+Külön szeretném megköszönni, hogy a mérést tartalék készüléken végezte.
+Nyomatékosan kérjük, hogy ezt a jövőben is így tegye, és ugyanezt
+tolmácsolja mindenkinek, aki a programot kipróbálná.
+
+Megtiszteltetés ilyen színvonalú visszajelzést kapni. Amennyiben a
+fentiekkel kapcsolatban bármilyen kérdése merül fel, vagy újabb
+rendellenességet észlel, kérem, keressen bizalommal.
+
+Munkájához további sok sikert kívánok, és köszönöm a ránk fordított
+idejét.
+
+Tisztelettel:
+
+Kőrösmezey Dávid Richárd
+SuperDL
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

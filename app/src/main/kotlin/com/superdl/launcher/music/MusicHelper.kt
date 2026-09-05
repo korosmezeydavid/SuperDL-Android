@@ -13,8 +13,15 @@ object MusicHelper {
      * Ha vannak zenék a "music" nevű mappákban (pl. /storage/.../Music vagy a
      * kártyán), azok kerülnek előre – a felhasználó a saját gyűjteményét
      * várja legelöl. A cím szerint, ékezet-érzéketlenül rendezve.
+     *
+     * NINCS DARABSZÁM-KORLÁT. Korábban 300 volt az alapérték, és a vágás a
+     * RENDEZETT lekérdezés elején történt: akinek nyolcszáz száma volt, annak
+     * a lejátszó némán csak az ábécé első háromszázát mutatta. A hiányzó
+     * számokról semmilyen visszajelzés nem volt — a felhasználó azt hitte,
+     * a telefon nem találja a zenéit. A paraméter megmaradt (hívható kisebb
+     * értékkel), de az alapérték mostantól korlátlan.
      */
-    fun getTracks(context: Context, limit: Int = 300): List<MusicTrack> {
+    fun getTracks(context: Context, limit: Int = Int.MAX_VALUE): List<MusicTrack> {
         val all = mutableListOf<Pair<MusicTrack, String>>() // track + relatív útvonal (rendezéshez)
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(

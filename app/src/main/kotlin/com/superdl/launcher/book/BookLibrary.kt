@@ -93,10 +93,12 @@ object BookLibrary {
 
     private fun scanMediaStore(context: Context, found: LinkedHashMap<String, BookEntry>) {
         val resolver = context.contentResolver
+        @Suppress("DEPRECATION")
         val projection = arrayOf(
             MediaStore.Files.FileColumns._ID,
             MediaStore.Files.FileColumns.DISPLAY_NAME,
-            MediaStore.Files.FileColumns.SIZE
+            MediaStore.Files.FileColumns.SIZE,
+            MediaStore.Files.FileColumns.DATA
         )
         val selection = buildString {
             append("(")
@@ -117,6 +119,8 @@ object BookLibrary {
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
             val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+            @Suppress("DEPRECATION")
+            val dataCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val name = cursor.getString(nameCol) ?: continue
@@ -125,11 +129,20 @@ object BookLibrary {
                 val path = uri.toString()
                 val ext = name.substringAfterLast('.', "").lowercase()
                 if (ext !in BookTextExtractor.SUPPORTED_EXTENSIONS) continue
+                val real = if (dataCol >= 0) cursor.getString(dataCol)?.takeIf { it.isNotBlank() } else null
+                // KETTŐZŐDÉS ELLEN: ha ugyanezt a fájlt a mappa-bejárás már
+                // megtalálta, NEM vesszük fel másodszor. Eddig minden ilyen
+                // könyv KÉTSZER szerepelt a listában (egyszer fájlként,
+                // egyszer médiatár-azonosítóként), és a törlés csak az egyik
+                // példányt tüntette el — kívülről ez úgy látszott, mintha a
+                // törlés nem működne.
+                if (real != null && found.containsKey(real)) continue
                 found[path] = BookEntry(
                     path = path,
                     title = name.substringBeforeLast('.'),
                     format = ext,
-                    sizeBytes = size
+                    sizeBytes = size,
+                    realPath = real
                 )
             }
         }
@@ -142,6 +155,61 @@ object BookLibrary {
             format = file.extension.lowercase(),
             sizeBytes = file.length()
         )
+    }
+
+    /**
+     * EGY KÖNYV VÉGLEGES TÖRLÉSE.
+     *
+     * A könyvtár háromféle bejegyzést tartalmaz, és mindhármat máshogy kell
+     * törölni. Korábban a program mindegyiket egyszerű fájlként próbálta, és
+     * ezért a törlés a könyveknél — és CSAK a könyveknél — elhasalt:
+     *
+     *  1. Sima fájl: `File.delete()`. Ez működött.
+     *  2. HANGOSKÖNYV: a `path` egy MAPPA. A `File.delete()` nem üres mappán
+     *     mindig hamisat ad — a program pedig fájlhozzáférés hiányára
+     *     panaszkodott, holott az engedéllyel semmi baj nem volt.
+     *  3. MÉDIATÁRAS bejegyzés (`content://media/...`): fájlként megnyitva ez
+     *     nem létező útvonal. A régi kód a „nem is létezik, tehát rendben"
+     *     ágra futott, KIMONDTA hogy törölve, és a könyv a következő
+     *     listázásnál újra ott volt.
+     *
+     * A visszatérési érték csak akkor igaz, ha a törlés TÉNYLEG megtörtént.
+     */
+    fun deleteBook(context: Context, entry: BookEntry): Boolean {
+        var deleted = false
+        val fsPath = entry.realPath ?: entry.path.takeUnless { it.startsWith("content://") }
+
+        if (fsPath != null) {
+            val target = File(fsPath)
+            deleted = try {
+                when {
+                    !target.exists() -> true          // már nincs meg: a cél teljesült
+                    target.isDirectory -> target.deleteRecursively() && !target.exists()
+                    else -> target.delete() && !target.exists()
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        if (entry.path.startsWith("content://")) {
+            val removed = try {
+                context.contentResolver.delete(android.net.Uri.parse(entry.path), null, null) > 0
+            } catch (_: Exception) {
+                false
+            }
+            deleted = deleted || removed
+        }
+
+        // A médiatár tudjon róla, hogy a fájl megszűnt — különben a könyv
+        // kísértetként ott marad a listában.
+        if (deleted && fsPath != null) {
+            try {
+                android.media.MediaScannerConnection.scanFile(context, arrayOf(fsPath), null, null)
+            } catch (_: Exception) {
+            }
+        }
+        return deleted
     }
 
     fun openInputStream(context: Context, entry: BookEntry): InputStream? {

@@ -729,6 +729,18 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        // A HANGERŐ-GOMBOK A BESZÉDET ÁLLÍTSÁK.
+        //
+        // Enélkül az Android alapértelmezése lép életbe: ha éppen nem szól
+        // hang, a gombok a CSENGŐHANG hangerejét állítják. A felhasználó
+        // nyomkodja a halkítást, a képernyőolvasó meg ugyanolyan hangos
+        // marad. Tesztelői jelzés alapján javítva.
+        //
+        // A pontos csatornát a beszéd beállítása dönti el (kisegítő vagy
+        // média), ezért a `speechStream()`-től kérdezzük meg. A TTS itt még
+        // nincs kész, ezért az onResume-ban is beállítjuk.
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -5242,10 +5254,13 @@ class MainActivity : AppCompatActivity() {
                 "mit kapsz vele. ${SetupRequirements.speakSummary(this)} " +
                 "Söpörj jobbra a megadáshoz, fel-le a tételek között. " +
                 "Amit most nem akarsz megadni, azt balra söpréssel későbbre hagyhatod — " +
-                "az alapvetőket kivéve, azok nélkül a telefon nem tudja a dolgát."
+                "az alapvetőket kivéve, azok nélkül a telefon nem tudja a dolgát. " +
+                "A lista legvégén van egy hibajelentés tétel: ha valamelyik lépés " +
+                "nem akar menni, azzal elküldheted nekünk, mi akadt el."
         } else {
             "Beállítás varázsló. ${SetupRequirements.speakSummary(this)} " +
-                "Söpörj fel-le a tételek között, jobbra a megadáshoz, balra a kilépéshez."
+                "Söpörj fel-le a tételek között, jobbra a megadáshoz, balra a kilépéshez. " +
+                "A lista legvégén hibajelentést küldhetsz, ha valami nem akar menni."
         }
         tts.speak("$intro ${first.index1Of(missing)} ${first.speakDetail()}")
     }
@@ -5275,6 +5290,14 @@ class MainActivity : AppCompatActivity() {
      * miért nem, és a listán maradunk.
      */
     private fun skipSetupRequirement(flow: AppFlow.SetupWizardBrowse) {
+        if (isSetupReportItem(flow)) {
+            // A hibajelentés nem beállítás — nincs mit későbbre hagyni rajta.
+            tts.speak(
+                "Ez nem beállítás, hanem hibajelentés. Söpörj jobbra a küldéshez, " +
+                    "vagy fel-le a beállításokhoz."
+            )
+            return
+        }
         val req = flow.requirements.getOrNull(flow.index) ?: return
         val attempts = setupAttempts[req.id] ?: 0
         if (req.severity == SetupRequirements.Severity.ESSENTIAL && attempts < 2) {
@@ -5442,16 +5465,49 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * A VARÁZSLÓ UTOLSÓ TÉTELE MINDIG A HIBAJELENTÉS.
+     *
+     * MIÉRT: 2026-09-05, tesztelői felvétel. Aki elakad a varázslóban, az
+     * pontosan abban a helyzetben van, amikor a legkevésbé tud segítséget
+     * kérni — és amikor nekünk a legjobban kellene a napló. „Nem megy" nekünk
+     * nem információ; azt kell látnunk, MIÉRT nem megy: megnyílt-e egyáltalán
+     * a rendszer ablaka, feloldható-e a szándék, ki birtokolja a szerepkört,
+     * áruházon kívülről lett-e telepítve a program.
+     *
+     * Ezért a lista végén — nem külön gesztussal, nem rejtett menüben, hanem
+     * a megszokott fel-le lépkedéssel elérhetően — mindig ott van ez a tétel.
+     */
+    private val setupReportTitle = "Nem megy tovább? Hibajelentés küldése"
+
+    /** A virtuális hibajelentés-tételen állunk-e. */
+    private fun isSetupReportItem(flow: AppFlow.SetupWizardBrowse): Boolean =
+        flow.index >= flow.requirements.size
+
+    private fun setupReportSpeak(): String =
+        "$setupReportTitle. Elküldi nekünk, mi akadt el ezen a telefonon, hogy " +
+            "meg tudjuk javítani. Söpörj jobbra a küldéshez."
+
     private fun navigateSetupWizard(flow: AppFlow.SetupWizardBrowse, delta: Int) {
         if (flow.requirements.isEmpty()) return
-        val next = (flow.index + delta + flow.requirements.size) % flow.requirements.size
+        // A lista egy tétellel hosszabb: a végén a hibajelentés áll.
+        val size = flow.requirements.size + 1
+        val next = (flow.index + delta + size) % size
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
+        if (next >= flow.requirements.size) {
+            tts.speak("$size / $size. ${setupReportSpeak()}")
+            return
+        }
         val req = flow.requirements[next]
         tts.speak("${req.index1Of(flow.requirements, next)} ${req.speakDetail()}")
     }
 
     private fun repeatSetupWizard(flow: AppFlow.SetupWizardBrowse) {
+        if (isSetupReportItem(flow)) {
+            tts.speak(setupReportSpeak())
+            return
+        }
         val req = flow.requirements.getOrNull(flow.index) ?: return
         tts.speak("${req.index1Of(flow.requirements, flow.index)} ${req.speakDetail()}")
     }
@@ -5464,6 +5520,10 @@ class MainActivity : AppCompatActivity() {
      *  - ROLE / SYSTEM_SCREEN: másik Activity nyílik meg, oda csak elnavigálni tudunk
      */
     private fun activateSetupRequirement(flow: AppFlow.SetupWizardBrowse) {
+        if (isSetupReportItem(flow)) {
+            startSetupBugReport(flow.firstRun)
+            return
+        }
         val req = flow.requirements.getOrNull(flow.index) ?: return
 
         if (req.kind == SetupRequirements.RequestKind.RUNTIME) {
@@ -5619,7 +5679,9 @@ class MainActivity : AppCompatActivity() {
         val restricted = req.id in setOf(
             "screen_reader", "pin_helper", "notification_listener", "overlay"
         )
-        val kiut = "Ha nem sikerül, söpörj balra: kihagyhatod, és később pótolhatod."
+        val kiut = "Ha nem sikerül, söpörj balra: kihagyhatod, és később pótolhatod. " +
+            "A lista legvégén pedig hibajelentést küldhetsz nekünk arról, hogy itt " +
+            "elakadtál — abból pontosan látjuk, mi nem engedte."
         return when {
             restricted ->
                 "${req.title}: még mindig hiányzik. Ha a kapcsoló nem engedett, ez a " +
@@ -6640,7 +6702,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * HA VISSZA KELL TÉRNI A VARÁZSLÓBA a küldés után.
+     *
+     * Aki a varázslóból jelent hibát, azt nem szabad a főmenübe kitenni: még
+     * mindig ott áll a félbehagyott beállítással, és pont az az állapot,
+     * amiért segítséget kért.
+     */
+    private var setupReportReturn = false
+    private var setupReportFirstRun = false
+
+    /**
+     * HIBAJELENTÉS A BEÁLLÍTÁS VARÁZSLÓBÓL.
+     *
+     * A különbség a rendes hibajelentéshez képest: NEM kérünk diktálást.
+     * Aki itt elakadt, annak épp az a baja, hogy a telefon nem engedelmeskedik
+     * — nem kell még egy akadály. A leírást a program adja, a lényeget pedig
+     * a részletes varázsló-napló hordozza.
+     */
+    private fun startSetupBugReport(firstRun: Boolean) {
+        setupReportReturn = true
+        setupReportFirstRun = firstRun
+        val base = com.superdl.launcher.report.BugReport.build(
+            this,
+            "A BEÁLLÍTÁS VARÁZSLÓBAN AKADTAM EL. A felhasználó a varázsló " +
+                "listájából küldte ezt a jelentést."
+        )
+        val details = try {
+            com.superdl.launcher.setup.SetupDiagnostics.build(this, setupAttempts)
+        } catch (e: Exception) {
+            "A varázsló naplója nem készült el: ${e.javaClass.simpleName}"
+        }
+        activeFlow = AppFlow.BugReportSend("$base\n\n$details", 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Hibajelentés a beállításokról. Összeállítottam, mi akadt el ezen a " +
+                "telefonon: melyik beállítás hiányzik, hányszor próbáltad, és hogy " +
+                "a rendszer megnyitotta-e egyáltalán a kért képernyőt. " +
+                "Személyes adat nincs benne. Hogyan küldjük el? " +
+                "Fel-le választás, jobbra küldés, balra mégse."
+        )
+        tts.speakAdd(bugReportOptions[0])
+    }
+
     private fun buildBugReport(description: String) {
+        setupReportReturn = false
         val report = com.superdl.launcher.report.BugReport.build(this, description)
         activeFlow = AppFlow.BugReportSend(report, 0)
         updateFlowDisplay()
@@ -6661,39 +6767,41 @@ class MainActivity : AppCompatActivity() {
     private fun confirmBugReport(flow: AppFlow.BugReportSend) {
         val sender = com.superdl.launcher.report.BugReportSender
         val subject = com.superdl.launcher.report.BugReport.subject(this)
-        when (flow.index) {
+        val message = when (flow.index) {
             0 -> {
                 if (sender.sendWithMailApp(this, flow.report, subject)) {
-                    exitFlow("Megnyitottam a levelezőt. A levél kész, csak küldd el.")
+                    "Megnyitottam a levelezőt. A levél kész, csak küldd el."
                 } else {
                     // Ha nincs levelező, NE hagyjuk a felhasználót üres kézzel:
                     // mentjük, és megmondjuk, hol van.
                     val file = sender.saveToFile(this, flow.report)
-                    exitFlow(
-                        if (file != null)
-                            "Nincs levelező a telefonon, ezért elmentettem. " +
-                                "A WiFi portálról letöltheted."
-                        else "Nem sikerült elküldeni. Próbáld a mentést."
-                    )
+                    if (file != null)
+                        "Nincs levelező a telefonon, ezért elmentettem. " +
+                            "A WiFi portálról letöltheted."
+                    else "Nem sikerült elküldeni. Próbáld a mentést."
                 }
             }
             1 -> {
-                if (sender.share(this, flow.report, subject)) {
-                    exitFlow("Válaszd ki, mivel küldöd el.")
-                } else {
-                    exitFlow("Nem sikerült megnyitni a küldést.")
-                }
+                if (sender.share(this, flow.report, subject)) "Válaszd ki, mivel küldöd el."
+                else "Nem sikerült megnyitni a küldést."
             }
             else -> {
                 val file = sender.saveToFile(this, flow.report)
-                exitFlow(
-                    if (file != null)
-                        "Elmentve. A WiFi portálról letöltheted, a Dokumentumok " +
-                            "mappa hibajelentések almappájából."
-                    else "A mentés nem sikerült."
-                )
+                if (file != null)
+                    "Elmentve. A WiFi portálról letöltheted, a Dokumentumok " +
+                        "mappa hibajelentések almappájából."
+                else "A mentés nem sikerült."
             }
         }
+        // A VARÁZSLÓBÓL JÖTT JELENTÉS UTÁN A VARÁZSLÓBA TÉRÜNK VISSZA.
+        // A visszajelzés és a lista bemondása EGYETLEN mondat (a prefix
+        // paraméterrel), különben a második elvágná az elsőt.
+        if (setupReportReturn) {
+            setupReportReturn = false
+            returnToSetupWizard(setupReportFirstRun, prefix = message)
+            return
+        }
+        exitFlow(message)
     }
 
     /** A könyvolvasó saját hangja, ha a felhasználó ilyet kért. */
@@ -15965,9 +16073,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun repeatBookDeleteConfirm(book: BookEntry) {
+        // Hangoskönyvnél egy egész MAPPA tűnik el, több hangfájllal. Ezt ki
+        // kell mondani, mert a „fájl" szó itt félrevezetne.
+        val what = if (book.format == com.superdl.launcher.book.AudiobookLibrary.FORMAT)
+            "A teljes mappa a benne lévő hangfájlokkal eltűnik a telefonról."
+        else
+            "A fájl eltűnik a telefonról."
         tts.speak(
             "Véglegesen törlöd ezt a könyvet? ${book.title}. " +
-                "A fájl eltűnik a telefonról. Söpörj jobbra a törléshez, balra a mégséhez."
+                "$what Söpörj jobbra a törléshez, balra a mégséhez."
         )
     }
 
@@ -15978,22 +16092,20 @@ class MainActivity : AppCompatActivity() {
      */
     private fun deleteBookFile(flow: AppFlow.BookDeleteConfirm) {
         val book = flow.book
-        val file = java.io.File(book.path)
-        val ok = try {
-            !file.exists() || file.delete()
-        } catch (_: Exception) {
-            false
-        }
+        // A törlést a BookLibrary végzi: az tudja, hogy a bejegyzés sima
+        // fájl, hangoskönyv-MAPPA vagy médiatár-azonosító. A médiatár
+        // értesítése is ott történik, a valódi útvonallal.
+        val ok = BookLibrary.deleteBook(this, book)
         if (!ok) {
-            tts.speak("Nem sikerült törölni. Lehet, hogy hiányzik a teljes fájlhozzáférés.")
+            tts.speak(
+                if (book.format == com.superdl.launcher.book.AudiobookLibrary.FORMAT)
+                    "Nem sikerült törölni a hangoskönyv mappáját. Lehet, hogy éppen használatban van."
+                else
+                    "Nem sikerült törölni. Lehet, hogy hiányzik a teljes fájlhozzáférés."
+            )
             return
         }
         BookStore.forgetBook(this, book.path)
-        // A médiatár is tudjon róla, hogy a fájl megszűnt.
-        try {
-            android.media.MediaScannerConnection.scanFile(this, arrayOf(book.path), null, null)
-        } catch (_: Exception) {
-        }
 
         val remaining = flow.books.filter { it.path != book.path }
         if (remaining.isEmpty()) {
@@ -16949,13 +17061,14 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.SetupWizardBrowse -> {
                 val req = flow.requirements.getOrNull(flow.index)
-                tvItem.text = req?.title.orEmpty()
-                tvPosition.text = "Beállítás varázsló  •  ${flow.index + 1} / ${flow.requirements.size}" +
-                    (req?.let { "  •  ${it.severityLabel()}" } ?: "")
-                tvHint.text = if (flow.firstRun) {
-                    "⬆⬇ választás  •  ➡ megadás  •  ⬅ későbbre"
-                } else {
-                    "⬆⬇ választás  •  ➡ megadás  •  ⬅ kilépés"
+                val total = flow.requirements.size + 1
+                tvItem.text = req?.title ?: setupReportTitle
+                tvPosition.text = "Beállítás varázsló  •  ${flow.index + 1} / $total" +
+                    (req?.let { "  •  ${it.severityLabel()}" } ?: "  •  segítségkérés")
+                tvHint.text = when {
+                    req == null -> "➡ jelentés küldése  •  ⬆⬇ vissza a listához"
+                    flow.firstRun -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ későbbre"
+                    else -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ kilépés"
                 }
             }
             is AppFlow.SetupWizardAwaitReturn -> {
@@ -18356,6 +18469,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
         isForeground = true
+        // A hangerő-gombok a beszéd csatornáját állítsák. Azért ITT is (nem
+        // csak az onCreate-ben), mert a felhasználó közben átválthatta a
+        // beszéd csatornáját a beállításokban.
+        volumeControlStream = try {
+            tts.speechStream()
+        } catch (_: Exception) {
+            android.media.AudioManager.STREAM_MUSIC
+        }
         // A telepített bővítmények változhattak (telepítés, eltávolítás), ezért
         // visszatéréskor újraépítjük a menüt.
         refreshMenuWithModules()

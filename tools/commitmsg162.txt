@@ -1,0 +1,19 @@
+1.62.0 - Hibajelentes a varazslobol, halkithato beszed, korlatlan zenetar
+
+- Beallitas varazslo: a lista vegen uj, virtualis tetel - "Nem megy tovabb?
+  Hibajelentes kuldese". A jelentes tartalmazza az uj SetupDiagnostics naplot:
+  minden kovetelmeny allapota, probalkozas-szam, feloldhato-e a rendszer
+  szandeka az adott keszuleken, ki birtokolja a szerepkoroket, es hogy a
+  program aruhazon kivulrol lett-e telepitve. Kuldes utan visszater a
+  varazslohoz, nem a fomenube.
+- TtsManager: a FLAG_AUDIBILITY_ENFORCED lekerult a beszed hangjairol - ez
+  kenyszeritette ki a hangerot, ezert nem lehetett halkitani. Uj speechStream(),
+  es a MainActivity ezt koti a volumeControlStream-re (onCreate + onResume).
+- MusicHelper: a getTracks limit alapertelmezese 300-rol korlatlanra.
+- BookLibrary.deleteBook(): hangoskonyv-mappa, mediatar-bejegyzes es sima fajl
+  kulon kezelese, torles utani ellenorzessel. BookEntry.realPath. A
+  mediataras bejegyzes nem kerul be masodszor, ha a mappa-bejaras mar
+  megtalalta ugyanazt a fajlt.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

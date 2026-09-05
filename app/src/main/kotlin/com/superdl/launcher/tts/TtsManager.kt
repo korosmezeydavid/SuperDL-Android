@@ -588,26 +588,44 @@ class TtsManager(
             // használhatatlan telefont jelent.
             val useAccessibility = TtsSettingsStore.getSpeechChannel(appContext) ==
                 TtsSettingsStore.CHANNEL_ACCESSIBILITY
+            // A FLAG_AUDIBILITY_ENFORCED-OT SZÁNDÉKOSAN NEM HASZNÁLJUK.
+            //
+            // Ez a jelző arra való, hogy a rendszer KIKÉNYSZERÍTSE a hangot
+            // (eredetileg a fényképezőgép zárhangjához, ahol jogszabály
+            // követeli). Amíg rajta volt, a beszéd a rendszer által
+            // kikényszerített csatornán szólt: a felhasználó hangerő-gombja
+            // NEM hatott rá. Pontosan ezt jelentették a tesztelők — „a
+            // SuperDL üvölt, és hiába nyomom a hangerő le gombot".
+            //
+            // Egy képernyőolvasót muszáj lehalkítani tudni. Aki éjjel
+            // hallgatja, annak ez nem apróság.
             val attributes = AudioAttributes.Builder()
                 .setUsage(
                     if (useAccessibility) AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY
                     else AudioAttributes.USAGE_MEDIA
                 )
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build()
             tts.setAudioAttributes(attributes)
         }
     }
 
+    /**
+     * AZ A HANGCSATORNA, AMIN A BESZÉD SZÓL.
+     *
+     * Az activityk ezt adják át a `volumeControlStream`-nek, hogy a
+     * hangerő-gombok MINDIG a beszédet állítsák — akkor is, ha éppen nem
+     * szól semmi más. Enélkül a rendszer a csengőhang hangerejét
+     * állítgatta, a beszéd meg maradt, amilyen volt.
+     */
+    fun speechStream(): Int =
+        if (TtsSettingsStore.getSpeechChannel(appContext) == TtsSettingsStore.CHANNEL_ACCESSIBILITY)
+            AudioManager.STREAM_ACCESSIBILITY
+        else
+            AudioManager.STREAM_MUSIC
+
     private fun speakParams(): Bundle = Bundle().apply {
-        val useAccessibility = TtsSettingsStore.getSpeechChannel(appContext) ==
-            TtsSettingsStore.CHANNEL_ACCESSIBILITY
-        putInt(
-            TextToSpeech.Engine.KEY_PARAM_STREAM,
-            if (useAccessibility) AudioManager.STREAM_ACCESSIBILITY
-            else AudioManager.STREAM_MUSIC
-        )
+        putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, speechStream())
         putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
     }
 
