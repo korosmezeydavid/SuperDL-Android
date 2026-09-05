@@ -54,6 +54,18 @@ object AssistantRoleHelper {
         }
     }
 
+    /**
+     * A RÉSZSZÖVEG-KERESÉS ITT HAMIS POZITÍV VOLT (2026-09-05 után javítva).
+     *
+     * A fejlesztői változat csomagneve (`com.superdl.launcher.debug`) a
+     * kiadásiéval KEZDŐDIK, ezért egy `contains` a másik változat
+     * bejegyzésére is igazat adott: a kiadási változat úgy hitte, övé az
+     * asszisztens szerepkör, holott a fejlesztőié volt. Ugyanez a hiba
+     * jött ki az értesítés-hozzáférésnél az első éles varázsló-jelentésben.
+     *
+     * Ezért a csomagnevet PONTOSAN hasonlítjuk. A tárolt érték „csomag/osztály"
+     * alakú, de bare csomagnévre is helyesen működik.
+     */
     fun isVoiceInteractionServiceEnabled(context: Context): Boolean {
         val current = Settings.Secure.getString(
             context.contentResolver,
@@ -64,7 +76,7 @@ object AssistantRoleHelper {
         if (component != null) {
             return component.packageName == context.packageName
         }
-        return current.contains(context.packageName)
+        return current.substringBefore('/').trim() == context.packageName
     }
 
     fun speakStatus(context: Context): String = when {
@@ -121,8 +133,16 @@ object AssistantRoleHelper {
             roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT)
     }
 
+    /**
+     * Az „assistant" rendszerbeállítás a legtöbb Androidon NEM csomagnevet,
+     * hanem „csomag/osztály" alakú komponensnevet tárol — a régi, szó szerinti
+     * egyezés ezért gyakorlatilag soha nem talált. Ez hamis NEGATÍV volt: a
+     * varázsló hiányzónak mutatta a tételt olyan telefonon is, ahol meg volt
+     * adva. A csomagnevet leválasztjuk, és pontosan hasonlítjuk.
+     */
     private fun isAssistantPackageSet(context: Context): Boolean {
         val assistant = Settings.Secure.getString(context.contentResolver, ASSISTANT_SETTING).orEmpty()
-        return assistant == context.packageName
+        if (assistant.isBlank()) return false
+        return assistant.substringBefore('/').trim() == context.packageName
     }
 }

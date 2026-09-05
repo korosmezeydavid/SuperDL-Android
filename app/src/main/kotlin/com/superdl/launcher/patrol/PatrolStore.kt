@@ -18,6 +18,7 @@ object PatrolStore {
     private const val KEY_NIGHT_END = "patrol_night_end_minutes"
     private const val KEY_POWER_BUTTON_TIME = "patrol_power_button_time_enabled"
     private const val KEY_LAST_ALERTED = "battery_last_alerted_threshold"
+    private const val KEY_FIRST_ALERT = "battery_first_alert_percent"
 
     val TIME_INTERVALS = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
 
@@ -129,6 +130,32 @@ object PatrolStore {
     fun setPowerButtonTimeEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_POWER_BUTTON_TIME, enabled).apply()
+    }
+
+    /**
+     * AZ ELSŐ AKKU-FIGYELMEZTETÉS SZINTJE.
+     *
+     * Eddig fixen 20% volt, beégetve. Mostantól a felhasználó állítja; a
+     * program innen lefelé folytatja a kétszázalékos létrát.
+     */
+    fun getFirstAlertPercent(context: Context): Int {
+        val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_FIRST_ALERT, com.superdl.launcher.battery.BatteryPatrolLogic.DEFAULT_FIRST_ALERT)
+        return com.superdl.launcher.battery.BatteryPatrolLogic.FIRST_ALERT_LEVELS
+            .firstOrNull { it == stored }
+            ?: com.superdl.launcher.battery.BatteryPatrolLogic.DEFAULT_FIRST_ALERT
+    }
+
+    fun cycleFirstAlertPercent(context: Context): Int {
+        val levels = com.superdl.launcher.battery.BatteryPatrolLogic.FIRST_ALERT_LEVELS
+        val current = getFirstAlertPercent(context)
+        val index = levels.indexOf(current).let { if (it < 0) 0 else it }
+        val next = levels[(index + 1) % levels.size]
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putInt(KEY_FIRST_ALERT, next).apply()
+        // Új küszöbnél a régi „már szóltam" állapot félrevezető lenne.
+        resetAlertState(context)
+        return next
     }
 
     fun getLastAlertedThreshold(context: Context): Int =

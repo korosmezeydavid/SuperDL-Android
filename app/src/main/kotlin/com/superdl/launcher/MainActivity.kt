@@ -214,6 +214,7 @@ import com.superdl.launcher.feedback.SoundTheme
 import com.superdl.launcher.feedback.SoundThemeStore
 import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.feedback.ToggleAnnouncement
+import com.superdl.launcher.voicetheme.VoiceThemeStore
 import com.superdl.launcher.tools.FlashlightState
 import com.superdl.launcher.flow.AppFlow
 import com.superdl.launcher.gestures.SwipeGestureListener
@@ -1045,6 +1046,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, -1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, -1)
+            is AppFlow.VoiceThemeRecord -> onVoiceRecordRepeat(flow, down = false)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, -1)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1234,6 +1236,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, +1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, +1)
+            is AppFlow.VoiceThemeRecord -> onVoiceRecordRepeat(flow, down = true)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, +1)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1440,6 +1443,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationListBrowse -> onMedicationListActivate(flow)
             is AppFlow.MedicationDeleteConfirm -> deleteMedication(flow.reminder)
             is AppFlow.MedicationConfirm -> saveMedication(flow)
+            is AppFlow.VoiceThemeRecord -> onVoiceRecordActivate(flow)
             is AppFlow.SetupWizardBrowse -> activateSetupRequirement(flow)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1681,6 +1685,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationListBrowse -> exitFlow("Patika Őrangyal bezárva.")
             // ELSŐ INDÍTÁSKOR a balra söprés NEM kilépés, hanem "ezt későbbre
             // hagyom" — az alapvetőket kivéve, azokat nem lehet elhalasztani.
+            is AppFlow.VoiceThemeRecord -> onVoiceRecordBack(flow)
             is AppFlow.SetupWizardBrowse -> {
                 if (flow.firstRun) skipSetupRequirement(flow)
                 else exitFlow("Beállítás varázsló bezárva.")
@@ -1965,7 +1970,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.Hangman -> exitFlow("Akasztófa bezárva. A szó ez volt: ${flow.state.word}.")
             is AppFlow.BookEnginePick -> exitFlow("Hangválasztás megszakítva.")
             is AppFlow.RoleEnginePick -> exitFlow("Hangválasztás megszakítva.")
-            is AppFlow.BugReportSend -> exitFlow("Hibajelentés elvetve.")
+            is AppFlow.BugReportSend -> cancelBugReport()
             is AppFlow.SafeModeConfirm -> exitFlow("Marad a normál működés.")
             is AppFlow.AlarmSkipClearConfirm -> exitFlow("A kihagyások megmaradnak.")
             is AppFlow.StepsLive -> stopStepsLive()
@@ -3010,6 +3015,25 @@ class MainActivity : AppCompatActivity() {
             MenuAction.PATROL_NIGHT_START_SET -> startPatrolNightStartFlow()
             MenuAction.PATROL_NIGHT_END_SET -> startPatrolNightEndFlow()
             MenuAction.PATROL_POWER_BUTTON_TIME_TOGGLE -> togglePatrolPowerButtonTime()
+            MenuAction.VOICE_THEME_TOGGLE -> toggleVoiceTheme()
+            MenuAction.VOICE_THEME_TEST -> testVoiceTheme()
+            MenuAction.VOICE_THEME_STATUS ->
+                tts.speak(com.superdl.launcher.voicetheme.VoiceThemePlayer.speakStatus(this))
+            MenuAction.VOICE_THEME_PICK -> pickVoiceTheme()
+            MenuAction.VOICE_THEME_EVENT_BATTERY_LOW ->
+                toggleVoiceEvent(com.superdl.launcher.voicetheme.VoiceEvent.BATTERY_LOW)
+            MenuAction.VOICE_THEME_EVENT_BATTERY_FULL ->
+                toggleVoiceEvent(com.superdl.launcher.voicetheme.VoiceEvent.BATTERY_FULL)
+            MenuAction.VOICE_THEME_EVENT_CHARGER -> toggleVoiceChargerEvents()
+            MenuAction.VOICE_THEME_MORNING_TOGGLE -> toggleVoiceMorning()
+            MenuAction.VOICE_THEME_MORNING_TIME -> startVoiceMorningTimeFlow()
+            MenuAction.VOICE_THEME_MORNING_UNLOCK_TOGGLE -> toggleVoiceMorningUnlock()
+            MenuAction.VOICE_THEME_NIGHT_TOGGLE -> toggleVoiceNight()
+            MenuAction.VOICE_THEME_NIGHT_TIME -> startVoiceNightTimeFlow()
+            MenuAction.VOICE_THEME_DAILY_CAP -> cycleVoiceDailyCap()
+            MenuAction.VOICE_THEME_RECORD -> startVoiceThemeRecording()
+            MenuAction.VOICE_THEME_SHARE -> shareVoiceTheme()
+            MenuAction.BATTERY_FIRST_ALERT_CYCLE -> cycleBatteryFirstAlert()
             MenuAction.FLASHLIGHT -> toggleFlashlight()
             MenuAction.QR_SCAN -> {
                 tts.speak("Beépített Q R olvasó indítása.")
@@ -4769,6 +4793,20 @@ class MainActivity : AppCompatActivity() {
     /** Melyik követelményre vár a varázsló a rendszer engedély-kérdése alatt. */
     private var setupWizardPending: String? = null
 
+    /**
+     * HOL ÁLLT A LISTÁN, AMIKOR ELINDULT A KÉRÉS.
+     *
+     * MIÉRT KELL: ha a megadás SIKERÜL, a tétel kikerül a hiánylistából,
+     * tehát a nevével már nem lehet megtalálni a helyét — a program eddig
+     * ilyenkor a lista ELEJÉRE ugrott vissza. Aki a tizedik tételt adta meg,
+     * az az elsőnél találta magát, és onnan lépkedhetett vissza. Vakon ez a
+     * legfárasztóbb fajta hiba: nem hibaüzenet, csak elveszett hely.
+     *
+     * Ezzel a sikeres megadás után ott folytatjuk, ahol abbahagytuk: a
+     * megszűnt tétel helyére lépett következőn.
+     */
+    private var setupLastIndex: Int = 0
+
     private fun openAlarmTonePicker(alarm: AlarmEntry) {
         alarmToneEditId = alarm.id
         tts.speak("Hang választása ehhez: ${alarm.speakSummary()}. Söpörj fel-le a hangok között, jobbra a kiválasztáshoz.")
@@ -5246,6 +5284,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         activeFlow = AppFlow.SetupWizardBrowse(missing, 0, firstRun)
+        setupLastIndex = 0
         updateFlowDisplay()
         val first = missing.first()
         val intro = if (firstRun) {
@@ -5338,6 +5377,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val nextIndex = flow.index.coerceAtMost(remaining.size - 1)
+        setupLastIndex = nextIndex
         activeFlow = AppFlow.SetupWizardBrowse(remaining, nextIndex, flow.firstRun)
         updateFlowDisplay()
         val next = remaining[nextIndex]
@@ -5494,6 +5534,9 @@ class MainActivity : AppCompatActivity() {
         val size = flow.requirements.size + 1
         val next = (flow.index + delta + size) % size
         activeFlow = flow.copy(index = next)
+        // A böngészés közben is jegyezzük a helyet: ha innen indul a
+        // hibajelentés, utána ide kell visszatérni, nem a lista elejére.
+        setupLastIndex = next.coerceAtMost(flow.requirements.size - 1)
         updateFlowDisplay()
         if (next >= flow.requirements.size) {
             tts.speak("$size / $size. ${setupReportSpeak()}")
@@ -5525,6 +5568,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val req = flow.requirements.getOrNull(flow.index) ?: return
+        // Megjegyezzük a helyet: sikeres megadás után a tétel eltűnik a
+        // listáról, és csak innen tudjuk, hova kell visszatérni.
+        setupLastIndex = flow.index
 
         if (req.kind == SetupRequirements.RequestKind.RUNTIME) {
             if (req.permissions.isEmpty()) {
@@ -5654,7 +5700,16 @@ class MainActivity : AppCompatActivity() {
 
         // A LISTA OTT NYÍLJON KI, AHOL ABBAHAGYTUK. Ha visszaugranánk a lista
         // elejére, a felhasználó minden próbálkozás után elölről keresgélne.
-        val index = missing.indexOfFirst { it.id == attempted?.id }.coerceAtLeast(0)
+        // Ha a tétel még mindig hiányzik, a saját helyére állunk vissza.
+        // Ha viszont SIKERÜLT megadni, már nincs a listán — ilyenkor a
+        // megjegyzett pozíció a fogódzó, nem a lista eleje.
+        val found = missing.indexOfFirst { it.id == attempted?.id }
+        val index = if (found >= 0) {
+            found
+        } else {
+            setupLastIndex.coerceIn(0, missing.size - 1)
+        }
+        setupLastIndex = index
         activeFlow = AppFlow.SetupWizardBrowse(missing, index, firstRun)
         updateFlowDisplay()
         val current = missing[index]
@@ -6768,6 +6823,30 @@ class MainActivity : AppCompatActivity() {
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
         tts.speak(bugReportOptions[next])
+    }
+
+    /**
+     * A HIBAJELENTÉS ELVETÉSE — ÉS A ZSÁKUTCA, AMIT EZ OKOZOTT.
+     *
+     * A balra söprés eddig minden esetben a FŐMENÜBE lépett ki. Aki a
+     * beállítás varázslóból nyitotta meg a jelentést, és meggondolta magát,
+     * az így kikerült a varázslóból — pont abból a listából, amit még nem
+     * fejezett be, és amiért segítséget kért. Első indításnál ez ráadásul
+     * megkerülte a varázsló kapuját is.
+     *
+     * Ráadásul a `setupReportReturn` jelző bent ragadt bekapcsolva, és a
+     * KÖVETKEZŐ, menüből indított hibajelentés végén tévesen a varázslóba
+     * dobta volna vissza a felhasználót.
+     *
+     * Ezért az elvetés innentől ugyanoda tér vissza, ahonnan a jelentés indult.
+     */
+    private fun cancelBugReport() {
+        if (setupReportReturn) {
+            setupReportReturn = false
+            returnToSetupWizard(setupReportFirstRun, prefix = "Hibajelentés elvetve.")
+            return
+        }
+        exitFlow("Hibajelentés elvetve.")
     }
 
     private fun confirmBugReport(flow: AppFlow.BugReportSend) {
@@ -16709,6 +16788,577 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ── BESZÉDTÉMA ──────────────────────────────────────────────────────────
+
+    private fun toggleVoiceTheme() {
+        val label = "Beszédtéma"
+        val wasEnabled = VoiceThemeStore.isEnabled(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
+        val next = !wasEnabled
+        VoiceThemeStore.setEnabled(this, next)
+        // A köszönések ébresztőit a kapcsoló azonnal érvényesíti.
+        com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+        val extra = if (next) {
+            "Bekapcsolva. ${com.superdl.launcher.voicetheme.VoiceThemePlayer.speakStatus(this)}"
+        } else {
+            "Kikapcsolva. A program a szokásos mondatokat mondja."
+        }
+        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+    }
+
+    /**
+     * HANGOK KIPRÓBÁLÁSA — vakon ez az egyetlen mód ellenőrizni, hogy a fájl
+     * megérkezett-e a telefonra és szól-e. Sorban végigmegy az eseményeken,
+     * mindegyik előtt kimondja, melyik következik.
+     */
+    private fun testVoiceTheme() {
+        val events = com.superdl.launcher.voicetheme.VoiceEvent.entries.toList()
+        fun playFrom(index: Int) {
+            if (index >= events.size) {
+                tts.speak("A próba véget ért.")
+                return
+            }
+            val event = events[index]
+            val clip = com.superdl.launcher.voicetheme.VoiceThemePlayer.resolve(this, event)
+            val intro = if (clip != null) event.label else "${event.label}: nincs felvett hang"
+            tts.speakThen(intro) {
+                if (clip == null) {
+                    playFrom(index + 1)
+                } else {
+                    com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, clip) {
+                        mainHandler.postDelayed({ playFrom(index + 1) }, 300L)
+                    }
+                }
+            }
+        }
+        playFrom(0)
+    }
+
+    /**
+     * Váltás a témák között — a sajátok és a letöltöttek egy listában.
+     *
+     * Körbeforgatás, mert minden lépésnél kimondja a téma NEVÉT és hány hang
+     * van benne; néhány témánál ez gyorsabb, mint külön lista-képernyő.
+     */
+    private fun pickVoiceTheme() {
+        val themes = com.superdl.launcher.voicetheme.VoiceThemePlayer.installedThemes(this)
+        if (themes.isEmpty()) {
+            tts.speak(
+                "Még nincs egyetlen beszédtémád sem. Válaszd a Beszédtéma felvétele " +
+                    "pontot, és készíts egyet a saját hangoddal."
+            )
+            return
+        }
+        val current = VoiceThemeStore.getActiveTheme(this)
+        val index = themes.indexOf(current)
+        // A körben van egy „egyik sem" állapot is: ilyenkor a beépített
+        // mondatok szólnak, minden felvétel megmarad.
+        val next = if (index < 0 || index == themes.lastIndex) "" else themes[index + 1]
+        VoiceThemeStore.setActiveTheme(this, next)
+        if (next.isBlank()) {
+            tts.speak(
+                "Nincs aktív téma, a program a szokásos mondatokat mondja. " +
+                    "${themes.size} témád megmaradt, söpörj újra a választáshoz."
+            )
+            return
+        }
+        val name = VoiceThemeStore.getThemeName(this, next)
+        val count = com.superdl.launcher.voicetheme.VoiceThemePackage.clipCount(this, next)
+        tts.speak("Aktív beszédtéma: $name. $count hang. ${themes.size} téma közül.")
+    }
+
+    private fun toggleVoiceEvent(event: com.superdl.launcher.voicetheme.VoiceEvent) {
+        togglePatrolSetting(event.label, VoiceThemeStore.isEventEnabled(this, event)) { enabled ->
+            VoiceThemeStore.setEventEnabled(this, event, enabled)
+        }
+    }
+
+    /** A két töltő-esemény egy kapcsolón: együtt van értelmük. */
+    private fun toggleVoiceChargerEvents() {
+        val inEvent = com.superdl.launcher.voicetheme.VoiceEvent.CHARGER_IN
+        val outEvent = com.superdl.launcher.voicetheme.VoiceEvent.CHARGER_OUT_LOW
+        togglePatrolSetting("Töltő be- és kihúzva", VoiceThemeStore.isEventEnabled(this, inEvent)) { enabled ->
+            VoiceThemeStore.setEventEnabled(this, inEvent, enabled)
+            VoiceThemeStore.setEventEnabled(this, outEvent, enabled)
+        }
+    }
+
+    private fun toggleVoiceMorning() {
+        val label = "Jó reggelt köszönés"
+        val wasEnabled = VoiceThemeStore.isMorningEnabled(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
+        val next = !wasEnabled
+        VoiceThemeStore.setMorningEnabled(this, next)
+        com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+        val extra = if (next) {
+            if (VoiceThemeStore.isMorningOnUnlock(this)) {
+                "Bekapcsolva. ${VoiceThemeStore.speakClock(VoiceThemeStore.getMorningMinutes(this))} " +
+                    "után az első feloldáskor szólal meg."
+            } else {
+                "Bekapcsolva. ${VoiceThemeStore.speakClock(VoiceThemeStore.getMorningMinutes(this))}kor."
+            }
+        } else {
+            "Kikapcsolva."
+        }
+        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+    }
+
+    private fun toggleVoiceMorningUnlock() {
+        val label = "Jó reggelt csak feloldáskor"
+        val wasEnabled = VoiceThemeStore.isMorningOnUnlock(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
+        val next = !wasEnabled
+        VoiceThemeStore.setMorningOnUnlock(this, next)
+        com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+        val extra = if (next) {
+            "Bekapcsolva. A beállított idő után az első feloldáskor köszön, nem üres szobának."
+        } else {
+            "Kikapcsolva. Pontosan a beállított időpontban köszön."
+        }
+        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+    }
+
+    private fun toggleVoiceNight() {
+        val label = "Jó éjszakát köszönés"
+        val wasEnabled = VoiceThemeStore.isNightEnabled(this)
+        tts.speak(ToggleAnnouncement.speakBinaryToggle(label, wasEnabled))
+        val next = !wasEnabled
+        VoiceThemeStore.setNightEnabled(this, next)
+        com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+        val extra = if (next) {
+            "Bekapcsolva. ${VoiceThemeStore.speakClock(VoiceThemeStore.getNightMinutes(this))}kor. " +
+                "Az éjszakai csend ezt nem némítja el."
+        } else {
+            "Kikapcsolva."
+        }
+        tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
+    }
+
+    private fun startVoiceMorningTimeFlow() {
+        askVoiceThemeTime(
+            prompt = "Mondd, mikor köszönjek reggel. Például: hat óra harminc.",
+            apply = { minutes ->
+                VoiceThemeStore.setMorningMinutes(this, minutes)
+                com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+                "Jó reggelt időpontja: ${VoiceThemeStore.speakClock(minutes)}."
+            }
+        )
+    }
+
+    private fun startVoiceNightTimeFlow() {
+        askVoiceThemeTime(
+            prompt = "Mondd, mikor köszönjek este. Például: huszonkettő óra.",
+            apply = { minutes ->
+                VoiceThemeStore.setNightMinutes(this, minutes)
+                com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(this)
+                "Jó éjszakát időpontja: ${VoiceThemeStore.speakClock(minutes)}."
+            }
+        )
+    }
+
+    private fun askVoiceThemeTime(prompt: String, apply: (Int) -> String) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = prompt,
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val parsed = VoiceTimeParser.parse(spoken)
+                    if (parsed == null) {
+                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        return@listen
+                    }
+                    val message = apply(parsed.first * 60 + parsed.second)
+                    activeFlow = AppFlow.Menu
+                    updateDisplay()
+                    tts.speak(message)
+                },
+                onError = { exitFlow("Nem értettem az időpontot.") }
+            )
+        }
+    }
+
+    private fun cycleVoiceDailyCap() {
+        VoiceThemeStore.cycleDailyCap(this)
+        tts.speak(
+            "Napi keret: ${VoiceThemeStore.speakDailyCap(this)}. " +
+                "A merülés figyelmeztetése ebbe nem számít bele."
+        )
+    }
+
+    // ── BESZÉDTÉMA FELVÉTELE A TELEFONON ────────────────────────────────────
+    //
+    // MIÉRT EZ AZ EGÉSZ LÉNYEGE: a fájlos út (másold a mappába) vakon, gép
+    // nélkül nem járható. Attól lesz a funkció valóban használható, hogy
+    // bárki fel tudja venni a SAJÁT hangját a telefonon, egyedül.
+
+    private val voiceRecordEvents = com.superdl.launcher.voicetheme.VoiceEvent.entries.toList()
+
+    /** Mire való az esemény — a felvétel előtt ezt mondjuk el. */
+    private fun voiceEventHint(event: com.superdl.launcher.voicetheme.VoiceEvent): String =
+        when (event) {
+            com.superdl.launcher.voicetheme.VoiceEvent.BATTERY_LOW ->
+                "Ez szólal meg, amikor fogy az akkumulátor. Utána a program " +
+                    "mindig kimondja a százalékot is."
+            com.superdl.launcher.voicetheme.VoiceEvent.BATTERY_FULL ->
+                "Ez szólal meg, amikor a telefon feltöltődött."
+            com.superdl.launcher.voicetheme.VoiceEvent.CHARGER_IN ->
+                "Ez szólal meg, amikor bedugod a töltőt."
+            com.superdl.launcher.voicetheme.VoiceEvent.CHARGER_OUT_LOW ->
+                "Ez szólal meg, ha kihúzod a töltőt, de az akkumulátor még alacsony."
+            com.superdl.launcher.voicetheme.VoiceEvent.MORNING ->
+                "Ez a reggeli köszönés."
+            com.superdl.launcher.voicetheme.VoiceEvent.NIGHT ->
+                "Ez az esti köszönés."
+        }
+
+    /** Melyik téma mappájába veszünk fel épp. */
+    private var voiceRecordThemeId: String = ""
+
+    /** Melyik eseményhez tallózunk épp fájlt. */
+    private var voiceRecordPickIndex: Int = -1
+
+    /**
+     * MEGLÉVŐ HANGFÁJL VÁLASZTÁSA a felvétel HELYETT.
+     *
+     * MIÉRT KELL (Alph, 2026-09-05): nem mindenki mondatot akar. Van, aki
+     * hanghatást tenne a töltőre, van, akinek a gépén már kész a felvétel,
+     * és van, aki egy meglévő hangfájlt vágna be. A felvevő ezeket nem
+     * tudja — a tallózás viszont mindet megoldja.
+     *
+     * A rendszer saját fájlválasztóját használjuk: az minden tárhelyet lát
+     * (telefon, kártya, felhő), és a képernyőolvasóval kezelhető.
+     */
+    private val pickThemeClip = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val index = voiceRecordPickIndex
+        voiceRecordPickIndex = -1
+        if (uri == null) {
+            tts.speak("Nem választottál fájlt.")
+            if (index >= 0) enterVoiceRecordStep(index)
+            return@registerForActivityResult
+        }
+        if (index < 0) return@registerForActivityResult
+        val event = voiceRecordEvents.getOrNull(index) ?: return@registerForActivityResult
+        val saved = com.superdl.launcher.voicetheme.VoiceThemeRecorder
+            .importFromUri(this, voiceRecordThemeId, event, uri)
+        if (saved == null) {
+            tts.speak("Ezt a fájlt nem sikerült behozni. Válassz egy hangfájlt.")
+            enterVoiceRecordStep(index)
+            return@registerForActivityResult
+        }
+        activeFlow = AppFlow.VoiceThemeRecord(index, com.superdl.launcher.flow.VoiceRecordStage.REVIEW)
+        updateFlowDisplay()
+        val kb = (saved.length() / 1024).coerceAtLeast(1)
+        // A megosztásnál számít a méret — jobb most szólni, mint a csomagolásnál.
+        val sizeNote = if (saved.length() > 600 * 1024) {
+            " Ez $kb kilobájt, ami a megosztott csomagba már nem fér bele — " +
+                "sajátnak jó, küldeni rövidebb kell."
+        } else {
+            ""
+        }
+        tts.speakThen("Behoztam. Így hangzik.$sizeNote") {
+            com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, saved) {
+                tts.speak("Jobbra megtartom, balra másikat választok.")
+            }
+        }
+    }
+
+    private fun browseVoiceClip(index: Int) {
+        val event = voiceRecordEvents.getOrNull(index) ?: return
+        voiceRecordPickIndex = index
+        try {
+            tts.speak("Válassz hangfájlt ehhez: ${event.label}.")
+            pickThemeClip.launch(arrayOf("audio/*"))
+        } catch (_: Exception) {
+            voiceRecordPickIndex = -1
+            tts.speak("A fájlválasztót nem sikerült megnyitni ezen a telefonon.")
+            enterVoiceRecordStep(index)
+        }
+    }
+
+    /**
+     * A NÉV AZ ELSŐ KÉRDÉS, és ez nem formaság.
+     *
+     * Ha minden felvétel egy közös helyre menne, a második téma felülvágná az
+     * elsőt. Márpedig teljesen ésszerű, hogy valakinek több saját témája
+     * legyen — egy komoly és egy vicces —, és mindkettőt megtartsa. A név
+     * adja a mappát, a mappa adja a külön életet.
+     */
+    private fun startVoiceThemeRecording() {
+        ensureMicAndRun {
+            voiceInput.listenPrompt(
+                prompt = "Mondd az új beszédtéma nevét. Például: Elena, vagy Vicces, " +
+                    "vagy Nagypapa hangja. A név alapján külön téma készül, a " +
+                    "korábbiak megmaradnak.",
+                onResult = { spoken -> beginVoiceThemeRecording(spoken) },
+                onError = { tts.speak("Nem értettem a nevet. Próbáld újra a menüből.") }
+            )
+        }
+    }
+
+    private fun beginVoiceThemeRecording(spokenName: String) {
+        val name = spokenName.trim().ifBlank { "Saját téma" }
+        val id = com.superdl.launcher.voicetheme.VoiceThemePackage.idFromName(name)
+        if (id.isBlank()) {
+            tts.speak("Ebből a névből nem tudtam mappanevet készíteni. Próbálj másikat.")
+            return
+        }
+        voiceRecordThemeId = id
+        VoiceThemeStore.setThemeName(this, id, name)
+
+        // A RÉGI, MAPPA NÉLKÜLI FELVÉTELEK ÁTKÖLTÖZTETÉSE.
+        // Aki korábban kézzel másolta be a hangokat, annak azok mindig
+        // nyernének az új témák fölött — felvenné az újat, aktiválná, és
+        // mégis a régit hallaná. Ezért egyszer, itt, a helyükre tesszük őket.
+        var migrated = ""
+        if (com.superdl.launcher.voicetheme.VoiceThemeRecorder.hasLegacyClips(this)) {
+            val target = if (id == "elena") "elena_regi" else "elena"
+            val moved = com.superdl.launcher.voicetheme.VoiceThemeRecorder
+                .migrateLegacyClips(this, target)
+            if (moved > 0) {
+                VoiceThemeStore.setThemeName(this, target, "Korábbi felvételeim")
+                migrated = "A korábbi felvételeidet áttettem egy külön témába, " +
+                    "Korábbi felvételeim néven, hogy ne vesszenek el. "
+            }
+        }
+
+        val existing = com.superdl.launcher.voicetheme.VoiceThemePackage.clipCount(this, id)
+        val note = if (existing > 0) {
+            "Ilyen nevű témád már van, $existing hanggal — amit most felveszel, azt " +
+                "felülírja, a többi marad. "
+        } else {
+            ""
+        }
+        tts.speakThen("$migrated${note}A téma neve: $name.") {
+            enterVoiceRecordStep(0, speakIntro = true)
+        }
+    }
+
+    private fun enterVoiceRecordStep(index: Int, speakIntro: Boolean = false) {
+        if (index >= voiceRecordEvents.size) {
+            finishVoiceThemeRecording()
+            return
+        }
+        val event = voiceRecordEvents[index]
+        activeFlow = AppFlow.VoiceThemeRecord(index, com.superdl.launcher.flow.VoiceRecordStage.READY)
+        updateFlowDisplay()
+        val already = com.superdl.launcher.voicetheme.VoiceThemePlayer
+            .clipIn(this, voiceRecordThemeId, event) != null
+        val intro = if (speakIntro) {
+            "Beszédtéma felvétele. Hat eseményhez veszünk fel egy-egy rövid hangot. " +
+                "Mindegyiknél elmondom, mire való. Jobbra söprés indítja a felvételt. " +
+                "LEFELÉ söpréssel viszont kész hangfájlt is választhatsz a telefonról — " +
+                "hanghatást, vagy egy korábban felvett mondatot. Balra söprés kihagyja " +
+                "ezt az eseményt; amihez nincs hang, ott a program a szokásos mondatot " +
+                "mondja. "
+        } else {
+            ""
+        }
+        tts.speak(
+            "$intro${index + 1} / ${voiceRecordEvents.size}. ${event.label}. " +
+                "${voiceEventHint(event)} " +
+                (if (already) "Ehhez már van hangod, az új felülírja. " else "") +
+                "Söpörj jobbra a felvételhez, lefelé kész hangfájl választásához."
+        )
+    }
+
+    /** Jobbra söprés a felvételi folyamatban — a szakasztól függ, mit tesz. */
+    private fun onVoiceRecordActivate(flow: AppFlow.VoiceThemeRecord) {
+        val event = voiceRecordEvents.getOrNull(flow.index) ?: return
+        when (flow.stage) {
+            com.superdl.launcher.flow.VoiceRecordStage.READY -> {
+                // A SÍP UTÁN INDUL A FELVÉTEL, nem beszéd közben: különben a
+                // program saját hangja is rákerülne a felvételre.
+                sounds.play(SoundType.ACTION_OK)
+                mainHandler.postDelayed({
+                    val ok = com.superdl.launcher.voicetheme.VoiceThemeRecorder
+                        .start(this, voiceRecordThemeId, event)
+                    if (!ok) {
+                        tts.speak("A felvétel nem indult el. Lehet, hogy más alkalmazás használja a mikrofont.")
+                        enterVoiceRecordStep(flow.index)
+                        return@postDelayed
+                    }
+                    activeFlow = AppFlow.VoiceThemeRecord(
+                        flow.index, com.superdl.launcher.flow.VoiceRecordStage.RECORDING
+                    )
+                    updateFlowDisplay()
+                }, 450L)
+            }
+            com.superdl.launcher.flow.VoiceRecordStage.RECORDING -> {
+                val file = com.superdl.launcher.voicetheme.VoiceThemeRecorder.stop()
+                if (file == null) {
+                    tts.speak("Túl rövid lett, vagy nem sikerült menteni. Próbáljuk újra.")
+                    enterVoiceRecordStep(flow.index)
+                    return
+                }
+                activeFlow = AppFlow.VoiceThemeRecord(
+                    flow.index, com.superdl.launcher.flow.VoiceRecordStage.REVIEW
+                )
+                updateFlowDisplay()
+                // AZONNALI VISSZAJÁTSZÁS: vakon ez az egyetlen mód meggyőződni
+                // róla, hogy tényleg felvette, és érthető lett.
+                tts.speakThen("Így hangzik.") {
+                    com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, file) {
+                        tts.speak("Jobbra megtartom, balra újra veszem.")
+                    }
+                }
+            }
+            com.superdl.launcher.flow.VoiceRecordStage.REVIEW -> {
+                sounds.play(SoundType.ACTION_OK)
+                enterVoiceRecordStep(flow.index + 1)
+            }
+        }
+    }
+
+    /** Balra söprés a felvételi folyamatban. */
+    private fun onVoiceRecordBack(flow: AppFlow.VoiceThemeRecord) {
+        when (flow.stage) {
+            com.superdl.launcher.flow.VoiceRecordStage.READY ->
+                // Kihagyás: ehhez az eseményhez marad, ami eddig volt.
+                enterVoiceRecordStep(flow.index + 1)
+            com.superdl.launcher.flow.VoiceRecordStage.RECORDING -> {
+                com.superdl.launcher.voicetheme.VoiceThemeRecorder.cancel()
+                tts.speak("Felvétel eldobva.")
+                enterVoiceRecordStep(flow.index)
+            }
+            com.superdl.launcher.flow.VoiceRecordStage.REVIEW ->
+                enterVoiceRecordStep(flow.index)
+        }
+    }
+
+    /**
+     * Fel-le söprés a felvételi folyamatban.
+     *
+     * KÉSZ állapotban a LEFELÉ söprés a FÁJL TALLÓZÁSA — ugyanaz a minta,
+     * mint a számbevitelnél, ahol a lefelé söprés az alternatív bevitel
+     * (ott a billentyűzet, itt a fájlválasztó). Így nem kell új gesztust
+     * tanulni.
+     */
+    private fun onVoiceRecordRepeat(flow: AppFlow.VoiceThemeRecord, down: Boolean) {
+        val event = voiceRecordEvents.getOrNull(flow.index) ?: return
+        when (flow.stage) {
+            com.superdl.launcher.flow.VoiceRecordStage.RECORDING ->
+                tts.speak("Felvétel folyamatban. Jobbra söprés állítja le.")
+            com.superdl.launcher.flow.VoiceRecordStage.REVIEW -> {
+                val clip = com.superdl.launcher.voicetheme.VoiceThemePlayer
+                    .clipIn(this, voiceRecordThemeId, event)
+                if (clip != null) {
+                    com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, clip)
+                }
+            }
+            else -> {
+                if (down) {
+                    browseVoiceClip(flow.index)
+                } else {
+                    tts.speak(
+                        "${event.label}. ${voiceEventHint(event)} " +
+                            "Söpörj jobbra a felvételhez, lefelé kész hangfájl választásához."
+                    )
+                }
+            }
+        }
+    }
+
+    private fun finishVoiceThemeRecording() {
+        val id = voiceRecordThemeId
+        val name = VoiceThemeStore.getThemeName(this, id)
+        val count = com.superdl.launcher.voicetheme.VoiceThemePackage.clipCount(this, id)
+        if (count == 0) {
+            exitFlow("Egyetlen hangot sem vettünk fel. A program a szokásos mondatokat mondja.")
+            return
+        }
+        // AZ ÚJ TÉMA LESZ AZ AKTÍV — aki most vette fel, azt akarja hallani.
+        // A többi téma megmarad, a Letöltött téma választása ponttal bármikor
+        // visszaválthat rá.
+        VoiceThemeStore.setActiveTheme(this, id)
+        if (!VoiceThemeStore.isEnabled(this)) VoiceThemeStore.setEnabled(this, true)
+        activeFlow = AppFlow.Menu
+        updateDisplay()
+        tts.speak(
+            "Kész. A $name téma $count hanggal elkészült, és mostantól ez az aktív. " +
+                "A korábbi témáid megmaradtak. Ha meg is akarod osztani, válaszd a " +
+                "Beszédtéma megosztása pontot."
+        )
+    }
+
+    /**
+     * A saját felvételekből csomagot készít, és átadja a megosztásnak.
+     * Ugyanaz a fájl megy a barátnak és a közös katalógusba.
+     */
+    private fun shareVoiceTheme() {
+        // AZ AKTÍV TÉMÁT csomagoljuk. Aki többet készített, előbb a Letöltött
+        // téma választása ponttal állítja be, melyiket akarja elküldeni.
+        val id = VoiceThemeStore.getActiveTheme(this)
+        if (id.isBlank()) {
+            tts.speak(
+                "Nincs kiválasztott téma. Előbb vedd fel a sajátodat a Beszédtéma " +
+                    "felvétele ponttal, vagy válassz egyet a Letöltött téma választása ponttal."
+            )
+            return
+        }
+        val name = VoiceThemeStore.getThemeName(this, id)
+        val count = com.superdl.launcher.voicetheme.VoiceThemePackage.clipCount(this, id)
+        if (count == 0) {
+            tts.speak("A $name témában nincs egyetlen hang sem, így nincs mit megosztani.")
+            return
+        }
+        ensureMicAndRun {
+            voiceInput.listenPrompt(
+                prompt = "A $name témát csomagolom, $count hanggal. Mondd a szerző nevét, " +
+                    "hogy a letöltők tudják, kié a hang.",
+                onResult = { spokenAuthor -> packVoiceTheme(id, name, spokenAuthor.trim()) },
+                onError = { packVoiceTheme(id, name, "") }
+            )
+        }
+    }
+
+    private fun packVoiceTheme(id: String, name: String, author: String) {
+        val file = com.superdl.launcher.voicetheme.VoiceThemePackage.export(
+            context = this,
+            id = id,
+            name = name,
+            author = author
+        )
+        if (file == null) {
+            tts.speak("A csomagolás nem sikerült.")
+            return
+        }
+        val sizeKb = (file.length() / 1024).coerceAtLeast(1)
+        tts.speak(
+            "A téma elkészült: $name. Mérete $sizeKb kilobájt. " +
+                "Most kiválaszthatod, hogyan küldöd el. Ha a közös katalógusba szánod, " +
+                "töltsd fel ideiglenes tárhelyre, és küldd el a linket a fejlesztőnek — " +
+                "ő meghallgatja, és ő teszi közzé."
+        )
+        com.superdl.launcher.share.ShareActivity.shareFile(this, file)
+    }
+
+    /** Kapott csomag telepítése — a Fájlkezelőből vagy a Fogadott mappából. */
+    private fun installVoiceThemeFromFile(file: java.io.File) {
+        val result = com.superdl.launcher.voicetheme.VoiceThemePackage.installFromFile(this, file)
+        if (!result.ok) {
+            tts.speak(result.error)
+            return
+        }
+        VoiceThemeStore.setActiveTheme(this, result.id)
+        if (!VoiceThemeStore.isEnabled(this)) VoiceThemeStore.setEnabled(this, true)
+        tts.speak(
+            "Beszédtéma telepítve: ${result.name}. " +
+                (if (result.author.isNotBlank()) "Készítette: ${result.author}. " else "") +
+                "${result.clipCount} hang. Bekapcsoltam. A Hangok kipróbálása ponttal " +
+                "meghallgathatod. Ha saját felvételed is van, az marad az erősebb."
+        )
+    }
+
+    private fun cycleBatteryFirstAlert() {
+        val next = PatrolStore.cycleFirstAlertPercent(this)
+        tts.speak(
+            "Első akkumulátor figyelmeztetés: $next százalék. " +
+                "Onnantól kétszázalékonként ismétlem, amíg töltőre nem teszed."
+        )
+    }
+
     private fun togglePatrolPowerButtonTime() {
         val label = "Bekapcsoló gomb idő bemondás"
         val wasEnabled = PatrolStore.isPowerButtonTimeEnabled(this)
@@ -17075,6 +17725,20 @@ class MainActivity : AppCompatActivity() {
                     req == null -> "➡ jelentés küldése  •  ⬆⬇ vissza a listához"
                     flow.firstRun -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ későbbre"
                     else -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ kilépés"
+                }
+            }
+            is AppFlow.VoiceThemeRecord -> {
+                val event = voiceRecordEvents.getOrNull(flow.index)
+                tvItem.text = event?.label.orEmpty()
+                tvPosition.text = "Beszédtéma felvétele  •  " +
+                    "${flow.index + 1} / ${voiceRecordEvents.size}"
+                tvHint.text = when (flow.stage) {
+                    com.superdl.launcher.flow.VoiceRecordStage.READY ->
+                        "➡ felvétel  •  ⬇ kész fájl  •  ⬅ kihagyom  •  ⬆ ismétlés"
+                    com.superdl.launcher.flow.VoiceRecordStage.RECORDING ->
+                        "FELVÉTEL…  ➡ kész  •  ⬅ eldobom"
+                    com.superdl.launcher.flow.VoiceRecordStage.REVIEW ->
+                        "➡ megtartom  •  ⬅ újra  •  ⬆⬇ meghallgatom"
                 }
             }
             is AppFlow.SetupWizardAwaitReturn -> {

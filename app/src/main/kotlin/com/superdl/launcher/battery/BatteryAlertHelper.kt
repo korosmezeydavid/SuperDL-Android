@@ -15,6 +15,9 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import com.superdl.launcher.tts.TtsEngineStore
 import com.superdl.launcher.tts.TtsSettingsStore
+import com.superdl.launcher.voicetheme.VoiceEvent
+import com.superdl.launcher.voicetheme.VoiceThemePlayer
+import com.superdl.launcher.voicetheme.VoiceThemeStore
 import androidx.core.app.NotificationCompat
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
@@ -25,16 +28,55 @@ object BatteryAlertHelper {
     private const val ALERT_NOTIFICATION_ID = 7202
     private val alerting = AtomicBoolean(false)
 
+    /** Ez alatt a szint alatt a SZÁM megy előre, a hangulat utána. */
+    private const val CRITICAL_PERCENT = 5
+
     fun alert(context: Context, level: Int, threshold: Int) {
         if (!alerting.compareAndSet(false, true)) return
         val appContext = context.applicationContext
         val wakeLock = acquireWakeLock(appContext)
         vibrateAlert(appContext)
+
+        val finish = {
+            showAlertNotification(appContext, threshold)
+            releaseWakeLock(wakeLock)
+            alerting.set(false)
+        }
+
+        // A BESZÉDTÉMA KLIPJE, HA VAN.
+        //
+        // Az alapelv: a klip mehet, de a SZÁM mindenképp elhangzik. Az
+        // „éhes vagyok" önmagában nem árulja el, hogy tíz perc van hátra
+        // vagy két óra.
+        //
+        // KRITIKUS SZINTEN MEGFORDUL A SORREND: három százaléknál hat
+        // másodperc mondóka után megtudni a számot nem vicces, hanem késés.
+        val clip = try {
+            if (VoiceThemeStore.isEnabled(appContext) &&
+                VoiceThemeStore.isEventEnabled(appContext, VoiceEvent.BATTERY_LOW)
+            ) {
+                VoiceThemePlayer.resolve(appContext, VoiceEvent.BATTERY_LOW)
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+
         playAlertBeeps {
-            speakAlert(appContext, level, threshold) {
-                showAlertNotification(appContext, threshold)
-                releaseWakeLock(wakeLock)
-                alerting.set(false)
+            when {
+                clip == null ->
+                    speakAlert(appContext, level, threshold) { finish() }
+
+                threshold <= CRITICAL_PERCENT ->
+                    speakAlert(appContext, level, threshold) {
+                        VoiceThemePlayer.play(appContext, clip) { finish() }
+                    }
+
+                else ->
+                    VoiceThemePlayer.play(appContext, clip) {
+                        speakAlert(appContext, level, threshold) { finish() }
+                    }
             }
         }
     }

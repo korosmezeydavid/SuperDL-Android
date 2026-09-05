@@ -111,6 +111,21 @@ class SuperDlApplication : Application() {
         } catch (e: Exception) {
             Log.w(TAG, "QuietModeHelper hiba: ${e.message}")
         }
+        // BEÉPÍTETT BESZÉDTÉMA (Elena): a hangfájlok a programcsomagban
+        // utaznak, de lejátszani csak fájlból tudjuk, ezért az első indulásnál
+        // kicsomagoljuk őket. Háttérszálon, mert fájlmásolás; és csak azt
+        // másoljuk, ami hiányzik, tehát a további indulások ingyenesek.
+        try {
+            Thread {
+                try {
+                    com.superdl.launcher.voicetheme.VoiceThemeAssets.ensureInstalled(this)
+                } catch (e: Exception) {
+                    Log.w(TAG, "VoiceThemeAssets.ensureInstalled hiba: ${e.message}")
+                }
+            }.start()
+        } catch (e: Exception) {
+            Log.w(TAG, "VoiceThemeAssets szal hiba: ${e.message}")
+        }
         if (pendingUnlockInit) {
             pendingUnlockInit = false
             try {

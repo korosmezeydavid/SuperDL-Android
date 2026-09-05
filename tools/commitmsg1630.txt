@@ -1,0 +1,35 @@
+1.63.0 - Elena beszedtema es a beallitas varazslo atvizsgalasa
+
+UJ: BESZEDTEMA
+- Hat esemenyhez tartozhat felvett emberi hang: merulo akku, teljes toltottseg,
+  tolto bedugva, tolto kihuzva alacsony toltottsegnel, reggeli es esti koszones.
+- Elena a BEEPITETT alaptema: a hat m4a a programcsomagban utazik
+  (assets/hangtemak/elena), az elso indulaskor kicsomagolodik, es
+  alapertelmezesben be van kapcsolva.
+- Elena egyben az ALAPRETEG: ha az aktiv tema nem tartalmaz hangot egy
+  esemenyhez, Elena mondja - nem esik vissza gepi hangra a tema kozepen.
+- A toltottseg szazaleka mindig elhangzik a klip utan.
+- Allithato: az orseg elso jelzesenek szintje (5-50%), a koszonesek idopontja,
+  esemenyenkenti kapcsolok, napi keret.
+
+UJ: SAJAT BESZEDTEMA A TELEFONON
+- Felvetel elott a program a tema NEVET keri, igy a korabbi temak megmaradnak.
+- Felvetel helyett meglevo hangfajl is betallozhato (SAF).
+- Kesz tema egyetlen JSON-fajlban megoszthato es telepitheto.
+
+JAVITVA: BEALLITAS VARAZSLO
+- A hibajelentes elvetese (balra soprés) eddig a fomenube dobott ki, meg akkor
+  is, ha a jelentes a varazslobol indult; elso inditasnal ez a varazslo kapujat
+  is megkerulte. Ezenkivul a setupReportReturn jelzo bent ragadt, es a kovetkezo
+  menubol inditott jelentest is a varazsloba teritette volna vissza.
+- Sikeres megadas utan a lista elejere ugrott vissza a program, mert a megadott
+  tetel kikerul a hianylistabol es a nevevel mar nem talalhato meg a helye.
+  Uj setupLastIndex tartja a poziciot.
+- AssistantRoleHelper.isVoiceInteractionServiceEnabled: reszszoveg-kereses
+  helyett pontos csomagnev-osszehasonlitas (a .debug valtozat nevе a kiadasival
+  kezdodik - ugyanaz a hibaosztaly, mint az ertesites-hozzaferesnel).
+- AssistantRoleHelper.isAssistantPackageSet: a rendszer komponensnevet tarol,
+  a program csomagnevet hasonlitott hozza, ezert soha nem talalt egyezest.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

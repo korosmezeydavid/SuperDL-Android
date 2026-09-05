@@ -172,6 +172,18 @@ sealed class AppFlow {
      */
     data class BugReportSend(val report: String, val index: Int) : AppFlow()
 
+    /**
+     * BESZÉDTÉMA FELVÉTELE — végigmegyünk az eseményeken, egyesével.
+     *
+     * Három szakasz, mert vakon a felvétel csak akkor kezelhető, ha minden
+     * lépésnél PONTOSAN egy dolog történhet: felveszem, meghallgatom,
+     * megtartom vagy újra. A `index` az esemény sorszáma.
+     */
+    data class VoiceThemeRecord(
+        val index: Int,
+        val stage: VoiceRecordStage
+    ) : AppFlow()
+
     /** Kihagyások törlésének megerősítése. */
     object AlarmSkipClearConfirm : AppFlow()
 
@@ -1124,4 +1136,16 @@ sealed class AppFlow {
         val profiles: List<com.superdl.launcher.camera.CameraQualityProfile>,
         val index: Int
     ) : AppFlow()
+}
+
+/** A beszédtéma-felvétel három szakasza. Lásd `AppFlow.VoiceThemeRecord`. */
+enum class VoiceRecordStage {
+    /** Készen állunk: jobbra indul a felvétel. */
+    READY,
+
+    /** Épp veszünk fel: jobbra leáll és ment. */
+    RECORDING,
+
+    /** Felvéve, visszajátszva: jobbra megtartom, balra újra. */
+    REVIEW
 }

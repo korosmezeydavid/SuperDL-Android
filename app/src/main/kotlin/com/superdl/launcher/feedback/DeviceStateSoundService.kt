@@ -71,13 +71,29 @@ class DeviceStateSoundService : Service() {
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         batteryReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                if (!DeviceStateStore.isEnabled(context)) return
                 val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
                 val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
-                if (status == BatteryManager.BATTERY_STATUS_FULL && plugged != 0) {
+                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val percent = if (level >= 0 && scale > 0) level * 100 / scale else -1
+
+                // TÖBB GYÁRTÓNÁL SOHA NEM LESZ PONTOSAN "FULL" az állapot,
+                // vagy csak jóval a 100% után. Ezért a 98% is elfogadható —
+                // különben a "jóllaktam" egyes telefonokon soha nem szólalna
+                // meg, és senki nem értené, miért.
+                val full = plugged != 0 &&
+                    (status == BatteryManager.BATTERY_STATUS_FULL || percent >= 98)
+
+                if (full) {
                     if (!DeviceStateStore.isFullAnnounced(context)) {
                         DeviceStateStore.setFullAnnounced(context, true)
-                        DeviceStateTonePlayer.play(DeviceStateEvent.BATTERY_FULL, context)
+                        if (DeviceStateStore.isEnabled(context)) {
+                            DeviceStateTonePlayer.play(DeviceStateEvent.BATTERY_FULL, context)
+                        }
+                        com.superdl.launcher.voicetheme.VoiceThemePlayer.announce(
+                            context,
+                            com.superdl.launcher.voicetheme.VoiceEvent.BATTERY_FULL
+                        )
                     }
                 } else if (plugged == 0) {
                     DeviceStateStore.setFullAnnounced(context, false)

@@ -983,6 +983,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- Beszédtéma: reggeli és esti köszönés ébresztője -->
+        <receiver
+            android:name=".voicetheme.GreetingReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

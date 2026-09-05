@@ -788,6 +788,45 @@ object HelpTexts {
                 "kétlépcsős: jobbra söprés megkérdezi, még egy jobbra söprés töröl."
         ),
 
+        // ── BESZÉDTÉMA ──────────────────────────────────────────────────────
+        "voice_theme" to topic(
+            title = "Beszédtéma súgó",
+            purpose = "A telefon néhány visszatérő pillanatában — merüléskor, töltéskor, " +
+                "reggel és este — nem a gépi hang szólal meg, hanem egy FELVETT hang. " +
+                "Ettől a program valakivé válik, nem marad a rendszer újabb üzenete. " +
+                "Ez NEM azonos a Söpörj hangtémával: az a sípoló gesztus-hangokat " +
+                "jelenti, ez pedig kimondott mondatokat. " +
+                "Egy dolog viszont mindig marad: a SZÁM. Ha a hang azt mondja, hogy " +
+                "éhes vagyok, a program utána akkor is kimondja a töltöttséget — mert " +
+                "az önmagában nem árulja el, hogy tíz perc van hátra vagy két óra.",
+            start = "Beállítások, Hangok, Beszédtéma. Kapcsold be, majd válaszd a " +
+                "Hangok kipróbálása pontot: sorban lejátssza mind a hat eseményt, és " +
+                "megmondja, melyikhez nincs még felvett hang. Ha egy hang hiányzik, a " +
+                "program a szokásos mondatot mondja — némaság soha nincs. " +
+                "A saját hangfájlok helye: Android, data, Super DL, files, elena. " +
+                "A fájlnevek ékezet nélkül: battery low, battery full, charger in, " +
+                "charger out low, morning, night. A kiterjesztés lehet wav, mp3, m4a " +
+                "vagy ogg — nem kell konvertálnod.",
+            gestures = "A hat esemény: merüléskor, feltöltve, töltő bedugva, töltő " +
+                "kihúzva alacsony töltöttségnél, jó reggelt, jó éjszakát. " +
+                "Mindegyik külön ki-be kapcsolható. Az Első figyelmeztetés szintje " +
+                "pontban állítod, hány százaléknál szóljon először a merülés — onnantól " +
+                "kétszázalékonként ismétel, amíg töltőre nem teszed. " +
+                "A Jó reggelt alapból nem órára szólal meg, hanem a beállított idő " +
+                "UTÁN az első feloldáskor: egy üres szobának köszönni zaj. Ezt a Jó " +
+                "reggelt csak feloldáskor kapcsolóval állítod át pontos időpontra. " +
+                "A Napi keret azt mondja meg, hányszor szólalhat meg naponta — a báj " +
+                "attól báj, hogy ritka. A merülés figyelmeztetése ebbe nem számít bele.",
+            trouble = "Ha nem szólal meg: nézd meg a Hangok kipróbálása pontot, az " +
+                "megmondja, van-e egyáltalán felvett hang. Ha a fájl ott van, de nem " +
+                "szól, valószínűleg rossz mappába került: a fejlesztői és a kiadási " +
+                "változat mappája KÜLÖNBÖZŐ. Ha a jó éjszakát nem jön: ez a köszönés " +
+                "az éjszakai csendtől függetlenül szól, tehát nem az némítja el — " +
+                "ellenőrizd a kapcsolóját és az időpontját. Ha a jó reggelt elmarad, " +
+                "de a telefont csak délben veszed kézbe, az rendben van: az első " +
+                "feloldáskor szólal meg, nem korábban."
+        ),
+
         // ── TELEFON ÉS HÍVÁSOK ──────────────────────────────────────────────
         "calls" to topic(
             title = "Telefon és Hívások súgó",

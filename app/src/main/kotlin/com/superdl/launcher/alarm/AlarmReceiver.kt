@@ -141,6 +141,11 @@ class BootReceiver : BroadcastReceiver() {
                 step("nevjegy-szinkron") {
                     com.superdl.launcher.contacts.ContactSyncHelper.syncIfNeeded(context)
                 }
+                // A köszönések ébresztői újraindításkor elvesznek — enélkül a
+                // „jó reggelt" egyszer szólna, aztán soha többé.
+                step("beszedtema-koszonesek") {
+                    com.superdl.launcher.voicetheme.GreetingScheduler.rescheduleAll(context)
+                }
             }
         }
     }

@@ -18,6 +18,8 @@ import com.superdl.launcher.info.InfoHelper
 import com.superdl.launcher.patrol.PatrolAnnouncer
 import com.superdl.launcher.patrol.PatrolStore
 import com.superdl.launcher.security.LockSession
+import com.superdl.launcher.voicetheme.VoiceThemePlayer
+import com.superdl.launcher.voicetheme.VoiceThemeStore
 import java.util.Calendar
 
 class BatteryPatrolService : Service() {
@@ -102,6 +104,13 @@ class BatteryPatrolService : Service() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action != Intent.ACTION_SCREEN_ON) return
                 if (LockSession.needsUnlock(context)) return
+                // A REGGELI KÖSZÖNÉS AZ ELSŐ FELOLDÁSKOR.
+                //
+                // MIÉRT NEM ÓRÁRA: egy üres szobának köszönni zaj. Annak
+                // köszönni, aki épp most vette kézbe a telefont, kedvesség.
+                // Ez az őrség többi kapcsolójától FÜGGETLEN — a beszédtémának
+                // saját kapcsolója van.
+                maybeMorningGreeting(context)
                 if (!PatrolStore.isMasterEnabled(context)) return
                 if (!PatrolStore.isPowerButtonTimeEnabled(context)) return
                 if (PatrolStore.isQuietNow(context)) return
@@ -124,18 +133,43 @@ class BatteryPatrolService : Service() {
         }
     }
 
+    /**
+     * Reggeli köszönés az első feloldáskor a beállított idő után.
+     * Naponta egyszer, az év napja alapján.
+     */
+    private fun maybeMorningGreeting(context: Context) {
+        try {
+            if (!VoiceThemeStore.isEnabled(context)) return
+            if (!VoiceThemeStore.isMorningEnabled(context)) return
+            if (!VoiceThemeStore.isMorningOnUnlock(context)) return
+            val now = Calendar.getInstance()
+            val today = now.get(Calendar.DAY_OF_YEAR)
+            if (VoiceThemeStore.getMorningLastDay(context) == today) return
+            val minutesNow = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+            if (minutesNow < VoiceThemeStore.getMorningMinutes(context)) return
+            VoiceThemeStore.setMorningLastDay(context, today)
+            VoiceThemePlayer.announce(
+                context,
+                com.superdl.launcher.voicetheme.VoiceEvent.MORNING,
+                countsAgainstQuota = false
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     private fun handleBatteryLevel(level: Int, isCharging: Boolean) {
         if (!PatrolStore.isMasterEnabled(this)) return
         if (!PatrolStore.isBatteryEnabled(this)) return
         if (PatrolStore.isQuietNow(this)) return
 
-        if (BatteryPatrolLogic.shouldReset(level, isCharging)) {
+        val firstAlert = PatrolStore.getFirstAlertPercent(this)
+        if (BatteryPatrolLogic.shouldReset(level, isCharging, firstAlert)) {
             PatrolStore.resetAlertState(this)
             return
         }
 
         val lastAlerted = PatrolStore.getLastAlertedThreshold(this)
-        val threshold = BatteryPatrolLogic.thresholdToAlert(level, lastAlerted) ?: return
+        val threshold = BatteryPatrolLogic.thresholdToAlert(level, lastAlerted, firstAlert) ?: return
 
         PatrolStore.setLastAlertedThreshold(this, threshold)
         BatteryAlertHelper.alert(this, level, threshold)

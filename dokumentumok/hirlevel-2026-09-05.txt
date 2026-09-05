@@ -1,4 +1,4 @@
-SuperDL 1.62.0 — ha elakadsz, mostantól egy söpréssel meg tudod mutatni, hol
+SuperDL 1.62.1 — ha elakadsz, mostantól egy söpréssel meg tudod mutatni, hol
 
 Kedves Tesztelők!
 
@@ -93,6 +93,30 @@ igaza volt, és nem is a fájlengedéllyel volt baj. Három külön ok játszott
 
 Mostantól a program a bejegyzés fajtájának megfelelően töröl, és ELLENŐRZI,
 hogy tényleg eltűnt-e. Csak akkor mond sikert.
+
+
+ÉS HOGY EZ NEM ÜRES ÍGÉRET: AZ ELSŐ JELENTÉS MÁR MEG IS ÉRKEZETT
+
+Néhány órával azután, hogy ez a funkció elkészült, befutott az első jelentés
+egy Cat S62 Pro készülékről. Egyetlen tétel akadt el rajta: az
+"Alapértelmezett asszisztens". A jelentésben ott volt az a két sor, amit
+kívülről soha nem láttunk volna — és ebből kiderült két hiba:
+
+- Az asszisztenst a program rossz úton kérte. Az Android némelyik
+  beállításnál egyszerűen nem tesz fel kérdést, csak a beállítás-oldalán
+  engedi átállítani; ilyenkor a kérő ablak meg sem jelenik. Mostantól a
+  varázsló egyenesen oda visz, és ezt ki is mondja.
+
+- Aki a fejlesztői és a kiadási változatot egyszerre használja, annál a
+  program tévesen hitte megadottnak az értesítés-hozzáférést. Ez azért
+  csúnya hiba, mert a varázsló ilyenkor nem is kér semmit — az értesítések
+  felolvasása meg némán nem működik.
+
+Mindkettő javítva. És ha a telefonodon mindkét változat fent van, a jelentés
+mostantól ezt is kiírja: ilyenkor KÉT képernyőolvasó beszél egymásra, az
+egyiket el kell távolítani.
+
+Ennyi kellett hozzá: egy söprés. Nem kábel, nem számítógép, nem varázsszó.
 
 
 HA MÉG AZ 1.60.0 VAN NÁLAD, EZT OLVASD EL

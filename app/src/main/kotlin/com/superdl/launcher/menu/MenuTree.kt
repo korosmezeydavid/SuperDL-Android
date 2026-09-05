@@ -274,6 +274,24 @@ enum class MenuAction {
     ALERT_SOUND_VOLUME_CYCLE,  // Csengőhang hangerő
     ALERT_SILENT_MODE_TOGGLE,  // Néma mód ki-be
     SOUND_THEME_SELECT,        // Söpörj hangtéma választás
+    // BESZÉDTÉMA — felvett hanggal megszólaló események. NEM azonos a
+    // söprés-hangtémával: az síp, ez mondat.
+    VOICE_THEME_TOGGLE,        // Beszédtéma ki-be
+    VOICE_THEME_PICK,          // Melyik letöltött téma legyen aktív
+    VOICE_THEME_TEST,          // Hangok kipróbálása
+    VOICE_THEME_STATUS,        // Mihez van már felvett hang
+    VOICE_THEME_EVENT_BATTERY_LOW,
+    VOICE_THEME_EVENT_BATTERY_FULL,
+    VOICE_THEME_EVENT_CHARGER,
+    VOICE_THEME_MORNING_TOGGLE,
+    VOICE_THEME_MORNING_TIME,
+    VOICE_THEME_MORNING_UNLOCK_TOGGLE,
+    VOICE_THEME_NIGHT_TOGGLE,
+    VOICE_THEME_NIGHT_TIME,
+    VOICE_THEME_DAILY_CAP,
+    VOICE_THEME_RECORD,        // Saját beszédtéma felvétele a telefonon
+    VOICE_THEME_SHARE,         // Csomagolás és megosztás
+    BATTERY_FIRST_ALERT_CYCLE, // Az első akku-figyelmeztetés szintje
     RINGTONE_SELECT,           // Gyári csengőhang választása a híváshoz
     LOCATION_TRAIN,            // Helyszín profil tanítása
     LOCATION_WATCH_START,      // Helyszín figyelő – mentett profilok
@@ -1000,6 +1018,29 @@ object MenuTree {
             )),
             MenuItem("sound_settings", "Hangok", MenuAction.SUBMENU, listOf(
                 MenuItem("sound_theme", "Söpörj hangtéma", MenuAction.SOUND_THEME_SELECT),
+                // BESZÉDTÉMA — külön almenü, mert sok apró kapcsolója van, és
+                // a „hangtéma" szó a söprés-hangokra már foglalt.
+                MenuItem("voice_theme", "Beszédtéma", MenuAction.SUBMENU, listOf(
+                    MenuItem("vt_toggle", "Beszédtéma ki-be", MenuAction.VOICE_THEME_TOGGLE),
+                    MenuItem("vt_test", "Hangok kipróbálása", MenuAction.VOICE_THEME_TEST),
+                    MenuItem("vt_status", "Mihez van már hang", MenuAction.VOICE_THEME_STATUS),
+                    MenuItem("vt_pick", "Téma választása", MenuAction.VOICE_THEME_PICK),
+                    MenuItem("vt_ev_low", "Merüléskor ki-be", MenuAction.VOICE_THEME_EVENT_BATTERY_LOW),
+                    MenuItem("vt_first_alert", "Első figyelmeztetés szintje", MenuAction.BATTERY_FIRST_ALERT_CYCLE),
+                    MenuItem("vt_ev_full", "Feltöltve ki-be", MenuAction.VOICE_THEME_EVENT_BATTERY_FULL),
+                    MenuItem("vt_ev_charger", "Töltő be- és kihúzva ki-be", MenuAction.VOICE_THEME_EVENT_CHARGER),
+                    MenuItem("vt_morning", "Jó reggelt ki-be", MenuAction.VOICE_THEME_MORNING_TOGGLE),
+                    MenuItem("vt_morning_time", "Jó reggelt időpontja", MenuAction.VOICE_THEME_MORNING_TIME),
+                    MenuItem("vt_morning_unlock", "Jó reggelt csak feloldáskor", MenuAction.VOICE_THEME_MORNING_UNLOCK_TOGGLE),
+                    MenuItem("vt_night", "Jó éjszakát ki-be", MenuAction.VOICE_THEME_NIGHT_TOGGLE),
+                    MenuItem("vt_night_time", "Jó éjszakát időpontja", MenuAction.VOICE_THEME_NIGHT_TIME),
+                    MenuItem("vt_cap", "Napi keret", MenuAction.VOICE_THEME_DAILY_CAP),
+                    // A KÉT LEGFONTOSABB PONT: saját hang felvétele és
+                    // megosztása. Ettől lesz a funkció gép nélkül használható.
+                    MenuItem("vt_record", "Beszédtéma felvétele", MenuAction.VOICE_THEME_RECORD),
+                    MenuItem("vt_share", "Beszédtéma megosztása", MenuAction.VOICE_THEME_SHARE),
+                    MenuItem("vt_back", "Vissza a hangokhoz", MenuAction.SUBMENU)
+                )),
                 MenuItem("ringtone_select", "Csengőhang választása", MenuAction.RINGTONE_SELECT),
                 MenuItem("sound_volume", "Csengőhang hangerő", MenuAction.ALERT_SOUND_VOLUME_CYCLE),
                 MenuItem("sound_silent", "Néma mód ki-be", MenuAction.ALERT_SILENT_MODE_TOGGLE),
