@@ -38,7 +38,12 @@
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
         <intent>
-            <action android:name="android.speech.tts.engine.INTENT_ACTION_TTS_SERVICE" />
+            <!-- A beszédmotorok láthatósága (Android 11 óta kötelező).
+                 FIGYELEM: az action NEVE TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE,
+                 az ÉRTÉKE viszont "android.intent.action.TTS_SERVICE". Korábban a
+                 konstans neve szerepelt itt szövegként, ami nem létező action —
+                 tehát ez a bejegyzés nem adott láthatóságot semmire. -->
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 

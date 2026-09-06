@@ -176,7 +176,25 @@ object SetupDiagnostics {
     }
 
     private fun ttsEngines(context: Context): String = try {
-        val intent = Intent("android.speech.tts.engine.INTENT_ACTION_TTS_SERVICE")
+        // AZ ACTION NEVE NEM AZ ÉRTÉKE.
+        //
+        // A HIBA, AMIT EZ JAVÍT (Xiaomi M2103K19G, 1.63.2-es hibajelentés):
+        // a napló azt írta, hogy „beszédmotorok a rendszerben: egy sem
+        // található" — egy olyan telefonon, amin fut a TalkBack, tehát
+        // biztosan VAN beszédmotor.
+        //
+        // Az ok: itt a konstans NEVE szerepelt szövegként
+        // ("android.speech.tts.engine.INTENT_ACTION_TTS_SERVICE"), miközben az
+        // ÉRTÉKE "android.intent.action.TTS_SERVICE". Nem létező szándékra
+        // kérdeztünk rá, és az üres választ tényként olvastuk.
+        //
+        // Ugyanez a hiba volt a manifest <queries> blokkjában is, ott viszont
+        // nem csak a naplót rontotta el: az Android 11 óta kötelező
+        // láthatósági bejegyzés sem ért semmit.
+        //
+        // A többi hívási hely (TtsEngineHelper, BookTtsPrefs) végig helyesen a
+        // konstanst használta — ezért nem tűnt fel korábban.
+        val intent = Intent(android.speech.tts.TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE)
         val list = if (Build.VERSION.SDK_INT >= 33) {
             context.packageManager.queryIntentServices(
                 intent, PackageManager.ResolveInfoFlags.of(0L)

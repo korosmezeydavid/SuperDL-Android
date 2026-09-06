@@ -1,0 +1,24 @@
+1.63.4 - a beszedmotor-lekerdezes action-szovege rossz volt (nev, nem ertek)
+
+A TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE konstans NEVE es ERTEKE nem
+ugyanaz:
+
+  rossz:  "android.speech.tts.engine.INTENT_ACTION_TTS_SERVICE"  (a nev)
+  helyes: "android.intent.action.TTS_SERVICE"                    (az ertek)
+
+Ket helyen a nevet irtuk be szovegkent:
+
+- SetupDiagnostics.ttsEngines(): ezert a hibajelentes MINDEN keszuleken azt
+  irta, hogy "beszedmotorok a rendszerben: egy sem talalhato". Egy Xiaomi
+  M2103K19G jelentesen tunt fel, amin fut a TalkBack - tehat biztosan van
+  beszedmotor.
+- AndroidManifest <queries>: ez a sulyosabb. Android 11 ota itt kell megadni
+  a csomag-lathatosagot; nem letezo action-re hivatkozva a bejegyzes SEMMIRE
+  nem adott lathatosagot. A motor-valaszto eddig csak a QUERY_ALL_PACKAGES
+  miatt mukodott.
+
+A tobbi hivasi hely (TtsEngineHelper, BookTtsPrefs) vegig helyesen a
+konstanst hasznalta, ezert nem tunt fel korabban.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
