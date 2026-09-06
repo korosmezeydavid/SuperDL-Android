@@ -240,7 +240,8 @@ enum class MenuAction {
     LOCK_PIN_STATUS, // PIN zárolás állapota
     KEYGUARD_PIN_ASSIST_TOGGLE, // Rendszer PIN segéd ki-be
     KEYGUARD_PIN_ASSIST_SETUP,  // Rendszer PIN segéd engedélyezése
-    KEYGUARD_PIN_ASSIST_STATUS, // Rendszer PIN segéd állapota
+    KEYGUARD_PIN_ASSIST_STATUS,
+    KEYGUARD_VOICE_TEST,   // A beépített zárképernyő-hangok meghallgatása
     TIMER_CREATE,    // Új időzítő mentése
     TIMER_LIST,      // Időzítők listája
     TIMER_START,     // Időzítő indítása
@@ -1005,6 +1006,11 @@ object MenuTree {
                 MenuItem("keyguard_pin_toggle", "Rendszer PIN segéd ki-be", MenuAction.KEYGUARD_PIN_ASSIST_TOGGLE),
                 MenuItem("keyguard_pin_setup", "Rendszer PIN segéd engedélyezése", MenuAction.KEYGUARD_PIN_ASSIST_SETUP),
                 MenuItem("keyguard_pin_status", "Rendszer PIN segéd állapota", MenuAction.KEYGUARD_PIN_ASSIST_STATUS),
+                // A BEÉPÍTETT ZÁRKÉPERNYŐ-HANGOK PRÓBÁJA. Ezek akkor szólalnak
+                // meg, amikor a rendszer beszédmotorja még nem él: bekapcsolás
+                // után, az ELSŐ PIN beírásáig. Máskor nem hallhatók — ezért kell
+                // egy pont, ahol szándékosan meg lehet hallgatni őket.
+                MenuItem("keyguard_voice_test", "Zárképernyő hangjainak próbája", MenuAction.KEYGUARD_VOICE_TEST),
                 MenuItem("call_filter_mode", "Hívás szűrő mód", MenuAction.CALL_FILTER_MODE_CYCLE),
                 MenuItem("call_filter_status", "Hívás szűrő állapota", MenuAction.CALL_FILTER_MODE_STATUS),
                 MenuItem("focus", "Időzített fókusz", MenuAction.SUBMENU, listOf(

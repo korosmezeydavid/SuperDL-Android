@@ -1,0 +1,42 @@
+Szia! Ha a SuperDL telepítője elindul, aztán eltűnik, és nem történik semmi — megvan az ok, és nem te rontottad el. Továbbküldhető, oszd meg bátran mással is.
+
+Utánamértem: a fájllal nincs baj. Az aláírás rendben, és az elmúlt tizenegy kiadás mind ugyanazzal a kulccsal készült. A letöltési linkről kapott fájl bájtra ugyanaz, amit én építettem.
+
+A baj máshol van, és szinte biztosan ez az:
+
+Régen volt egy globális kapcsoló, hogy "ismeretlen források engedélyezése". Sokan még ma is ezt keresik. Ez már NINCS.
+
+Android 8 óta ez alkalmazásonkénti engedély. És nem annak az alkalmazásnak kell, amit telepítesz, hanem annak, AMELYIKBŐL MEGNYITOD a letöltött fájlt.
+
+Vagyis:
+– böngészőből nyitod meg? akkor a BÖNGÉSZŐNEK kell,
+– fájlkezelőből? a FÁJLKEZELŐNEK,
+– levélből vagy üzenetből? ANNAK az alkalmazásnak.
+
+Ha annak az alkalmazásnak nincs meg, a telepítő elindul, és némán bezárul. A legtöbb telefon ilyenkor semmit nem ír ki. Ezért tűnik úgy, mintha a program lenne hibás.
+
+Amit tenni kell:
+
+1. Jegyezd meg, melyik alkalmazásból nyitottad meg a fájlt.
+2. Beállítások, Alkalmazások, és keresd meg AZT az alkalmazást.
+3. Azon belül: "Ismeretlen alkalmazások telepítése" — kapcsold be. (Egyes telefonokon a "Speciális" vagy a "További beállítások" alatt van.)
+4. Nyisd meg újra a fájlt UGYANABBÓL az alkalmazásból.
+
+Ha ez volt az ok, másodszorra végigmegy.
+
+Ha mégsem, akkor ezek jönnek sorban:
+
+KEVÉS HELY. A program 153 megabájt, és telepítés közben nagyjából a háromszorosa kell. Ha majdnem tele a telefon, szintén némán elszáll. Szabadíts fel egy gigabájtot.
+
+PLAY PROTECT. A Play Áruház néha megállítja a nem áruházi programokat. Play Áruház, profilkép, Play Protect, és ott ideiglenesen kikapcsolható a beolvasás.
+
+FÉLBEMARADT LETÖLTÉS. 153 megabájt mobilneten könnyen megszakad, és a csonka fájlt a telepítő nem tudja megnyitni. A letöltött fájl mérete pontosan 153 368 294 bájt. Ha kevesebb, töltsd le újra, lehetőleg wifin.
+
+És egy kérésem, ez a legfontosabb: ha nálad is előjön, írd meg, MELYIK ALKALMAZÁSBÓL nyitottad meg a fájlt. Böngésző, fájlkezelő, levelező, üzenetküldő? Ebből az egy adatból meg tudom mondani, hol hiányzik az engedély.
+
+Letöltés:
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A program ingyenes, és az is marad.
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

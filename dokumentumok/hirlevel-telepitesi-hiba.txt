@@ -1,0 +1,115 @@
+Ha a telepítő elindul, aztán eltűnik — megvan az ok, és nem Te rontottad el
+
+Kedves Tesztelők!
+
+Többen jelezték ugyanazt: elindítják a telepítést, a telefon azt mondja,
+hogy telepíti, aztán az egész eltűnik. Hibaüzenet nincs. Csak nem történik
+semmi.
+
+Utánajártam, és meg is találtam. Előbb azt mondom el, ami NEM okozza,
+mert abból is tanul az ember.
+
+
+NEM A FÁJLLAL VAN BAJ
+
+Végigmértem az aláírást: a program mindhárom aláírási sémával rendben van
+aláírva, egy kulccsal. Aztán letöltöttem az elmúlt tizenegy kiadást, az
+1.55.0-tól a mostaniig, és összehasonlítottam a tanúsítványokat:
+mindegyik ugyanaz.
+
+Ez azért volt fontos, mert ha valaha kulcsot cseréltem volna, a frissítés
+PONTOSAN így viselkedne — elindul, majd leáll. Ez a magyarázat tehát
+kiesett.
+
+A kiadott fájl is ép: amit a letöltési linkről kap az ember, bájtra
+ugyanaz, amit én építettem.
+
+
+AKKOR MI?
+
+Átmásoltam a telepítőt egy telefonra, elindítottam, és megnéztem a
+rendszer naplóját. A telepítő elindult — és a következő ezredmásodpercben
+bezárult. A naplóban ez állt:
+
+    a telepítést kérőnek nincs meg az
+    "ismeretlen alkalmazások telepítése" engedélye
+
+És itt van a lényeg, amit szerintem a legtöbben nem tudnak, és amiről én
+is rosszul írtam eddig:
+
+
+AZ "ISMERETLEN FORRÁS" MÁR NEM EGY KAPCSOLÓ
+
+Régen — Android 7-ig — volt egy globális kapcsoló: "ismeretlen források
+engedélyezése". Sokan még ezt keresik. Ez már NINCS.
+
+Android 8 óta ez ALKALMAZÁSONKÉNTI engedély. És nem annak az alkalmazásnak
+kell, amit telepítesz, hanem annak, AMELYIKBŐL MEGNYITOD A FÁJLT:
+
+- ha a böngészőből töltötted le és onnan nyitod meg: a BÖNGÉSZŐNEK,
+- ha a fájlkezelőből: a FÁJLKEZELŐNEK,
+- ha levélből vagy üzenetből: ANNAK az alkalmazásnak.
+
+Ha az az alkalmazás nem kapta meg, a telepítő elindul, és NÉMÁN bezárul.
+A legtöbb telefon ilyenkor semmit nem ír ki. Ezért tűnik úgy, mintha a
+program lenne hibás — pedig egy engedély hiányzik, egy másik alkalmazásnál.
+
+
+AMIT TENNI KELL
+
+1. Jegyezd meg, MELYIK alkalmazásból nyitottad meg a letöltött fájlt.
+2. Beállítások, Alkalmazások, és keresd meg AZT az alkalmazást.
+3. Azon belül: "Ismeretlen alkalmazások telepítése" — kapcsold be.
+   (Egyes telefonokon: "Speciális", vagy "További beállítások" alatt van.)
+4. Menj vissza, és nyisd meg a fájlt ÚGYANABBÓL az alkalmazásból.
+
+Ennyi. Ha ez volt az ok, másodszorra végigmegy.
+
+
+HA MÉGSEM EZ
+
+Akkor sorrendben ezek jönnek szóba:
+
+- KEVÉS HELY. A program 153 megabájt, és telepítés közben nagyjából a
+  háromszorosa kell átmenetileg. Ha a telefon majdnem tele van, a telepítő
+  szintén némán elszáll. Szabadíts fel egy gigabájtot, és próbáld újra.
+
+- PLAY PROTECT. A Play Áruház ellenőrzi a nem áruházi programokat, és
+  néha megállítja őket. Play Áruház, a profilkép, Play Protect, és ott a
+  beolvasás ideiglenesen kikapcsolható.
+
+- FÉLBEMARADT LETÖLTÉS. 153 megabájt mobilneten könnyen megszakad, és a
+  csonka fájlt a telepítő nem tudja megnyitni. A letöltött fájl mérete
+  pontosan ennyi kell legyen:
+
+        153 368 294 bájt
+
+  Ha kevesebb, töltsd le újra, lehetőleg WiFin.
+
+
+ÉS EGY KÉRÉS
+
+Ha nálad is előjön, egyetlen dolgot kérek, és ez a legfontosabb mondat
+ebben a levélben:
+
+    MONDD MEG, MELYIK ALKALMAZÁSBÓL NYITOTTAD MEG A FÁJLT.
+
+Böngésző? Fájlkezelő? Levelező? Üzenetküldő? Ebből az egy adatból meg
+tudom mondani, hol hiányzik az engedély. A varázslóból küldhető
+hibajelentés itt sajnos nem segít — ahhoz már fent kellene lennie a
+programnak.
+
+Elnézést kérek azoktól, akik emiatt feladták. A hibát nem Ti követtétek
+el, és a korábbi hírlevelekben én írtam róla pontatlanul.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A program ingyenes, és az is marad.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

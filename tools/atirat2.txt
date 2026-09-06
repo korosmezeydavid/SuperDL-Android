@@ -1,0 +1,192 @@
+# nyelv=hu hossz=669s
+[00:00] Üdvözlöm, lőrincriár vagyok.
+[00:02] Maregja rohvastam a tegnapinak folyamár nekem címzetlevelet,
+[00:06] és ma újra megvizsgáltam a SuperDL 1.63-os verzióját.
+[00:12] Ebben a verzióban háristemnek sikerült működésre pirnak isegítő lehetőséget.
+[00:19] A múltkor az volt a probléma, hogy nem tudtam tovább lépni a SuperDL-ben,
+[00:24] mert elakadt az alapértelmezett esemes alkalmazásnál,
+[00:29] és nem tudtam semmilyen alkalmazás megnítni a SuperDL-ben belül.
+[00:35] Tehát megmutatom, hogy ez most nálam, hogy működik.
+[00:39] Hítjuk a alkalmazásban, így van.
+[00:42] Be megyünk a beállításokban.
+[00:44] Telefon és kívások.
+[00:46] Üzenesos, időézenes, jákörin, fordközeken,
+[00:49] eszközök, assistents, minden alkalmaket,
+[00:51] menjsz a beállítások.
+[00:53] Beállítások.
+[00:55] Almenű meg itt van.
+[00:56] Program frissítése.
+[00:58] Katalódus, feljelek alesős, haramétepek.
+[01:01] Tejjes, örszes, haladó és haladó és technikai.
+[01:04] Almenű meg itt van.
+[01:05] Kisegítő szolgáltatások állapotam.
+[01:08] Biztonságos mod.
+[01:10] Encerű mod ki és megképen jövesszó,
+[01:13] pillanctűzet beállítás marázsló.
+[01:15] Itt a beállítás marázslóban még szeretném felhívni a figyelmet
+[01:19] egy érdekes elásségre.
+[01:21] Beállítás marázsló.
+[01:23] Kiányzik egy alapvető, egy fontos engedé.
+[01:26] A ból fontosabb, alapéterlenető zenetalkalmazás.
+[01:29] A bejövő esemeseket nem a szuperdél kapja meg,
+[01:32] ezért nem olvasza fel.
+[01:34] Söpörifellem alapéterlenető zenetalkalmazás.
+[01:38] Még mindig kiányzik.
+[01:40] De nem hiányzik,
+[01:43] mert bevan állítva és a rendszer ezt látja.
+[01:48] A ból fontosabb láttuk, mi nem engedte.
+[02:03] A bejövő esemeseket beállítás marázsló bezárva.
+[02:08] Vissza a menübe.
+[02:11] Tehát a rendszer látja,
+[02:14] tehát nem a rendszer utasítja el,
+[02:16] vagy nem tudom,
+[02:18] mert amikor a telefonnak a beállításaim belül
+[02:21] mennyitom az alapéterlenetelkalmazásokat,
+[02:24] akkor az alapéterlenetelkalmazás a szuperdél.
+[02:27] A szuperdélben, ha mennyitom az üzeneteket,
+[02:32] akkor látom a beérkező üzeneteimet,
+[02:35] tehát ott vannak a zesemesek.
+[02:38] Most ezt a videóban nem szeretném,
+[02:40] vagy hangfelvételen nem szeretném,
+[02:42] megmutatném éve ilyen emleg bizalmasabb dolgokon meg bennem,
+[02:45] és ezt nem szeretném.
+[02:47] De ettől függetlenül ott vannak,
+[02:50] tehát látszódnak az esemesek,
+[02:52] tudok esemes tírni,
+[02:54] törölni, belóavassni,
+[02:57] mert mögűnködnek az esemesek.
+[02:59] De viszont a belülítás vanásdóban
+[03:02] még mindig azt írja, hogy így állszik
+[03:04] a zalapértelmezet tűzene te akklamazás.
+[03:08] Na de menjünk tovább a kisegítőre, hát ős mégre.
+[03:11] Egyáltás marázsló, 2-per második szuperdél képernyő almasó.
+[03:15] Szeretném, a szuperdél képernyő almasó.
+[03:17] Megaförnom a tagbe, kettünk.
+[03:19] Ezt a szuperdél seját képernyő almasó.
+[03:21] Más alkalmanásokat is a megszokott négysebb,
+[03:23] és elkeracokat.
+[03:25] Tehát a szalmazások.
+[03:28] Úgyhogy.
+[03:31] Szuperdél.
+[03:35] Én egyen nyolvason megapcsoljuk.
+[03:45] Megégyik.
+[03:51] Kikapsalom a tagbe, kett.
+[03:56] És hiába húzom az úján most jelenleg
+[03:59] Jobbra barra, jobbra barra, le, fel, le, fel.
+[04:02] Semmi nem történik, kimegyek a fő oldalra.
+[04:09] Jó sezzágyunk.
+[04:16] Hogy van? Ja, ilyen fel fel.
+[04:18] Minden, ha fel az ás.
+[04:26] Egyéb alkalmazások, mondjuk.
+[04:29] Mennyitok egy bímályájst?
+[04:31] Lényeg teljesen?
+[04:33] Mennyitok egy bímályájst?
+[04:35] A lakdunk egy kastanák.
+[04:41] És így működik a dolog.
+[04:48] Viszont ha bezárom a bímályájst,
+[04:50] ezt mondja.
+[04:54] És a mennyitok mondjuk egy beállításokat.
+[04:57] Úgy is szeretném megmutatni a beállításokban,
+[04:59] hogy a bímályájst
+[05:01] szuperdél az alapértán vezet
+[05:03] üzenet kezelő.
+[05:05] Hol is mondnak a bármilyen?
+[05:17] Beállítások.
+[05:19] Mennyitjuk, fog kaptani.
+[05:31] A bármilyen?
+[05:48] A bármilyen?
+[05:50] A bármilyen?
+[06:02] A bármilyen?
+[06:10] Mert...
+[06:13] Mennyit?
+[06:17] Annyit csináltam,
+[06:19] hogy...
+[06:21] Most vissza mentem egyet.
+[06:23] A bármilyen?
+[06:25] A bármilyen?
+[06:27] A bármilyen?
+[06:33] A bármilyen?
+[06:39] Nagyonunksul jöv virtuous Siria.
+[06:41] Nagyon deliberate EnEp😩
+[06:55] Az is a szuperdél.
+[06:57] Végül aamen.
+[06:59] Sztut generations.
+[07:01] Az is a SuperDL.
+[07:03] Az is a SuperDL.
+[07:05] Az is a SuperDL.
+[07:07] Az is a SuperDL.
+[07:09] Az is a SuperDL.
+[07:11] Az is a SuperDL.
+[07:13] Lennyi.
+[07:16] Az nem.
+[07:18] Tehát, igen.
+[07:20] Illetve még egy nagyon-nagyon fontos dologra
+[07:22] leptel figyelme.
+[07:24] Ez újra.
+[07:26] Oké.
+[07:32] Ez újra kell indítani a telefon.
+[07:35] Prensefui.
+[07:39] Képelem.
+[07:41] Kikapcsol, kikapcsol, újra indított.
+[07:43] Képdom. Ez az elem nem jomható meg.
+[07:45] Jajgen.
+[07:47] Újra indított. Képdom.
+[07:49] Tehát újra indult a készülék.
+[07:51] És azt akarom megmutatni,
+[07:53] hogy újra indulás után hiába
+[07:55] ombe kapcsolva a pin segét, hiába
+[07:57] ombe kapcsolva a SuperDL képel nyolvasó.
+[07:59] Amikben emiroom újra indítás után
+[08:01] először a pinkódomat.
+[08:03] Addignem beszél egyik sem.
+[08:06] Semmi.
+[08:09] És csak a tárbe kell tudom beírni a pinkódat.
+[08:11] Onlantó, hogy beírom a kódomat.
+[08:17] Onlantó, a vissza minden a helyére.
+[08:19] Viszont,
+[08:22] amig előszörben nem írom a kódot újra indítás után.
+[08:24] Addignem.
+[08:26] Tehát semmi.
+[08:41] Begapsoljuk a tárbeket.
+[08:44] Tárbe kell beírom a kódomat.
+[08:50] Tárbe kell beírom a kódomat.
+[09:03] Képelem.
+[09:05] Képelem.
+[09:07] Majd találkozunk.
+[09:09] Super Digital Lonsze, SuperDL metalt van.
+[09:11] A sötét most az adsik Wallace.
+[09:13] Igen.
+[09:15] Képelem a pérnében.
+[09:17] De lezárom.
+[09:20] Sincs lentől már bügyedik a pinkód.
+[09:22] Így a mennyoton meg kapcsologokort.
+[09:24] Jóbra húzom az újam.
+[09:26] Most meg van a TGO-kettle.
+[09:28] Kettő.
+[09:30] Szó a kódomat.
+[09:32] Tehát ilyen legyenit
+[09:35] fedesztem még fel.
+[09:37] a szuperdél le kapcsolatban, természetesen testelem tovább,
+[09:43] amiben sajnos én nem fogok tudni segíteni,
+[09:47] az a brei billen tűzett ugyanis nem vagyok jó brei írás tekintetében,
+[09:59] tehát nem nagyon ismerom a brei írást az a lényeg,
+[10:01] hogy ebből sajnos én nem fogok tudni segíteni.
+[10:05] De viszont amiben tudok abban nagyon szívesen állok rendelkezésre,
+[10:09] és természetesen haszükség van rákot, olyhogy felvételeket tudok készíteni ugyanis,
+[10:15] szerintem így könnyer, hogy megmutatom, hogy mit mond a telefon,
+[10:19] vagy hogy arra aggál a telefon,
+[10:21] tehát könnyer megmutatni a hang felvétele, mintha leíírni.
+[10:25] Szóval ennyit szerettem olyan, hát nem tudom mi a hosszulat,
+[10:29] nem élem nem olyan hosszul, mint a múltkori,
+[10:31] nem, nincs a hosszul, hogy érkeken, de vagy 10 perc az is biztos van.
+[10:35] De nem baj, tehát ennyit szerettem volna,
+[10:37] és akkor még annyit fogok megtenni,
+[10:41] hogy elvileg van a beállítás vanáslóban egy olyan dolog,
+[10:45] hogy el lehet küldeni a hibai egyenlentést,
+[10:48] vagy nem tudom még ezt, hogy működik, mert nem próbáltam,
+[10:51] hogy akkor az üzenet,
+[10:54] üzenet alapértelmezett üzenet,
+[10:57] tehát hogy miért nem látja, hogy már be van állítva.
+[10:59] De egyébként működik, tehát látodnak az esemesek.
+[11:02] Tehát akkor ezt szerettem volna most mondani,
+[11:06] és akkor továbbis szép napot, hívának.

@@ -56,6 +56,19 @@ object SetupDiagnostics {
         appendLine("KÉT SUPERDL EGY TELEFONON: ${twoBuilds(context)}")
         appendLine()
 
+        // A SZEREPKÖR-KEZELŐ KÜLÖN — MERT A KÉT RÉTEG NEM MINDIG ÉRT EGYET.
+        //
+        // 2026-09-06, Galaxy S24 Ultra: a tesztelő beállította a SuperDL-t
+        // üzenet alkalmazásnak, az SMS-ek működtek is, a varázsló mégis
+        // hiányzónak mutatta. A régi Telephony-lekérdezés üresen tért vissza,
+        // miközben a szerepkör a miénk volt. A naplóból ez akkor NEM látszott,
+        // csak következtetni lehetett rá — ezért kerül ide külön sorba.
+        appendLine("SZEREPKÖR-KEZELŐ (Android 10 óta ez a mérvadó):")
+        for ((cimke, szerep) in roleNames()) {
+            appendLine("  $cimke: ${roleState(context, szerep)}")
+        }
+        appendLine()
+
         appendLine("ÉRTESÍTÉS-HOZZÁFÉRÉS ENGEDÉLYEZETT SZOLGÁLTATÁSOK:")
         appendLine("  ${secure(context, "enabled_notification_listeners")}")
         appendLine("KISEGÍTŐ SZOLGÁLTATÁSOK (engedélyezett):")
@@ -93,9 +106,96 @@ object SetupDiagnostics {
             }
         }
         appendLine()
+
+        // DIRECT BOOT: fel van-e oldva a készülék, és él-e a beszédmotor.
+        //
+        // MIÉRT KELL: az első feloldás ELŐTT a rendszer beszédmotorja nem
+        // indul el, ezért a PIN segéd némán jelenik meg. Ezt a tesztelő csak
+        // úgy tudja leírni, hogy „nem beszél" — a naplóban viszont látszik,
+        // hogy a fázis miatt van-e, vagy másért.
+        appendLine("BESZÉD ÉS DIRECT BOOT:")
+        appendLine("  a készülék fel van oldva: ${userUnlocked(context)}")
+        appendLine("  beszédmotorok a rendszerben: ${ttsEngines(context)}")
+        appendLine("  beépített zárképernyő-hangok: ${lockClips(context)}")
+        appendLine()
+
         appendLine("RENDSZER: ${Build.MANUFACTURER} ${Build.MODEL}, Android " +
             "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), " +
             "build ${Build.DISPLAY}")
+    }
+
+    /** A varázslóban szereplő szerepkörök, felolvasható névvel. */
+    private fun roleNames(): List<Pair<String, String>> {
+        if (Build.VERSION.SDK_INT < 29) return emptyList()
+        return listOf(
+            "üzenet (SMS)" to android.app.role.RoleManager.ROLE_SMS,
+            "telefon (DIALER)" to android.app.role.RoleManager.ROLE_DIALER,
+            "kezdőképernyő (HOME)" to android.app.role.RoleManager.ROLE_HOME,
+            "asszisztens (ASSISTANT)" to android.app.role.RoleManager.ROLE_ASSISTANT,
+            "hívásszűrő (CALL_SCREENING)" to android.app.role.RoleManager.ROLE_CALL_SCREENING
+        )
+    }
+
+    /**
+     * Egy szerepkör állapota HÁROM adattal: elérhető-e, miénk-e, és kérhető-e.
+     *
+     * A „kérhető" a döntő: az Android a szerepköröket egy jelzővel írja le, és
+     * amelyik nem kérhető, ott a felugró ablak MEG SEM JELENIK. Ezen bukott el
+     * az asszisztens az 1.62.1 előtt.
+     */
+    private fun roleState(context: Context, role: String): String = try {
+        if (Build.VERSION.SDK_INT < 29) {
+            "nincs szerepkör-kezelő ezen az Android verzión"
+        } else {
+            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+            if (rm == null) {
+                "a szerepkör-kezelő nem érhető el"
+            } else {
+                val elerheto = rm.isRoleAvailable(role)
+                val mienk = elerheto && rm.isRoleHeld(role)
+                buildString {
+                    append(if (elerheto) "elérhető" else "NEM ELÉRHETŐ ezen a készüléken")
+                    append(", ")
+                    append(if (mienk) "MIÉNK" else "nem a miénk")
+                }
+            }
+        }
+    } catch (e: Exception) {
+        "a vizsgálat hibára futott: ${e.javaClass.simpleName}"
+    }
+
+    private fun userUnlocked(context: Context): String = try {
+        val um = context.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
+        when (um?.isUserUnlocked) {
+            true -> "igen"
+            false -> "NEM (Direct Boot fázis — a beszédmotor ilyenkor nem él)"
+            else -> "nem lekérdezhető"
+        }
+    } catch (_: Exception) {
+        "nem lekérdezhető"
+    }
+
+    private fun ttsEngines(context: Context): String = try {
+        val intent = Intent("android.speech.tts.engine.INTENT_ACTION_TTS_SERVICE")
+        val list = if (Build.VERSION.SDK_INT >= 33) {
+            context.packageManager.queryIntentServices(
+                intent, PackageManager.ResolveInfoFlags.of(0L)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.queryIntentServices(intent, 0)
+        }
+        if (list.isEmpty()) "egy sem található"
+        else list.joinToString(", ") { it.serviceInfo?.packageName.orEmpty() }
+    } catch (_: Exception) {
+        "nem lekérdezhető"
+    }
+
+    private fun lockClips(context: Context): String = try {
+        val n = context.assets.list("zarhang")?.size ?: 0
+        if (n > 0) "$n klip a programcsomagban" else "NINCSENEK"
+    } catch (_: Exception) {
+        "nem lekérdezhető"
     }
 
     // ── Az egyes adatok ─────────────────────────────────────────────────────

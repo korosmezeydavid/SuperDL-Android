@@ -3047,6 +3047,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.VOICE_THEME_CATALOG -> startVoiceThemeCatalog()
             MenuAction.VOICE_THEME_SUBMIT -> submitVoiceThemeToCommunity()
             MenuAction.VOICE_THEME_INSTALL_FILE -> browseVoiceThemeFile()
+            MenuAction.KEYGUARD_VOICE_TEST -> testKeyguardVoice()
             MenuAction.BATTERY_FIRST_ALERT_CYCLE -> cycleBatteryFirstAlert()
             MenuAction.FLASHLIGHT -> toggleFlashlight()
             MenuAction.QR_SCAN -> {
@@ -17713,6 +17714,46 @@ class MainActivity : AppCompatActivity() {
         }
         sounds.play(SoundType.ACTION_OK)
         tts.speak("${result.message} $how")
+    }
+
+    /**
+     * A BEÉPÍTETT ZÁRKÉPERNYŐ-HANGOK PRÓBÁJA.
+     *
+     * MIÉRT VAN ERRE MENÜPONT: ezek a hangok kizárólag a bekapcsolás utáni,
+     * ELSŐ PIN-beírás előtti percben szólalnak meg — akkor, amikor a rendszer
+     * beszédmotorja még el sem indult. Máskor a rendes beszéd megy.
+     *
+     * Csakhogy pont az az egy perc az, amit senki nem tud kényelmesen
+     * kipróbálni: ott áll az ember a zárt telefonnal a kezében, és vagy
+     * megszólal, vagy nem. Ezért lehet innen, nyugodt körülmények között
+     * meghallgatni ugyanazt.
+     *
+     * A hang GÉPIES — nem a rendes beszédmotor. Ezt ki is mondjuk, hogy senki
+     * ne higgye hibának. A mérce itt nem a szépség, hanem hogy egyáltalán
+     * legyen hang ott, ahol eddig némaság volt.
+     */
+    private fun testKeyguardVoice() {
+        val voice = try {
+            com.superdl.launcher.lock.keyguard.KeyguardVoice(this)
+        } catch (e: Exception) {
+            tts.speak("A zárképernyő hangjait nem sikerült előkészíteni.")
+            return
+        }
+        if (!voice.hasBuiltInClips()) {
+            tts.speak(
+                "Ebben a változatban nincsenek beépített zárképernyő-hangok."
+            )
+            return
+        }
+        tts.speakThen(
+            "Most a beépített zárképernyő-hangok jönnek. Ezek akkor szólalnak meg, " +
+                "amikor bekapcsolod a telefont, és még nem írtad be a PIN kódot — " +
+                "olyankor a rendszer beszédmotorja még el sem indult. " +
+                "A hang ezért gépiesebb a megszokottnál: nem hiba, hanem a " +
+                "programba épített tartalék. Figyelj."
+        ) {
+            voice.playBuiltInDemo()
+        }
     }
 
     private fun cycleBatteryFirstAlert() {

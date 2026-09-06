@@ -50,6 +50,15 @@ class KeyguardPinOverlayController(
         get() = visible
 
     private var tts: TtsManager? = null
+
+    /**
+     * A ZÁRKÉPERNYŐ BESZÉLŐJE.
+     *
+     * Feloldás után a rendes beszédmotort használja; az ELSŐ feloldás előtt
+     * a programba épített hangokat. Eddig ott némaság volt, mert a rendszer
+     * beszédmotorja Direct Boot alatt el sem indul. Lásd: KeyguardVoice.
+     */
+    private var voice: KeyguardVoice? = null
     private var sounds: SoundFeedback? = null
     private var gestureListener: SwipeGestureListener? = null
     private var suspendedForInjection = false
@@ -86,7 +95,8 @@ class KeyguardPinOverlayController(
         handler.post {
             hide()
             suspendedForInjection = false
-            tts?.shutdown()
+            voice?.shutdown()
+            voice = null
             tts = null
             sounds?.release()
             sounds = null
@@ -167,6 +177,18 @@ class KeyguardPinOverlayController(
                 }
             }
         }
+        // A BESZÉLŐ MINDIG LÉTREJÖN, akkor is, ha a beszédmotor nem indult:
+        // a beépített hangokhoz nem kell motor, csak a programcsomag.
+        if (voice == null) {
+            voice = try {
+                KeyguardVoice(service).also { it.tts = tts }
+            } catch (e: Exception) {
+                android.util.Log.w(TAG_OVERLAY, "KeyguardVoice hiba: ${e.message}")
+                null
+            }
+        } else {
+            voice?.tts = tts
+        }
         if (sounds == null) {
             sounds = try {
                 SoundFeedback(service)
@@ -245,18 +267,21 @@ class KeyguardPinOverlayController(
     private fun speakIntroIfNeeded() {
         if (introSpoken) return
         introSpoken = true
-        tts?.speak(
+        val first = items.first()
+        voice?.say(
+            listOf("bevezeto", voice?.itemKey(first.label).orEmpty()),
             "Rendszer zárolás. Add meg a telefon PIN kódját. " +
                 "Egyestől nulláig, alul a Törlés és Megerősítés gomb. " +
-                "Fel-le választás, jobbra beírás, balra egy számjegy törlése."
+                "Fel-le választás, jobbra beírás, balra egy számjegy törlése. " +
+                first.speakLabel()
         )
-        tts?.speakAdd(items.first().speakLabel())
     }
 
     private fun navigate(delta: Int) {
         padIndex = (padIndex + delta + items.size) % items.size
         updateDisplay()
-        tts?.speak(items[padIndex].speakLabel())
+        val item = items[padIndex]
+        voice?.say(voice?.itemKey(item.label).orEmpty(), item.speakLabel())
     }
 
     private fun activate() {
@@ -270,10 +295,14 @@ class KeyguardPinOverlayController(
                             entryLength += 1
                             updateDisplay()
                             sounds?.play(SoundType.MENU_NAV)
-                            tts?.speak(NumberPadHelper.speakPinDigitEntered("x".repeat(entryLength)))
+                            voice?.say(
+                                listOf("beirva") + (voice?.countKeys(entryLength) ?: emptyList()),
+                                NumberPadHelper.speakPinDigitEntered("x".repeat(entryLength))
+                            )
                         } else {
                             feedback(SoundType.ACTION_ERROR)
-                            tts?.speak(
+                            voice?.say(
+                                "nem_sikerult",
                                 injectionHint() ?: "A rendszer billentyű nem érhető el. Próbáld újra."
                             )
                         }
@@ -287,10 +316,10 @@ class KeyguardPinOverlayController(
                             entryLength = 0
                             updateDisplay()
                             sounds?.play(SoundType.ACTION_OK)
-                            tts?.speak("Teljes bevitel törölve.")
+                            voice?.say("mind_torolve", "Teljes bevitel törölve.")
                         } else {
                             feedback(SoundType.ACTION_ERROR)
-                            tts?.speak("A törlés nem sikerült.")
+                            voice?.say("nem_sikerult", "A törlés nem sikerült.")
                         }
                     }
                 }
@@ -300,10 +329,10 @@ class KeyguardPinOverlayController(
                     handler.post {
                         if (success) {
                             sounds?.play(SoundType.ACTION_OK)
-                            tts?.speak("PIN elküldve.")
+                            voice?.say("elkuldve", "PIN elküldve.")
                         } else {
                             feedback(SoundType.ACTION_ERROR)
-                            tts?.speak("A megerősítés nem sikerült.")
+                            voice?.say("nem_sikerult", "A megerősítés nem sikerült.")
                         }
                     }
                 }
@@ -315,7 +344,7 @@ class KeyguardPinOverlayController(
     private fun backspace() {
         if (entryLength == 0) {
             feedback(SoundType.ACTION_ERROR)
-            tts?.speak("Add meg a telefon PIN kódját.")
+            voice?.say("add_meg", "Add meg a telefon PIN kódját.")
             return
         }
         onAction(OverlayAction.Delete) { success ->
@@ -324,10 +353,13 @@ class KeyguardPinOverlayController(
                     entryLength = (entryLength - 1).coerceAtLeast(0)
                     updateDisplay()
                     sounds?.play(SoundType.SWIPE_LEFT)
-                    tts?.speak(NumberPadHelper.speakPinBackspace("x".repeat(entryLength)))
+                    voice?.say(
+                        listOf("egy_torolve") + (voice?.countKeys(entryLength) ?: emptyList()),
+                        NumberPadHelper.speakPinBackspace("x".repeat(entryLength))
+                    )
                 } else {
                     feedback(SoundType.ACTION_ERROR)
-                    tts?.speak("A törlés nem sikerült.")
+                    voice?.say("nem_sikerult", "A törlés nem sikerült.")
                 }
             }
         }

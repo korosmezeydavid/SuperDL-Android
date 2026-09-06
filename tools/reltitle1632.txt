@@ -1,0 +1,1 @@
+1.63.2 – Hang a zárképernyőn bekapcsolás után, és az üzenet-szerepkör felismerése

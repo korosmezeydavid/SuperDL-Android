@@ -1,0 +1,58 @@
+1.63.2 - Hang a zarkepernyon Direct Boot alatt, es az SMS-szerepkor felismerese
+
+Forras: Lorincz Richard masodik hangfelvetele (11 perc, Galaxy S24 Ultra,
+Android 16) es a varazslobol kuldott hibajelentes ugyanarrol a keszulekrol.
+
+1. DIRECT BOOT: NEM BESZELT SEMMI AZ ELSO FELOLDASIG
+   Tesztelo szava szerint: "ujrainditas utan hiaba van bekapcsolva a PIN
+   seged, hiaba a kepernyoolvaso, amig be nem irom eloszor a PIN kodomat,
+   addig nem beszel egyik sem. Semmi."
+
+   Ok: az Android az elso feloldasig nem inditja el a nem Direct Boot kepes
+   alkalmazasokat - koztuk a RENDSZER BESZEDMOTORJAT. A PIN seged maga
+   rendben elindult (directBootAware, eszkoz-vedett tarolobol olvas), a
+   billentyuzet meg is jelent, csak epp nemam. A TalkBack sajat, beepitett
+   uton kerüli meg ezt.
+
+   Javitas: uj lock/keyguard/KeyguardVoice.kt. A zarkepernyo szovegkeszlete
+   ZART HALMAZ (tiz szamjegy, ket gomb, nehany rogzitett mondat), ezert
+   elore felveheto. 38 klip az assets/zarhang/ mappaban (311 kB, espeak-ng
+   magyar hang, m4a). A MediaPlayer - a beszedmotorral ellentetben - semmilyen
+   kulso alkalmazastol nem fugg, es az assets az APK resze, tehat titkositott
+   fazisban is olvashato.
+
+   A klipek az ESZKOZ-VEDETT gyorsitotarba csomagolodnak ki (a szokasos cache
+   Direct Boot alatt nem irhato). A valasztast a UserManager.isUserUnlocked
+   dönti el: feloldas utan a rendes beszedmotor szol a felhasznalo sajat
+   beallitasaival, elotte a beepitett klipek.
+
+   Uj menupont: Beallitasok > Biztonsag > Zarkepernyo hangjainak probaja.
+   Enelkul ezeket a hangokat csak eles helyzetben lehetne eloszor hallani,
+   zart telefonnal a kezben.
+
+2. AZ SMS-SZEREPKOR FELISMERESE
+   Tesztelo: "a beallitasokban az alapertelmezett uzenet alkalmazas a SuperDL
+   ... mukodnek az SMS-ek. De a varazsloban meg mindig azt irja, hogy
+   hianyzik." A naplo: "alapertelmezett uzenet app: nincs" - a
+   getDefaultSmsPackage() uresen tert vissza, holott a szerepkor a miénk volt.
+
+   - isDefaultSmsApp() mostantol KET forrasbol nez: Telephony ES RoleManager.
+   - createRoleRequestIntent() Android 10 folott soha nem esik vissza a regi
+     ACTION_CHANGE_DEFAULT-ra. A korabbi kod a !isRoleHeld feltetel miatt
+     hagyta ki a RoleManager-utat, es a regi szandekot adta - az megnyilik,
+     majd neman bezarul. A naplo harom ilyen eredmenytelen probalkozast
+     mutatott. Ugyanaz a hibaosztaly, mint 1.62.1-ben az asszisztensnel.
+
+3. A DIAGNOSZTIKA TOBBET MOND
+   SetupDiagnostics: uj "SZEREPKOR-KEZELO" szakasz (SMS, DIALER, HOME,
+   ASSISTANT, CALL_SCREENING: elerheto-e, mienk-e), es uj "BESZED ES DIRECT
+   BOOT" szakasz (feloldottsag, rendszerbeli beszedmotorok, beepitett
+   zarkepernyo-hangok szama). Az elozo jelentesnel ezekre csak kovetkeztetni
+   lehetett.
+
+NEM REPRODUKALHATO ITT: az Ulefone-on nincs kepernyozar (password quality
+{0=0}), ezert Direct Boot fazis sem letezik rajta - 12 masodperccel az
+ujrainditas utan mar RUNNING_UNLOCKED. A javitas eles igazolasa Richardra var.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
