@@ -1,0 +1,107 @@
+SuperDL 1.63.1 — amit a múltkor még nem ígértem, most kész
+
+Kedves Tesztelők!
+
+A legutóbbi hírlevélben ez állt a beszédtémák megosztásáról:
+
+    "Ez az első lépés. A következő az lesz, hogy a témák a modulok közt,
+    egy böngészhető katalógusban is megjelenjenek, ahol meg lehet hallgatni
+    őket letöltés előtt, és ahova bárki beküldheti a sajátját. Ez most még
+    nincs kész — nem ígérem másnak, mint aminek van."
+
+Most kész. Ez az egész kiadás erről szól.
+
+
+BESZÉDTÉMÁK A KÖZÖSBŐL — ÉS A JOBBRA SÖPRÉS NEM LETÖLTÉS
+
+Beállítások, Hangok, Beszédtéma, Beszédtémák a közösből.
+
+Fel-le lépkedsz a témák között; a program mondja a nevet, a szerzőt és a
+méretet. És itt van a lényeg, amiért ez az egész más, mint egy szokásos
+letöltő lista:
+
+    A JOBBRA SÖPRÉS NEM LETÖLTÉS, HANEM MEGHALLGATÁS.
+
+Egy hangtémát nem lehet leírásból választani. Ha ott az áll, hogy "vicces",
+az semmit nem mond arról, hogy Te nevetni fogsz-e rajta. Ezért a teljes
+csomag lejön — de egy ELDOBHATÓ helyre. Végighallgatod eseményenként
+(fel-le a hangok között), és utána döntesz:
+
+- jobbra: megtartom. A téma a helyére kerül, és be is kapcsol.
+- balra: nem kérem. Törlődik, és SEMMI NYOMA NEM MARAD a telefonon.
+
+Ez azért mehet így, mert egy téma kétszáz-négyszáz kilobájt: kevesebb, mint
+egy fénykép. Nincs értelme külön kis mintát tartani hozzá — az csak egy
+második fájl lenne, ami eltérhet attól, amit végül megkapsz. A meghallgatás
+maga a letöltés.
+
+
+BEKÜLDÖM A KÖZÖSBE
+
+Beállítások, Hangok, Beszédtéma, Beküldöm a közösbe.
+
+Bemondod a szerző nevét — ez fog megjelenni a katalógusban a téma mellett —,
+utána elhangzik a nyilatkozat: a felvétel a sajátod, és ha bekerül, bárki
+letöltheti. Jobbra söprés, és a program feltölti a témát, összeállít egy
+kész levelet, és megnyitja a levelezőt. Csak el kell küldened.
+
+A levélben minden benne van, amiből dönteni lehet: a téma neve, a szerző,
+hány eseményhez van hang és melyikekhez, a méret, a letöltési link.
+
+ÉS EGY DOLGOT KIMONDOK, MERT ÍGY TISZTESSÉGES: EZ MÉG NEM KÖZZÉTÉTEL.
+A beküldött témát meghallgatom, és én teszem közzé. Ez nem bizalmatlanság
+Veled szemben — enélkül bárki hangja bekerülne bárki telefonjába anélkül,
+hogy azt valaki egyszer is meghallgatta volna. Egy vak felhasználó nem tudja
+"megnézni", mit tölt le. Amíg ez a helyzet, marad az emberi kapu.
+
+Ha nem akarod a közöst: a Beszédtéma megosztása pont változatlanul megvan,
+azzal egyenként bárkinek elküldheted, felhő és beküldés nélkül.
+
+
+KAPOTT TÉMA TELEPÍTÉSE
+
+Beállítások, Hangok, Beszédtéma, Kapott téma telepítése.
+
+Aki eddig levélben vagy üzenetben kapott egy téma-fájlt, nem tudta hova
+tenni — a program nem kínált neki utat. Most a rendszer fájlválasztójával
+kiválasztod, és kész.
+
+
+AZ ELSŐ TÉMA MÁR FENT VAN
+
+A katalógusban ott az Elena téma. Nem kell letöltened, hiszen be van építve
+— de innen bármikor visszatöltheted, ha felülvetted valamelyik hangját. És
+így van mit kipróbálni a böngészőn az első pillanattól: nem egy üres listát
+kapsz azzal, hogy "majd lesz benne valami".
+
+Ha készítesz egyet és beküldöd, Te leszel a második.
+
+
+APRÓSÁG, DE SZÁMÍT
+
+A katalógus mostantól a SZERZŐT is kimondja a modul neve után. A beszédtémák
+nagy része mások felvétele lesz, és ott a szerző neve épp olyan fogódzó,
+mint a cím.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A programot le kell tölteni, nincs benne az áruházban, és a telepítéshez
+engedélyezni kell az ismeretlen forrásból való telepítést. Aki már
+használja, annak a program magától felajánlja a frissítést.
+
+A program ingyenes, és az is marad.
+
+
+EGY KÉRÉS
+
+Ezt a láncot — meghallgatás, megtartás, beküldés — még kevesen járták végig.
+Ha valahol elakadsz, ne hagyd annyiban: Beállítások, Beállítás varázsló, a
+lista legvégén jobbra söprés, és pontosan látom, mi nem engedett.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!
