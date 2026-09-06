@@ -220,9 +220,26 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
                 "felismeres: allapot=$analyzed, PIN-mezo=${if (pinField != null) "megvan" else "nincs"}, " +
                     "vedett=${KeyguardPinDetector.isDeviceSecure(this)}"
             )
+            // BEKAPCSOLÁS UTÁN AZ ELSŐ FELOLDÁSIG A PIN AZ EGYETLEN ÚT.
+            //
+            // Az Android az első feloldásig NEM engedi az ujjlenyomatot és az
+            // arcfelismerést — csak a kód. A zárképernyő viszont ilyenkor is a
+            // "húzd fel" alapállapotot mutatja, a számbillentyűzet csak a
+            // felhúzás után jelenik meg. Ezért a PIN-mező ilyenkor még NINCS,
+            // és a segéd — a korábbi feltétel szerint — elrejtőzött.
+            //
+            // Ez élesben azt jelentette, hogy bekapcsolás után NÉMASÁG volt, és
+            // a felhasználónak magától kellett volna kitalálnia, hogy előbb fel
+            // kell húznia a képernyőt. Vakon ez nem kitalálható.
+            //
+            // Ezért: ha a készülék védett, zárolva van, ÉS még nem volt feloldva
+            // a bekapcsolás óta, akkor a "húzd fel" alapállapotot is PIN-nek
+            // vesszük. A billentyűzet megjelenik és megszólal; az első leütésnél
+            // a revealPinBouncer() amúgy is felhozza a rendszer billentyűzetét.
+            val elsoFeloldasElott = !userUnlocked()
             val resolved = if (analyzed == CredentialState.KEYGUARD_IDLE &&
                 KeyguardPinDetector.isDeviceSecure(this) &&
-                pinField != null
+                (pinField != null || elsoFeloldasElott)
             ) {
                 CredentialState.PIN_OR_PASSWORD
             } else {
@@ -244,6 +261,15 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
             credentialState
         }
         applyCredentialState(state)
+    }
+
+    /** Fel volt-e már oldva a felhasználó a bekapcsolás óta. */
+    private fun userUnlocked(): Boolean = try {
+        val um = getSystemService(Context.USER_SERVICE) as android.os.UserManager
+        um.isUserUnlocked
+    } catch (_: Exception) {
+        // Ha nem tudjuk megállapítani, a megszokott működést választjuk.
+        true
     }
 
     private fun applyCredentialState(state: CredentialState) {

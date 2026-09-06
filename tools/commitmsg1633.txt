@@ -1,0 +1,69 @@
+1.63.3 - Direct Boot osszeomlas javitasa, varazslo zsakutca, telefon-szerepkor
+
+A FO HIBA: bekapcsolas utan, az elso feloldas elott a folyamat OSSZEOMLOTT.
+
+  IllegalStateException: SharedPreferences in credential encrypted storage
+  are not available until after user is unlocked
+    at ScreenReaderPrefs.prefs(ScreenReaderPrefs.kt:32)
+    at ScreenReaderPrefs.reportFailure(ScreenReaderPrefs.kt:74)
+    at ScreenReaderService.onServiceConnected(ScreenReaderService.kt:104)
+
+A rendszer elinditotta a PIN segedet; ugyanabban a folyamatban indul a
+kepernyoolvaso is. A TtsManager (beszedmotor hijan) hibazott, a HIBAKEZELO
+a titkositott tarolohoz nyult, es a kivetel megolte az EGESZ folyamatot -
+a PIN segeddel egyutt. Ket osszeomlas utan az Android 30 percre halasztotta
+az ujrainditast, tehat a feloldasig a SuperDL egyetlen resze sem elt.
+
+Masodik reteg ugyanez: a TtsManager.onInit ASZINKRON visszahivasa. Azt a
+letrehozas kore tett try/catch nem foghatja el, mert a rendszer hivja,
+kesobb, a foszalon.
+
+JAVITASOK
+
+- UJ storage/SafePrefs.kt: beallitas-tarolo, ami soha nem dob kivetelt.
+  Feloldas elott eszkoz-vedett tarolo, vegszukseg eseten ures tarolo.
+  12 tarolo vezetve at ra (tts, feedback, gestures, security, voicetheme,
+  setup).
+- TtsManager.onInit korulvedve (ov melle nadragtarto).
+- ScreenReaderService: feloldas elott el sem indul, ACTION_USER_UNLOCKED
+  vevovel indul el a feloldas pillanataban.
+- ScreenReaderPrefs: reportFailure titkositott fazisban nem szamol
+  (ott a hiba varhato, nem meghibasodas); biztonsagi kapcsolok mindket
+  taroloba irodnak.
+- KeyguardPinAccessibilityService: elso feloldas elott a KEYGUARD_IDLE
+  allapotot is PIN-nek vesszuk. Az Android ekkor ugyis csak kodot fogad el,
+  a zarkepernyo viszont a "huzd fel" alapallapotot mutatja, es a seged
+  emiatt elrejtozott.
+- KeyguardVoice: a 38 klip a gyorsitotar helyett TARTOS mappaba
+  (device-protected filesDir). A keszulek takaritoja a gyorsitotarat minden
+  bekapcsolaskor uritette. Uj ensureUnpacked(), feloldas utan hatterszalon.
+
+MERES: negy ujrainditasbol negy. Osszeomlas nulla, a seged ablaka minden
+alkalommal megjelent es megszolalt a kod beirasa elott.
+
+VARAZSLO ZSAKUTCA (Xiaomi M2103K19G, Android 13, harom hibajelentes 20 perc
+alatt, mind ugyanarrol: role_dialer)
+
+- SetupPrefs: a probalkozas-szamlalo mostantol a taroloban. Eddig memoriaban
+  volt, a MIUI pedig leallitja a hatterben levo alkalmazasokat - ugyanezen a
+  telefonon a "korlatlan hatterfutas" engedelyt is MAGATOL visszavonta ket
+  jelentes kozott. Igy a felhasznalo soha nem erte el a ket probalkozast,
+  ami utan az alapveto tetel kihagyhato.
+- MainActivity: a "nem lehet kesobbre hagyni" uzenet mostantol MEGMONDJA,
+  mikortol lehet. A kijarat eddig is megvolt, csak nema volt.
+
+TELEFON-SZEREPKOR (ugyanaz a hibaosztaly, mint asszisztens 1.62.1 es
+uzenet 1.63.2 - harmadik elofordulas)
+
+- DialerRoleHelper: ket forrasbol nezi (TelecomManager ES RoleManager),
+  Android 10 folott nem esik vissza az elavult ACTION_CHANGE_DEFAULT_DIALER-re,
+  es nema zsakutca helyett MANAGE_DEFAULT_APPS_SETTINGS-et nyit.
+
+HELYESBITES AZ 1.63.2-HOZ: a "nincs kepernyozar az Ulefone-on" allitas TEVES
+volt. A dumpsys device_policy "Password quality" sora az eszkozkezeloi
+kovetelmenyt mutatja, nem a zar meglétét. A helyes lekerdezes:
+dumpsys lock_settings -> CredentialType: Pin. A hirlevel, a Richardnak irt
+level es a kiadasi jegyzet javitva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

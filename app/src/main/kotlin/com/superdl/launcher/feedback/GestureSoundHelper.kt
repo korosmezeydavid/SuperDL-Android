@@ -42,7 +42,7 @@ object GestureSoundHelper {
 
     fun restorePhoneRingerIfNeeded(context: Context) {
         if (AlertSoundSettingsStore.isSilentMode(context)) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
 
         val previousRinger = prefs.getInt(KEY_LEGACY_PREV_RINGER, -1)

@@ -243,15 +243,64 @@ class KeyguardVoice(private val context: Context) {
         }
     }
 
+    /**
+     * A KLIPEK HELYE — TARTÓS MAPPA, NEM GYORSÍTÓTÁR.
+     *
+     * Eredetileg a gyorsítótárba (`cacheDir`) másoltuk őket. Élesben kiderült,
+     * hogy ez ezen a készüléken nem tartós: az Ulefone saját takarítója minden
+     * bekapcsoláskor kiüríti a gyorsítótárat, tehát a 38 klip MINDEN indulásnál
+     * újra kimásolódott — méghozzá pont a legrosszabb pillanatban, amikor a
+     * felhasználó a zárképernyő előtt áll és beszédre vár.
+     *
+     * A gyorsítótár definíció szerint eldobható. Ezek a klipek viszont nem
+     * azok: nélkülük a telefon néma marad a feloldásnál. Ezért a `filesDir`
+     * a helyük — az eszköz-védett változata, hogy titkosított fázisban is
+     * olvasható legyen. Összesen 311 kilobájt.
+     */
     private fun cacheDir(): File? = try {
         val base = try {
             context.createDeviceProtectedStorageContext() ?: context
         } catch (_: Exception) {
             context
         }
-        File(base.cacheDir, ASSET_DIR).apply { mkdirs() }
+        File(base.filesDir, ASSET_DIR).apply { mkdirs() }
     } catch (e: Exception) {
-        Log.w(TAG, "zarhang gyorsitotar hiba: ${e.message}")
+        Log.w(TAG, "zarhang mappa hiba: ${e.message}")
         null
     }
+
+    /**
+         * ELŐRE KICSOMAGOLÁS — hogy bekapcsoláskor már készen legyenek.
+         *
+         * Feloldás után, háttérszálon fut le egyszer. Enélkül az első
+         * megszólalás a zárképernyőn 38 fájl kimásolására várna.
+         *
+         * Csak azt másolja, ami hiányzik, tehát a további indulások ingyenesek.
+         * Ha a rendszer mégis kitakarítja, a lejátszáskori másolás továbbra is
+         * megfogja — ez gyorsítás, nem feltétel.
+         */
+    fun ensureUnpacked() {
+            try {
+                val dir = cacheDir() ?: return
+                val nevek = context.assets.list("zarhang").orEmpty()
+                var masolt = 0
+                for (nev in nevek) {
+                    val out = File(dir, nev)
+                    if (out.exists() && out.length() > 300) continue
+                    try {
+                        context.assets.open("zarhang/$nev").use { input ->
+                            out.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        masolt++
+                    } catch (e: Exception) {
+                        Log.w("SDL_PINASSIST", "zarhang elore-kicsomagolas ($nev): ${e.message}")
+                    }
+                }
+                if (masolt > 0) {
+                    Log.i("SDL_PINASSIST", "zarhang klipek kicsomagolva: $masolt / ${nevek.size}")
+                }
+            } catch (e: Exception) {
+                Log.w("SDL_PINASSIST", "zarhang elore-kicsomagolas hiba: ${e.message}")
+            }
+        }
 }

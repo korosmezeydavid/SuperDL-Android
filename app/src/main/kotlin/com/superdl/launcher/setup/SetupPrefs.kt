@@ -26,8 +26,44 @@ object SetupPrefs {
     private const val KEY_SKIPPED = "skipped_ids"
     private const val KEY_ACK = "acknowledged_ids"
 
+    private const val KEY_ATTEMPTS = "attempt_counts"
+
     private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
+
+    // ---- próbálkozások száma tételenként ----
+
+    /**
+     * HÁNYSZOR PRÓBÁLTA MÁR MEGADNI — ÉS MIÉRT KELL EZT MEGJEGYEZNI.
+     *
+     * A varázsló egy alapvető tételt két sikertelen próbálkozás után enged
+     * kihagyni. Ez a kijárat viszont csak akkor ér valamit, ha a számláló
+     * TÚLÉLI a program leállítását.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Xiaomi M2103K19G, Android 13, három egymás
+     * utáni hibajelentés húsz perc alatt): a MIUI a háttérben futó
+     * alkalmazásokat magától leállítja — ugyanezen a telefonon a
+     * „korlátlan háttérfutás" engedélyt is VISSZAVONTA két jelentés között.
+     * Minden leállítás után a memóriában tartott számláló nullázódott, tehát
+     * a felhasználó soha nem érte el a kettőt, és a varázsló újra és újra
+     * azt mondta neki, hogy ezt nem lehet kihagyni.
+     *
+     * Vakon, a kezdőképernyő helyén ragadva ez nem apró kényelmetlenség.
+     */
+    fun attemptCount(context: Context, id: String): Int = try {
+        prefs(context).getInt(KEY_ATTEMPTS + "_" + id, 0)
+    } catch (_: Exception) {
+        0
+    }
+
+    fun noteAttempt(context: Context, id: String): Int {
+        val next = attemptCount(context, id) + 1
+        try {
+            prefs(context).edit().putInt(KEY_ATTEMPTS + "_" + id, next).apply()
+        } catch (_: Exception) {
+        }
+        return next
+    }
 
     /** Végigment-e már valaha a varázslón. */
     fun isWizardDone(context: Context): Boolean = try {

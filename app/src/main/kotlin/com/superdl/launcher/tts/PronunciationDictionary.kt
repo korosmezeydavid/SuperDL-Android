@@ -77,7 +77,7 @@ object PronunciationDictionary {
     )
 
     private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
 
     // ── A SZÓTÁR ALKALMAZÁSA ────────────────────────────────────────────────
 

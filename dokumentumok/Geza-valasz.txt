@@ -1,0 +1,99 @@
+Kedves Géza!
+
+Megkaptam mind a három hibajelentését, és külön köszönöm, hogy nem egyet
+küldött. Külön-külön nézve három egyforma panasz lett volna. Egymás mellé
+téve viszont pontosan megmutatták, mi a baj — és két olyan hibát fedtek fel,
+amiről addig nem tudtam.
+
+A javítás kész, kiadtam 1.63.3 néven:
+
+    https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+
+AMIT A HÁROM JELENTÉS EGYÜTT ELMONDOTT
+
+A három jelentés 19:38-kor, 19:47-kor és 19:58-kor készült. Időrendben
+olvasva látszik, hogy Ön közben végig haladt: beállította a mátrix
+billentyűzetet, kihagyta az asszisztenst és az értesítés-olvasást. Egyetlen
+tételen nem jutott át: az alapértelmezett telefon alkalmazáson.
+
+Vagyis nem elakadt — dolgozott, és egy falba ütközött.
+
+
+AZ ELSŐ HIBA: A KIJÁRAT NÉMA VOLT
+
+A varázsló két sikertelen próbálkozás után ENGEDI kihagyni az alapvető
+tételeket is. Ezt szeptember 4-én építettem be, épp azért, hogy senki ne
+ragadjon bent egy telefonnal, amivel még segítséget sem tud hívni.
+
+Ön viszont csak ennyit hallott: „Ezt nem lehet későbbre hagyni." Egy szót
+sem arról, hogy MIKORTÓL lehet. Ebből joggal gondolta, hogy zsákutca —
+és inkább hibát jelentett, ami helyes döntés volt.
+
+Egy kijárat, amiről a felhasználó nem tud, nem kijárat. Mostantól ezt
+hallja majd: „…Söpörj jobbra, és megmutatom, hol adhatod meg. Ha még egyszer
+megpróbálod és úgy sem sikerül, utána már ki tudod hagyni."
+
+
+A MÁSODIK HIBA: A SZÁMLÁLÓ ELVESZETT
+
+Ez a súlyosabb, és az Ön jelentései nélkül nem találtam volna meg.
+
+A próbálkozásokat a program a memóriájában tartotta. Az Ön Xiaomija viszont
+a háttérben futó alkalmazásokat magától leállítja. A jelentéseiből ez
+feketén-fehéren látszik is:
+
+    19:38  korlátlan háttérfutás: megvan
+    19:47  korlátlan háttérfutás: megvan
+    19:58  korlátlan háttérfutás: HIÁNYZIK
+
+A telefon MAGÁTÓL visszavonta azt az engedélyt, amit Ön megadott. Nem Ön
+csinálta, nem én — a MIUI energiakezelője.
+
+Ez azt jelenti, hogy a SuperDL-t a rendszer időnként leállította, és minden
+leállítás nullázta a próbálkozás-számlálót. Tehát Ön a gyakorlatban SOHA nem
+érhette el azt a kettőt, ami után a tétel kihagyható lett volna. A jelentései
+végig „próbálkozás: 1"-et mutattak — most már tudom, miért.
+
+Mostantól a számláló a tárolóba kerül, és túléli a leállítást.
+
+
+A HARMADIK: MAGA A TELEFON-SZEREPKÖR
+
+A program egyetlen forrásból kérdezte meg, kié az alapértelmezett telefon
+szerepkör. Mostantól kettőből néz, és Android 10 fölött nem esik vissza egy
+elavult útra, ami megnyílik, majd némán bezárul. Ha a kérés nem hozható
+létre, a rendszer „Alapértelmezett alkalmazások" képernyőjét nyitja meg, ahol
+kézzel elvégezhető.
+
+Ez ugyanaz a hibafajta, ami korábban az asszisztensnél és az üzenetküldésnél
+is kijött. Az Öné volt a harmadik előfordulása, és ez segített abban, hogy
+végre mintázatként lássam.
+
+
+AMIT KÉRNÉK ÖNTŐL
+
+1. Frissítés az 1.63.3-ra.
+
+2. A Xiaomin érdemes bekapcsolni a SuperDL AUTOMATIKUS INDÍTÁSÁT:
+   Beállítások, Alkalmazások, Alkalmazások kezelése, SuperDL,
+   Automatikus indítás. A varázslóban ez a tétel „kihagyva" állapotban van
+   Önnél — más telefonokon ez tényleg elhagyható, a MIUI-n viszont nem.
+   Enélkül a rendszer újra és újra leállítja a programot.
+
+3. Az alapértelmezett telefon alkalmazás, ha a varázslóban továbbra sem
+   megy, kézzel is beállítható: Beállítások, Alkalmazások, Alapértelmezett
+   alkalmazások, Telefon alkalmazás, SuperDL.
+
+4. És ha ezek után is elakad valahol, kérem, küldjön megint jelentést.
+   A hármat együtt küldeni nem türelmetlenség volt — attól lett
+   megfejthető.
+
+Köszönöm az idejét és a kitartását.
+
+Tisztelettel:
+
+Kőrösmezey Dávid Richárd
+SuperDL
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

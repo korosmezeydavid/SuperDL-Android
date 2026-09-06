@@ -20,9 +20,11 @@ TalkBackkel lehet feloldani a készüléket.
 Az ok a következő. Az Android az első feloldásig — amíg a tároló
 titkosított — nem indítja el azokat az alkalmazásokat, amelyek erre nincsenek
 felkészítve. A RENDSZER BESZÉDMOTORJA (Google, illetve Samsung TTS) ilyen.
-A SuperDL PIN segédje maga rendben elindul: a szolgáltatás Direct Boot
-képesnek van jelölve, a beállításait az eszköz-védett tárolóból olvassa, és
-a billentyűzet meg is jelenik — csak épp nincs mivel megszólalnia. A
+A SuperDL PIN segédje az Ön készülékén rendben elindul: a szolgáltatás
+Direct Boot képesnek van jelölve, a beállításait az eszköz-védett tárolóból
+olvassa, és a billentyűzet — az Ön leírása szerint — meg is jelenik; csak
+épp nincs mivel megszólalnia. (Hogy ez nem minden készüléken van így, arról
+a szakasz végén külön írok.) A
 TalkBack azért beszél, mert saját, beépített úton kerüli meg ezt a
 korlátozást.
 
@@ -51,11 +53,35 @@ Meghallgatható előre, nyugodt körülmények között:
 
     Beállítások, Biztonság, Zárképernyő hangjainak próbája.
 
-FONTOS: ezt a javítást a saját készülékeimen NEM TUDTAM ELLENŐRIZNI. Az én
-telefonomon nincs képernyőzár, és ahol nincs kód, ott nincs titkosított
-fázis sem: újraindítás után tizenkét másodperccel már feloldott állapotban
-volt. Vagyis nálam ez a hiba nem létezik, és soha nem is találtam volna meg.
-Az éles igazolás ezért Önre vár, és ha lehet, kérném is.
+HELYESBÍTÉS — ÉS EGY ÚJABB LELET
+
+Az első levélváltásban azt írtam Önnek, hogy ezt a javítást nem tudom
+ellenőrizni, mert a saját telefonomon nincs képernyőzár. EZ TÉVEDÉS VOLT,
+és a hibát az én rossz mérésem okozta: egy rendszerlekérdezést félreolvasva
+jutottam erre. A telefonomon VAN PIN kód, ujjlenyomat mellé kötelezően, és
+bekapcsoláskor is kéri. Elnézést kérek — a mérést megismételtem, helyesen.
+
+A helyes mérés viszont többet mutatott annál, mint amire számítottam.
+Újraindítás után, a PIN kód beírása ELŐTT megnéztem, mi fut a telefonon:
+
+    a SuperDL folyamata EGYÁLTALÁN NEM FUTOTT.
+
+Nem néma volt, hanem el sem indult. A rendszer szerint a készülék ekkor
+zárolt, első feloldás előtti állapotban volt, és a program egyetlen része
+sem élt. Ez MÁS, mint amit Ön tapasztalt: Önnél a billentyűzet megjelent,
+csak nem szólalt meg. Vagyis két különböző készüléken két különböző dolog
+történik ugyanabban a fázisban.
+
+Amit ez jelent a mostani kiadásra nézve:
+
+  - A beépített hangok javítása az Ön esetére VÁLASZ. Ahol a segéd elindul,
+    de nincs beszédmotorja, ott mostantól lesz hangja.
+  - Az én készülékemen ezen felül van egy MÁSODIK, külön hiba: a program
+    el sem indul az első feloldás előtt. Ennek az okát most keresem, és
+    amint megvan, külön kiadásban javítom.
+
+Az éles igazolás tehát továbbra is Önre vár, és most már tudom, mit kérdezek:
+elindul-e Önnél a segéd, és ha elindul, szól-e.
 
 
 2. AZ ÜZENET-SZEREPKÖR — JAVÍTVA

@@ -73,6 +73,31 @@ ezekre csak következtetni lehetett.
 Ezenkívül kiírja, hogy a készülék fel van-e oldva, milyen beszédmotorok
 vannak a rendszerben, és megvannak-e a beépített zárképernyő-hangok.
 
+## HELYESBÍTÉS A KIADÁS UTÁN
+
+A kiadáskor azt írtam, hogy a javítást a saját készülékemen nem tudom
+ellenőrizni, mert nincs rajta képernyőzár. **Ez téves volt** — egy
+rendszerlekérdezést (`dumpsys device_policy` → `Password quality`) olvastam
+félre; az a beállítás az eszközkezelői követelményt mutatja, nem azt, hogy
+van-e zár. A helyes lekérdezés (`dumpsys lock_settings` → `CredentialType`)
+PIN kódot mutat.
+
+A megismételt, helyes mérés újraindítás után, feloldás előtt:
+
+```
+deviceLocked=1, strongAuthRequired=0x1
+ps -A | grep superdl   →   (üres)
+```
+
+Vagyis az Ulefone-on a SuperDL folyamata **el sem indul** az első feloldás
+előtt — nem néma, hanem nem létezik. Ez MÁS, mint Richárd Samsungján, ahol
+a billentyűzet megjelenik, csak nem beszél. A beépített hangok javítása az
+utóbbi esetre válasz; az előbbi külön, még nyitott hiba.
+
+Az `<application>` és a szolgáltatás is `directBootAware="true"`, és a
+SuperDlApplication.onCreate() Direct Boot-biztos, tehát az ok máshol van —
+a vizsgálat folyik.
+
 ## AMI MÉG NYITOTT
 
 A SuperDL képernyőolvasója Samsungon továbbra sem kezeli az idegen

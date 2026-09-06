@@ -98,6 +98,85 @@ class ScreenReaderService : AccessibilityService() {
         super.onServiceConnected()
         live = this
         android.util.Log.i(ScreenReaderPrefs.TAG, "Kepernyoolvaso szolgaltatas csatlakozott")
+
+        // ── DIRECT BOOT: AZ ELSŐ FELOLDÁS ELŐTT NEM INDULUNK EL ─────────────
+        //
+        // MIÉRT: bekapcsolás után a rendszer minket is elindít, DE ilyenkor
+        // nincs beszédmotor, és a beállítás-tároló is titkosított. Korábban
+        // ilyenkor a TtsManager hibázott, a hibakezelő a titkosított tárolóhoz
+        // nyúlt, és az EGÉSZ folyamat összeomlott — a PIN segéddel együtt, ami
+        // ugyanabban a folyamatban él. Az Android két összeomlás után fél
+        // órára elhalasztotta az újraindítást, tehát a feloldásig a SuperDL
+        // egyetlen része sem élt. Így a felhasználó nem tudta feloldani a
+        // telefonját.
+        //
+        // A képernyőolvasónak ebben a fázisban amúgy sincs dolga: a zárolt
+        // képernyőt szándékosan nem olvassuk fel (lásd lockSuspended), a PIN
+        // képernyőt pedig a külön PIN segéd kezeli.
+        //
+        // Ezért itt megállunk, és a feloldás pillanatában indulunk el.
+        if (!isUserUnlocked()) {
+            android.util.Log.i(
+                ScreenReaderPrefs.TAG,
+                "Direct Boot: a kepernyoolvaso indulasa a feloldasig var."
+            )
+            registerUnlockWatcher()
+            return
+        }
+        initAfterUnlock()
+    }
+
+    /** Feloldva van-e a felhasználó (Direct Boot vizsgálat). */
+    private fun isUserUnlocked(): Boolean = try {
+        val um = getSystemService(android.content.Context.USER_SERVICE) as android.os.UserManager
+        um.isUserUnlocked
+    } catch (_: Exception) {
+        // Ha nem tudjuk megállapítani, a megszokott működést választjuk.
+        true
+    }
+
+    private var unlockWatcher: android.content.BroadcastReceiver? = null
+
+    private fun registerUnlockWatcher() {
+        if (unlockWatcher != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
+                if (i?.action == android.content.Intent.ACTION_USER_UNLOCKED) {
+                    android.util.Log.i(ScreenReaderPrefs.TAG, "Feloldas: a kepernyoolvaso most indul.")
+                    unregisterUnlockWatcher()
+                    try {
+                        initAfterUnlock()
+                    } catch (e: Exception) {
+                        android.util.Log.w(ScreenReaderPrefs.TAG, "feloldas utani indulas hiba: ${e.message}")
+                    }
+                }
+            }
+        }
+        unlockWatcher = receiver
+        try {
+            val filter = android.content.IntentFilter(android.content.Intent.ACTION_USER_UNLOCKED)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(ScreenReaderPrefs.TAG, "feloldas-figyelo regisztralas hiba: ${e.message}")
+            unlockWatcher = null
+        }
+    }
+
+    private fun unregisterUnlockWatcher() {
+        val receiver = unlockWatcher ?: return
+        unlockWatcher = null
+        try {
+            unregisterReceiver(receiver)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** A tárolót és a beszédmotort igénylő indulás — csak feloldás után. */
+    private fun initAfterUnlock() {
         tts = try {
             TtsManager(this)
         } catch (e: Exception) {
@@ -140,6 +219,9 @@ class ScreenReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        // Feloldás előtt semmit nem csinálunk: nincs beszédmotor, és a zárolt
+        // képernyőt szándékosan sem olvasnánk fel.
+        if (!isUserUnlocked()) return
         if (ScreenReaderPrefs.isEmergencyDisabled(this)) {
             setTouchExploration(false)
             return
@@ -2955,6 +3037,7 @@ class ScreenReaderService : AccessibilityService() {
 
     override fun onDestroy() {
         if (live === this) live = null
+        unregisterUnlockWatcher()
         setTouchExploration(false)
         stopProximityWatch()
         handler.removeCallbacksAndMessages(null)

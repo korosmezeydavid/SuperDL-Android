@@ -5353,12 +5353,31 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val req = flow.requirements.getOrNull(flow.index) ?: return
-        val attempts = setupAttempts[req.id] ?: 0
+        // A SZÁMLÁLÓ A TÁROLÓBÓL IS — lásd SetupPrefs.attemptCount(). A
+        // memóriában tartott érték a program leállításakor elvész, gyártói
+        // rendszereken (MIUI) pedig ez naponta többször megtörténik.
+        val attempts = maxOf(setupAttempts[req.id] ?: 0, SetupPrefs.attemptCount(this, req.id))
         if (req.severity == SetupRequirements.Severity.ESSENTIAL && attempts < 2) {
             sounds.play(SoundType.ACTION_ERROR)
+            // MEGMONDJUK, HOL A KIJÁRAT.
+            //
+            // A HIBA, AMIT EZ JAVÍT (Xiaomi, három hibajelentés húsz perc
+            // alatt): a felhasználó azt hallotta, hogy „ezt nem lehet
+            // későbbre hagyni" — és semmit arról, hogy MIKORTÓL lehet. Így
+            // joggal hitte, hogy zsákutcába került, és inkább hibát jelentett.
+            //
+            // A kijárat eddig is megvolt (két próbálkozás után enged), csak
+            // néma volt. Egy kijárat, amiről nem tud a felhasználó, nem
+            // kijárat.
+            val maradt = 2 - attempts
+            val kijarat = if (maradt == 1) {
+                "Ha még egyszer megpróbálod és úgy sem sikerül, utána már ki tudod hagyni."
+            } else {
+                "Ha kétszer megpróbálod és nem sikerül, utána már ki tudod hagyni."
+            }
             tts.speak(
-                "Ezt nem lehet későbbre hagyni: ${req.title}. ${req.whatBreaks} " +
-                    "Söpörj jobbra, és megmutatom, hol adhatod meg."
+                "Ezt nem lehet most későbbre hagyni: ${req.title}. ${req.whatBreaks} " +
+                    "Söpörj jobbra, és megmutatom, hol adhatod meg. $kijarat"
             )
             return
         }
@@ -5594,7 +5613,7 @@ class MainActivity : AppCompatActivity() {
             }
             // A rendszer kérdése után az onRequestPermissionsResult újramér.
             setupWizardPending = req.id
-            setupAttempts[req.id] = (setupAttempts[req.id] ?: 0) + 1
+            setupAttempts[req.id] = SetupPrefs.noteAttempt(this, req.id)
             // A MAGYARÁZAT A KÉRDÉS ELŐTT HANGZIK EL. Aki vakon mond igent egy
             // engedélyre, annak joga van tudni, mire mondott igent — utólag
             // már késő, akkor a rendszer ablaka beszél.
@@ -5643,7 +5662,7 @@ class MainActivity : AppCompatActivity() {
 
         val intent = SetupRequirements.systemIntentFor(this, req)
             ?: SetupRequirements.appSettingsIntent(this)
-        setupAttempts[req.id] = (setupAttempts[req.id] ?: 0) + 1
+        setupAttempts[req.id] = SetupPrefs.noteAttempt(this, req.id)
         activeFlow = if (req.kind == SetupRequirements.RequestKind.MANUAL) {
             AppFlow.SetupWizardConfirmManual(req, flow.firstRun)
         } else {
@@ -19413,7 +19432,7 @@ class MainActivity : AppCompatActivity() {
                 // elmarad vagy elutasítás jön, a felhasználónak tudnia kell,
                 // hogy nem ragadt bent.
                 val essential = req.severity == SetupRequirements.Severity.ESSENTIAL
-                val attempts = setupAttempts[req.id] ?: 0
+                val attempts = maxOf(setupAttempts[req.id] ?: 0, SetupPrefs.attemptCount(this, req.id))
                 val prefix = when {
                     granted -> "Megadva."
                     essential && attempts >= 2 ->

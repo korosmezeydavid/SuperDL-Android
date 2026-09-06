@@ -13,17 +13,17 @@ object LockPinStore {
     const val MAX_PIN_LENGTH = 8
 
     fun isEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getBoolean(KEY_ENABLED, false)
 
     fun setEnabled(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS).edit()
             .putBoolean(KEY_ENABLED, enabled)
             .apply()
     }
 
     fun hasPinSet(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
         return !prefs.getString(KEY_HASH, null).isNullOrBlank() &&
             !prefs.getString(KEY_SALT, null).isNullOrBlank()
     }
@@ -31,21 +31,21 @@ object LockPinStore {
     fun savePin(context: Context, pin: String) {
         val salt = PinHasher.generateSalt()
         val hash = PinHasher.hash(pin, salt)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS).edit()
             .putString(KEY_SALT, salt)
             .putString(KEY_HASH, hash)
             .apply()
     }
 
     fun verifyPin(context: Context, pin: String): Boolean {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
         val salt = prefs.getString(KEY_SALT, null) ?: return false
         val stored = prefs.getString(KEY_HASH, null) ?: return false
         return PinHasher.hash(pin, salt) == stored
     }
 
     fun clearPin(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS).edit()
             .remove(KEY_HASH)
             .remove(KEY_SALT)
             .putBoolean(KEY_ENABLED, false)

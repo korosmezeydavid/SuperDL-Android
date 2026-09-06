@@ -1,0 +1,172 @@
+SuperDL 1.63.3 — a biztonsági háló ölte meg a programot
+
+Kedves Tesztelők!
+
+Az előző kiadásban azt ígértem, hogy bekapcsolás után végre lesz hang a
+zárképernyőn. Kiadtam, és utána megnéztem a saját telefonomon.
+
+Nem volt hang.
+
+Ez a levél arról szól, hogy miért nem — és a válasz sokkal rosszabb volt,
+mint amire számítottam.
+
+
+NEM NÉMA VOLT. EL SEM INDULT.
+
+Újraindítottam a telefont, és a PIN kód beírása ELŐTT megnéztem, mi fut:
+
+    a SuperDL egyáltalán nem futott.
+
+Nem hallgatott. Nem létezett. Ez pedig más, mint amit a tesztelő jelzett a
+Samsungján — ott a billentyűzet megjelent, csak nem beszélt.
+
+
+A NAPLÓ
+
+    Elindult a PIN segéd folyamata
+    HIBA: a beállítás-tároló titkosítva van, feloldásig nem érhető el
+        ScreenReaderPrefs.reportFailure
+        ScreenReaderService.onServiceConnected
+    A folyamat meghalt
+    Újraindítás 30 perc múlva
+
+Olvasd el sorrendben, mert az a lényeg.
+
+A rendszer bekapcsolásnál rendben elindította a PIN segédet. Ugyanabban a
+folyamatban indul a képernyőolvasó is. Az megpróbálta felépíteni a
+beszédmotort — ami feloldás előtt nem létezik. Ez idáig várható.
+
+Erre lefutott a HIBAKEZELŐ: az a kód, ami azért van, hogy hiba esetén szépen
+följegyezzük, mi történt, és ne boruljon fel semmi. Az akart írni a
+beállítás-tárolóba. Az pedig ilyenkor titkosított.
+
+És mivel Androidon egyetlen elkapatlan hiba az EGÉSZ programot megöli, a
+PIN segéd is vele ment. Kétszer újraindult, kétszer összeomlott, mire az
+Android fél órára feladta.
+
+Vagyis: a biztonsági háló ölte meg a programot. Pont ott, ahol a legnagyobb
+szükség lett volna rá — a telefonod feloldásánál.
+
+Az irónia teljes. A hibaszámláló három hiba után magától leállítja a
+képernyőolvasót. Ha nem omlott volna össze, akkor három újraindítás után
+KIKAPCSOLTA VOLNA MAGÁT annál, aki minden reggel újraindítja a telefonját.
+
+
+A JAVÍTÁS — ÉS AMI KÖZBEN TANULSÁG LETT
+
+Az első javítás után a program egy réteggel mélyebben omlott össze
+ugyanígy. Ez a tanulságos rész.
+
+Másodszor a beszédmotor visszajelzésében történt. Azt a visszajelzést nem
+mi hívjuk meg: a rendszer küldi, KÉSŐBB. Tehát hiába volt körülvédve az a
+kód, ami a beszédmotort létrehozza — a hiba jóval azután érkezett, hogy az
+a védelem véget ért.
+
+Ebből lett a valódi megoldás: nem a hívási helyeket védem, hanem MAGÁT A
+TÁROLÓT. Mostantól van egy közös beállítás-tároló, ami soha nem dobhat
+hibát. Feloldás előtt a titkosítás alatt is elérhető tárolót használja, és
+ha minden kötél szakad, üres tárolót ad — a program az alapértékekkel
+dolgozik tovább. Némán rosszabbul, de ÉLVE.
+
+Tizenkét tároló használja: beszéd, hangvisszajelzés, gesztusok, zárolás,
+hangtémák, varázsló.
+
+Ezen kívül:
+
+- A képernyőolvasó feloldás előtt el sem indul. Ott nincs dolga: a zárolt
+  képernyőt szándékosan nem olvassuk fel, a PIN képernyő a segéd dolga.
+  A feloldás pillanatában indul el magától.
+
+- A segéd mostantól a "húzd fel" alapállapotban is megjelenik. A
+  zárképernyő bekapcsolás után nem PIN-mezőt mutat, és a program eddig
+  ilyenkor elrejtőzött. Vakon nem kitalálható, hogy előbb fel kell húzni a
+  képernyőt. Mivel az Android az első feloldásig úgyis csak a kódot fogadja
+  el, ujjlenyomatot nem, ilyenkor nyugodtan vehetjük PIN-nek.
+
+- A 38 zárképernyő-hang tartós mappába került. Eddig a gyorsítótárba, amit
+  a telefon takarítója minden bekapcsoláskor kiürített — tehát minden
+  indulásnál újra kimásolódtak, pont akkor, amikor te a zárképernyő előtt
+  állsz és hangra vársz.
+
+NÉGY ÚJRAINDÍTÁSBÓL NÉGY: összeomlás nulla, és a segéd mind a négyszer
+megjelent és megszólalt a kód beírása előtt.
+
+
+A MÁSIK TÖRTÉNET: HÚSZ PERC, HÁROM HIBAJELENTÉS
+
+Egy tesztelő húsz perc alatt három jelentést küldött ugyanarról: elakadt a
+beállítás varázslóban az alapértelmezett telefon alkalmazásnál.
+
+A három jelentést egymás mellé téve kiderült, hogy közben MINDENT megoldott
+— a billentyűzetet beállította, a kihagyhatókat kihagyta. Egyetlen tételen
+nem jutott át.
+
+Két hiba tartotta bent, és egyik sem az volt, amire elsőre gondoltam.
+
+AZ ELSŐ: a kijárat néma volt. A varázsló két sikertelen próbálkozás után
+ENGEDI kihagyni az alapvető tételeket is — ezt még szeptember 4-én építettem
+be, épp azért, hogy senki ne ragadjon bent. Ő viszont csak ennyit hallott:
+"Ezt nem lehet későbbre hagyni." Egy szót sem arról, hogy mikortól lehet.
+Joggal hitte, hogy zsákutca.
+
+Egy kijárat, amiről a felhasználó nem tud, nem kijárat. Mostantól elhangzik,
+hogy még egy próbálkozás, és utána kihagyható.
+
+A MÁSODIK: a próbálkozásokat memóriában tartottam. Az ő telefonja viszont a
+háttérben futó alkalmazásokat magától leállítja — a jelentéseiből az is
+kiderült, hogy ugyanez a telefon a "korlátlan háttérfutás" engedélyt MAGÁTÓL
+visszavonta két jelentés között. Minden leállítás nullázta a számlálót,
+tehát ő soha nem érhette el a kettőt. Mostantól a számláló megmarad.
+
+
+A TELEFON-SZEREPKÖR
+
+Ugyanaz a hibafajta, ami az asszisztensnél és az üzenetküldésnél már kijött;
+ez a harmadik. A program egyetlen forrásból kérdezte meg, kié az
+alapértelmezett telefon szerepkör, és Android 10 fölött vissza tudott esni
+egy elavult útra, ami megnyílik, majd némán bezárul. Mostantól két forrásból
+néz, és néma zsákutca helyett az alapértelmezett alkalmazások képernyőjét
+nyitja meg.
+
+
+EGY HELYESBÍTÉS
+
+Az előző hírlevélben azt írtam, hogy a zárképernyős hibát azért nem vettem
+észre, mert az én telefonomon nincs képernyőzár. EZ NEM VOLT IGAZ. Van rajta
+PIN kód. Egy rendszerlekérdezést olvastam félre, és a rossz következtetést
+beleírtam a hírlevélbe, a kiadási jegyzetbe és egy tesztelőnek küldött
+levélbe is. Mindhármat javítottam.
+
+Ha egy mérésemről kiderül, hogy rossz volt, azt ugyanolyan hangosan kell
+elmondanom, mint amilyen hangosan az eredményt elmondtam.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A letöltött fájl mérete pontosan ennyi kell legyen:
+
+    153 710 633 bájt
+
+Ha kevesebb, a letöltés megszakadt, és a telepítő nem fogja tudni megnyitni.
+Ilyenkor töltsd le újra, lehetőleg wifin.
+
+A program ingyenes, és az is marad.
+
+
+A VÉGÉRE
+
+Ez a kiadás két emberből született. Az egyik felvett egy tizenegy perces
+hangfelvételt. A másik nem adta fel húsz perc alatt sem, és háromszor
+elküldte, hol akadt el.
+
+Egyikük sem tudta, mi a technikai ok. Nem is kellett tudniuk. Elég volt
+pontosan elmondaniuk, mit csináltak és mi történt.
+
+Ha nálad bármi nem stimmel, ne hagyd annyiban.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

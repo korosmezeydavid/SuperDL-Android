@@ -70,7 +70,33 @@ class TtsManager(
             TextToSpeech(appContext, this, enginePackage)
         }
 
+    /**
+     * A BESZÉDMOTOR VISSZAJELZÉSE — EZ A METÓDUS SOHA NEM DOBHAT KIVÉTELT.
+     *
+     * MIÉRT KÜLÖN VÉDVE: ezt nem mi hívjuk, hanem a rendszer, KÉSŐBB, a
+     * főszálon (TextToSpeech.dispatchOnInit). Ezért a TtsManager létrehozása
+     * köré tett try/catch itt SEMMIT NEM ÉR — a kivétel jóval a konstruktor
+     * lefutása után érkezik, és egy elkapatlan kivétel a főszálon az EGÉSZ
+     * folyamatot megöli.
+     *
+     * Élesben pontosan ez történt: bekapcsolás után, a feloldás előtt a
+     * configureAudioRouting() a titkosított beállítás-tárolóhoz nyúlt,
+     * kivételt dobott, és magával vitte a PIN segédet is — a felhasználó nem
+     * tudta feloldani a telefonját. A tárolót azóta a SafePrefs védi, de az
+     * öv mellé itt a nadrágtartó is kell: ha bármelyik lépés elszáll, a
+     * beszéd elnémul, de a program ÉL.
+     */
     override fun onInit(status: Int) {
+        try {
+            onInitInner(status)
+        } catch (e: Throwable) {
+            Log.w("TTS", "onInit hiba (a folyamat tovabb el): ${e.message}")
+            isReady = false
+            initFailed = true
+        }
+    }
+
+    private fun onInitInner(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             initFailed = false
             val result = tts.setLanguage(Locale("hu", "HU"))

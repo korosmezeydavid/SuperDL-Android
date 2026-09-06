@@ -8,12 +8,12 @@ object TtsSettingsStore {
     private const val KEY_SPEECH_RATE = "tts_speech_rate"
 
     fun getSpeechRate(context: Context): Float =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getFloat(KEY_SPEECH_RATE, 1.0f)
             .coerceIn(0.5f, 2.5f)
 
     fun setSpeechRate(context: Context, rate: Float) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit()
             .putFloat(KEY_SPEECH_RATE, rate.coerceIn(0.5f, 2.5f))
             .apply()
@@ -45,11 +45,11 @@ object TtsSettingsStore {
      * alapértelmezés. Aki szeretné a külön hangerőt, átállíthatja.
      */
     fun getSpeechChannel(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getString(KEY_SPEECH_CHANNEL, CHANNEL_MEDIA) ?: CHANNEL_MEDIA
 
     fun setSpeechChannel(context: Context, channel: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit().putString(KEY_SPEECH_CHANNEL, channel).apply()
     }
 
@@ -75,12 +75,12 @@ object TtsSettingsStore {
      * szándékosan óvatos: csak akkor vált, ha a szöveg TÚLNYOMÓRÉSZT idegen.
      */
     fun isAutoLanguage(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getBoolean(KEY_AUTO_LANGUAGE, true)
 
     fun toggleAutoLanguage(context: Context): Boolean {
         val next = !isAutoLanguage(context)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit().putBoolean(KEY_AUTO_LANGUAGE, next).apply()
         return next
     }
@@ -97,12 +97,12 @@ object TtsSettingsStore {
      * amit hall, az az alkalmazásból jött-e, vagy a program mondja neki.
      */
     fun isVoiceRoles(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getBoolean(KEY_VOICE_ROLES, true)
 
     fun toggleVoiceRoles(context: Context): Boolean {
         val next = !isVoiceRoles(context)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit().putBoolean(KEY_VOICE_ROLES, next).apply()
         return next
     }
@@ -125,11 +125,11 @@ object TtsSettingsStore {
      * @return a motor csomagneve, vagy null ha nincs beállítva
      */
     fun getRoleEngine(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getString(KEY_ROLE_ENGINE, null)?.takeIf { it.isNotBlank() }
 
     fun setRoleEngine(context: Context, packageName: String?) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit().putString(KEY_ROLE_ENGINE, packageName.orEmpty()).apply()
     }
 }

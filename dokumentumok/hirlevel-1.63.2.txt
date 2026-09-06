@@ -26,7 +26,7 @@ feloldásánál.
 Akinek nincs mellette TalkBack, az nem jut be.
 
 
-MIÉRT VOLT EZ, ÉS MIÉRT NEM VETTEM ÉSZRE
+MIÉRT VOLT EZ
 
 Az Android az első feloldásig — amíg be nem írod a kódot — nem indítja el
 azokat az alkalmazásokat, amelyek nincsenek felkészítve a titkosított
@@ -35,14 +35,36 @@ nem volt mivel beszélnie.
 
 A TalkBack azért szólal meg, mert saját, beépített úton kerüli meg ezt.
 
-A PIN segéd egyébként rendben elindult, a billentyűzet meg is jelent.
+A PIN segéd az ő telefonján rendben elindult, a billentyűzet meg is jelent.
 Minden a helyén volt. Csak épp némán.
 
-És hogy miért nem vettem észre: az én telefonomon nincs képernyőzár. Ahol
-nincs kód, ott nincs is titkosított fázis — nálam ez a hiba nem létezik.
-Kipróbáltam, újra is indítottam a készüléket: tizenkét másodperccel a
-bekapcsolás után már feloldott állapotban volt. Ezt a hibát én magamtól
-soha nem találtam volna meg.
+
+EGY HELYESBÍTÉS, AMIT MEG KELL TENNEM
+
+Ennek a hírlevélnek az első változatában azt írtam, hogy ezt a hibát azért
+nem vettem észre, mert az én telefonomon nincs képernyőzár. EZ NEM IGAZ
+VOLT. Van rajta PIN kód, ujjlenyomat mellé kötelezően, és bekapcsoláskor is
+kéri. Egy rendszerlekérdezést olvastam félre, és a rossz következtetést
+beleírtam a hírlevélbe, a kiadási jegyzetbe és egy tesztelőnek küldött
+levélbe is. Mindhármat javítottam.
+
+Miért írom ezt le ilyen részletesen? Mert ha egy mérésemről kiderül, hogy
+rossz volt, azt ugyanolyan hangosan kell elmondanom, mint amilyen hangosan
+az eredményt elmondtam.
+
+A helyes mérés pedig többet mutatott, mint amire számítottam. Újraindítás
+után, a PIN kód beírása ELŐTT megnéztem, mi fut a telefonomon:
+
+    a SuperDL egyáltalán nem futott.
+
+Nem néma volt. El sem indult. Ez MÁS, mint amit a tesztelő tapasztalt —
+nála a billentyűzet megjelent, csak nem szólalt meg. Vagyis két készüléken
+két különböző dolog történik ugyanabban a fázisban, és az enyémen van egy
+MÁSODIK hiba is, amit ez a kiadás még nem javít. Keresem az okát, és külön
+kiadásban javítom.
+
+Amit ez a kiadás javít, az az első eset: ahol a segéd elindul, de nincs
+beszédmotorja, ott mostantól van hangja.
 
 
 A JAVÍTÁS

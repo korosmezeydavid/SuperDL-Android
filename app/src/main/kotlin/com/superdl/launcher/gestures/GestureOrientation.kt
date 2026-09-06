@@ -92,8 +92,7 @@ object GestureOrientation {
 
     fun warm(context: Context) {
         try {
-            val raw = context.applicationContext
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val raw = com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
                 .getString(KEY_MODE, Mode.NORMAL.name) ?: Mode.NORMAL.name
             cache = runCatching { Mode.valueOf(raw) }.getOrDefault(Mode.NORMAL)
             warmed = true
@@ -114,8 +113,7 @@ object GestureOrientation {
         cache = mode
         warmed = true
         try {
-            context.applicationContext
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
                 .edit().putString(KEY_MODE, mode.name).apply()
         } catch (_: Exception) {
         }

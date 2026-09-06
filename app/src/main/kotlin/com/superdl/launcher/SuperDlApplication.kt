@@ -122,6 +122,16 @@ class SuperDlApplication : Application() {
                 } catch (e: Exception) {
                     Log.w(TAG, "VoiceThemeAssets.ensureInstalled hiba: ${e.message}")
                 }
+                // ZÁRKÉPERNYŐ-HANGOK ELŐRE KICSOMAGOLVA.
+                // Ezek bekapcsolás után, a feloldás ELŐTT kellenek — ott
+                // viszont nincs idő 38 fájlt kimásolni, mert a felhasználó
+                // épp beszédre vár a zárképernyő előtt. Ezért most, nyugodt
+                // körülmények között tesszük meg, a következő indulásra.
+                try {
+                    com.superdl.launcher.lock.keyguard.KeyguardVoice(this).ensureUnpacked()
+                } catch (e: Exception) {
+                    Log.w(TAG, "zarhang elore-kicsomagolas hiba: ${e.message}")
+                }
             }.start()
         } catch (e: Exception) {
             Log.w(TAG, "VoiceThemeAssets szal hiba: ${e.message}")

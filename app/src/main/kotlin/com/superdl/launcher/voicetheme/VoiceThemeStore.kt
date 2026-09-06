@@ -37,7 +37,7 @@ object VoiceThemeStore {
     val DAILY_CAPS = listOf(0, 3, 5, 8, 12, 20)
 
     private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
 
     // ── Mesterkapcsoló ──────────────────────────────────────────────────────
 

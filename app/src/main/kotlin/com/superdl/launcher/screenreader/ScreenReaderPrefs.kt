@@ -28,8 +28,81 @@ object ScreenReaderPrefs {
     /** Ennyi egymást követő hiba után magától leáll. */
     private const val MAX_FAILURES = 3
 
-    private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    /**
+     * DIRECT BOOT — EZ A FÜGGVÉNY SOHA NEM DOBHAT KIVÉTELT.
+     *
+     * Az első feloldásig a szokásos beállítás-tároló TITKOSÍTVA van, és a
+     * getSharedPreferences() ilyenkor IllegalStateException-t dob:
+     * "SharedPreferences in credential encrypted storage are not available
+     * until after user is unlocked".
+     *
+     * Ez élesben végzetes volt. Bekapcsolás után a rendszer elindította a
+     * képernyőolvasó szolgáltatást, a TtsManager (beszédmotor híján) hibázott,
+     * a hibakezelő reportFailure()-t hívott — az pedig ITT omlott össze.
+     * A kivétel megölte az EGÉSZ folyamatot, és vele együtt a MÁSIK kisegítő
+     * szolgáltatást, a PIN segédet is. Két összeomlás után az Android fél
+     * órára elhalasztotta az újraindítást, tehát a telefon feloldásáig a
+     * SuperDL egyetlen része sem élt.
+     *
+     * Vagyis: a BIZTONSÁGI HÁLÓ ölte meg a programot, pont ott, ahol a
+     * felhasználónak a legnagyobb szüksége lett volna rá.
+     *
+     * Ezért titkosított fázisban az ESZKÖZ-VÉDETT tárolót használjuk — az
+     * feloldás előtt is olvasható és írható.
+     */
+    private fun deviceContext(context: Context): Context = try {
+        context.applicationContext.createDeviceProtectedStorageContext()
+            ?: context.applicationContext
+    } catch (_: Exception) {
+        context.applicationContext
+    }
+
+    private fun isUnlocked(context: Context): Boolean = try {
+        val um = context.getSystemService(Context.USER_SERVICE) as android.os.UserManager
+        um.isUserUnlocked
+    } catch (_: Exception) {
+        true
+    }
+
+    private fun prefs(context: Context): android.content.SharedPreferences {
+        val app = context.applicationContext
+        if (!isUnlocked(app)) {
+            // Titkosított fázis: meg se próbáljuk a szokásos tárolót.
+            try {
+                return deviceContext(app).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            } catch (_: Exception) {
+            }
+        }
+        return try {
+            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        } catch (_: Exception) {
+            // Öv és nadrágtartó: ha az isUserUnlocked() tévedne, itt még
+            // mindig nem omlunk össze.
+            deviceContext(app).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        }
+    }
+
+    /**
+     * A BIZTONSÁGI KAPCSOLÓKAT mindkét tárolóba írjuk, hogy a következő
+     * bekapcsoláskor — még a feloldás előtt — is a helyes értéket lássuk.
+     * A többi beállítás (tempó, betűzés, alkalmazásonkénti mód) titkosított
+     * fázisban úgysem számít, azoknál az alapérték is jó.
+     */
+    private fun writeBoth(context: Context, block: (android.content.SharedPreferences.Editor) -> Unit) {
+        val app = context.applicationContext
+        try {
+            val e = deviceContext(app).getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            block(e)
+            e.apply()
+        } catch (_: Exception) {
+        }
+        try {
+            val e = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            block(e)
+            e.apply()
+        } catch (_: Exception) {
+        }
+    }
 
     // ── Fő kapcsoló ─────────────────────────────────────────────────────────
 
@@ -37,7 +110,7 @@ object ScreenReaderPrefs {
         prefs(context).getBoolean(KEY_ENABLED, false) && !isEmergencyDisabled(context)
 
     fun setEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean(KEY_ENABLED, on).apply()
+        writeBoth(context) { it.putBoolean(KEY_ENABLED, on) }
         // Kézi bekapcsoláskor a vészleállítást és a hibaszámlálót nullázzuk:
         // a felhasználó tudatosan újra megpróbálja.
         if (on) clearEmergency(context)
@@ -54,25 +127,40 @@ object ScreenReaderPrefs {
      */
     fun emergencyStop(context: Context, reason: String) {
         android.util.Log.w(TAG, "VESZLEALLITAS: $reason")
-        prefs(context).edit()
-            .putBoolean(KEY_EMERGENCY, true)
-            .putBoolean(KEY_ENABLED, false)
-            .apply()
+        writeBoth(context) {
+            it.putBoolean(KEY_EMERGENCY, true)
+            it.putBoolean(KEY_ENABLED, false)
+        }
     }
 
     fun clearEmergency(context: Context) {
-        prefs(context).edit()
-            .putBoolean(KEY_EMERGENCY, false)
-            .putInt(KEY_FAILURES, 0)
-            .apply()
+        writeBoth(context) {
+            it.putBoolean(KEY_EMERGENCY, false)
+            it.putInt(KEY_FAILURES, 0)
+        }
     }
 
     // ── Hibaszámláló ────────────────────────────────────────────────────────
 
     /** Hiba történt. Ha túl sok egymás után, magától vészleállítás jön. */
     fun reportFailure(context: Context, reason: String) {
-        val next = prefs(context).getInt(KEY_FAILURES, 0) + 1
-        prefs(context).edit().putInt(KEY_FAILURES, next).apply()
+        // TITKOSÍTOTT FÁZISBAN NEM SZÁMOLUNK. Feloldás előtt a beszédmotor
+        // eleve nem érhető el, tehát a hiba VÁRHATÓ, nem meghibásodás. Ha
+        // beleszámítanánk, három bekapcsolás után a vészleállítás magától
+        // kikapcsolná a képernyőolvasót — pont annál, aki minden reggel
+        // újraindítja a telefonját.
+        if (!isUnlocked(context)) {
+            android.util.Log.w(TAG, "Hiba (titkositott fazis, nem szamit bele): $reason")
+            return
+        }
+        val next = try {
+            val n = prefs(context).getInt(KEY_FAILURES, 0) + 1
+            prefs(context).edit().putInt(KEY_FAILURES, n).apply()
+            n
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "hibaszamlalo iras hiba: ${e.message}")
+            return
+        }
         android.util.Log.w(TAG, "Hiba ($next/$MAX_FAILURES): $reason")
         if (next >= MAX_FAILURES) {
             emergencyStop(context, "tul sok egymast koveto hiba")

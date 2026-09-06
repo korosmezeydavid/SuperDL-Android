@@ -11,14 +11,14 @@ object AlertSoundSettingsStore {
     val VOLUME_STEPS = listOf(25, 50, 75, 100)
 
     fun getVolumePercent(context: Context): Int {
-        val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val stored = com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getInt(KEY_VOLUME_PERCENT, 100)
         return VOLUME_STEPS.firstOrNull { it == stored } ?: 100
     }
 
     fun setVolumePercent(context: Context, percent: Int) {
         val value = VOLUME_STEPS.firstOrNull { it == percent } ?: 100
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit()
             .putInt(KEY_VOLUME_PERCENT, value)
             .apply()
@@ -33,11 +33,11 @@ object AlertSoundSettingsStore {
     }
 
     fun isSilentMode(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getBoolean(KEY_SILENT_MODE, false)
 
     fun setSilentMode(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit()
             .putBoolean(KEY_SILENT_MODE, enabled)
             .apply()

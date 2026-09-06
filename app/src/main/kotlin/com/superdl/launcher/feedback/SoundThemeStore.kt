@@ -8,13 +8,13 @@ object SoundThemeStore {
     private const val KEY_THEME = "gesture_sound_theme"
 
     fun get(context: Context): SoundTheme {
-        val id = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .getString(KEY_THEME, SoundTheme.DEFAULT.id)
         return SoundTheme.fromId(id)
     }
 
     fun set(context: Context, theme: SoundTheme) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        com.superdl.launcher.storage.SafePrefs.get(context, PREFS)
             .edit()
             .putString(KEY_THEME, theme.id)
             .apply()
