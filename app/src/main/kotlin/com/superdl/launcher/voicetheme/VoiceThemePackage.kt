@@ -40,7 +40,10 @@ object VoiceThemePackage {
         val name: String = "",
         val author: String = "",
         val clipCount: Int = 0,
-        val error: String = ""
+        val error: String = "",
+        /** Melyik eseményekhez lett tényleg hang — az előhallgatás ebből dolgozik. */
+        val events: List<VoiceEvent> = emptyList(),
+        val description: String = ""
     )
 
     // ── ÍRÁS ────────────────────────────────────────────────────────────────
@@ -134,7 +137,17 @@ object VoiceThemePackage {
      * IDEGEN ADAT: a fájl bárhonnan jöhet, ezért minden lépés ellenőrzött, és
      * hiba esetén udvarias visszautasítás jön, nem összeomlás.
      */
-    fun install(context: Context, text: String): ImportResult {
+    fun install(context: Context, text: String): ImportResult =
+        unpack(text, VoiceThemePlayer.themesRoot(context))
+
+    /**
+     * A KICSOMAGOLÁS MAGA — a cél mappa a hívó dolga.
+     *
+     * MIÉRT PARAMÉTER A GYÖKÉR: az előhallgatáshoz ugyanezt a munkát kell
+     * elvégezni, csak nem a végleges helyre, hanem egy eldobható mappába.
+     * Két külön kicsomagoló két külön hibaforrás lett volna.
+     */
+    private fun unpack(text: String, root0: File): ImportResult {
         return try {
             if (text.length > MAX_PACKAGE_BYTES * 2) {
                 return ImportResult(false, error = "A csomag túl nagy.")
@@ -145,8 +158,9 @@ object VoiceThemePackage {
             val sounds = root.optJSONObject("hangok")
                 ?: return ImportResult(false, error = "A csomagban nincsenek hangok.")
 
-            val dir = File(VoiceThemePlayer.themesRoot(context), id).apply { mkdirs() }
+            val dir = File(root0, id).apply { mkdirs() }
             var count = 0
+            val gotEvents = mutableListOf<VoiceEvent>()
             for (event in VoiceEvent.entries) {
                 val entry = sounds.optJSONObject(event.id) ?: continue
                 val format = entry.optString("formatum", "m4a").lowercase()
@@ -167,6 +181,7 @@ object VoiceThemePackage {
                     }
                 }
                 File(dir, "${event.baseName}.$format").writeBytes(bytes)
+                gotEvents.add(event)
                 count++
             }
             if (count == 0) {
@@ -177,11 +192,84 @@ object VoiceThemePackage {
                 id = id,
                 name = root.optString("nev", id),
                 author = root.optString("szerzo", ""),
-                clipCount = count
+                clipCount = count,
+                events = gotEvents,
+                description = root.optString("leiras", "")
             )
         } catch (e: Exception) {
             Log.w(TAG, "telepites hiba: ${e.message}")
             ImportResult(false, error = "Ezt a fájlt nem sikerült beszédtémaként értelmezni.")
+        }
+    }
+
+    // ── ELŐHALLGATÁS ────────────────────────────────────────────────────────
+
+    /**
+     * „A MEGHALLGATÁS MAGA A LETÖLTÉS."
+     *
+     * Egy téma 200-400 kilobájt: kevesebb, mint egy fénykép. Nincs értelme
+     * külön kis mintát tartani hozzá — az csak egy második fájl lenne, ami
+     * eltérhet attól, amit végül megkapsz. Ezért a katalógusból a TELJES
+     * csomag jön le, de EGY ELDOBHATÓ MAPPÁBA: meghallgatod, és csak akkor
+     * kerül a helyére, ha kéred.
+     *
+     * A gyorsítótárban van, tehát ha meggondolod magad, a rendszer akkor is
+     * kitakarítja, ha a program elszáll közben.
+     */
+    fun previewRoot(context: Context): File =
+        File(context.cacheDir, "tema_elonezet").apply { mkdirs() }
+
+    /** Letöltött csomag kicsomagolása ELŐHALLGATÁSRA, nem a végleges helyre. */
+    fun loadPreview(context: Context, text: String): ImportResult {
+        clearPreview(context)
+        return unpack(text, previewRoot(context))
+    }
+
+    /** Egy előhallgatott klip fájlja. */
+    fun previewClip(context: Context, themeId: String, event: VoiceEvent): File? {
+        val dir = File(previewRoot(context), safeId(themeId))
+        for (ext in VoiceEvent.EXTENSIONS) {
+            val file = File(dir, "${event.baseName}.$ext")
+            if (file.exists() && file.length() > 1000) return file
+        }
+        return null
+    }
+
+    /**
+     * MEGTARTOM: az előhallgatott téma átkerül a végleges helyére.
+     *
+     * Másolunk és csak utána törlünk, nem átnevezünk: a gyorsítótár és a
+     * külső files-mappa különböző köteten is lehet, és ott a `renameTo`
+     * csendben hamissal tér vissza.
+     */
+    fun acceptPreview(context: Context, themeId: String): Int {
+        val id = safeId(themeId)
+        val from = File(previewRoot(context), id)
+        if (!from.isDirectory) return 0
+        val to = File(VoiceThemePlayer.themesRoot(context), id).apply { mkdirs() }
+        var moved = 0
+        for (event in VoiceEvent.entries) {
+            val src = previewClip(context, id, event) ?: continue
+            try {
+                // A régi kiterjesztések törlése, hogy ne maradjon kísértet.
+                for (ext in VoiceEvent.EXTENSIONS) {
+                    File(to, "${event.baseName}.$ext").delete()
+                }
+                src.copyTo(File(to, src.name), overwrite = true)
+                moved++
+            } catch (e: Exception) {
+                Log.w(TAG, "elonezet atmasolas hiba (${event.id}): ${e.message}")
+            }
+        }
+        clearPreview(context)
+        return moved
+    }
+
+    /** Az előhallgatás nyomainak eltakarítása. */
+    fun clearPreview(context: Context) {
+        try {
+            previewRoot(context).deleteRecursively()
+        } catch (_: Exception) {
         }
     }
 

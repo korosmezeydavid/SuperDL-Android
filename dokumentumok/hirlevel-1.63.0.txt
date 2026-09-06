@@ -1,0 +1,156 @@
+SuperDL 1.63.0 — a telefonod mostantól nem csak közöl, hanem szól hozzád
+
+Kedves Tesztelők!
+
+Ez a kiadás két különböző dologról szól. Az egyik egy új funkció, amiről
+azt hiszem, tetszeni fog. A másik nem látványos: átnéztük a beállítás
+varázslót soronként, és találtunk benne három hibát, amiről addig senki
+nem tudott. Kezdem az elsővel.
+
+
+ELENA — HAT ESEMÉNY, AMIRE MOSTANTÓL EMBERI HANG FELEL
+
+Eddig minden esemény ugyanazzal a gépi hanggal szólalt meg. Mostantól hat
+eseményhez tartozhat FELVETT emberi hang:
+
+    merülő akkumulátor
+    teljes töltöttség
+    töltő bedugva
+    töltő kihúzva, miközben még alacsony a töltöttség
+    reggeli köszönés
+    esti köszönés
+
+A beépített téma neve Elena, és BE VAN KAPCSOLVA. Nem kell letöltened
+semmit és nem kell beállítanod semmit: a hat hang a program csomagjában
+utazik, az első indításkor a helyére kerül. Ha frissítesz, egyszerűen
+megszólal.
+
+Ez nem játék, hanem a legrégebbi kérésem magamhoz: a telefon, ami vakon a
+mindenem, ne úgy beszéljen, mint egy liftajtó. Aki nem kéri, egy söpréssel
+kikapcsolhatja.
+
+
+A SZÁM MINDIG ELHANGZIK
+
+Egy dolgot érdemes tudni, mert ezen áll vagy bukik az egész: a felvett hang
+a HANGULAT, nem az információ. A töltöttség százaléka a klip UTÁN külön
+elhangzik, mindig. Akkor is, ha valaki tréfás témát tesz fel magának.
+
+Vagyis a vicc soha nem eszi meg az adatot. Ha Elena azt mondja, hogy éhes,
+utána akkor is elhangzik, hogy tizennégy százalék.
+
+
+AMIT ÁLLÍTHATSZ
+
+Beállítások, Hangok, Beszédtéma. Ami itt van:
+
+- be- és kikapcsolás, próba, és hogy éppen mi van felvéve
+- téma választása a telepítettek közül
+- eseményenként külön ki-be kapcsolás — ha csak a reggeli köszönés kell,
+  csak az legyen
+- a reggeli és az esti köszönés időpontja
+- napi keret: hányszor szólalhat meg naponta (0, 3, 5, 8, 12 vagy 20).
+  Aki attól tart, hogy sok lesz, ezzel megfogja.
+
+És egy olyan, amit régóta kértek:
+
+- AZ ŐRSÉG ELSŐ JELZÉSÉNEK SZINTJE ÁLLÍTHATÓ. Eddig fixen húsz százaléknál
+  szólt. Mostantól 5, 10, 15, 20, 25, 30, 40 vagy 50 százalék is lehet.
+  Akinek napközben nincs a közelében töltő, annak a húsz már késő.
+
+
+SAJÁT HANGTÉMA — A TELEFONON, SZÁMÍTÓGÉP NÉLKÜL
+
+Beállítások, Hangok, Beszédtéma, Saját téma felvétele.
+
+A program ELŐSZÖR A TÉMA NEVÉT KÉRI, és csak utána vesz fel. Ez fontos: így
+a korábbi témáid megmaradnak, és egyszerre több sajátod is lehet. Aki
+vicces kedvében csinál egyet, attól még nem veszti el a komolyat.
+
+Eseményenként haladsz: jobbra a felvétel, jobbra a leállítás, meghallgatod,
+és vagy megtartod, vagy újraveszed. Amit nem akarsz felvenni, azt balra
+söpréssel kihagyod — arra marad a beépített hang.
+
+Aki nem bemondást akar, hanem HANGHATÁST vagy egy előre felvett mondatot:
+a felvétel helyett a telefonon lévő hangfájlok közül is tallózhatsz. Egy
+csengő, egy dallam, egy régi hangüzenet — bármi lehet.
+
+
+ELENA AZ ALAP MINDEN TÉMA ALATT
+
+Ez talán a legfontosabb részlet. Egy megosztott téma nem köteles mind a hat
+hangot tartalmazni: aki felvesz egy jó „töltő kihúzva" mondatot, attól nem
+várható el, hogy a reggeli köszönést is felmondja.
+
+Ilyenkor a program NEM esik vissza gépi hangra a téma közepén. Amit az
+aktív téma nem mond ki, azt Elena mondja. A telefonod egységesen szól, akkor
+is, ha félkész témát töltöttél le.
+
+
+MEGOSZTÁS
+
+A kész témát egyetlen fájlba lehet csomagolni, és elküldeni levélben,
+üzenetben, ahogy jólesik. A kapott fájlt telepíteni lehet. Aki csinál
+valami jót, az másnak is odaadhatja.
+
+Ez az első lépés. A következő az lesz, hogy a témák a modulok közt, egy
+böngészhető katalógusban is megjelenjenek, ahol meg lehet hallgatni őket
+letöltés előtt, és ahova bárki beküldheti a sajátját. Ez most még nincs
+kész — nem ígérem másnak, mint aminek van.
+
+
+ÉS AMI NEM LÁTVÁNYOS: A BEÁLLÍTÁS VARÁZSLÓ ÁTVIZSGÁLÁSA
+
+Az előző kiadás után újra végigolvastam a varázsló kódját, tételesen.
+Három hiba került elő, és mind a három ugyanabba a családba tartozik: nem
+hibaüzenetet ad, hanem elveszi a fogódzót.
+
+1. A HIBAJELENTÉS ELVETÉSE KIDOBOTT A VARÁZSLÓBÓL.
+   Aki a lista végén elindította a jelentést, aztán meggondolta magát és
+   balra söpört, az a FŐMENÜBEN találta magát — kiesve pont abból a
+   listából, amit még nem fejezett be, és amiért segítséget kért. Első
+   indításnál ez a varázsló kapuját is megkerülte. Mostantól az elvetés
+   oda tér vissza, ahonnan a jelentés indult.
+
+2. SIKERES MEGADÁS UTÁN A LISTA ELEJÉRE UGROTT VISSZA A PROGRAM.
+   Amikor megadsz egy engedélyt, az kikerül a hiánylistáról — és a program
+   ezzel elvesztette a helyedet. Aki a tizedik tételt adta meg, az elsőnél
+   találta magát, és onnan lépkedhetett vissza. Vakon ez a legfárasztóbb
+   fajta hiba, mert nem szól semmi, csak eltűnik alólad a hely. Mostantól
+   ott folytatod, ahol abbahagytad.
+
+3. AZ ASSZISZTENS FELISMERÉSE KÉT PONTON IS HIBÁS VOLT.
+   Az egyik ugyanaz a hiba, ami az előző kiadásban az értesítés-
+   hozzáférésnél kijött: a fejlesztői változat csomagneve a kiadásiéval
+   KEZDŐDIK, ezért a program a másik változat bejegyzését is a sajátjának
+   hitte. A másik fordítva tévedett: a rendszer egy összetett nevet tárol,
+   a program viszont csak a csomagnevet hasonlította hozzá, így soha nem
+   talált egyezést — vagyis hiányzónak mutatta a tételt olyan telefonon is,
+   ahol meg volt adva.
+
+Egyik hibáról sem érkezett bejelentés. Mind a három olyan, amit csak a kód
+átolvasásával lehet megtalálni — és pont ezért néztem át.
+
+
+HA VALAMI NEM MEGY
+
+Változatlanul: Beállítások, Beállítás varázsló, lépkedj a lista legvégére,
+és söpörj jobbra. Egy mozdulat, és pontosan látom, mi nem engedett ezen a
+telefonon. Az első ilyen jelentés két hibát fogott meg néhány órán belül —
+működik.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A programot le kell tölteni, nincs benne az áruházban, és a telepítéshez
+engedélyezni kell az ismeretlen forrásból való telepítést. Aki már
+használja, annak a program magától felajánlja a frissítést.
+
+A program ingyenes, és az is marad.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

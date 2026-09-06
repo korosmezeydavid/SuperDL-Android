@@ -1,0 +1,49 @@
+1.63.1 - Kozos beszedtema-katalogus: elohallgatas es bekuldes
+
+Ez a kiadas azt teljesiti be, amit az 1.63.0 hirlevele nyitva hagyott
+("ez most meg nincs kesz").
+
+UJ: BESZEDTEMAK A KOZOSBOL (elohallgatassal)
+- MenuAction.VOICE_THEME_CATALOG -> startVoiceThemeCatalog(): a katalogus
+  SOUND_THEME modulokra szurve, a meglevo CatalogBrowse flowban.
+- downloadCatalogModule() a SOUND_THEME tipusnal NEM tolt, hanem
+  startVoiceThemePreview()-t hiv. "A meghallgatas maga a letoltes":
+  a teljes csomag lejon a cacheDir/tema_elonezet mappaba.
+- Uj AppFlow.VoiceThemePreview: fel-le a klipek kozott (mindegyik
+  lejatszva), jobbra megtartom (acceptPreview -> hangtemak/<id>/, aktivalas,
+  markModuleInstalled), balra eldobom (clearPreview, vissza a katalogus
+  ugyanazon tetelere).
+- VoiceThemePackage: az install() kicsomagoloja unpack(text, root)-ra bontva,
+  igy az elohallgatas ugyanazt a - mar bevalt - utat jarja, csak eldobhato
+  mappaba. Uj: previewRoot/loadPreview/previewClip/acceptPreview/clearPreview.
+  Az ImportResult mostantol viszi az esemenyek listajat es a leirast is.
+- CatalogClient.fetchModuleText(): modul szovege telepites/markInstalled
+  nelkul. CatalogClient.markModuleInstalled(): a kor lezarasa utolag.
+
+UJ: BEKULDOM A KOZOSBE
+- Uj voicetheme/VoiceThemeSubmit.kt: feltoltes a meglevo CloudUploader-rel
+  a 0x0.st celra (30 nap, nem egyszeri letoltesu, torolheto), majd kesz
+  level osszeallitasa - nev, szerzo, nyelv, hangok szama es felsorolasa,
+  meret, letoltesi link, nyilatkozat, es a kesz katalogus-sor.
+- Uj AppFlow.VoiceThemeSubmitConfirm: kulon lepes a nyilatkozatnak, mert ez
+  az egyetlen pont, ahol a felhasznalo hangja NYILVANOS cimre kerul.
+- A level ELOBB mentodik fajlba, csak utana nyilik a levelezo - igy a link
+  akkor sem vesz el, ha nincs levelezo vagy a felhasznalo meggondolja magat.
+- A program kimondja, hogy a bekuldes nem kozzetetel.
+
+UJ: KAPOTT TEMA TELEPITESE
+- MenuAction.VOICE_THEME_INSTALL_FILE + SAF fajlvalaszto. Eddig az
+  installVoiceThemeFromFile() csak belulrol volt hivhato, tehat aki levelben
+  kapott egy temat, annak nem volt hova tennie.
+
+EGYEB
+- CatalogModule.author (a katalogus "szerzo" mezoje), a speakSummary
+  kimondja. A temaknal a szerzo neve epp olyan fogodzo, mint a cim.
+- HelpTexts.topic() uj, opcionalis "examples" szakasza ("Igy csinald"),
+  es a beszedtema sugo kiegeszitve a felvetellel, tallozassal, bongeszessel,
+  megosztassal es bekuldessel.
+- A katalogusba felkerult az elso tema: temak/tema-elena.json (269 kB,
+  hat hang), es a mobil-katalogus.json soundtheme sora.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

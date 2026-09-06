@@ -184,6 +184,42 @@ sealed class AppFlow {
         val stage: VoiceRecordStage
     ) : AppFlow()
 
+    /**
+     * BESZÉDTÉMA ELŐHALLGATÁSA a katalógusból.
+     *
+     * MIÉRT NEM „LETÖLT" A JOBBRA SÖPRÉS A TÉMÁKNÁL: egy hangtémát nem lehet
+     * leírásból választani. „Vicces" — az mit jelent? Ezért a katalógus a
+     * témáknál MEGHALLGATÁST kínál: a csomag (200-400 kilobájt) lejön egy
+     * eldobható mappába, végighallgatod eseményenként, és csak akkor kerül a
+     * helyére, ha kéred.
+     *
+     * A `modules` és a `moduleIndex` azért utazik együtt, hogy az elutasítás
+     * PONTOSAN oda vigyen vissza, ahonnan indultál — a katalógus ugyanazon
+     * tételére.
+     */
+    data class VoiceThemePreview(
+        val themeId: String,
+        val name: String,
+        val author: String,
+        val events: List<com.superdl.launcher.voicetheme.VoiceEvent>,
+        val index: Int,
+        val modules: List<com.superdl.launcher.catalog.CatalogModule>,
+        val moduleIndex: Int
+    ) : AppFlow()
+
+    /**
+     * A BEKÜLDÉS NYILATKOZATA.
+     *
+     * Külön lépés, mert ez az egyetlen pont, ahol a felhasználó valami
+     * VISSZAVONHATATLANT tesz: a hangja felkerül egy nyilvános címre.
+     * Jobbra = vállalom, balra = mégsem.
+     */
+    data class VoiceThemeSubmitConfirm(
+        val themeId: String,
+        val name: String,
+        val author: String
+    ) : AppFlow()
+
     /** Kihagyások törlésének megerősítése. */
     object AlarmSkipClearConfirm : AppFlow()
 

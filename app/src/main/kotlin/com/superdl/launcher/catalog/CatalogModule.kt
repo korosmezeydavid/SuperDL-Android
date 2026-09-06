@@ -22,7 +22,14 @@ data class CatalogModule(
      * Ha üres, a modul típusából következtetünk — így a régi katalógusok is
      * működnek.
      */
-    val categoryId: String = ""
+    val categoryId: String = "",
+    /**
+     * KI KÉSZÍTETTE. A beszédtémáknál ez nem díszítés: a katalógusban a
+     * témák nagy része MÁSOK felvétele lesz, és aki válogat köztük, annak
+     * a szerző neve épp olyan fogódzó, mint a cím. Üresen marad ott, ahol
+     * nincs értelme (kvíz, receptcsomag).
+     */
+    val author: String = ""
 ) {
     /** Felolvasható összefoglaló a listához. */
     fun speakSummary(installedVersion: Int?): String {
@@ -31,7 +38,8 @@ data class CatalogModule(
             installedVersion < version -> "frissítés érhető el"
             else -> "letöltve"
         }
-        return "$name. ${type.label}. $state. ${speakSize()}."
+        val by = if (author.isNotBlank()) " Készítette: $author." else ""
+        return "$name. ${type.label}.$by $state. ${speakSize()}."
     }
 
     fun speakSize(): String = when {

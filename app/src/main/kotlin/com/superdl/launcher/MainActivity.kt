@@ -1047,6 +1047,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, -1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, -1)
             is AppFlow.VoiceThemeRecord -> onVoiceRecordRepeat(flow, down = false)
+            is AppFlow.VoiceThemePreview -> navigateVoiceThemePreview(flow, -1)
+            is AppFlow.VoiceThemeSubmitConfirm -> repeatVoiceThemeDeclaration(flow)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, -1)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1237,6 +1239,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosPhraseBrowse -> navigateSosPhraseList(flow, +1)
             is AppFlow.HelpIndexBrowse -> navigateHelpIndex(flow, +1)
             is AppFlow.VoiceThemeRecord -> onVoiceRecordRepeat(flow, down = true)
+            is AppFlow.VoiceThemePreview -> navigateVoiceThemePreview(flow, +1)
+            is AppFlow.VoiceThemeSubmitConfirm -> repeatVoiceThemeDeclaration(flow)
             is AppFlow.SetupWizardBrowse -> navigateSetupWizard(flow, +1)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1444,6 +1448,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationDeleteConfirm -> deleteMedication(flow.reminder)
             is AppFlow.MedicationConfirm -> saveMedication(flow)
             is AppFlow.VoiceThemeRecord -> onVoiceRecordActivate(flow)
+            is AppFlow.VoiceThemePreview -> keepVoiceThemePreview(flow)
+            is AppFlow.VoiceThemeSubmitConfirm -> runVoiceThemeSubmit(flow)
             is AppFlow.SetupWizardBrowse -> activateSetupRequirement(flow)
             is AppFlow.SetupWizardAwaitReturn ->
                 returnToSetupWizard(flow.firstRun, flow.requirement)
@@ -1686,6 +1692,11 @@ class MainActivity : AppCompatActivity() {
             // ELSŐ INDÍTÁSKOR a balra söprés NEM kilépés, hanem "ezt későbbre
             // hagyom" — az alapvetőket kivéve, azokat nem lehet elhalasztani.
             is AppFlow.VoiceThemeRecord -> onVoiceRecordBack(flow)
+            is AppFlow.VoiceThemePreview -> dropVoiceThemePreview(flow)
+            is AppFlow.VoiceThemeSubmitConfirm -> exitFlow(
+                "Rendben, nem küldöm be. A téma megmarad a telefonodon, és a " +
+                    "Beszédtéma megosztása ponttal bárkinek egyenként elküldheted."
+            )
             is AppFlow.SetupWizardBrowse -> {
                 if (flow.firstRun) skipSetupRequirement(flow)
                 else exitFlow("Beállítás varázsló bezárva.")
@@ -3033,6 +3044,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.VOICE_THEME_DAILY_CAP -> cycleVoiceDailyCap()
             MenuAction.VOICE_THEME_RECORD -> startVoiceThemeRecording()
             MenuAction.VOICE_THEME_SHARE -> shareVoiceTheme()
+            MenuAction.VOICE_THEME_CATALOG -> startVoiceThemeCatalog()
+            MenuAction.VOICE_THEME_SUBMIT -> submitVoiceThemeToCommunity()
+            MenuAction.VOICE_THEME_INSTALL_FILE -> browseVoiceThemeFile()
             MenuAction.BATTERY_FIRST_ALERT_CYCLE -> cycleBatteryFirstAlert()
             MenuAction.FLASHLIGHT -> toggleFlashlight()
             MenuAction.QR_SCAN -> {
@@ -7472,6 +7486,15 @@ class MainActivity : AppCompatActivity() {
     /** Jobbra: letöltés (vagy leírás felolvasása, ha már megvan). */
     private fun downloadCatalogModule(flow: AppFlow.CatalogBrowse) {
         val module = flow.modules[flow.index]
+        // A BESZÉDTÉMA KIVÉTEL: nála a jobbra söprés MEGHALLGATÁS, nem
+        // letöltés. Egy hangot nem lehet leírásból választani, és mivel a
+        // csomag amúgy is kicsi, „a meghallgatás maga a letöltés" — csak
+        // eldobható helyre. Ez akkor is így van, ha a téma már megvan:
+        // újrahallgatni bármikor szabad.
+        if (module.type == com.superdl.launcher.catalog.ModuleType.SOUND_THEME) {
+            startVoiceThemePreview(module, flow.modules, flow.index)
+            return
+        }
         val installed = com.superdl.launcher.catalog.CatalogStore.installedVersion(this, module.id)
         if (installed != null && installed >= module.version) {
             tts.speak("Ez már letöltve van. ${module.description}")
@@ -17336,11 +17359,23 @@ class MainActivity : AppCompatActivity() {
 
     /** Kapott csomag telepítése — a Fájlkezelőből vagy a Fogadott mappából. */
     private fun installVoiceThemeFromFile(file: java.io.File) {
-        val result = com.superdl.launcher.voicetheme.VoiceThemePackage.installFromFile(this, file)
+        val text = try {
+            file.readText(Charsets.UTF_8)
+        } catch (_: Exception) {
+            tts.speak("A fájl nem olvasható.")
+            return
+        }
+        installVoiceThemeText(text)
+    }
+
+    /** Ugyanaz, de már beolvasott szövegből (a fájlválasztó ezt adja). */
+    private fun installVoiceThemeText(text: String) {
+        val result = com.superdl.launcher.voicetheme.VoiceThemePackage.install(this, text)
         if (!result.ok) {
             tts.speak(result.error)
             return
         }
+        VoiceThemeStore.setThemeName(this, result.id, result.name)
         VoiceThemeStore.setActiveTheme(this, result.id)
         if (!VoiceThemeStore.isEnabled(this)) VoiceThemeStore.setEnabled(this, true)
         tts.speak(
@@ -17349,6 +17384,335 @@ class MainActivity : AppCompatActivity() {
                 "${result.clipCount} hang. Bekapcsoltam. A Hangok kipróbálása ponttal " +
                 "meghallgathatod. Ha saját felvételed is van, az marad az erősebb."
         )
+    }
+
+    // ==================== A KÖZÖS: katalógus, beküldés, fogadás ============
+
+    /**
+     * KAPOTT TÉMA-FÁJL TELEPÍTÉSE.
+     *
+     * Eddig az `installVoiceThemeFromFile` csak belülről volt hívható, tehát
+     * aki levélben kapott egy témát, annak nem volt hova tennie. A rendszer
+     * fájlválasztója minden tárhelyet lát (letöltések, felhő, kártya), és
+     * képernyőolvasóval kezelhető — ez a legrövidebb út.
+     */
+    private val pickThemeFile = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            tts.speak("Nem választottál fájlt.")
+            return@registerForActivityResult
+        }
+        Thread {
+            val text = try {
+                contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)
+                    ?.use { it.readText() }
+            } catch (_: Exception) {
+                null
+            }
+            postWhenAlive {
+                if (text.isNullOrBlank()) {
+                    tts.speak("Ezt a fájlt nem sikerült beolvasni.")
+                    return@postWhenAlive
+                }
+                installVoiceThemeText(text)
+            }
+        }.start()
+    }
+
+    private fun browseVoiceThemeFile() {
+        try {
+            tts.speak(
+                "Válaszd ki a kapott téma-fájlt. A neve a téma szóval kezdődik, " +
+                    "és pont json-ra végződik."
+            )
+            // A téma JSON, de sok levelező „application/octet-stream" néven
+            // adja tovább — ezért nem szűkítjük egyetlen típusra.
+            pickThemeFile.launch(arrayOf("application/json", "text/plain", "*/*"))
+        } catch (_: Exception) {
+            tts.speak("A fájlválasztót nem sikerült megnyitni ezen a telefonon.")
+        }
+    }
+
+    /**
+     * BESZÉDTÉMÁK A KÖZÖSBŐL — böngészhető katalógus.
+     *
+     * A rendes katalógus-böngészőt használjuk, csak a beszédtémákra szűrve:
+     * így a lista, a lépkedés és a megjelenítés ugyanaz, amit a felhasználó
+     * már ismer. A KÜLÖNBSÉG a jobbra söprésben van: itt nem letöltés
+     * indul, hanem MEGHALLGATÁS.
+     */
+    private fun startVoiceThemeCatalog() {
+        tts.speak("Beszédtémák betöltése a közösből.")
+        Thread {
+            val result = com.superdl.launcher.catalog.CatalogClient.fetchCatalog()
+            postWhenAlive {
+                if (result.error != null) {
+                    tts.speak(result.error)
+                    return@postWhenAlive
+                }
+                val themes = result.modules.filter {
+                    it.type == com.superdl.launcher.catalog.ModuleType.SOUND_THEME
+                }
+                if (themes.isEmpty()) {
+                    tts.speak(
+                        "A közösben még nincs beszédtéma. Ha készítesz egyet, a " +
+                            "Beküldöm a közösbe ponttal elküldheted — és akkor te leszel " +
+                            "az első."
+                    )
+                    return@postWhenAlive
+                }
+                activeFlow = AppFlow.CatalogBrowse(themes, 0)
+                updateFlowDisplay()
+                tts.speak(
+                    "${themes.size} beszédtéma a közösből. Fel-le válogatás, " +
+                        "jobbra meghallgatás, balra vissza. A meghallgatás letölti a témát " +
+                        "egy ideiglenes helyre, és csak akkor kerül a helyére, ha megtartod."
+                )
+                tts.speakAdd(speakCatalogEntry(themes[0]))
+            }
+        }.start()
+    }
+
+    /**
+     * MEGHALLGATÁS LETÖLTÉS ELŐTT — a katalógus lelke a beszédtémáknál.
+     *
+     * Egy hangtémát nem lehet leírásból választani: a „vicces" szó nem
+     * mondja meg, hogy nevetni fogsz-e rajta. Ezért a teljes csomag lejön
+     * (200-400 kilobájt, kevesebb, mint egy fénykép), de egy ELDOBHATÓ
+     * mappába, és végighallgathatod eseményenként. A jobbra söprés tartja
+     * meg, a balra eldobja — utóbbi esetben semmi nyoma nem marad.
+     */
+    private fun startVoiceThemePreview(
+        module: com.superdl.launcher.catalog.CatalogModule,
+        modules: List<com.superdl.launcher.catalog.CatalogModule>,
+        moduleIndex: Int
+    ) {
+        tts.speak("${module.name} letöltése meghallgatásra. Várj.")
+        Thread {
+            val text = com.superdl.launcher.catalog.CatalogClient.fetchModuleText(module)
+            val result = if (text == null) {
+                com.superdl.launcher.voicetheme.VoiceThemePackage.ImportResult(
+                    false,
+                    error = "A témát nem sikerült letölteni. Van internet?"
+                )
+            } else {
+                com.superdl.launcher.voicetheme.VoiceThemePackage.loadPreview(this, text)
+            }
+            postWhenAlive {
+                if (!result.ok || result.events.isEmpty()) {
+                    tts.speak(result.error.ifBlank { "Ez a téma üresnek bizonyult." })
+                    return@postWhenAlive
+                }
+                activeFlow = AppFlow.VoiceThemePreview(
+                    themeId = result.id,
+                    name = result.name,
+                    author = result.author,
+                    events = result.events,
+                    index = 0,
+                    modules = modules,
+                    moduleIndex = moduleIndex
+                )
+                updateFlowDisplay()
+                val by = if (result.author.isNotBlank()) "Készítette: ${result.author}. " else ""
+                tts.speakThen(
+                    "${result.name}. $by${result.clipCount} hang. " +
+                        "Most meghallgatod őket. Fel-le a hangok között, " +
+                        "jobbra megtartom, balra nem kérem. Az első:"
+                ) {
+                    playVoiceThemePreviewClip(result.id, result.events[0], announce = true)
+                }
+            }
+        }.start()
+    }
+
+    /** Egy előhallgatott klip: előbb kimondjuk, mihez való, aztán szól. */
+    private fun playVoiceThemePreviewClip(
+        themeId: String,
+        event: com.superdl.launcher.voicetheme.VoiceEvent,
+        announce: Boolean
+    ) {
+        val clip = com.superdl.launcher.voicetheme.VoiceThemePackage
+            .previewClip(this, themeId, event)
+        if (clip == null) {
+            tts.speak("${event.label}: ehhez nincs hang ebben a témában.")
+            return
+        }
+        if (announce) {
+            tts.speakThen(event.label) {
+                com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, clip)
+            }
+        } else {
+            com.superdl.launcher.voicetheme.VoiceThemePlayer.play(this, clip)
+        }
+    }
+
+    private fun navigateVoiceThemePreview(flow: AppFlow.VoiceThemePreview, delta: Int) {
+        if (flow.events.isEmpty()) return
+        val next = (flow.index + delta + flow.events.size) % flow.events.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        playVoiceThemePreviewClip(flow.themeId, flow.events[next], announce = true)
+    }
+
+    private fun repeatVoiceThemePreview(flow: AppFlow.VoiceThemePreview) {
+        val event = flow.events.getOrNull(flow.index) ?: return
+        playVoiceThemePreviewClip(flow.themeId, event, announce = true)
+    }
+
+    /** Jobbra: megtartom — az előhallgatott téma a helyére kerül és bekapcsol. */
+    private fun keepVoiceThemePreview(flow: AppFlow.VoiceThemePreview) {
+        val moved = com.superdl.launcher.voicetheme.VoiceThemePackage
+            .acceptPreview(this, flow.themeId)
+        if (moved == 0) {
+            tts.speak("A téma átmásolása nem sikerült. Próbáld újra.")
+            return
+        }
+        VoiceThemeStore.setThemeName(this, flow.themeId, flow.name)
+        VoiceThemeStore.setActiveTheme(this, flow.themeId)
+        if (!VoiceThemeStore.isEnabled(this)) VoiceThemeStore.setEnabled(this, true)
+        // A katalógus is tudja meg, hogy ez már a tiéd — különben legközelebb
+        // is „nincs letöltve" állapotot mondana rá.
+        flow.modules.getOrNull(flow.moduleIndex)?.let {
+            com.superdl.launcher.catalog.CatalogClient.markModuleInstalled(this, it)
+        }
+        sounds.play(SoundType.ACTION_OK)
+        exitFlow(
+            "Megtartva és bekapcsolva: ${flow.name}. $moved hang. " +
+                "Amihez ebben a témában nincs hang, ott Elena szólal meg. " +
+                "Ha saját felvételed is van, az marad az erősebb."
+        )
+    }
+
+    /** Balra: nem kérem — az eldobható mappa törlődik, és megyünk vissza. */
+    private fun dropVoiceThemePreview(flow: AppFlow.VoiceThemePreview) {
+        com.superdl.launcher.voicetheme.VoiceThemePlayer.stop()
+        com.superdl.launcher.voicetheme.VoiceThemePackage.clearPreview(this)
+        if (flow.modules.isEmpty()) {
+            exitFlow("Rendben, ezt nem kérted. Nem maradt belőle semmi a telefonon.")
+            return
+        }
+        activeFlow = AppFlow.CatalogBrowse(flow.modules, flow.moduleIndex)
+        updateFlowDisplay()
+        tts.speak(
+            "Rendben, ezt nem kérted, nem maradt belőle semmi. " +
+                speakCatalogEntry(flow.modules[flow.moduleIndex])
+        )
+    }
+
+    /**
+     * BEKÜLDÖM A KÖZÖSBE.
+     *
+     * Három lépés, és a középső a lényeg: a nyilatkozat. Ez az egyetlen
+     * pont a programban, ahol a felhasználó hangja NYILVÁNOS címre kerül,
+     * és ezt nem szabad egy söprésbe belecsúsztatni.
+     */
+    private fun submitVoiceThemeToCommunity() {
+        val id = VoiceThemeStore.getActiveTheme(this)
+        if (id.isBlank()) {
+            tts.speak(
+                "Nincs kiválasztott téma. Előbb vedd fel a sajátodat a Beszédtéma " +
+                    "felvétele ponttal, vagy válaszd ki a Téma választása ponttal."
+            )
+            return
+        }
+        if (id == com.superdl.launcher.voicetheme.VoiceThemeAssets.BUILT_IN_ID) {
+            tts.speak(
+                "Az Elena téma beépített, azt nem kell beküldeni — minden telefonon " +
+                    "ott van. Vedd fel a sajátodat a Beszédtéma felvétele ponttal, és azt " +
+                    "küldheted be."
+            )
+            return
+        }
+        val name = VoiceThemeStore.getThemeName(this, id)
+        val count = com.superdl.launcher.voicetheme.VoiceThemePackage.clipCount(this, id)
+        if (count == 0) {
+            tts.speak("A $name témában nincs egyetlen hang sem, így nincs mit beküldeni.")
+            return
+        }
+        ensureMicAndRun {
+            voiceInput.listenPrompt(
+                prompt = "A $name témát küldöd be, $count hanggal. Mondd a szerző nevét — " +
+                    "ez fog megjelenni a katalógusban a téma mellett.",
+                onResult = { spoken -> askVoiceThemeDeclaration(id, name, spoken.trim()) },
+                onError = { askVoiceThemeDeclaration(id, name, "") }
+            )
+        }
+    }
+
+    private fun askVoiceThemeDeclaration(id: String, name: String, author: String) {
+        activeFlow = AppFlow.VoiceThemeSubmitConfirm(id, name, author)
+        updateFlowDisplay()
+        tts.speak(com.superdl.launcher.voicetheme.VoiceThemeSubmit.DECLARATION)
+    }
+
+    private fun repeatVoiceThemeDeclaration(flow: AppFlow.VoiceThemeSubmitConfirm) {
+        tts.speak(
+            "${flow.name} beküldése. " +
+                com.superdl.launcher.voicetheme.VoiceThemeSubmit.DECLARATION
+        )
+    }
+
+    /** A nyilatkozat után: csomagolás, feltöltés, kész levél. */
+    private fun runVoiceThemeSubmit(flow: AppFlow.VoiceThemeSubmitConfirm) {
+        val file = com.superdl.launcher.voicetheme.VoiceThemePackage.export(
+            context = this,
+            id = flow.themeId,
+            name = flow.name,
+            author = flow.author
+        )
+        if (file == null) {
+            exitFlow("A csomagolás nem sikerült, így nincs mit feltölteni.")
+            return
+        }
+        val sizeKb = (file.length() / 1024).coerceAtLeast(1)
+        exitFlow(
+            "Csomagolva: $sizeKb kilobájt. Most feltöltöm. Ez eltarthat egy percig, " +
+                "és szólok, ha kész."
+        )
+        Thread {
+            val result = com.superdl.launcher.voicetheme.VoiceThemeSubmit.upload(
+                context = this,
+                file = file,
+                themeId = flow.themeId,
+                name = flow.name,
+                author = flow.author
+            )
+            postWhenAlive { finishVoiceThemeSubmit(flow, result) }
+        }.start()
+    }
+
+    private fun finishVoiceThemeSubmit(
+        flow: AppFlow.VoiceThemeSubmitConfirm,
+        result: com.superdl.launcher.voicetheme.VoiceThemeSubmit.Result
+    ) {
+        if (!result.ok) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak(
+                "${result.message} A téma megvan a telefonodon, tehát nem veszett el " +
+                    "semmi. Megpróbálhatod később, vagy elküldheted közvetlenül a " +
+                    "Beszédtéma megosztása ponttal."
+            )
+            return
+        }
+        val subject = com.superdl.launcher.voicetheme.VoiceThemeSubmit.subject(flow.name)
+        // A LEVELET ELŐBB MENTJÜK, csak utána nyitunk levelezőt. Ha a
+        // levelező hiányzik vagy a felhasználó meggondolja magát, a link
+        // akkor sem vész el — a WiFi portálról előkereshető.
+        val saved = com.superdl.launcher.report.BugReportSender.saveToFile(this, result.letter)
+        val opened = com.superdl.launcher.report.BugReportSender
+            .sendWithMailApp(this, result.letter, subject)
+        val how = when {
+            opened -> "Megnyitottam a levelezőt, a levél kész, csak küldd el."
+            com.superdl.launcher.report.BugReportSender.share(this, result.letter, subject) ->
+                "Válaszd ki, mivel küldöd el."
+            saved != null ->
+                "Nincs levelező a telefonon, ezért elmentettem a levelet. " +
+                    "A WiFi portálról letöltheted, és onnan küldheted el."
+            else -> "A levelet nem sikerült elküldeni, de a link megvan a mentett fájlban."
+        }
+        sounds.play(SoundType.ACTION_OK)
+        tts.speak("${result.message} $how")
     }
 
     private fun cycleBatteryFirstAlert() {
@@ -17726,6 +18090,17 @@ class MainActivity : AppCompatActivity() {
                     flow.firstRun -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ későbbre"
                     else -> "⬆⬇ választás  •  ➡ megadás  •  ⬅ kilépés"
                 }
+            }
+            is AppFlow.VoiceThemePreview -> {
+                val event = flow.events.getOrNull(flow.index)
+                tvItem.text = event?.label.orEmpty()
+                tvPosition.text = "${flow.name}  •  ${flow.index + 1} / ${flow.events.size}"
+                tvHint.text = "⬆⬇ hangok  •  ➡ megtartom  •  ⬅ nem kérem"
+            }
+            is AppFlow.VoiceThemeSubmitConfirm -> {
+                tvItem.text = flow.name
+                tvPosition.text = "Beküldés a közösbe"
+                tvHint.text = "➡ vállalom, beküldöm  •  ⬅ mégsem  •  ⬆⬇ ismétlés"
             }
             is AppFlow.VoiceThemeRecord -> {
                 val event = voiceRecordEvents.getOrNull(flow.index)

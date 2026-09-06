@@ -1,0 +1,7 @@
+{
+  "megjegyzes": "A SuperDL mobil legfrissebb verziója. A telefon naponta kétszer ránéz erre a fájlra, és szól, ha újabb van. Kiadáskor EZT a fájlt kell frissíteni.",
+  "verzio": "1.63.1",
+  "letoltes": "https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk",
+  "kiadva": "2026-09-06",
+  "ujdonsagok": "ELKÉSZÜLT A KÖZÖS BESZÉDTÉMA-KATALÓGUS. Beállítások, Hangok, Beszédtéma, Beszédtémák a közösből: fel-le lépkedsz a témák között, és a jobbra söprés NEM letöltés, hanem MEGHALLGATÁS. Egy hangtémát nem lehet leírásból választani, ezért a teljes csomag lejön egy eldobható helyre, végighallgatod eseményenként, és csak akkor kerül a helyére, ha jobbra söpörsz. Balra söpréssel semmi nyoma nem marad. Ez azért mehet így, mert egy téma 200-400 kilobájt, kevesebb, mint egy fénykép. ÚJ: Beküldöm a közösbe. Bemondod a szerző nevét, elhangzik a nyilatkozat, hogy a felvétel a sajátod és bárki letöltheti, és a program feltölti a témát, majd összeállít egy kész levelet a fejlesztőnek a letöltési linkkel. Ez még NEM közzététel: a fejlesztő meghallgatja, és ő teszi közzé. ÚJ: Kapott téma telepítése, a rendszer fájlválasztójával, annak, aki levélben kap egy témát. ÚJ: a katalógus a szerzőt is kimondja a modul neve után. Az Elena téma már fent van a katalógusban, tehát van mit kipróbálni. Használat csak tartalék készüléken egyelőre, vagy saját felelősségre!"
+}

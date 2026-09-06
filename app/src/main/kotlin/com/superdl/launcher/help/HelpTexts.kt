@@ -72,12 +72,22 @@ object HelpTexts {
         purpose: String,
         start: String,
         gestures: String,
-        trouble: String
+        trouble: String,
+        /**
+         * VALÓDI FORGATÓKÖNYVEK — üresen hagyva kimarad.
+         *
+         * MIÉRT KELL EGYÁLTALÁN: van néhány funkció, ahol nem egy kapcsolót
+         * kell megérteni, hanem egy LÁNCOT (felveszem, elnevezem, megosztom,
+         * beküldöm). Azt a „Mozdulatok itt" szakaszba beleírni annyi, mint
+         * elrejteni. Az üres alapérték miatt a többi súgó változatlan marad.
+         */
+        examples: String = ""
     ) = HelpTopic(
         title,
-        listOf(
+        listOfNotNull(
             LegalSection("Mire való", purpose),
             LegalSection("Hogyan kezdd", start),
+            if (examples.isNotBlank()) LegalSection("Így csináld", examples) else null,
             LegalSection("Mozdulatok itt", gestures),
             LegalSection("Ha valami nem megy", trouble),
             SupportInfo.helpFooter()
@@ -799,14 +809,41 @@ object HelpTexts {
                 "Egy dolog viszont mindig marad: a SZÁM. Ha a hang azt mondja, hogy " +
                 "éhes vagyok, a program utána akkor is kimondja a töltöttséget — mert " +
                 "az önmagában nem árulja el, hogy tíz perc van hátra vagy két óra.",
-            start = "Beállítások, Hangok, Beszédtéma. Kapcsold be, majd válaszd a " +
-                "Hangok kipróbálása pontot: sorban lejátssza mind a hat eseményt, és " +
-                "megmondja, melyikhez nincs még felvett hang. Ha egy hang hiányzik, a " +
-                "program a szokásos mondatot mondja — némaság soha nincs. " +
+            start = "Nincs teendőd: az ELENA téma be van építve a programba, és " +
+                "alapból be van kapcsolva. Az első indításkor a helyére kerül, tehát " +
+                "letölteni sem kell. A Hangok kipróbálása pont sorban lejátssza mind " +
+                "a hat eseményt, és megmondja, melyikhez nincs felvett hang. " +
+                "Elena egyben az ALAPRÉTEG is: ha egy letöltött téma nem tartalmaz " +
+                "hangot valamelyik eseményhez, azt Elena mondja — a telefon nem vált " +
+                "vissza gépi hangra a téma közepén. " +
                 "A saját hangfájlok helye: Android, data, Super DL, files, elena. " +
                 "A fájlnevek ékezet nélkül: battery low, battery full, charger in, " +
                 "charger out low, morning, night. A kiterjesztés lehet wav, mp3, m4a " +
                 "vagy ogg — nem kell konvertálnod.",
+            examples = "SAJÁT TÉMA FELVÉTELE. Beállítások, Hangok, Beszédtéma, " +
+                "Beszédtéma felvétele. A program ELŐSZÖR A NEVET kéri, és csak utána " +
+                "vesz fel: így a korábbi témáid megmaradnak, és egyszerre több sajátod " +
+                "is lehet — egy komoly és egy vicces. Eseményenként haladsz: jobbra a " +
+                "felvétel, jobbra a leállítás, meghallgatod, jobbra megtartod vagy " +
+                "balra újraveszed. Amit nem akarsz felvenni, azt balra söpréssel " +
+                "kihagyod — ott Elena marad. " +
+                "KÉSZ HANGFÁJL FELVÉTEL HELYETT: a felvételi lépésnél a LEFELÉ söprés " +
+                "a telefonon lévő hangfájlok tallózása. Aki hanghatást vagy előre " +
+                "felvett mondatot akar, ezt használja. " +
+                "BÖNGÉSZÉS A KÖZÖSBEN: Beszédtémák a közösből. Fel-le lépkedsz a " +
+                "témák között, és a JOBBRA SÖPRÉS NEM LETÖLTÉS, HANEM MEGHALLGATÁS: " +
+                "a téma lejön egy eldobható helyre, végighallgatod eseményenként, és " +
+                "csak akkor kerül a helyére, ha jobbra söpörsz. Balra söpréssel semmi " +
+                "nyoma nem marad. " +
+                "MEGOSZTÁS: Beszédtéma megosztása — az aktív témát egyetlen fájlba " +
+                "csomagolja, és átadja a szokásos megosztásnak (kód géptől gépig, " +
+                "levél, üzenet). A kapott fájlt a Kapott téma telepítése ponttal " +
+                "hozod be. " +
+                "BEKÜLDÉS: Beküldöm a közösbe. Bemondod a szerző nevét, elhangzik a " +
+                "nyilatkozat — a felvétel a sajátod, és bárki letöltheti —, és ha " +
+                "jobbra söpörsz, a program feltölti és összeállít egy kész levelet a " +
+                "fejlesztőnek. EZ MÉG NEM KÖZZÉTÉTEL: a fejlesztő meghallgatja, és ő " +
+                "dönt róla.",
             gestures = "A hat esemény: merüléskor, feltöltve, töltő bedugva, töltő " +
                 "kihúzva alacsony töltöttségnél, jó reggelt, jó éjszakát. " +
                 "Mindegyik külön ki-be kapcsolható. Az Első figyelmeztetés szintje " +

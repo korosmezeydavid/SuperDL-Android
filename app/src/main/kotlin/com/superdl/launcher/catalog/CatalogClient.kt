@@ -70,7 +70,8 @@ object CatalogClient {
                         sizeBytes = o.optLong("meret", 0L),
                         filePath = o.optString("fajl"),
                         minAppVersion = o.optString("minAlkalmazasVerzio", "1.0.0"),
-                        categoryId = o.optString("kategoria", "")
+                        categoryId = o.optString("kategoria", ""),
+                        author = o.optString("szerzo", "")
                     )
                 )
             }
@@ -107,6 +108,31 @@ object CatalogClient {
         } catch (e: Exception) {
             Log.w(TAG, "modul letoltes hiba (${module.id}): ${e.message}")
             "A letöltés nem sikerült."
+        }
+    }
+
+    /**
+     * EGY MODUL SZÖVEGE, TELEPÍTÉS NÉLKÜL.
+     *
+     * MIÉRT KELL KÜLÖN: a beszédtémáknál a katalógus nem „letölt", hanem
+     * ELŐHALLGATÁST kínál — meghallgatod, és csak akkor kerül a helyére, ha
+     * kéred. Ehhez a tartalom kell, a `markInstalled` viszont NEM: attól a
+     * program azt hinné, hogy a téma már a tiéd.
+     *
+     * HÁTTÉRSZÁLRÓL hívandó.
+     */
+    fun fetchModuleText(module: CatalogModule): String? = download(baseUrl + module.filePath)
+
+    /**
+     * Egy már letöltött szöveg elkönyvelése telepítettként.
+     * Az előhallgatás után ezzel zárjuk le a kört, hogy a katalógus is
+     * „letöltve" állapotot mondjon rá.
+     */
+    fun markModuleInstalled(context: Context, module: CatalogModule) {
+        try {
+            CatalogStore.markInstalled(context, module.id, module.version, module.type)
+        } catch (e: Exception) {
+            Log.w(TAG, "markInstalled hiba (${module.id}): ${e.message}")
         }
     }
 

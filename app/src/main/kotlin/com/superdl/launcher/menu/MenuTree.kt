@@ -291,6 +291,9 @@ enum class MenuAction {
     VOICE_THEME_DAILY_CAP,
     VOICE_THEME_RECORD,        // Saját beszédtéma felvétele a telefonon
     VOICE_THEME_SHARE,         // Csomagolás és megosztás
+    VOICE_THEME_SUBMIT,        // Beküldöm a közösbe — feltöltés + kész levél
+    VOICE_THEME_INSTALL_FILE,  // Kapott téma-fájl telepítése
+    VOICE_THEME_CATALOG,       // Beszédtémák a katalógusban, előhallgatással
     BATTERY_FIRST_ALERT_CYCLE, // Az első akku-figyelmeztetés szintje
     RINGTONE_SELECT,           // Gyári csengőhang választása a híváshoz
     LOCATION_TRAIN,            // Helyszín profil tanítása
@@ -1039,6 +1042,12 @@ object MenuTree {
                     // megosztása. Ettől lesz a funkció gép nélkül használható.
                     MenuItem("vt_record", "Beszédtéma felvétele", MenuAction.VOICE_THEME_RECORD),
                     MenuItem("vt_share", "Beszédtéma megosztása", MenuAction.VOICE_THEME_SHARE),
+                    // A KÖZÖS RÉSZ: innen lehet válogatni mások témái közül,
+                    // és ide lehet beküldeni a sajátot. A böngészőben minden
+                    // téma MEGHALLGATHATÓ letöltés előtt.
+                    MenuItem("vt_catalog", "Beszédtémák a közösből", MenuAction.VOICE_THEME_CATALOG),
+                    MenuItem("vt_submit", "Beküldöm a közösbe", MenuAction.VOICE_THEME_SUBMIT),
+                    MenuItem("vt_install", "Kapott téma telepítése", MenuAction.VOICE_THEME_INSTALL_FILE),
                     MenuItem("vt_back", "Vissza a hangokhoz", MenuAction.SUBMENU)
                 )),
                 MenuItem("ringtone_select", "Csengőhang választása", MenuAction.RINGTONE_SELECT),
