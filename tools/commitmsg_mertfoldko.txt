@@ -1,0 +1,26 @@
+Varazslo: kimondjuk, ha minden alapveto tetel megvan
+
+A HIBA (Xiaomi M2103K19G, ot hibajelentes egy este ugyanattol a tesztelotol):
+
+A tesztelo vegigdolgozta magat a listan. A 21:41-es jelentesekor MINDEN
+alapveto kovetelmeny teljesult - role_dialer is megvan -, es megis ugyanazt
+jelentette: "elakadtam a beallitas varazsloban".
+
+Nem akadt el. Csak nem volt honnan tudnia, hogy tul van a nehezen.
+
+A speakSummary() ilyenkor is a "hianyzik ennyi meg ennyi engedely" mondatot
+adta, mert csak azt nezte, hany tetel hianyzik osszesen - nem azt, hogy
+maradt-e koztuk ALAPVETO. Vakon egy lista vegtelennek hat, ha semmi nem
+jelzi, hol a fordulopont.
+
+JAVITAS: ha nincs tobb hianyzo alapveto tetel, a varazslo ezt mondja:
+
+  "Minden alapveto beallitas megvan - a telefon a lenyeges dolgokat mar
+   tudja. Meg N kenyelmi tetel maradt, ezek barmelyike kesobbre hagyhato
+   balra sopressel, es a varazslo barmikor befejezheto."
+
+Ez a mondat a varazslo inditasakor ES minden tetel utan is elhangzik, mert
+a returnToSetupWizard() ugyanezt a speakSummary()-t hasznalja.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

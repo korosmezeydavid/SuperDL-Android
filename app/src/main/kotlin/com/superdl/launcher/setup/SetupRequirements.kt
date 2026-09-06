@@ -514,6 +514,28 @@ object SetupRequirements {
         if (optional > 0) parts.add("$optional kiegészítő")
 
         val head = "Hiányzik ${parts.joinToString(", ")} engedély."
+
+        // AZ ALAPVETŐK MEGVANNAK — EZT KI KELL MONDANI.
+        //
+        // A HIBA, AMIT EZ JAVÍT (Xiaomi M2103K19G, öt hibajelentés egy este):
+        // a tesztelő végigdolgozta magát a listán, és mire az utolsó alapvető
+        // tételt is megadta, MINDEN alapvető követelmény teljesült — ő viszont
+        // ekkor is ugyanazt a „hiányzik ennyi meg ennyi" mondatot hallotta,
+        // és ugyanúgy azt jelentette, hogy „elakadtam a varázslóban".
+        //
+        // Nem akadt el. Csak nem volt honnan tudnia, hogy már túl van a
+        // nehezén, és innentől minden, ami maradt, halasztható.
+        //
+        // Vakon egy lista végtelennek hat, ha semmi nem jelzi, hol a fordulópont.
+        if (essential == 0) {
+            val marad = important + optional
+            val elso = missing.first()
+            return "Minden alapvető beállítás megvan — a telefon a lényeges dolgokat " +
+                "már tudja. Még $marad kényelmi tétel maradt, ezek bármelyike " +
+                "későbbre hagyható balra söpréssel, és a varázsló bármikor " +
+                "befejezhető. ${elso.title}: ${elso.whatBreaks}"
+        }
+
         val first = missing.first()
         return "$head A legfontosabb: ${first.title}. ${first.whatBreaks}"
     }

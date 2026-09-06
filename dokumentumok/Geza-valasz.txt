@@ -5,9 +5,13 @@ küldött. Külön-külön nézve három egyforma panasz lett volna. Egymás mel
 téve viszont pontosan megmutatták, mi a baj — és két olyan hibát fedtek fel,
 amiről addig nem tudtam.
 
-A javítás kész, kiadtam 1.63.3 néven:
+A javítás kész, kiadtam 1.63.4 néven:
 
     https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+Azóta küldött egy negyedik jelentést is, már az 1.63.2-ről. Az egy ötödik
+hibát fedett fel, és arról a végén külön írok — mert nem az Ön telefonjával
+volt baj, hanem az én kérdésemmel.
 
 
 AMIT A HÁROM JELENTÉS EGYÜTT ELMONDOTT
@@ -71,15 +75,47 @@ is kijött. Az Öné volt a harmadik előfordulása, és ez segített abban, hog
 végre mintázatként lássam.
 
 
+A NEGYEDIK JELENTÉS: „NINCS BESZÉDMOTOR" — ÉS EZ AZ ÉN HIBÁM VOLT
+
+A 21:35-ös jelentése már az 1.63.2-ről jött, tehát benne volt az új,
+részletesebb diagnosztika. És ez állt benne:
+
+    beszédmotorok a rendszerben: egy sem található
+
+Egy pillanatra elhittem. Aztán észbe kaptam: az Ön telefonján fut a
+TalkBack. A TalkBacknek is beszédmotor kell. Ha tényleg nem lenne egy sem,
+a TalkBack is néma lenne — Ön pedig nem tudta volna elküldeni ezt a
+jelentést.
+
+Tehát nem a telefonján nem volt beszédmotor. AZ ÉN KÉRDÉSEM VOLT ROSSZ.
+
+A programban egy azonosítót el kell küldeni a rendszernek, amikor
+megkérdezzük, milyen beszédmotorok vannak. Én ennek az azonosítónak a NEVÉT
+írtam be az ÉRTÉKE helyett — a kettő nem ugyanaz. Így egy nem létező dologra
+kérdeztem rá, a rendszer üres választ adott, én pedig az üres választ
+ténynek olvastam.
+
+Ez a hiba MINDEN készüléken így viselkedett, nem csak az Önén. Ráadásul
+ugyanez az elgépelés a program egy másik, fontosabb helyén is ott volt, ahol
+Android 11 óta meg kell adni, mely alkalmazásokat láthatja a program.
+
+Az Ön jelentése nélkül ez nem derült volna ki. Egy hiba, ami mindig üres
+választ ad, könnyen elbújik — épp azért, mert nem hibának látszik, hanem
+eredménynek.
+
+Mindkét helyen javítva az 1.63.4-ben.
+
+
 AMIT KÉRNÉK ÖNTŐL
 
-1. Frissítés az 1.63.3-ra.
+1. Frissítés az 1.63.4-re.
 
-2. A Xiaomin érdemes bekapcsolni a SuperDL AUTOMATIKUS INDÍTÁSÁT:
-   Beállítások, Alkalmazások, Alkalmazások kezelése, SuperDL,
-   Automatikus indítás. A varázslóban ez a tétel „kihagyva" állapotban van
-   Önnél — más telefonokon ez tényleg elhagyható, a MIUI-n viszont nem.
-   Enélkül a rendszer újra és újra leállítja a programot.
+2. Az automatikus indítást a legutóbbi jelentése szerint már bekapcsolta —
+   köszönöm, ez a MIUI-n tényleg nem elhagyható tétel. Ha mégis visszaállna,
+   itt található: Beállítások, Alkalmazások, Alkalmazások kezelése, SuperDL,
+   Automatikus indítás. Ugyanígy érdemes időnként ránézni a korlátlan
+   háttérfutásra is: a jelentéseiből az látszik, hogy a telefon egyszer már
+   magától visszavonta.
 
 3. Az alapértelmezett telefon alkalmazás, ha a varázslóban továbbra sem
    megy, kézzel is beállítható: Beállítások, Alkalmazások, Alapértelmezett
