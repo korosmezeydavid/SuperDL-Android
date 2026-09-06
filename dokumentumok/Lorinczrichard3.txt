@@ -1,0 +1,141 @@
+Tisztelt Lőrincz Richárd Úr!
+
+Megkaptam a felvételét, és mindhárom észrevételét végigvizsgáltam. Kettő
+javítva van, és a mai napon ki is adtam 1.63.2 néven:
+
+    https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+Engedje meg, hogy elöljáróban külön megköszönjem a harmadik észrevételt —
+azt, amit Ön maga is „nagyon-nagyon fontosnak" nevezett a felvétel hetedik
+percében. Az a hiba a legsúlyosabb, amit a program eddigi életében
+találtunk, és megtalálni EGYEDÜL ÖN tudta.
+
+
+1. A BEKAPCSOLÁS UTÁNI NÉMASÁG — JAVÍTVA
+------------------------------------------------------------------------
+Az Ön megfigyelése: újraindulás után sem a PIN segéd, sem a képernyőolvasó
+nem beszél, amíg a PIN kód először be nem kerül; addig kizárólag a
+TalkBackkel lehet feloldani a készüléket.
+
+Az ok a következő. Az Android az első feloldásig — amíg a tároló
+titkosított — nem indítja el azokat az alkalmazásokat, amelyek erre nincsenek
+felkészítve. A RENDSZER BESZÉDMOTORJA (Google, illetve Samsung TTS) ilyen.
+A SuperDL PIN segédje maga rendben elindul: a szolgáltatás Direct Boot
+képesnek van jelölve, a beállításait az eszköz-védett tárolóból olvassa, és
+a billentyűzet meg is jelenik — csak épp nincs mivel megszólalnia. A
+TalkBack azért beszél, mert saját, beépített úton kerüli meg ezt a
+korlátozást.
+
+Ez tehát rendszerkorlát volt, nem programhiba — de a következménye a mi
+felelősségünk, és megkerülhető.
+
+A megoldás abból indult ki, hogy a zárképernyőn a program VÉGES sok dolgot
+mond: tíz számjegyet, két gombot, és néhány rögzített mondatot. Ez előre
+felvehető. Ezek a hangok mostantól a programcsomag részeként utaznak
+(38 klip, 311 kilobájt), és a lejátszásukhoz nem beszédmotor kell, hanem
+egy egyszerű médialejátszó — az pedig semmilyen külső alkalmazástól nem
+függ. A klipek az eszköz-védett gyorsítótárba csomagolódnak ki, mert a
+szokásos gyorsítótár titkosított fázisban nem írható.
+
+Két korlátra előre felhívom a figyelmét, hogy ne érje meglepetés:
+
+  - A HANG GÉPIESEBB a megszokottnál. Nem az Ön beszédmotorja szól, hanem
+    egy beépített tartalék. A mérce itt nem a szépség volt, hanem hogy
+    egyáltalán legyen hang ott, ahol eddig némaság volt.
+  - CSAK AZ ELSŐ FELOLDÁSIG szól. Amint a PIN kód beérkezett, mindent a
+    megszokott beszéd vesz át, az Ön saját beállításaival. A későbbi
+    lezárásoknál — amelyeket Ön a felvétel kilencedik percében helyesen
+    külön is megmutatott — változatlanul a rendes hang megy.
+
+Meghallgatható előre, nyugodt körülmények között:
+
+    Beállítások, Biztonság, Zárképernyő hangjainak próbája.
+
+FONTOS: ezt a javítást a saját készülékeimen NEM TUDTAM ELLENŐRIZNI. Az én
+telefonomon nincs képernyőzár, és ahol nincs kód, ott nincs titkosított
+fázis sem: újraindítás után tizenkét másodperccel már feloldott állapotban
+volt. Vagyis nálam ez a hiba nem létezik, és soha nem is találtam volna meg.
+Az éles igazolás ezért Önre vár, és ha lehet, kérném is.
+
+
+2. AZ ÜZENET-SZEREPKÖR — JAVÍTVA
+------------------------------------------------------------------------
+Ön ezt már az első felvételén jelezte, most pedig bizonyítékkal együtt
+mutatta meg: a rendszer beállításaiban a SuperDL az alapértelmezett
+üzenetkezelő, az SMS-ek olvashatók, írhatók és törölhetők — a varázsló
+mégis hiányzónak mutatja.
+
+A varázslóból küldött naplója ezt megerősítette: az „alapértelmezett üzenet
+app" sorban „nincs" állt, vagyis a program által használt lekérdezés
+(Telephony.Sms.getDefaultSmsPackage) üresen tért vissza, miközben a
+szerepkör a SuperDL-é volt. A két rendszerréteg — a szerepkör-kezelő és a
+telefónia — nem értett egyet.
+
+Két hiba állt össze, mindkettő javítva:
+
+  - A FELISMERÉS mostantól mindkét forrást megkérdezi: ha akár a
+    szerepkör-kezelő, akár a telefónia azt mondja, hogy miénk a szerepkör,
+    akkor a varázsló megadottnak veszi.
+  - A KÉRÉS Android 10 fölött soha nem esik vissza a régi
+    ACTION_CHANGE_DEFAULT szándékra. A korábbi kód egy feltétel miatt
+    kihagyta a szerepkör-kérést, és a régi szándékot adta vissza — az pedig
+    a mai rendszereken megnyílik, majd némán bezárul. Az Ön naplójában
+    pontosan ez látszott: három próbálkozás, mindhárom ezen a régi úton.
+    Ez ugyanaz a hibaosztály, amely az asszisztens szerepkörnél az
+    1.62.1-ben kijött.
+
+
+3. A KÉPERNYŐOLVASÓ ÉRINTÉS-KEZELÉSE — MÉG NYITOTT
+------------------------------------------------------------------------
+Ezt Ön most másodszor jelezte, és sajnos ebben még nem tudok eredményt
+felmutatni. A felvétel harmadik-negyedik percében bekapcsolta a SuperDL
+képernyőolvasót, kikapcsolta a TalkBacket, és „hiába húzom az ujjam
+jobbra-balra, le-fel, semmi nem történik".
+
+A varázslóból küldött napló szerint az érintés-felfedezés a rendszerben BE
+VAN kapcsolva, tehát a kérésünket a One UI elfogadta. Innentől a hiba a mi
+oldalunkon van, és nincs Samsungom, amin reprodukálni tudnám. Ezen
+dolgozom, és ha kérhetem, ebben számítok még Önre.
+
+
+4. A HIBAJELENTÉS MOSTANTÓL TÖBBET MOND
+------------------------------------------------------------------------
+Az Ön naplójából a fenti okokra jórészt következtetni kellett — a döntő
+adatok nem szerepeltek benne. Ezt orvosoltam: a jelentés mostantól kiírja a
+szerepkör-kezelő állapotát mind az öt szerepkörnél (elérhető-e, a miénk-e),
+azt, hogy a készülék fel van-e oldva, és hogy milyen beszédmotorok vannak a
+rendszerben.
+
+Legközelebb tehát nem következtetni fogok, hanem olvasni.
+
+
+5. AMIT KÉRNÉK ÖNTŐL
+------------------------------------------------------------------------
+ 1. Frissítés az 1.63.2 változatra.
+ 2. Előzetesen egyszer a Beállítások, Biztonság, Zárképernyő hangjainak
+    próbája pont — hogy tudja, mire számítson.
+ 3. EGY ÚJRAINDÍTÁS, és annak visszajelzése, hogy a PIN kód beírása ELŐTT
+    hallja-e a számokat és a gombokat. Ez a kiadás legfontosabb kérdése.
+ 4. Az alapértelmezett üzenet alkalmazás: a varázsló megadottnak látja-e.
+ 5. Ha van türelme hozzá: a képernyőolvasó érintés-kezelése, akár csak
+    annyi, hogy más alkalmazásokban is ugyanaz-e a jelenség.
+
+
+6. VÉGEZETÜL
+------------------------------------------------------------------------
+Ön a felvétel végén azt mondta, hogy szívesen készít további hangfelvételt,
+mert könnyebb megmutatni, mint leírni. Megerősítem: ez a leggyorsabb és
+legpontosabb visszacsatolás, amit kapok. Ez a kiadás egészében az Ön
+tizenegy percéből született.
+
+Azt is megjegyezte, hogy a Braille írásban nem tud segíteni. Ez teljesen
+rendben van — abban másra fogok támaszkodni.
+
+Köszönöm az idejét és a figyelmét.
+
+Tisztelettel:
+
+Kőrösmezey Dávid Richárd
+SuperDL
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!

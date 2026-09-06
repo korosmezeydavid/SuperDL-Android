@@ -1,0 +1,140 @@
+SuperDL 1.63.2 — bekapcsolás után eddig néma volt. Mostantól nem az.
+
+Kedves Tesztelők!
+
+Ez a kiadás egyetlen hangfelvételből született. Egy tesztelő fogta magát,
+végigment tizenegy percben az előző változaton egy Samsung Galaxy S24
+Ultrán, és megmutatott valamit, amiről nem tudtam.
+
+Előrebocsátom: ez a legsúlyosabb hiba, amit eddig találtunk.
+
+
+AMIT MEGMUTATOTT
+
+Az ő szavaival:
+
+    "újraindulás után hiába van bekapcsolva a PIN segéd, hiába van
+    bekapcsolva a SuperDL képernyőolvasó, amíg be nem írom ELŐSZÖR a PIN
+    kódomat, addig NEM BESZÉL EGYIK SEM. Semmi. És csak a TalkBackkel
+    tudom beírni a PIN kódot."
+
+Gondold végig, mit jelent ez. Bekapcsolod a telefont. Ott a zárképernyő.
+És a program, amit azért használsz, hogy vakon kezelni tudd a telefonodat,
+pont ott hallgat el, ahol a legjobban kellene: a saját telefonod
+feloldásánál.
+
+Akinek nincs mellette TalkBack, az nem jut be.
+
+
+MIÉRT VOLT EZ, ÉS MIÉRT NEM VETTEM ÉSZRE
+
+Az Android az első feloldásig — amíg be nem írod a kódot — nem indítja el
+azokat az alkalmazásokat, amelyek nincsenek felkészítve a titkosított
+fázisra. A RENDSZER BESZÉDMOTORJA ilyen. Vagyis a SuperDL-nek egyszerűen
+nem volt mivel beszélnie.
+
+A TalkBack azért szólal meg, mert saját, beépített úton kerüli meg ezt.
+
+A PIN segéd egyébként rendben elindult, a billentyűzet meg is jelent.
+Minden a helyén volt. Csak épp némán.
+
+És hogy miért nem vettem észre: az én telefonomon nincs képernyőzár. Ahol
+nincs kód, ott nincs is titkosított fázis — nálam ez a hiba nem létezik.
+Kipróbáltam, újra is indítottam a készüléket: tizenkét másodperccel a
+bekapcsolás után már feloldott állapotban volt. Ezt a hibát én magamtól
+soha nem találtam volna meg.
+
+
+A JAVÍTÁS
+
+A zárképernyőn a program véges sok dolgot mond: tíz számjegyet, két gombot,
+és néhány rögzített mondatot. Ez felvehető ELŐRE.
+
+Mostantól ezek a hangok BE VANNAK ÉPÍTVE a programba, és a lejátszásukhoz
+nem kell beszédmotor. Bekapcsolás után hallod a számokat, a Törlés és a
+Megerősítés gombot, és azt is, hány számjegyet írtál már be.
+
+Két dolgot tudni kell róla, és mindkettőt előre megmondom:
+
+1. A HANG GÉPIESEBB A MEGSZOKOTTNÁL. Nem a te beszédmotorod szól, hanem
+   egy beépített tartalék. Nem szép. A mérce itt nem a szépség volt, hanem
+   hogy egyáltalán legyen hang ott, ahol eddig némaság volt.
+
+2. CSAK AZ ELSŐ FELOLDÁSIG SZÓL. Amint beírtad a PIN kódot, mindent a
+   megszokott hangod vesz át, a te beállításaiddal. A későbbi
+   lezárásoknál már a rendes beszéd megy.
+
+Hallgasd meg előre, hogy éles helyzetben ismerős legyen:
+
+    Beállítások, Biztonság, Zárképernyő hangjainak próbája.
+
+Egyszer érdemes végigvinni. Amit ott hallasz, azt fogod hallani bekapcsolás
+után is.
+
+
+A MÁSIK JAVÍTÁS: AZ ÜZENET ALKALMAZÁS
+
+Ugyanaz a tesztelő ezt is megmutatta:
+
+    "a telefon beállításain belül az alapértelmezett üzenet alkalmazás a
+    SuperDL... látom a beérkező üzeneteimet, tudok SMS-t írni, törölni,
+    MŰKÖDNEK az SMS-ek. De viszont a beállítás varázslóban még mindig azt
+    írja, hogy hiányzik."
+
+Vagyis minden működött, csak a varázsló nem hitte el. És mivel ez ALAPVETŐ
+tétel, minden végigjárásnál szemrehányást kapott érte.
+
+Két hibából állt össze. Az egyik: a program csak egyféleképpen kérdezte
+meg, kié a szerepkör — és az a kérdés ezen a telefonon üres választ adott,
+holott a szerepkör a SuperDL-é volt. Mostantól mindkét forrást megkérdezi.
+
+A másik: a beállítás kérése a régi, elavult úton ment. Az megnyílik, aztán
+némán bezárul. A naplóban három ilyen eredménytelen próbálkozás látszott.
+Ez ugyanaz a hibafajta, ami az 1.62.1-ben az asszisztensnél kijött.
+
+
+A HIBAJELENTÉS TÖBBET MOND
+
+A varázslóból küldhető jelentés mostantól kiírja, hogy a rendszer
+szerepkör-kezelője szerint kié minden szerepkör, hogy a készülék fel
+van-e oldva, és milyen beszédmotorok vannak a telefonon.
+
+Az előző jelentésnél ezekre csak következtetni tudtam. Egy órámba került.
+Legközelebb ott fog állni a naplóban.
+
+
+AMI MÉG NYITOTT
+
+A SuperDL képernyőolvasója Samsungon továbbra sem kezeli az idegen
+alkalmazásokat: bekapcsolva, a TalkBack kikapcsolásával "hiába húzom az
+ujjam jobbra-balra, semmi nem történik". Ezt ugyanez a tesztelő kétszer is
+jelezte. Nincs Samsungunk, amin reprodukálni tudnám — ezen dolgozom.
+
+
+LETÖLTÉS
+
+https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk
+
+A letöltött fájl mérete pontosan ennyi kell legyen:
+
+    153 694 259 bájt
+
+Ha kevesebb, a letöltés megszakadt, és a telepítő nem fogja tudni
+megnyitni. Ilyenkor töltsd le újra, lehetőleg wifin.
+
+A program ingyenes, és az is marad.
+
+
+A VÉGÉRE
+
+Ezt a hibát egy ember találta meg azzal, hogy bekapcsolt egy hangfelvevőt,
+és elmondta, mit tapasztal. Nem tudta, hogy mi a technikai oka — nem is
+kellett tudnia. Elég volt pontosan elmondania, mit csinált és mi történt.
+
+Ha bármi nem stimmel nálad, ne hagyd annyiban. Egy hangfelvétel, egy
+üzenet, vagy a varázsló végén egy jobbra söprés — mindegyik elég.
+
+Üdvözlettel,
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!
