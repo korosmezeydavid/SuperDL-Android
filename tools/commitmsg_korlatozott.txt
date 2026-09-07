@@ -1,0 +1,46 @@
+A csomagtelepito NEM aruhaz - forditva volt a feltetel
+
+Geza jelentese (Xiaomi M2103K19G, Android 13, 1.63.4, 2026-09-07 09:23):
+
+  telepites forrasa: com.google.android.packageinstaller
+  korlatozott beallitas erintheti: nem
+  ...
+  pin_helper     - allapot: kihagyva
+  screen_reader  - allapot: kihagyva, probalkozas: 2
+  erintes-felfedezes: 0
+
+Ketszer probalta bekapcsolni a kepernyoolvasot, es nem sikerult. A naplo
+szerint viszont "korlatozott beallitas erintheti: nem" - vagyis a
+diagnosztika epp az ellenkezojet allitotta annak, ami tortent.
+
+AZ OK:
+
+  return !src.startsWith("com.android.vending") &&
+         !src.startsWith("com.google.android.packageinstaller")
+
+A feltetel a com.google.android.packageinstaller-t is megbizhato forrasnak
+vette. Csakhogy az a RENDSZER CSOMAGTELEPITOJE: pontosan azt jelenti, hogy a
+felhasznalo kezzel nyitott meg egy APK fajlt. Vagyis EZ maga az aruhazon
+kivuli telepites, ami az Android 13 korlatozott beallitasait eletbe lepteti.
+
+Megbizhato forras egyedul az aruhaz. Uj lista: Google Play, Galaxy Store,
+AppGallery, Amazon Appstore.
+
+MIERT FAJT ENNYIRE: a felhasznalo a Kisegito lehetosegeknel LATJA a
+kapcsolot, meg is nyomja, es a rendszer nemán nem engedi. Nem hibauzenet
+jon, hanem semmi. Vakon ez kifurkeszhetetlen.
+
+A naplo mostantol nem csak IGEN-t ir, hanem a feloldas utjat is:
+Beallitasok, Alkalmazasok, Super DL, harom pont, "Korlatozott beallitasok
+engedelyezese".
+
+AMIT UGYANEZ A JELENTES MEGEROSITETT (1.63.4 mukodik):
+- "beszedmotorok a rendszerben: com.google.android.tts,
+  com.redzoc.ramees.tts.espeak" - tegnap meg "egy sem talalhato" volt
+  minden keszuleken. Az action-szoveg javitasa hasznalt.
+- battery_optimization: kihagyva, probalkozas: 3 - a tarolt szamlalo es a
+  hangosan kimondott kijarat mukodik, Geza atjutott.
+- role_dialer es role_assistant: MIENK.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

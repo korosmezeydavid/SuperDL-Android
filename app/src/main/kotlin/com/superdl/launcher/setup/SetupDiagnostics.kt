@@ -43,7 +43,17 @@ object SetupDiagnostics {
         appendLine("BEÁLLÍTÁS VARÁZSLÓ — RÉSZLETES NAPLÓ")
         appendLine("========================================")
         appendLine("telepítés forrása: ${installSource(context)}")
-        appendLine("korlátozott beállítás érintheti: ${if (isSideloaded(context)) "IGEN" else "nem"}")
+        if (isSideloaded(context)) {
+            appendLine("korlátozott beállítás érintheti: IGEN")
+            appendLine("  >>> Android 13 óta az áruházon kívülről telepített programnál a")
+            appendLine("  >>> rendszer NÉMÁN letiltja a kisegítő szolgáltatást (PIN segéd,")
+            appendLine("  >>> képernyőolvasó), az értesítés-olvasást és a fölérajzolást.")
+            appendLine("  >>> A kapcsoló látszik, meg is nyomható, de nem történik semmi.")
+            appendLine("  >>> FELOLDÁS: Beállítások, Alkalmazások, Super DL, jobbra fent a")
+            appendLine("  >>> három pont, majd „Korlátozott beállítások engedélyezése\".")
+        } else {
+            appendLine("korlátozott beállítás érintheti: nem")
+        }
         appendLine()
 
         appendLine("SZEREPKÖRÖK — ki birtokolja MOST:")
@@ -270,10 +280,39 @@ object SetupDiagnostics {
      * fölérajzolást, amíg a felhasználó fel nem oldja („Korlátozott
      * beállítások engedélyezése").
      */
+    /**
+     * A CSOMAGTELEPÍTŐ NEM ÁRUHÁZ — ÉPP ELLENKEZŐLEG.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Géza, Xiaomi M2103K19G, Android 13, 1.63.4):
+     * a jelentése szerint „telepítés forrása: com.google.android.packageinstaller"
+     * és „korlátozott beállítás érintheti: nem" — miközben a PIN segédet és a
+     * képernyőolvasót kétszeri próbálkozásra sem tudta bekapcsolni.
+     *
+     * A korábbi feltétel a `com.google.android.packageinstaller`-t is
+     * megbízható forrásnak vette. Csakhogy az a RENDSZER CSOMAGTELEPÍTŐJE:
+     * pontosan azt jelenti, hogy a felhasználó kézzel nyitott meg egy APK
+     * fájlt — vagyis EZ maga az áruházon kívüli telepítés, ami az Android 13
+     * korlátozott beállításait életbe lépteti.
+     *
+     * Megbízható forrás egyedül az áruház (`com.android.vending`). A gyártói
+     * áruházak (Galaxy Store, Huawei AppGallery) szintén azok, de a
+     * telepítőik nem.
+     *
+     * Miért fájt ez ennyire: a felhasználó a Kisegítő lehetőségeknél LÁTJA a
+     * kapcsolót, meg is nyomja, és a rendszer némán nem engedi. Nem hibaüzenet
+     * jön, hanem semmi. Vakon ez teljesen kifürkészhetetlen — és a
+     * hibajelentésünk, ami megmondhatta volna, épp az ellenkezőjét állította.
+     */
     private fun isSideloaded(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         val src = installSource(context)
-        return !src.startsWith("com.android.vending") && !src.startsWith("com.google.android.packageinstaller")
+        val aruhazak = listOf(
+            "com.android.vending",          // Google Play
+            "com.sec.android.app.samsungapps", // Galaxy Store
+            "com.huawei.appmarket",         // AppGallery
+            "com.amazon.venezia"            // Amazon Appstore
+        )
+        return aruhazak.none { src.startsWith(it) }
     }
 
     private fun defaultSms(context: Context): String = try {
