@@ -1,12 +1,12 @@
 ﻿**********************
 Windows PowerShell transcript start
-Start time: 20260907181359
+Start time: 20260907181753
 Username: DAVIDLAPI\msn
 RunAs User: DAVIDLAPI\msn
 Configuration Name: 
 Machine: DAVIDLAPI (Microsoft Windows NT 10.0.26200.0)
 Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\msn\Documents\SuperDL-Android\tools\ford_debug.ps1
-Process ID: 3080
+Process ID: 4324
 PSVersion: 5.1.26100.9278
 PSEdition: Desktop
 PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9278
@@ -16,7 +16,6 @@ WSManStackVersion: 3.0
 PSRemotingProtocolVersion: 2.3
 SerializationVersion: 1.1.0.1
 **********************
-> Task :app:mapDebugSourceSetPaths UP-TO-DATE
 > Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
 > Task :app:extractDeepLinksDebug UP-TO-DATE
 > Task :app:processDebugMainManifest UP-TO-DATE
@@ -42,8 +41,9 @@ SerializationVersion: 1.1.0.1
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:compileDebugKotlin
 w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:2707:47 There is more than one label with such a name in this scope
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:11173:58 Parameter 'items' is never used
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:12468:40 Parameter 'saved' is never used
+w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:11271:58 Parameter 'items' is never used
+w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:12566:40 Parameter 'saved' is never used
+w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/feedback/ToggleAnnouncement.kt:37:29 'isBlockPrivateEnabled(Context): Boolean' is deprecated. Use getMode()
 
 > Task :app:compileDebugJavaWithJavac UP-TO-DATE
 > Task :app:processDebugJavaRes UP-TO-DATE
@@ -54,10 +54,10 @@ w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superd
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 39s
+BUILD SUCCESSFUL in 58s
 40 actionable tasks: 5 executed, 35 up-to-date
 EXIT=0
 **********************
 Windows PowerShell transcript end
-End time: 20260907181439
+End time: 20260907181852
 **********************

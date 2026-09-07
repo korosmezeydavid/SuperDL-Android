@@ -3036,6 +3036,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.RADIO_FAVORITES -> startRadioFavoritesFlow()
             MenuAction.RADIO_SEARCH -> startRadioSearchFlow()
             MenuAction.RADIO_FAV_DELETE -> startRadioFavoritesFlow(deleteMode = true)
+            MenuAction.RADIO_ADD_CLIPBOARD -> startRadioClipboardAddFlow()
             MenuAction.RADIO_RECORDINGS -> startRadioRecordingsFlow()
             MenuAction.RADIO_SCHEDULE -> startRadioScheduleFlow()
             MenuAction.RADIO_SCHEDULE_ADD -> startRadioScheduleFlow()
@@ -9330,7 +9331,11 @@ class MainActivity : AppCompatActivity() {
      * Fel-le lépkedés, jobbra söprés indítja a kiválasztott állomást. (A
      * MusicBrowse mintájára.)
      */
-    private fun openRadioBrowse(stations: List<RadioStation>, deleteMode: Boolean = false) {
+    private fun openRadioBrowse(
+        stations: List<RadioStation>,
+        deleteMode: Boolean = false,
+        extraHint: String? = null
+    ) {
         if (stations.isEmpty()) {
             tts.speak("Nincs megjeleníthető állomás.")
             return
@@ -9343,7 +9348,8 @@ class MainActivity : AppCompatActivity() {
                     "Söpörj fel-le a válogatáshoz, jobbra a törléshez, balra vissza."
             } else {
                 "${stations.size} állomás. Söpörj fel-le a válogatáshoz, " +
-                    "jobbra a kiválasztott indításához, balra vissza."
+                    "jobbra a kiválasztott indításához, balra vissza." +
+                    (extraHint?.let { " $it" } ?: "")
             }
         )
         tts.speakAdd(stations.first().name)
@@ -9365,7 +9371,16 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
-        openRadioBrowse(favorites, deleteMode)
+        // MIERT MONDJUK EL: a torles kulon menupontban lakik (Kedvenc allomas
+        // torlese), es a kedvencek listajaban allva senki sem talalja ki. Egy
+        // teszteloi jelentes eppen azt mondta, hogy "a megunt kedvencet nem
+        // lehet eltavolitani" — pedig lehet, csak nem volt honnan megtudni.
+        openRadioBrowse(
+            favorites,
+            deleteMode,
+            extraHint = if (deleteMode) null
+            else "Törölni a rádió menü Kedvenc állomás törlése pontjával tudsz."
+        )
     }
 
     /**
@@ -9411,6 +9426,89 @@ class MainActivity : AppCompatActivity() {
         sounds.play(SoundType.ACTION_OK)
         tts.speak("${flow.station.name} törölve. ${remaining.size} kedvenc maradt.")
         tts.speakAdd(remaining[nextIndex].name)
+    }
+
+    /**
+     * SAJÁT ÁLLOMÁS FELVÉTELE A VÁGÓLAPRÓL.
+     *
+     * MIÉRT ÍGY: egy stream- vagy m3u-címet nem lehet bediktálni — a
+     * beszédfelismerő a pontokat, a perjeleket és a rövidítéseket úgysem
+     * hozza vissza hibátlanul. A cím viszont mindig VALAHOL már megvan:
+     * a levélben, a böngészőben, a rádió honlapján. Onnan kimásolva a
+     * vágólap a leggyorsabb és a legpontosabb út a telefonon. A NEVET
+     * viszont nyugodtan lehet diktálni, mert azt mi értelmezzük.
+     *
+     * A gépről továbbra is a wifi portál Rádió oldala az egyszerűbb — ott
+     * be lehet gépelni a címet is. Ez a menüpont annak szól, akinek épp
+     * nincs kéznél a gép.
+     */
+    private fun startRadioClipboardAddFlow() {
+        val url = clipboardStreamUrlOrNull()
+        if (url == null) {
+            tts.speak(
+                "A vágólapon nincs webcím. Másold ki a rádió stream- vagy m3u-címét, " +
+                    "aztán válaszd újra ezt a pontot. Gépről a wifi portál Rádió oldalán " +
+                    "be is gépelheted."
+            )
+            return
+        }
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Megvan a cím a vágólapon. Mondd, milyen néven mentsem az állomást.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val name = spoken.trim()
+                    if (name.isBlank()) {
+                        tts.speak("Nem értettem a nevet. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    saveClipboardRadioStation(name, url)
+                },
+                onError = { tts.speak("Az állomás felvétele megszakítva.") }
+            )
+        }
+    }
+
+    /** Az első http vagy https címet adja vissza a vágólapról, ha van. */
+    private fun clipboardStreamUrlOrNull(): String? = try {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            ?.trim()
+            .orEmpty()
+        text.split(Regex("\\s+"))
+            .map { it.trim().trim('<', '>', '"', '\'', ',', ';') }
+            .firstOrNull {
+                it.startsWith("http://", true) || it.startsWith("https://", true)
+            }
+            ?.takeIf { it.length > 10 }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun saveClipboardRadioStation(name: String, url: String) {
+        val station = RadioStation(
+            id = "user_" + System.currentTimeMillis(),
+            name = name,
+            streamUrl = url
+        )
+        // A tár nem ad vissza semmit, ezért utána nézzük meg, tényleg bekerült-e:
+        // azonos stream-cím esetén ugyanis szándékosan nem duplikál.
+        val elotte = RadioStore.getStations(this).size
+        RadioStore.addStation(this, station)
+        val utana = RadioStore.getStations(this).size
+        if (utana == elotte) {
+            tts.speak("Ez az állomás már a kedvenceid között van.")
+            return
+        }
+        sounds.play(SoundType.ACTION_OK)
+        tts.speak(
+            "$name elmentve a kedvencek közé. A Kedvenc állomásaim menüben " +
+                "találod. Ha nem szólalna meg, a cím valószínűleg nem hangfolyam."
+        )
     }
 
     private fun startRadioSearchFlow() {

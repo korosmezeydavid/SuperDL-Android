@@ -113,6 +113,7 @@ enum class MenuAction {
     RADIO_FAVORITES,   // Rádió: mentett kedvenc állomások
     RADIO_SEARCH,      // Rádió: állomás keresése név szerint (hangos)
     RADIO_FAV_DELETE,  // Rádió: megunt kedvenc eltávolítása
+    RADIO_ADD_CLIPBOARD, // Rádió: saját stream vagy m3u cím felvétele a vágólapról
     RADIO_RECORDINGS,  // Rádió: elmentett felvételek listája
     RADIO_SCHEDULE,    // Rádió: időzített felvételek kezelése
     NEWS_READ,      // Hírek felolvasása (RSS)
@@ -687,6 +688,7 @@ object MenuTree {
                 MenuItem("radio_favorites", "Kedvenc állomásaim", MenuAction.RADIO_FAVORITES),
                 MenuItem("radio_search", "Állomás keresése", MenuAction.RADIO_SEARCH),
                 MenuItem("radio_fav_delete", "Kedvenc állomás törlése", MenuAction.RADIO_FAV_DELETE),
+                MenuItem("radio_add_clip", "Saját állomás a vágólapról", MenuAction.RADIO_ADD_CLIPBOARD),
                 MenuItem("radio_recordings", "Rádió felvételek megnyitása", MenuAction.RADIO_RECORDINGS),
                 MenuItem("radio_schedule", "Időzített felvétel hozzáadása", MenuAction.RADIO_SCHEDULE_ADD),
                 MenuItem("radio_schedule_list", "Időzített felvételeim", MenuAction.RADIO_SCHEDULE_LIST),
