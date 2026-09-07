@@ -28,8 +28,27 @@ class CalendarAlertActivity : AppCompatActivity() {
     private var ttsReady = false
     private lateinit var gestureListener: SwipeGestureListener
     private lateinit var event: CalendarEvent
+    /**
+     * A HOZZÁRENDELT MŰVELET — ha van, ez az ELSŐ választható lehetőség.
+     *
+     * MIÉRT ELÖL: aki azért tett műveletet a programhoz, az azt akarja
+     * elindítani. Ha a lista végére kerülne, minden riasztásnál végig kellene
+     * söpörnie a halasztáson és a teljesítettként jelölésen.
+     */
+    private var attachedAction: CalendarAction? = null
+
     private val actions = CalendarAlarmAction.entries.toList()
     private var actionIndex = 0
+
+    /** Az összes felolvasható lehetőség, a hozzárendelt művelettel az élen. */
+    private fun actionLabels(): List<String> {
+        val list = mutableListOf<String>()
+        attachedAction?.let { list.add(it.label()) }
+        actions.forEach { list.add(it.label) }
+        return list
+    }
+
+    private fun actionCount(): Int = actionLabels().size
 
     private var initTtsRunnable: Runnable? = null
     private var finishRunnable: Runnable? = null
@@ -66,6 +85,13 @@ class CalendarAlertActivity : AppCompatActivity() {
         val beginMs = intent.getLongExtra(EXTRA_BEGIN_MS, 0L)
         val endMs = intent.getLongExtra(EXTRA_END_MS, 0L)
         event = CalendarEvent(eventId, title, beginMs, endMs)
+        // Van-e a programhoz rendelt művelet. Ha igen, ez lesz az első
+        // választható lehetőség — lásd az attachedAction mezőt.
+        attachedAction = try {
+            CalendarActionStore.get(this, eventId)
+        } catch (_: Exception) {
+            null
+        }
 
         val root = View(this)
         setContentView(root)
@@ -142,7 +168,7 @@ class CalendarAlertActivity : AppCompatActivity() {
     private fun speakAction() {
         if (!ttsReady) return
         tts?.speak(
-            actions[actionIndex].label,
+            actionLabels()[actionIndex],
             TextToSpeech.QUEUE_ADD,
             null,
             "calendar_alert_action_${System.currentTimeMillis()}"
@@ -150,10 +176,11 @@ class CalendarAlertActivity : AppCompatActivity() {
     }
 
     private fun navigateAction(delta: Int) {
-        actionIndex = (actionIndex + delta + actions.size) % actions.size
+        val n = actionCount()
+        actionIndex = (actionIndex + delta + n) % n
         if (ttsReady) {
             tts?.speak(
-                actions[actionIndex].label,
+                actionLabels()[actionIndex],
                 TextToSpeech.QUEUE_FLUSH,
                 null,
                 "calendar_alert_nav_${System.currentTimeMillis()}"
@@ -163,7 +190,23 @@ class CalendarAlertActivity : AppCompatActivity() {
 
     private fun activateAction() {
         handler.removeCallbacks(repeatRunnable)
-        when (actions[actionIndex]) {
+
+        // A HOZZÁRENDELT MŰVELET — ez a lista első eleme, ha van ilyen.
+        //
+        // Itt fut le a megerősítés: a felhasználó végighallgatta, mit fog
+        // csinálni (SMS-nél a címzettet és a szöveget is), és jobbra söpört.
+        // Csak ezután indul el bármi.
+        val attached = attachedAction
+        if (attached != null && actionIndex == 0) {
+            CalendarAlarmService.stop(this)
+            CalendarReminderScheduler.cancelInstance(this, event.eventId, event.begin)
+            val result = CalendarActionRunner.run(this, attached)
+            speakThenFinish(result)
+            return
+        }
+
+        val offset = if (attached != null) 1 else 0
+        when (actions[actionIndex - offset]) {
             CalendarAlarmAction.REMIND_ONE_HOUR -> {
                 CalendarAlarmService.stop(this)
                 CalendarReminderScheduler.scheduleSnoozeOneHour(

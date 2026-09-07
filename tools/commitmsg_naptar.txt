@@ -1,0 +1,42 @@
+Naptar: muvelet rendelheto egy programhoz (1. utem - vegrehajto mag)
+
+Alph otlete (2026-09-07): "beallitom, hogy este fel hat boltba menni, a
+figyelmeztetes megerositesevel pedig meg is nyitja a bevasarlast. Vagy
+megadott idoben SMS-t kuld." Pluszban a meglevo naptar melle, nem helyette.
+
+HAROM ELV, AMI MEGHATAROZZA AZ EGESZET
+
+1. SOHA NEM FUT LE MAGATOL. A muvelet CSAK a riasztasnal, a felhasznalo
+   kifejezett megerositesere indul. Egy magatol SMS-t kuldo naptar nem
+   kenyelmi funkcio, hanem kiszamithatatlan telefon - vakon kulonosen.
+2. A MUVELET NEM A PROGRAM RESZE. A naptari bejegyzes az Android
+   naptarszolgaltatojabol jon, oda nem teszunk sajat mezot: ha a felhasznalo
+   mas naptarprogramot is hasznal, a mi kiegeszitesunk nem ronthatja el az o
+   adatait. A hozzarendeles MELLETTE el, ugyanugy, ahogy a
+   CalendarReminderStore tartja szamon a teljesitetteket.
+3. MINDEN MUVELET KIMONDHATO. Ha egy muvelet nem mondhato el egy mondatban,
+   nem is szabad hozzarendelni: a riasztaskor, felalomban is erteni kell,
+   mire mond igent a felhasznalo.
+
+UJ FAJLOK
+
+- calendar/CalendarAction.kt     negy muvelettipus, mind sajat felolvasando
+  cimkevel: OpenMenu (SuperDL menupont), RunTaskRoute (felvett muveletsor),
+  SendSms, OpenApp.
+- calendar/CalendarActionStore.kt  esemenyazonositohoz kotott tarolas
+  (SafePrefs), plusz speakSuffix() a felolvasashoz.
+- calendar/CalendarActionRunner.kt  a vegrehajtas. Minden agon visszamondja,
+  mi tortent - vakon a nema siker es a nema kudarc megkulonboztethetetlen.
+
+CalendarAlertActivity: ha van hozzarendelt muvelet, az az ELSO valaszthato
+lehetoseg (aki muveletet tett a programhoz, azt akarja inditani, nem a
+halasztast). Az SMS-nel a cimzett ES a szoveg is elhangzik a megerosites
+elott, mert ez az egyetlen muvelet, ami visszavonhatatlanul kifele hat.
+
+KOVETKEZO UTEMEK (meg nincsenek meg)
+- hozzarendelo felulet a telefonon (naptar helyi menu)
+- ugyanez a wifiportalon
+- premium szintre emeles
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
