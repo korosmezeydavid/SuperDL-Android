@@ -1,0 +1,69 @@
+Tárgy: Re: Hobbi rádió
+
+Kedves Géza!
+
+Három dolgot kérdezett, és mind a háromra van válaszom — kettőnél a
+válasz az, hogy a következő kiadásban már máshogy lesz.
+
+
+1. AZ M3U ÉS A HOBBI RÁDIÓ
+
+A SuperDL rádiója eddig is tudta kezelni az m3u és a pls listákat: a
+lejátszó letölti a listát, és kibányássza belőle a valódi hangfolyam
+címét. Nem a lejátszással volt tehát a baj, hanem azzal, hogy a saját
+címet a TELEFONON nem lehetett sehol megadni. Csak a wifi portálon volt
+rá mező, és Ön a telefonon kereste. Igaza volt: nem találta, mert nem
+volt ott.
+
+Mostantól ott is van. A Média, Internetes rádió menübe bekerült egy új
+pont: "Saját állomás a vágólapról". Ez így működik:
+
+- a rádió honlapján vagy a levélben, ahol a cím szerepel, másolja ki
+  a linket a vágólapra;
+- utána a SuperDL-ben válassza ezt a menüpontot;
+- a telefon megnézi a vágólapot, és ha talál benne webcímet, már csak
+  azt kérdezi meg, milyen NÉVEN mentse — azt nyugodtan bediktálhatja;
+- az állomás a Kedvenc állomásaim közé kerül.
+
+Miért nem lehet a címet bediktálni? Mert egy stream-cím pontokból,
+perjelekből és rövidítésekből áll, és a beszédfelismerő ezeket soha nem
+adja vissza hibátlanul. Egy elgépelt betű pedig néma rádiót jelent. A
+nevet viszont mi értelmezzük, azt lehet mondani.
+
+Gépről továbbra is a wifi portál Rádió oldala a legkényelmesebb, ott be
+is lehet gépelni a címet.
+
+
+2. IDŐZÍTETT FELVÉTEL, HA KÖZBEN KEZDŐKÉPERNYŐT VÁLTOK
+
+Megy tovább. Megnéztem a kódban, hogy biztosat mondjak: az időzített
+felvétel nem a kezdőképernyőben fut, hanem egy külön, előtérben tartott
+szolgáltatásban, saját értesítéssel. Ez azt jelenti, hogy akkor is
+rögzít, ha közben átvált másik kezdőképernyőre, más alkalmazást használ,
+vagy a SuperDL nincs a képernyőn.
+
+Két dolog állítja meg: ha Ön leállítja, vagy ha a rendszer akkumulátor-
+kímélés címén kilövi. Ez utóbbi ellen érdemes a Haladó beállításokban a
+"Korlátlan háttérfutás kérése" pontot egyszer végigvinni — utána a
+rendszer nem nyúl hozzá.
+
+
+3. HOSSZABB FELVÉTELI IDŐ
+
+Igaza van, és ez már meg is történt: a választható hosszak listája
+mostantól 15, 30, 45 perc, 1, másfél, 2, 3, 4 és 5 óra. Egy focimeccs
+hosszabbítással és tizenegyesekkel is bőven belefér a 3 vagy a 4 órába.
+
+Egy dolgot érdemes tudni: az öt óra 128 kilobites folyamnál nagyjából
+290 megabájt. Sok, de nem elképzelhetetlen — Öné a döntés, ezért került
+be a listába.
+
+
+Ez a három változás a következő kiadásban lesz benne, a hét folyamán.
+Köszönöm, hogy a rádiót ilyen alaposan használja: a hobbi rádió
+kérdéséből egy valódi hiányosság derült ki, nem csak egy kérdés.
+
+Szívélyes üdvözlettel
+Kőrösmezey Dávid
+
+HASZNÁLAT CSAK TARTALÉK KÉSZÜLÉKEN EGYELŐRE, VAGY SAJÁT FELELŐSSÉGRE!
