@@ -315,21 +315,47 @@ object SetupDiagnostics {
      * telefon". A rendszer listái ezt elárulják, ezért innen olvassuk ki:
      * más alkalmazás lekérdezéséhez Android 11 óta külön jog kellene.
      */
+    /**
+     * A TELEPÍTETTSÉGET NÉZZÜK, NEM A BEKAPCSOLTSÁGOT.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-05): a korábbi változat csak azt
+     * vizsgálta, hogy a másik példány BE VAN-E KAPCSOLVA kisegítő
+     * szolgáltatásként, értesítés-olvasóként vagy billentyűzetként. Ezért
+     * „nem látszik"-ot írt olyan telefonon, amin KÉT SuperDL volt fent — és
+     * közben a két példány a bejövő hívásokon veszekedett, úgy, hogy
+     * egyiknek sem sikerült fogadnia.
+     *
+     * A hívásokért nem a kisegítő kapcsolók felelnek: mindkét példány saját
+     * InCallService-t, hívás- és SMS-vevőt és kezdőképernyőt hoz magával,
+     * pusztán attól, hogy telepítve van.
+     */
     private fun twoBuilds(context: Context): String {
-        val mine = context.packageName
-        val other = if (mine.endsWith(".debug")) mine.removeSuffix(".debug") else "$mine.debug"
+        val other = try {
+            com.superdl.launcher.system.TwinBuildCheck.installedTwin(context)
+        } catch (_: Exception) {
+            null
+        } ?: return "nem látszik (csak ez az egy példány van telepítve)"
+
+        // Külön kiírjuk, hogy a másik BE IS van-e kapcsolva valahol — a
+        // hívásütközéshez ez nem kell, de a képernyőolvasó-ütközéshez igen.
         val haystack = listOf(
             secure(context, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
             secure(context, "enabled_notification_listeners"),
             secure(context, Settings.Secure.DEFAULT_INPUT_METHOD)
         ).joinToString(":")
-        val seen = haystack.split(':').any { it.substringBefore('/').trim() == other }
-        return if (seen) {
-            "IGEN — a $other is fent van és be van kapcsolva. Ez ütközést okoz " +
-                "(két képernyőolvasó egymásra beszél), az egyiket el kell távolítani."
-        } else {
-            "nem látszik"
-        }
+        val bekapcsolva = haystack.split(':').any { it.substringBefore('/').trim() == other }
+
+        return "IGEN — a $other IS TELEPÍTVE VAN. " +
+            "Mindkét példány jelentkezik a bejövő hívásra, az SMS-re és a " +
+            "kezdőképernyőre, ezért a hívásfogadás nem megbízható. Az egyiket " +
+            "el kell távolítani. " +
+            if (bekapcsolva) {
+                "Ráadásul kisegítő szolgáltatásként is be van kapcsolva, " +
+                    "tehát két képernyőolvasó beszél egymásra."
+            } else {
+                "(Kisegítő szolgáltatásként nincs bekapcsolva — de a " +
+                    "hívásütközéshez ez nem is kell.)"
+            }
     }
 
     private fun secure(context: Context, key: String): String = try {

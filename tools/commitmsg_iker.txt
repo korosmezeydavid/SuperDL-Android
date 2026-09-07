@@ -1,0 +1,25 @@
+Diagnosztika: a ket telepitett peldanyt telepitettseg szerint ismerjuk fel
+
+A twoBuilds() eddig csak azt nezte, hogy a masik peldany BE VAN-E KAPCSOLVA
+kisegito szolgaltataskent, ertesites-olvasokent vagy billentyuzetkent.
+Ezert "nem latszik"-ot irt olyan telefonon, amin ket SuperDL volt fent.
+
+A hivasokert viszont nem a kisegito kapcsolok felelnek: mindket peldany sajat
+InCallService-t, hivas- es SMS-vevot es kezdokepernyot hoz magaval, pusztan
+attol, hogy TELEPITVE van. Alph 2026-09-05-en emiatt nem tudott hivast
+fogadni - a ket peldany egymason veszekedett, es egyiknek sem ment.
+
+- UJ system/TwinBuildCheck.kt: installedTwin() a csomag telepitettseget nezi
+  (getPackageInfo), nem a kapcsolok allasat.
+- SetupDiagnostics.twoBuilds() erre epul, es kulon irja ki, hogy a masik be
+  van-e kapcsolva valahol (az a kepernyoolvaso-utkozeshez kell, a
+  hivasutkozeshez nem).
+
+SZANDEKOSAN NINCS indulasi hangos figyelmeztetes. Ket peldany egy telefonon
+a gyakorlatban csak fejlesztes kozben fordul elo, a tesztelokne1 nem; egy
+ritka esetre epitett, minden indulaskor megszolalo figyelmeztetes tobb kart
+okozna, mint hasznot. A felismeres viszont marad, mert a hibajelentesnek
+igazat kell mondania.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
