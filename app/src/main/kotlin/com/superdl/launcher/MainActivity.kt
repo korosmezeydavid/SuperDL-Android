@@ -9537,7 +9537,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** A választható felvételi hosszak — a tipikus műsorhosszak. */
-    private val radioScheduleDurations = listOf(15, 30, 45, 60, 90, 120, 180)
+    /**
+     * A FELVÉTEL VÁLASZTHATÓ HOSSZAI.
+     *
+     * A 180 perc fölötti értékek Géza javaslatára kerültek be (2026-09-07):
+     *
+     *   „lehetne-e módosítani az időzített felvétel időkön, például három óra
+     *    hosszánál hosszabb időt megadni? Ez azért fontos, mert hogyha egy
+     *    hosszabb sportközvetítés van, például egy focimeccs, ahol ugye ilyen
+     *    olyan amolyan hosszabbítás, tizenegyesrúgás is előfordul."
+     *
+     * Igaza van, és a három óra pont az a határ, ami egy focimeccsnél
+     * elégtelen: a műsor a kezdés előtt indul, a hosszabbítás és a
+     * tizenegyesek pedig bőven átviszik. Egy elvágott meccs használhatatlan
+     * felvétel — és ez pont az a fajta csalódás, amit utólag nem lehet
+     * jóvátenni, mert a műsor addigra elment.
+     *
+     * A 300 perc (öt óra) 128 kbites folyamnál nagyjából 290 megabájt. Ez sok,
+     * de nem elképzelhetetlen, és a felhasználó dönti el, hogy elindítja-e.
+     */
+    private val radioScheduleDurations = listOf(15, 30, 45, 60, 90, 120, 180, 240, 300)
 
     private fun enterRadioScheduleDuration(station: RadioStation, hour: Int, minute: Int) {
         // Alapból a fél óra: a leggyakoribb műsorhossz.
