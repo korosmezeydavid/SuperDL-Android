@@ -747,7 +747,12 @@ class EnvironmentScannerActivity : AppCompatActivity() {
 
     companion object {
         private const val REQ_CAMERA = 7103
-        private const val FRAME_INTERVAL_MS = 200L
+        // 2026-09-07: 200-ról 130-ra. Alph visszajelzése szerint a rávezetés
+        // „nem informatív, ahogy tekergettem" — ennek a fele a hangterv volt
+        // (lásd GuidanceTone), a másik fele viszont ITT: másodpercenként öt
+        // mérésből nem lehet folyamatos mozgást követni. Forgatás közben a
+        // kép gyorsabban változik, mint ahogy mértünk.
+        private const val FRAME_INTERVAL_MS = 130L
         private const val SNAPSHOT_WINDOW_MS = 1600L
 
         /** Ha igaz, az activity "Mi van előttem?" pillanatkép-módban indul. */

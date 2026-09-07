@@ -1,12 +1,12 @@
 ﻿**********************
 Windows PowerShell transcript start
-Start time: 20260907195153
+Start time: 20260907203645
 Username: DAVIDLAPI\msn
 RunAs User: DAVIDLAPI\msn
 Configuration Name: 
 Machine: DAVIDLAPI (Microsoft Windows NT 10.0.26200.0)
 Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\msn\Documents\SuperDL-Android\tools\ford_debug.ps1
-Process ID: 11112
+Process ID: 17948
 PSVersion: 5.1.26100.9278
 PSEdition: Desktop
 PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9278
@@ -16,10 +16,17 @@ WSManStackVersion: 3.0
 PSRemotingProtocolVersion: 2.3
 SerializationVersion: 1.1.0.1
 **********************
-[org.tensorflow:tensorflow-lite-support:0.4.4] C:\Users\msn\.gradle\caches\transforms-4\966516e686acb0694f1e15ba8209aa52\transformed\tensorflow-lite-support-0.4.4\AndroidManifest.xml Warning:
-	Namespace 'org.tensorflow.lite.support' is used in multiple modules and/or libraries: org.tensorflow:tensorflow-lite-support:0.4.4, org.tensorflow:tensorflow-lite-support-api:0.4.4. Please ensure that all modules and libraries have a unique namespace. For more information, See https://developer.android.com/studio/build/configure-app-module#set-namespace
-
-> Task :app:processDebugManifest
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
 > Task :app:javaPreCompileDebug UP-TO-DATE
 > Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:compileDebugShaders NO-SOURCE
@@ -37,14 +44,7 @@ SerializationVersion: 1.1.0.1
 > Task :app:validateSigningDebug UP-TO-DATE
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
-> Task :app:processDebugManifestForPackage
-> Task :app:processDebugResources
 > Task :app:compileDebugKotlin
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:2707:47 There is more than one label with such a name in this scope
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:11354:58 Parameter 'items' is never used
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/MainActivity.kt:12649:40 Parameter 'saved' is never used
-w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superdl/launcher/feedback/ToggleAnnouncement.kt:37:29 'isBlockPrivateEnabled(Context): Boolean' is deprecated. Use getMode()
-
 > Task :app:compileDebugJavaWithJavac UP-TO-DATE
 > Task :app:processDebugJavaRes UP-TO-DATE
 > Task :app:mergeDebugJavaResource UP-TO-DATE
@@ -54,10 +54,10 @@ w: file:///C:/Users/msn/Documents/SuperDL-Android/app/src/main/kotlin/com/superd
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 49s
-40 actionable tasks: 9 executed, 31 up-to-date
+BUILD SUCCESSFUL in 6s
+40 actionable tasks: 5 executed, 35 up-to-date
 EXIT=0
 **********************
 Windows PowerShell transcript end
-End time: 20260907195244
+End time: 20260907203652
 **********************
