@@ -426,10 +426,18 @@ object TransitHelper {
             "WALK" -> {
                 val from = leg.optJSONObject("from")?.optString("name").orEmpty()
                 val to = leg.optJSONObject("to")?.optString("name").orEmpty()
+                // A leg "duration" mezoje EZREDMASODPERC — megmerve a BKK
+                // valaszan (2026-09-06): duration=242000, a startTime es
+                // endTime kulonbsege ugyanennyi, ami 4,0 perc. Az utvonal
+                // egeszenel viszont a "duration" MASODPERC (1597 = 26,6 perc).
+                // A ket mertekegyseg ugyanabban a valaszban kulonbozik — ezert
+                // all itt 60000, feljebb pedig 60. NE "egysegesitsd".
                 val durationMin = (leg.optLong("duration", 0L) / 60000L).toInt().coerceAtLeast(1)
+                val celE = vegpontE(to)
                 when {
-                    to.isNotBlank() -> "Gyalog $durationMin perc a $to megállóig."
-                    from.isNotBlank() -> "Gyalog $durationMin perc innen: $from."
+                    celE -> "Gyalog $durationMin perc az úti célig."
+                    to.isNotBlank() -> "Gyalog $durationMin perc a ${helyszinNev(to)} megállóig."
+                    from.isNotBlank() -> "Gyalog $durationMin perc innen: ${helyszinNev(from)}."
                     else -> "Gyalog $durationMin perc."
                 }
             }
@@ -440,16 +448,75 @@ object TransitHelper {
                 val to = leg.optJSONObject("to")?.optString("name").orEmpty()
                 val headsign = leg.optString("headsign")
                 buildString {
-                    append(vehicle)
-                    if (line.isNotBlank()) append(" $line")
-                    append(" járat")
+                    append(jaratMegnevezes(vehicle, line))
                     if (headsign.isNotBlank()) append(", $headsign irány")
-                    if (from.isNotBlank()) append(". Felszállás: $from")
-                    if (to.isNotBlank()) append(". Leszállás: $to")
+                    if (from.isNotBlank()) append(". Felszállás: ${helyszinNev(from)}")
+                    if (to.isNotBlank()) append(". Leszállás: ${helyszinNev(to)}")
                 }.trim()
             }
             else -> ""
         }
+    }
+
+    /**
+     * „DESZTINÉSÖN" — A CÉL, AMIT ANGOLUL MONDTUNK BE.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „Gyalog 8 perc a
+     * desztinésön megállóig." A BKK válaszában az utolsó gyalogos szakasz
+     * végpontjának neve szó szerint `"Destination"` — ez nem megálló, hanem
+     * maga az úti cél. Mi ezt változtatás nélkül átadtuk a beszédmotornak,
+     * ami magyarul felolvasta: „desztinésön". Ráadásul „megállóig"-ot
+     * mondtunk rá, holott nem megálló.
+     *
+     * Megmérve a BKK válaszán (2026-09-06): az utolsó szakasz
+     * `to.name = "Destination"`.
+     */
+    private fun vegpontE(nev: String): Boolean =
+        nev.trim().equals("Destination", ignoreCase = true)
+
+    /** Az angolul érkező helymegnevezések magyarul. */
+    private fun helyszinNev(nev: String): String {
+        val t = nev.trim()
+        return when {
+            t.equals("Destination", ignoreCase = true) -> "az úti cél"
+            t.equals("Origin", ignoreCase = true) -> "a kiindulópont"
+            // A megállónevek végén álló magányos „M" a metró-átszállást
+            // jelöli (pl. „Keleti pályaudvar M"). Kimondva csak egy lebegő
+            // „em" lenne, ezért kiírjuk.
+            t.endsWith(" M") -> t.dropLast(2).trim() + " metrómegálló"
+            else -> t
+        }
+    }
+
+    /**
+     * A JÁRAT MEGNEVEZÉSE — ÉS A METRÓ, AMIT NÉGYZETMÉTERNEK MONDTUNK.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „a járatoknál azt mondja,
+     * hogy metró négyzetméter és nem akadálymentes".
+     *
+     * A szöveg „Metró M2 járat" volt. A saját kiejtési szótárunkban
+     * (PronunciationDictionary) szerepelt egy `"m2" -> "négyzetméter"`
+     * szabály a lakásméretekhez — és az szóhatárra illeszkedve lecsapott a
+     * metróvonal jelére is. Vagyis nem a beszédmotor rontotta el: MI
+     * írtuk át.
+     *
+     * Két helyen javítva: a szótárból kikerült a félreérthető „m2", itt
+     * pedig a metróvonalakat eleve magyarul mondjuk ki.
+     */
+    private fun jaratMegnevezes(vehicle: String, line: String): String {
+        val l = line.trim()
+        if (l.isBlank()) return "$vehicle járat"
+        val metroSzam = Regex("^[Mm]([1-4])$").find(l)?.groupValues?.get(1)
+        if (metroSzam != null) {
+            val szoval = when (metroSzam) {
+                "1" -> "egyes"
+                "2" -> "kettes"
+                "3" -> "hármas"
+                else -> "négyes"
+            }
+            return "$szoval metró"
+        }
+        return "$vehicle $l járat"
     }
 
     private fun vehicleName(type: String?): String = when (type?.uppercase(Locale.ROOT)) {

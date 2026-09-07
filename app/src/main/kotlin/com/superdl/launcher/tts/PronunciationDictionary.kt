@@ -48,7 +48,19 @@ object PronunciationDictionary {
         "dkg" to "dekagramm",
         "cm" to "centiméter",
         "mm" to "milliméter",
-        "m2" to "négyzetméter",
+        // "m2" -> "négyzetméter" KIVÉVE, SZÁNDÉKOSAN.
+        //
+        // A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „a járatoknál azt
+        // mondja, hogy metró négyzetméter". A tömegközlekedési szöveg
+        // „Metró M2 járat" volt, és ez a szabály — szóhatárra illeszkedve,
+        // kis-nagybetűt nem nézve — lecsapott a metróvonal jelére.
+        //
+        // Egy tömegközlekedést is kezelő programban az M1–M4 sokkal
+        // gyakoribb, mint a lakásméret, és a kár is nagyobb: a „metró
+        // négyzetméter" értelmezhetetlen, míg egy „ötven em kettő" legfeljebb
+        // suta. A szótár nem lát környezetet (nem tudja, hogy szám áll-e
+        // előtte), ezért itt nem lehet jól eldönteni — a metróvonalakat
+        // pedig a TransitHelper.jaratMegnevezes() amúgy is magyarul mondja.
         "db" to "darab",
         "%" to "százalék",
         // Gyakori rövidítések

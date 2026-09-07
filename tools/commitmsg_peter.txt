@@ -1,0 +1,40 @@
+Tomegkozlekedes: "metro negyzetmeter" es "desztinesön" javitva
+
+Peter tesztelo jelentese (2026-09-06).
+
+1. "a jaratoknal azt mondja, hogy metro negyzetmeter"
+
+   A szoveg "Metro M2 jarat" volt. A SAJAT kiejtesi szotarunkban
+   (PronunciationDictionary) volt egy "m2" -> "negyzetmeter" szabaly a
+   lakasmeretekhez, es az szohatarra illeszkedve lecsapott a metrovonal
+   jelere. Nem a beszedmotor rontotta el: mi irtuk at.
+
+   - A szotarbol kikerult a felreertheto "m2". Egy tomegkozlekedest is
+     kezelo programban az M1-M4 gyakoribb, mint a lakasmeret, es a kar is
+     nagyobb.
+   - Uj TransitHelper.jaratMegnevezes(): az M1-M4 eleve magyarul szol
+     ("kettes metro"), nem "Metro M2 jarat".
+
+2. "Gyalog 8 perc a desztinesön megalloig"
+
+   A BKK valaszaban az utolso gyalogos szakasz vegpontjanak neve szo
+   szerint "Destination" — nem megallo, hanem maga az uti cel. Valtozatlanul
+   atadtuk a beszedmotornak. Megmerve a BKK valaszan (2026-09-06):
+   az utolso leg to.name = "Destination".
+
+   - Uj vegpontE() es helyszinNev(): "Destination" -> "az uti cel",
+     "Origin" -> "a kiindulopont", es a megallonevek vegen allo maganyos
+     "M" -> "metromegallo" (pl. "Keleti palyaudvar M").
+   - A vegpontnal mar nem "megalloig"-ot mondunk.
+
+3. NEM HIBA, de majdnem "megjavitottam" — ezert bekerult egy figyelmezteto
+   megjegyzes a kodba:
+
+   A BKK valaszaban a ket "duration" mezo KULONBOZO mertekegysegu:
+     itinerary.duration = 1597      -> masodperc (26,6 perc)
+     leg.duration       = 242000    -> EZREDMASODPERC (4,0 perc)
+   Megmerve a startTime/endTime kulonbsegevel. A kodban ezert all az egyik
+   helyen /60, a masikon /60000. Ez helyes, nem szabad "egysegesiteni".
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
