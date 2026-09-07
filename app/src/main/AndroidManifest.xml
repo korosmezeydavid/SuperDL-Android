@@ -311,6 +311,12 @@
             android:theme="@style/Theme.SuperDL" />
 
         <activity
+            android:name=".textreader.TextSearchActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <activity
             android:name=".locationwatch.LocationTrainerActivity"
             android:exported="false"
             android:screenOrientation="portrait"

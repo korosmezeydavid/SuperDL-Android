@@ -176,6 +176,7 @@ enum class MenuAction {
     COLOR_DETECTOR, // Színfelismerő kamerával
     ENV_SCANNER,    // Környezeti Kitekintő – kamera objektumfelismerés
     ENV_FIND,       // Keresd meg — hangos ravezetes egy targyra (OOrion-jellegu)
+    TEXT_FIND,      // Felirat keresese — utcatabla, ajtoszam, peron; hangos ravezetes
     ENV_SNAPSHOT,   // Mi van előttem? - egy-gombos jelenetleírás
     CURRENCY_RECOGNIZER, // Super DL Pénzfelismerő – offline forint bankjegy
     MEDICATION_READER,   // Gyógyszerdoboz olvasó – kamera OCR
@@ -780,6 +781,7 @@ object MenuTree {
             )),
             MenuItem("env_snapshot", "Mi van előttem? Környezeti kitekintő", MenuAction.ENV_SNAPSHOT),
             MenuItem("env_find", "Keresd meg", MenuAction.ENV_FIND),
+            MenuItem("text_find", "Felirat keresése", MenuAction.TEXT_FIND),
             MenuItem("transit_nearby", "Közeli megállók felolvasása", MenuAction.TRANSIT),
             MenuItem("transit_stop", "Megálló keresése felolvasással", MenuAction.TRANSIT_STOP),
             MenuItem("transit_favorites", "Kedvenc megállók indulási időkkel", MenuAction.TRANSIT_FAVORITES),
@@ -837,6 +839,7 @@ object MenuTree {
                 MenuItem("color_detector", "Színfelismerő kamerával", MenuAction.COLOR_DETECTOR),
                 MenuItem("env_snapshot_tools", "Mi van előttem? Környezeti kitekintő", MenuAction.ENV_SNAPSHOT),
                 MenuItem("env_find_tools", "Keresd meg", MenuAction.ENV_FIND),
+                MenuItem("text_find_tools", "Felirat keresése", MenuAction.TEXT_FIND),
                 MenuItem("currency_recognizer", "Super DL Pénzfelismerő", MenuAction.CURRENCY_RECOGNIZER),
                 MenuItem("card_organizer", "Kártya rendszerező", MenuAction.SUBMENU, listOf(
                     MenuItem("card_train", "Új kártya hozzáadása", MenuAction.CARD_TRAIN),

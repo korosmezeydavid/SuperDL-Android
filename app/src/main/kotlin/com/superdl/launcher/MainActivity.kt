@@ -3133,6 +3133,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             MenuAction.ENV_FIND -> startEnvFindFlow()
+            MenuAction.TEXT_FIND -> startTextFindFlow()
             MenuAction.CURRENCY_RECOGNIZER -> {
                 tts.speak("Super DL Pénzfelismerő indítása. Mutasd a kamerának a bankjegyet.")
                 startActivity(Intent(this, CurrencyRecognizerActivity::class.java))
@@ -9551,6 +9552,44 @@ class MainActivity : AppCompatActivity() {
                     )
                 },
                 onError = { tts.speak("Keresés megszakítva.") }
+            )
+        }
+    }
+
+    /**
+     * FELIRAT KERESÉSE — utcatábla, ajtószám, peron, bolt neve.
+     *
+     * A szövegolvasó MINDENT felolvas, ami a kamera elé kerül. Egy utcán ez
+     * használhatatlan: húsz felirat közül tizenkilenc érdektelen, és mire a
+     * huszadikhoz ér, a keresett tábla már elmozdult. Itt fordítva megy —
+     * megmondod, mit keresel, és a telefon csendben marad, amíg meg nem
+     * találja, aztán sípolva rávezet.
+     *
+     * A keresett szöveget NYUGODTAN lehet diktálni (ellentétben a rádió
+     * stream-címével): itt nem kell betűpontos egyezés, mert az ékezeteket
+     * mindkét oldalról leszedjük az összehasonlítás előtt. Az OCR is, a
+     * beszédfelismerő is épp az ékezeteken hibázik a legtöbbet.
+     */
+    private fun startTextFindFlow() {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Milyen feliratot keressek? Mondd ki, például: Váci utca.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val keresett = spoken.trim()
+                    if (keresett.length < 2) {
+                        tts.speak("Ehhez legalább két betű kell. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    startActivity(
+                        Intent(this, com.superdl.launcher.textreader.TextSearchActivity::class.java)
+                            .putExtra(
+                                com.superdl.launcher.textreader.TextSearchActivity.EXTRA_QUERY,
+                                keresett
+                            )
+                    )
+                },
+                onError = { tts.speak("Felirat keresése megszakítva.") }
             )
         }
     }
