@@ -1,0 +1,60 @@
+Podcast modul bekotese, es ket fajlkezelo-hiba (Peter jelentese)
+
+1. A PODCAST MODUL EGYETLEN GESZTUS-DISZPECSERBEN SEM SZEREPELT
+
+Peter: "Nepszeru podcastok. Itt elvileg 25 musor van. Az elso elem a
+Balazsek, nem tudok tovabb jutni. Jobbra sopressel azt mondja, hogy varjam
+meg a diktalast."
+
+Az ok nem a podcastoknal volt. A negy podcast-allapot (PodcastListBrowse,
+PodcastEpisodeBrowse, PodcastEpisodeMenu, PodcastCountryBrowse) a
+handleSwipeUp / handleSwipeDown / handleSwipeRight / handleSwipeLeft
+egyiкeben sem szerepelt. A hozzajuk tartozo fuggvenyek MIND megvoltak,
+megirva es keszen:
+
+  navigatePodcastList, openPodcast, navigatePodcastEpisodes,
+  enterPodcastEpisodeMenu, navigatePodcastEpisodeMenu,
+  onPodcastEpisodeMenuActivate, navigatePodcastCountry,
+  onPodcastCountryActivate
+
+...de EGYIKET SEM HIVTA SENKI. A fel-le sopres nem lepkedett, a jobbra
+sopres pedig atesett az alapertelmezett agra, ami a diktalast inditja.
+
+Vagyis a TELJES podcast-funkcio hasznalhatatlan volt: nepszeruek, kereses,
+feliratkozasok, letoltesek, orszag. Lato szemmel mukodonek LATSZOTT, mert az
+updateFlowDisplay() rendesen kiirta a kepernyore az aktualis elemet.
+
+Mind a negy allapot bekotve mind a negy gesztusba. Az adas-menubol a balra
+sopres az adaslistahoz ter vissza, nem egeszen ki.
+
+TANULSAG: egy `when (activeFlow)` hianyzo aga NEMA hiba. A Kotlin nem szol
+erte, a nem hivott privat fuggvenyekre pedig csak figyelmeztetes jon, ami
+elvesz a tobbi kozott.
+
+2. FAJLKEZELO: A VISSZALEPES A LISTA ELEJERE DOBOTT
+
+Peter: "ha bemegyek egy mappaba, majd visszajovok, akkor visszadob a
+fokonyvtarba az elso mappahoz."
+
+A loadDir() minden betoltesnel nullazta az indexet. Uj mappaba lepve ez
+helyes, visszalepesnel nem. Uj `selectPath` parameter: visszalepeskor arra a
+mappara allunk, ahonnan feljottunk, es AZT is mondjuk be.
+
+Ugyanaz a hibaosztaly, mint a varazsloban a setupLastIndex.
+
+3. FAJLKEZELO: "VAN BENNE ELEM", MEGNYITVA URES
+
+Peter: "1-1 mappanal azt irja, hogy van benne elem mint a Movies, Music
+mappanal, aztan ha megnyitom, akkor meg azt mondja, hogy ures."
+
+Ket helyen ketfelekeppen szamoltunk:
+
+  elonezet:  file.listFiles()?.size                      <- MINDENT
+  listazas:  dir.listFiles()?.filterNot { it.isHidden }  <- rejtetteket nem
+
+A Movies es Music mappaban jellemzoen csak rejtett bejegyzesek vannak
+(.thumbnails, .nomedia). Uj lathatoElemszam() fuggveny, mindket helyen az
+szamol.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

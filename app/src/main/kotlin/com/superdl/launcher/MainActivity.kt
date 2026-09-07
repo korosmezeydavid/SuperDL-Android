@@ -1069,6 +1069,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, -1)
+            // PODCAST — lásd a handleSwipeRight-ban lévő magyarázatot: ez a
+            // négy állapot eddig EGYIK gesztus-diszpécserben sem szerepelt.
+            is AppFlow.PodcastListBrowse -> navigatePodcastList(flow, -1)
+            is AppFlow.PodcastEpisodeBrowse -> navigatePodcastEpisodes(flow, -1)
+            is AppFlow.PodcastEpisodeMenu -> navigatePodcastEpisodeMenu(flow, -1)
+            is AppFlow.PodcastCountryBrowse -> navigatePodcastCountry(flow, -1)
             is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, -1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
             is AppFlow.CardBrowse -> navigateCardList(flow, -1)
@@ -1261,6 +1267,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, +1)
+            is AppFlow.PodcastListBrowse -> navigatePodcastList(flow, +1)
+            is AppFlow.PodcastEpisodeBrowse -> navigatePodcastEpisodes(flow, +1)
+            is AppFlow.PodcastEpisodeMenu -> navigatePodcastEpisodeMenu(flow, +1)
+            is AppFlow.PodcastCountryBrowse -> navigatePodcastCountry(flow, +1)
             is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, +1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
             is AppFlow.CardBrowse -> navigateCardList(flow, +1)
@@ -1471,6 +1481,39 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteDeleteConfirm -> deleteGpsRoute(flow)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> onLocationProfileListActivate(flow)
+            // ── PODCAST: A MODUL, AMIT SOHA NEM KÖTÖTTÜNK BE ────────────────
+            //
+            // A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „Népszerű podcastok.
+            // Itt elvileg 25 műsor van. Az első elem a Balázsék, nem tudok
+            // tovább jutni. Jobbra söpréssel azt mondja, hogy várjam meg a
+            // diktálást."
+            //
+            // Az ok nem a podcastoknál volt: a NÉGY podcast-állapot
+            // (lista, adások, adás-menü, ország) egyetlen gesztus-diszpécserben
+            // sem szerepelt. A hozzájuk tartozó függvények — navigatePodcastList,
+            // openPodcast, navigatePodcastEpisodes, enterPodcastEpisodeMenu,
+            // navigatePodcastEpisodeMenu, onPodcastEpisodeMenuActivate,
+            // navigatePodcastCountry, onPodcastCountryActivate — MIND
+            // megvoltak, megírva és készen, de EGYIKET SEM HÍVTA SENKI.
+            //
+            // Így a fel-le söprés nem lépkedett, a jobbra söprés pedig
+            // átesett az alapértelmezett ágra, ami a diktálást indítja —
+            // innen a „várjam meg a diktálást".
+            //
+            // Vagyis a teljes podcast-funkció — népszerűek, keresés,
+            // feliratkozások, letöltések, ország — használhatatlan volt.
+            // Látó szemmel működőnek LÁTSZOTT, mert az updateFlowDisplay()
+            // rendesen kiírta a képernyőre, mi az aktuális elem.
+            //
+            // TANULSÁG: egy `when (activeFlow)` ágainak hiánya néma hiba.
+            // A Kotlin nem szól érte, mert a `when` nem kimerítő kényszerű,
+            // és a nem hívott privát függvényekre csak figyelmeztetés jön,
+            // ami elvész a többi között.
+            is AppFlow.PodcastListBrowse ->
+                flow.podcasts.getOrNull(flow.index)?.let { openPodcast(it) }
+            is AppFlow.PodcastEpisodeBrowse -> enterPodcastEpisodeMenu(flow)
+            is AppFlow.PodcastEpisodeMenu -> onPodcastEpisodeMenuActivate(flow)
+            is AppFlow.PodcastCountryBrowse -> onPodcastCountryActivate(flow)
             is AppFlow.LocationProfileActions -> onLocationProfileActionActivate(flow)
             is AppFlow.LocationProfileDeleteConfirm -> deleteLocationProfile(flow)
             is AppFlow.CardBrowse -> onCardListActivate(flow)
@@ -1781,6 +1824,19 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.GpsRouteGuidingActive -> stopGpsRouteGuidance()
             is AppFlow.LocationProfileBrowse -> exitFlow("Mentett helyszínek bezárva.")
+            // PODCAST — a balra söprés eddig sem volt bekötve, tehát a
+            // felhasználó a listából nem tudott visszalépni sem.
+            is AppFlow.PodcastListBrowse -> exitFlow("Podcastok bezárva.")
+            is AppFlow.PodcastEpisodeBrowse -> exitFlow("Adások bezárva.")
+            // Az adás-menüből a HALLGATOTT LISTÁHOZ megyünk vissza, nem
+            // egészen ki: a felhasználó ott tartott, ott is akar folytatni.
+            is AppFlow.PodcastEpisodeMenu -> {
+                activeFlow = AppFlow.PodcastEpisodeBrowse(flow.podcast, flow.episodes, flow.episodeIndex)
+                updateFlowDisplay()
+                val ep = flow.episodes.getOrNull(flow.episodeIndex)
+                tts.speak(ep?.title ?: "Adások.")
+            }
+            is AppFlow.PodcastCountryBrowse -> exitFlow("Ország választás megszakítva.")
             is AppFlow.LocationProfileActions -> {
                 activeFlow = AppFlow.LocationProfileBrowse(flow.profiles, flow.profileIndex, deleteMode = false)
                 updateFlowDisplay()

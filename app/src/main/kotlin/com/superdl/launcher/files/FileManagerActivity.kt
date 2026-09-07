@@ -159,10 +159,39 @@ class FileManagerActivity : AppCompatActivity() {
 
     // ==================== Böngészés ====================
 
-    private fun loadDir(dir: File, announce: Boolean = true) {
+    /**
+     * @param selectPath ha meg van adva, a lista ERRE az elemre áll rá a
+     *   lista eleje helyett.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „ha bemegyek egy mappába,
+     * majd visszajövök, akkor visszadob a főkönyvtárba az első mappához.
+     * Nem tudok egyből ehhez visszatérni, ahol tartottam?"
+     *
+     * A `loadDir()` minden betöltésnél nullázta a pozíciót — ami új mappába
+     * belépve helyes, de VISSZALÉPÉSNÉL nem. Aki a huszadik mappát nyitotta
+     * meg, az visszalépés után újra végigsöpörhetett húszat.
+     *
+     * Vakon ez nem kényelmi kérdés: a lista eleje az egyetlen fogódzó, és ha
+     * minden visszalépés odadob, a mappaszerkezetben nem lehet dolgozni.
+     *
+     * Ugyanaz a hibaosztály, mint a beállítás varázslónál a `setupLastIndex`,
+     * és mint az adás-menüből való visszalépésnél a podcastoknál.
+     */
+    private fun loadDir(dir: File, announce: Boolean = true, selectPath: File? = null) {
         currentDir = dir
         items = FileManagerHelper.listDir(dir, includeMenu = true)
         index = 0
+        if (selectPath != null) {
+            val target = try {
+                selectPath.absolutePath
+            } catch (_: Exception) {
+                null
+            }
+            if (target != null) {
+                val found = items.indexOfFirst { it.isReal && it.file.absolutePath == target }
+                if (found >= 0) index = found
+            }
+        }
         screen = Screen.BROWSE
         selected.clear()
         inSearchResults = false
@@ -173,7 +202,9 @@ class FileManagerActivity : AppCompatActivity() {
             if (count == 0) {
                 tts.speak("$name. Ez a mappa üres. Balra söprés a visszalépéshez.")
             } else {
-                tts.speak("$name, $count elem. ${items[0].speakPreview(this)}")
+                // A KIVÁLASZTOTT elemet mondjuk be, nem vakon az elsőt —
+                // visszalépésnél ez az, ahonnan jöttünk.
+                tts.speak("$name, $count elem. ${items[index].speakPreview(this)}")
             }
         }
     }
@@ -347,7 +378,12 @@ class FileManagerActivity : AppCompatActivity() {
                     finish()
                     return
                 }
-                loadDir(parent)
+                // ARRA A MAPPÁRA ÁLLUNK VISSZA, AHONNAN FELJÖTTÜNK.
+                // Lásd a loadDir() fejlécét: eddig a szülő lista elejére
+                // dobott vissza, tehát minden visszalépés után elölről
+                // kellett megkeresni, hol tartottunk.
+                val honnan = currentDir
+                loadDir(parent, selectPath = honnan)
             }
         }
     }

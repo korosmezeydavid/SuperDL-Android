@@ -38,11 +38,7 @@ data class FileItem(
         if (isParent) return name
         if (isMenu) return "Menü. Csoportos műveletek ebben a mappában."
         return if (isDirectory) {
-            val count = try {
-                file.listFiles()?.size ?: 0
-            } catch (_: Exception) {
-                0
-            }
+            val count = lathatoElemszam(file)
             "$name, mappa, $count elem"
         } else {
             val size = Formatter.formatShortFileSize(context, file.length())
@@ -55,13 +51,40 @@ data class FileItem(
         val modified = SimpleDateFormat("yyyy. MMMM d. HH:mm", Locale("hu", "HU"))
             .format(Date(file.lastModified()))
         val size = if (isDirectory) {
-            val count = try { file.listFiles()?.size ?: 0 } catch (_: Exception) { 0 }
+            val count = lathatoElemszam(file)
             "$count elemet tartalmaz"
         } else {
             Formatter.formatShortFileSize(context, file.length())
         }
         return "$name. ${FileKind.of(file).hungarianName}. $size. Módosítva: $modified."
     }
+}
+
+/**
+ * EGY MAPPA ELEMSZÁMA — UGYANÚGY SZÁMOLVA, AHOGY MAJD LISTÁZZUK.
+ *
+ * A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „érdekes, hogy egy-egy mappánál
+ * azt írja, hogy van benne elem, mint a Movies, Music mappánál, aztán ha
+ * megnyitom, akkor meg azt mondja, hogy üres."
+ *
+ * Két helyen, kétféleképpen számoltunk:
+ *
+ *   előnézet:  file.listFiles()?.size                        ← MINDENT
+ *   listázás:  dir.listFiles()?.filterNot { it.isHidden }    ← a rejtetteket nem
+ *
+ * A Movies és a Music mappában jellemzően csak rejtett bejegyzések vannak
+ * (`.thumbnails`, `.nomedia`), ezért az előnézet elemet ígért, a megnyitás
+ * pedig ürességet talált.
+ *
+ * Vakon egy ilyen ellentmondás elbizonytalanít: a felhasználó azt hiszi,
+ * ő rontott el valamit, vagy hogy a program nem találja a fájljait.
+ *
+ * Ezért MINDKÉT helyen ez az egyetlen függvény számol.
+ */
+private fun lathatoElemszam(dir: java.io.File): Int = try {
+    dir.listFiles()?.count { !it.isHidden } ?: 0
+} catch (_: Exception) {
+    0
 }
 
 /**
