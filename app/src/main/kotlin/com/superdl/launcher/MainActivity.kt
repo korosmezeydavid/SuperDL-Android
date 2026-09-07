@@ -3132,6 +3132,7 @@ class MainActivity : AppCompatActivity() {
                         .putExtra(EnvironmentScannerActivity.EXTRA_SNAPSHOT_MODE, true)
                 )
             }
+            MenuAction.ENV_FIND -> startEnvFindFlow()
             MenuAction.CURRENCY_RECOGNIZER -> {
                 tts.speak("Super DL Pénzfelismerő indítása. Mutasd a kamerának a bankjegyet.")
                 startActivity(Intent(this, CurrencyRecognizerActivity::class.java))
@@ -9509,6 +9510,49 @@ class MainActivity : AppCompatActivity() {
             "$name elmentve a kedvencek közé. A Kedvenc állomásaim menüben " +
                 "találod. Ha nem szólalna meg, a cím valószínűleg nem hangfolyam."
         )
+    }
+
+    /**
+     * KERESD MEG — a „Mi van előttem?" cselekvő testvére.
+     *
+     * A pillanatkép LEÍRJA, mi van előtted. Ez ODAVEZET. Megmondod, mit
+     * keresel, és a telefon sípolva vezet rá: minél közelebb a keresett
+     * tárgy a kép közepéhez, annál sűrűbben szól. Az OOrion nevű iPhone-os
+     * alkalmazás mutatta meg, hogy ez a fajta „melegebb-hidegebb" hang
+     * használhatóbb, mint bármilyen leírás.
+     *
+     * Amit nem tudunk megkeresni, azt nem is kínáljuk fel: a felismerhető
+     * kategóriák listája az ObjectCategory.searchable()-ből jön. Egy vak
+     * felhasználót percekig forgatni valami után, ami sosem jöhet meg, a
+     * legrosszabb, amit tehetnénk.
+     */
+    private fun startEnvFindFlow() {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Mit keressek?",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val kategoria = com.superdl.launcher.environment.ObjectCategory
+                        .fromSpoken(spoken.trim())
+                    if (kategoria == null) {
+                        tts.speak(
+                            "Ezt nem tudom megkeresni. Ezeket ismerem fel: " +
+                                com.superdl.launcher.environment.ObjectCategory.searchableList() +
+                                ". Próbáld újra a menüből."
+                        )
+                        return@listen
+                    }
+                    startActivity(
+                        Intent(this, EnvironmentScannerActivity::class.java)
+                            .putExtra(
+                                EnvironmentScannerActivity.EXTRA_TARGET_CATEGORY,
+                                kategoria.id
+                            )
+                    )
+                },
+                onError = { tts.speak("Keresés megszakítva.") }
+            )
+        }
     }
 
     private fun startRadioSearchFlow() {

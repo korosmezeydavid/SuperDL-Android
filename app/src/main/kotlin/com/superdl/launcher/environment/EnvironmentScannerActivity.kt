@@ -78,10 +78,27 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     private var lastSummary: String? = null
     private var snapshotHintGiven = false
 
+    // ===== CÉLRA KERESÉS (OOrion-jellegű rávezetés) =====
+    //
+    // Ha az indító megadta, MIT keresünk, a képernyő nem leíró módban indul,
+    // hanem rávezetőben: sípol, amíg a keresett tárgy a kép közepére nem
+    // kerül. Lásd GuidanceTone — ott van leírva, miért a ritmus hordozza az
+    // információt, és nem a beszéd.
+    private var targetCategory: ObjectCategory? = null
+    private val guidance = GuidanceTone()
+    private var targetAnnounced = false
+    private var targetLastSeenAt = 0L
+    private var targetCenteredSince = 0L
+    private var targetLastSpokenAt = 0L
+    private var targetStopped = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_environment_scanner)
         snapshotMode = intent.getBooleanExtra(EXTRA_SNAPSHOT_MODE, true)
+        targetCategory = intent.getStringExtra(EXTRA_TARGET_CATEGORY)
+            ?.let { ObjectCategory.fromId(it) }
+        if (targetCategory != null) snapshotMode = false
         title = getString(R.string.env_scanner_title)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -94,15 +111,15 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             context = this,
             onSwipeUp = {
                 sounds.play(SoundType.SWIPE_UP)
-                repeatSnapshotSummary()
+                if (targetCategory != null) repeatTargetState() else repeatSnapshotSummary()
             },
             onSwipeDown = {
                 sounds.play(SoundType.SWIPE_DOWN)
-                toggleContinuousWatch()
+                if (targetCategory != null) abandonTargetSearch() else toggleContinuousWatch()
             },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
-                startSnapshot()
+                if (targetCategory != null) restartTargetSearch() else startSnapshot()
             },
             onSwipeLeft = { finishScanner() }
         )
@@ -190,6 +207,12 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             return
         }
 
+        val cel = targetCategory
+        if (cel != null) {
+            startTargetSearch(cel)
+            return
+        }
+
         if (snapshotMode) {
             tts.runWhenReady {
                 tts.speak("Mi van előttem. Tartsd a telefont magad elé, egy pillanat.")
@@ -268,17 +291,23 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     private fun setScanningEnabled(enabled: Boolean) {
         scanning.set(enabled)
         debouncer.clear()
+        // CÉLRA KERESÉSKOR NEM BESZÉLÜNK ITT.
+        // A keresés saját bevezetőt mond ("Keresem: szék…"), és ez a
+        // státusz-mondat FLUSH-sal jönne utána — vagyis levágná. Ugyanez a
+        // hiba a zárképernyőnél már megvolt: két egymásra vágott mondatból a
+        // fontosabbik veszít.
+        val kereses = targetCategory != null
         if (enabled) {
             btnScanToggle.text = getString(R.string.env_scanner_stop)
             btnScanToggle.contentDescription = getString(R.string.env_scanner_stop_desc)
-            if (!snapshotMode) {
+            if (!snapshotMode && !kereses) {
                 setStatusText(getString(R.string.env_scanner_status_scanning))
                 tts.speak(getString(R.string.env_scanner_status_scanning))
             }
         } else {
             btnScanToggle.text = getString(R.string.env_scanner_start)
             btnScanToggle.contentDescription = getString(R.string.env_scanner_start_desc)
-            if (!snapshotMode) {
+            if (!snapshotMode && !kereses) {
                 setStatusText(getString(R.string.env_scanner_status_paused))
                 tts.speak(getString(R.string.env_scanner_status_paused))
             }
@@ -289,8 +318,159 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         postWhenAlive { tvStatus.text = text }
     }
 
+    // ==================== CÉLRA KERESÉS ====================
+
+    private fun startTargetSearch(cel: ObjectCategory) {
+        targetAnnounced = false
+        targetStopped = false
+        targetLastSeenAt = 0L
+        targetCenteredSince = 0L
+        targetLastSpokenAt = 0L
+        setStatusText("Keresem: ${cel.hungarianName}")
+        tts.runWhenReady {
+            tts.speak(
+                "Keresem: ${cel.hungarianName.lowercase()}. Fordulj lassan körbe. " +
+                    "A sípolás annál sűrűbb, minél közelebb van a kép közepéhez. " +
+                    "Ha megvan, elhallgat. Balra söprés: kilépés."
+            )
+        }
+        startCamera()
+        setScanningEnabled(true)
+        guidance.start()
+        // AKKUMULÁTOR: a folyamatos pásztázás és a lámpa gyorsan merít, és a
+        // felhasználó nem látja, hogy még megy. Ezért a keresés magától
+        // leáll — kimondva, hogy tudni lehessen, miért lett csend.
+        mainHandler.postDelayed({ stopTargetSearchByTimeout() }, TARGET_TIMEOUT_MS)
+    }
+
+    private fun handleTargetDetections(detections: List<DetectionResult>) {
+        val cel = targetCategory ?: return
+        if (targetStopped) return
+        val now = System.currentTimeMillis()
+        val talalat = detections
+            .filter { it.category == cel }
+            .minByOrNull { SpatialDescriber.centerDistance(it.boundingBox) }
+
+        if (talalat == null) {
+            // Ha egy pillanatra kiesik a képből, még ne felejtsük el rögtön —
+            // a kézremegés így nem szakítja meg a rávezetést.
+            if (now - targetLastSeenAt > TARGET_LOST_MS) {
+                guidance.update(null)
+                targetCenteredSince = 0L
+                if (targetAnnounced) {
+                    targetAnnounced = false
+                    guidance.start()
+                    postWhenAlive {
+                        setStatusText("Keresem: ${cel.hungarianName}")
+                        tts.speak("Elveszett. Keresem tovább.")
+                    }
+                }
+            }
+            return
+        }
+
+        targetLastSeenAt = now
+        val tavolsag = SpatialDescriber.centerDistance(talalat.boundingBox)
+        if (!targetAnnounced) guidance.update(tavolsag)
+
+        val leiras = SpatialDescriber.describe(talalat.boundingBox)
+        postWhenAlive {
+            tvLastDetection.text = "${cel.hungarianName}, $leiras"
+        }
+
+        if (SpatialDescriber.isCentered(talalat.boundingBox)) {
+            if (targetCenteredSince == 0L) targetCenteredSince = now
+            // Egyetlen képkocka nem elég: a felismerő ugrálhat, és egy téves
+            // „megvan" rosszabb, mint egy késői. Rövid ideig ki kell tartania.
+            if (!targetAnnounced && now - targetCenteredSince >= TARGET_CONFIRM_MS) {
+                targetAnnounced = true
+                guidance.success()
+                postWhenAlive {
+                    setStatusText("Megvan: ${cel.hungarianName}")
+                    tts.speak("Megvan. ${cel.hungarianName}, $leiras.")
+                }
+            }
+            return
+        }
+
+        targetCenteredSince = 0L
+        // Rávezetés közben ritkán mondunk szót: a sípolás vezet, a beszéd
+        // csak megerősít. Túl sűrű beszéd elnyomná a ritmust, amiből
+        // tájékozódni lehet.
+        if (!targetAnnounced && now - targetLastSpokenAt >= TARGET_SPEAK_INTERVAL_MS) {
+            targetLastSpokenAt = now
+            postWhenAlive { tts.speak(leiras) }
+        }
+    }
+
+    private fun repeatTargetState() {
+        val cel = targetCategory ?: return
+        val now = System.currentTimeMillis()
+        val message = when {
+            targetStopped -> "A keresés leállt. Jobbra söprés: újrakezdés."
+            targetAnnounced -> "${cel.hungarianName} megvan, a kép közepén."
+            now - targetLastSeenAt <= TARGET_LOST_MS ->
+                "${cel.hungarianName} látszik, vezetlek rá."
+            else -> "Keresem: ${cel.hungarianName.lowercase()}. Még nincs meg."
+        }
+        tts.speak(message)
+    }
+
+    private fun restartTargetSearch() {
+        val cel = targetCategory ?: return
+        mainHandler.removeCallbacksAndMessages(null)
+        guidance.stop()
+        setScanningEnabled(true)
+        startTargetSearchAgain(cel)
+    }
+
+    private fun startTargetSearchAgain(cel: ObjectCategory) {
+        targetAnnounced = false
+        targetStopped = false
+        targetLastSeenAt = 0L
+        targetCenteredSince = 0L
+        targetLastSpokenAt = 0L
+        setStatusText("Keresem: ${cel.hungarianName}")
+        tts.speak("Újrakezdem: ${cel.hungarianName.lowercase()}.")
+        guidance.start()
+        mainHandler.postDelayed({ stopTargetSearchByTimeout() }, TARGET_TIMEOUT_MS)
+    }
+
+    /** Le söprés: elengedjük a célt, és marad a szokásos „Mi van előttem?". */
+    private fun abandonTargetSearch() {
+        val cel = targetCategory ?: return
+        mainHandler.removeCallbacksAndMessages(null)
+        guidance.stop()
+        targetCategory = null
+        targetStopped = true
+        snapshotMode = true
+        setStatusText("Mi van előttem?")
+        tts.speak(
+            "${cel.hungarianName} keresése abbahagyva. " +
+                "Jobbra söprés: pillanatkép arról, mi van előtted."
+        )
+    }
+
+    private fun stopTargetSearchByTimeout() {
+        if (targetStopped || targetAnnounced) return
+        val cel = targetCategory ?: return
+        targetStopped = true
+        guidance.stop()
+        setScanningEnabled(false)
+        setStatusText("A keresés leállt")
+        tts.speak(
+            "A ${cel.hungarianName.lowercase()} keresését leállítom, " +
+                "mert három perce tart, és fogyasztja az akkumulátort. " +
+                "Jobbra söprés: újrakezdés. Balra: kilépés."
+        )
+    }
+
     private fun onDetections(detections: List<DetectionResult>) {
         latestDetections.set(detections)
+        if (targetCategory != null) {
+            handleTargetDetections(detections)
+            return
+        }
         // Aktív pillanatkép elsőbbséget kap; utána a folyamatos figyelés,
         // ha be van kapcsolva; különben csendben maradunk.
         if (snapshotActive.get()) {
@@ -440,6 +620,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
 
     private fun finishScanner() {
         scanning.set(false)
+        guidance.stop()
         sounds.play(SoundType.SWIPE_LEFT)
         tts.speakThen(getString(R.string.env_scanner_exit)) { finish() }
     }
@@ -448,7 +629,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 if (event?.repeatCount == 0) {
-                    startSnapshot()
+                    if (targetCategory != null) repeatTargetState() else startSnapshot()
                 }
                 return true
             }
@@ -485,6 +666,12 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     override fun onDestroy() {
         scanning.set(false)
         mainHandler.removeCallbacksAndMessages(null)
+        // A rávezető sípolás saját ütemezőn fut — külön el kell engedni,
+        // különben a képernyő bezárása után is szólna.
+        try {
+            guidance.release()
+        } catch (_: Exception) {
+        }
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
         // A lámpát MINDIG lekapcsoljuk kilépéskor. Vakon egy égve felejtett
@@ -565,5 +752,23 @@ class EnvironmentScannerActivity : AppCompatActivity() {
 
         /** Ha igaz, az activity "Mi van előttem?" pillanatkép-módban indul. */
         const val EXTRA_SNAPSHOT_MODE = "snapshot_mode"
+
+        /**
+         * Ha meg van adva (ObjectCategory.id), az activity CÉLRA KERESŐ
+         * módban indul: sípolva vezet rá a keresett tárgyra.
+         */
+        const val EXTRA_TARGET_CATEGORY = "target_category"
+
+        /** Ennyi ideig kitartó középen állás után mondjuk ki, hogy megvan. */
+        private const val TARGET_CONFIRM_MS = 400L
+
+        /** Ennyi ideig nem látva tekintjük elveszettnek a célt. */
+        private const val TARGET_LOST_MS = 1200L
+
+        /** Rávezetés közben ennyi időnként mondjuk ki a távolságot. */
+        private const val TARGET_SPEAK_INTERVAL_MS = 3500L
+
+        /** Ennyi keresés után magától leáll — akkumulátorkímélés. */
+        private const val TARGET_TIMEOUT_MS = 180_000L
     }
 }
