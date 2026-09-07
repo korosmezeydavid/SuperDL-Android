@@ -144,11 +144,26 @@ class RadioPlayerActivity : AppCompatActivity() {
     override fun onTouchEvent(event: MotionEvent): Boolean =
         gestureListener.detector.onTouchEvent(event) || super.onTouchEvent(event)
 
+    /**
+     * UGYANANNAK AZ ADÓNAK A TARTALÉK CÍMEI.
+     *
+     * Lásd RadioBrowserClient.alternativeStreams(): a közösségi adatbázisban
+     * ugyanaz az adó több címmel is szerepel, és nem mindegyik él egyszerre.
+     * Ha az első nem szól, végigpróbáljuk a többit, mielőtt feladnánk.
+     */
+    private var alternatives: List<String> = emptyList()
+    private var alternativesFetched = false
+    private var altIndex = 0
+
     private fun playCurrent() {
         val station = currentStation() ?: return
         releasePlayer()
         prepared = false
         paused = false
+        // Új adó: a tartaléklista is újraindul.
+        alternatives = emptyList()
+        alternativesFetched = false
+        altIndex = 0
         tvTitle.text = station.name
         tvPosition.text = "Rádió"
         tvStatus.text = getString(R.string.player_loading)
@@ -160,10 +175,65 @@ class RadioPlayerActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (resolved == null) {
-                    tts.speak("Ez az állomás most nem elérhető.")
+                    tryAlternative(station)
                     return@runOnUiThread
                 }
                 startStream(station, resolved)
+            }
+        }.start()
+    }
+
+    /**
+     * A KÖVETKEZŐ CÍM MEGPRÓBÁLÁSA — a feladás előtt.
+     *
+     * Vakon a „nem elérhető" zsákutca: a felhasználó nem tudja, hogy más
+     * címen ugyanaz az adó szólna. Ezért mi próbáljuk végig helyette, és csak
+     * akkor mondjuk azt, hogy nem megy, ha tényleg egyik sem válaszolt.
+     *
+     * A keresés hálózatot használ, ezért háttérszálon fut. Közben szólunk,
+     * hogy dolgozunk — a néma várakozás elbizonytalanít.
+     */
+    private fun tryAlternative(station: RadioStation) {
+        if (isFinishing || isDestroyed) return
+
+        if (!alternativesFetched) {
+            alternativesFetched = true
+            tts.speak("Ez a cím nem válaszol. Keresek másikat.")
+            Thread {
+                val list = RadioBrowserClient.alternativeStreams(station.name, station.streamUrl)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    alternatives = list
+                    altIndex = 0
+                    tryAlternative(station)
+                }
+            }.start()
+            return
+        }
+
+        if (altIndex >= alternatives.size) {
+            tvStatus.text = getString(R.string.player_loading)
+            tts.speak(
+                if (alternatives.isEmpty()) {
+                    "Ez az állomás most nem elérhető. Más címet sem találtam hozzá."
+                } else {
+                    "Ez az állomás most nem elérhető. Mind a ${alternatives.size} címét megpróbáltam."
+                }
+            )
+            return
+        }
+
+        val next = alternatives[altIndex]
+        altIndex++
+        Thread {
+            val resolved = RadioPlaylistResolver.resolve(next)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (resolved == null) {
+                    tryAlternative(station)
+                } else {
+                    startStream(station, resolved)
+                }
             }
         }.start()
     }
@@ -186,13 +256,23 @@ class RadioPlayerActivity : AppCompatActivity() {
                     tts.speak("Szól a(z) ${station.name}.")
                 }
                 setOnErrorListener { _, _, _ ->
-                    tts.speak("Ez az állomás most nem elérhető.")
+                    // NEM ITT ADJUK FEL: lehet, hogy csak ez a cím néma.
+                    // A hibát is a tartaléklánc kapja meg — de csak akkor, ha
+                    // még el sem indult a hang. Ha már szólt és menet közben
+                    // szakadt meg, azt nem címhibaként kezeljük.
+                    if (!prepared) {
+                        releasePlayer()
+                        tryAlternative(station)
+                    } else {
+                        tts.speak("A műsor megszakadt.")
+                    }
                     true
                 }
                 prepareAsync()
             }
         } catch (_: Exception) {
-            tts.speak("Ez az állomás most nem elérhető.")
+            releasePlayer()
+            tryAlternative(station)
         }
     }
 

@@ -39,6 +39,39 @@ object RadioBrowserClient {
         return query("/json/stations/search?name=$encoded&order=clickcount&reverse=true&hidebroken=true&limit=$limit")
     }
 
+    /**
+     * UGYANANNAK AZ ADÓNAK A TÖBBI CÍME — a tartalékhoz.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „több csatornát, mint pl. a
+     * Petőfi rádió, nem volt elérhető. Most este elindul, az alatta lévőnél
+     * írja, hogy nem érhető el."
+     *
+     * Vagyis nem az adó hiányzik a listából, hanem EGY KONKRÉT CÍME nem
+     * válaszol — és ez napszakonként változik. A közösségi adatbázisban
+     * viszont ugyanaz az adó TÖBB bejegyzéssel is szerepel, más-más címmel:
+     * a „petofi" keresés 2026-09-07-én hat találatot adott, négy különböző
+     * URL-lel, mind „élő" jelöléssel.
+     *
+     * Eddig az első cím hibájánál feladtuk. Mostantól végigpróbáljuk a
+     * többit is, mielőtt azt mondanánk, hogy nem elérhető.
+     *
+     * @param exclude az a cím, amelyik már megbukott — azt nem kínáljuk újra.
+     */
+    fun alternativeStreams(name: String, exclude: String, limit: Int = 12): List<String> {
+        if (name.isBlank()) return emptyList()
+        return try {
+            searchByName(name, limit)
+                .asSequence()
+                .map { it.streamUrl }
+                .filter { it.isNotBlank() && it != exclude }
+                .distinct()
+                .toList()
+        } catch (e: Exception) {
+            Log.w(TAG, "alternativeStreams failed: $name", e)
+            emptyList()
+        }
+    }
+
     private fun query(path: String): List<RadioStation> {
         for (server in SERVERS) {
             val json = httpGet(server + path) ?: continue

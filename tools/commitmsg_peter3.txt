@@ -1,0 +1,44 @@
+Radio: tartalek-cimek, es automatikus lampa a kornyezetpasztazoban
+
+1. RADIO - "Petofi radio nem volt elerheto"
+
+Peter: "Tobb csatornat mint pl.: Petofi radio nem volt elerheto. Most este
+elindul, az alatta levonel irja, hogy nem erheto el."
+
+MEGMERVE (tools/radio_meres.py, 2026-09-07): a Petofi BENNE VAN a listaban
+(9. hely, lastcheckok=1). Nem az ado hianyzik, hanem EGY KONKRET CIME nem
+valaszol, es ez naponta valtozik. A kozossegi adatbazisban ugyanaz az ado
+TOBB bejegyzessel szerepel: a "petofi" kereses hat talalatot adott, negy
+kulonbozo URL-lel, mind elo jelolessel.
+
+Eddig az elso cim hibajanal feladtuk ("Ez az allomas most nem elerheto").
+Mostantol:
+
+- RadioBrowserClient.alternativeStreams(): nev szerint megkeresi ugyanannak
+  az adonak a tobbi cimet.
+- RadioPlayerActivity: hiba eseten vegigprobalja oket, es kozben szol, hogy
+  keres. Csak akkor mondja, hogy nem elerheto, ha tenyleg egyik sem valaszolt
+  - es azt is megmondja, hanyat probalt.
+- A lejatszas kozbeni megszakadas NEM szamit cimhibanak (prepared==true):
+  arra kulon uzenet jon, nem indul ujra a tartaleklanc.
+
+2. AUTOMATIKUS LAMPA - "sotetben nem kapcsolja be a lampat"
+
+A megoldas MAR MEGVOLT a kodban: BanknoteTorchController fenyerot mer,
+kuszob alatt bekapcsol, folotte ki. Csak epp egyetlen felismerohoz volt
+kotve, es a bankjegyes meresi tipusahoz.
+
+- UJ camera/AutoTorchController: ugyanaz, fuggetlenitve. Ket kuszob (0.26 /
+  0.40) es 900 ms varakozas - egyetlen kuszobnel a lampa a hatar kozeleben
+  hintazna: bekapcsol, ettol vilagosabb a kep, ezert kikapcsol, ettol
+  sotetebb, ezert bekapcsol.
+- meanLuminance(ImageProxy): a YUV elso sikja MAGA a fenyero, tehat nem kell
+  RGB-re alakitani. Mintavetelezunk (minden 16. bajt), hogy ne melegitse a
+  telefont.
+- EnvironmentScannerActivity bekotve: minden feldolgozott kepkockan mer, es
+  kilepeskor MINDIG lekapcsolja a lampat.
+
+Hatra van meg a szovegfelismero es a kamera bekotese ugyanide.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

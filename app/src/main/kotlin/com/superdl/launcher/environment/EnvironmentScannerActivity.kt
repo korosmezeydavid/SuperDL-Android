@@ -56,6 +56,9 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     private val lastFrameProcessedAt = AtomicLong(0L)
     private val latestDetections = AtomicReference<List<DetectionResult>>(emptyList())
     private var imageAnalysis: ImageAnalysis? = null
+
+    /** Automatikus lámpa sötétben — lásd camera/AutoTorchController. */
+    private val autoTorch = com.superdl.launcher.camera.AutoTorchController()
     private var lastBackPressAt = 0L
 
     // Egyesített mód: megnyitáskor pillanatkép ("Mi van előttem?"), a
@@ -238,12 +241,17 @@ class EnvironmentScannerActivity : AppCompatActivity() {
                 }
             try {
                 provider.unbindAll()
-                provider.bindToLifecycle(
+                val camera = provider.bindToLifecycle(
                     this,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
                     imageAnalysis
                 )
+                // AUTOMATIKUS LÁMPA — Péter jelentése (2026-09-06):
+                // „sötétben nem kapcsolja be a lámpát, így semmit nem tud
+                // felismerni". A megoldás a bankjegyfelismerőben megvolt, de
+                // csak oda volt kötve; lásd camera/AutoTorchController.
+                autoTorch.attach(camera)
             } catch (_: Exception) {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.env_scanner_camera_error))
@@ -479,6 +487,13 @@ class EnvironmentScannerActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
+        // A lámpát MINDIG lekapcsoljuk kilépéskor. Vakon egy égve felejtett
+        // lámpa észrevétlenül meríti az akkumulátort — pont annak, akinek a
+        // telefon a legfontosabb eszköze.
+        try {
+            autoTorch.release()
+        } catch (_: Exception) {
+        }
         CameraStabilityHelper.shutdownExecutor(cameraExecutor)
         detectionEngine?.close()
         detectionEngine = null
@@ -501,6 +516,17 @@ class EnvironmentScannerActivity : AppCompatActivity() {
                 return
             }
             lastFrameProcessedAt.set(now)
+
+            // A FÉNYERŐ MÉRÉSE MINDEN FELDOLGOZOTT KÉPKOCKÁN.
+            // Sötétben ettől kapcsol be a lámpa — enélkül a felismerő fekete
+            // képen dolgozna, és a felhasználó csak annyit tapasztalna, hogy
+            // „nem talál semmit".
+            try {
+                val fenyero = com.superdl.launcher.camera.AutoTorchController
+                    .meanLuminance(imageProxy)
+                postWhenAlive { autoTorch.update(fenyero) }
+            } catch (_: Exception) {
+            }
 
             val engine = detectionEngine
             if (engine == null) {
