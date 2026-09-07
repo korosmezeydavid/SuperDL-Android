@@ -1,0 +1,35 @@
+Automatikus fény a szövegfelismerőben és a kamerában
+
+Péter jelentése (2026-09-06): „Felismerők: sötétben nem kapcsolja be a
+lámpát, így semmit nem tud felismerni. Kamera sem használ vakut a sötétben,
+így fekete fotó készül."
+
+SZÖVEGFELISMERŐ — automatikus LÁMPA
+
+TextReaderActivity bekötve az AutoTorchControllerbe: minden feldolgozott
+képkockán mér, sötétben bekapcsol, kilépéskor mindig lekapcsol. Szövegnél ez
+a leggyakoribb eset — gyógyszeres doboz, levél, felirat —, ezeket ritkán
+olvassa az ember erős fényben.
+
+KAMERA — automatikus VAKU, nem lámpa
+
+FaceCameraActivity: ImageCapture.FLASH_MODE_AUTO.
+
+Miért más mechanizmus: a felismerőknél folyamatos fény kell, mert
+folyamatosan néznek. Fényképnél a pillanatnyi vaku a helyes — kevesebb áram,
+és nem vakítja el a lefényképezett embert végig, amíg a kamera nyitva van.
+AUTO és nem ON: nappal a vaku fölösleges, és a képet is elronthatja; a
+készülék méri meg, kell-e.
+
+AMIBE SZÁNDÉKOSAN NEM TETTÜK BE
+
+- LightDetectorActivity: ez MÉRI a fényt. A lámpa pont azt tenné tönkre,
+  amit mér — mindig „világos van" lenne a válasz.
+- ColorDetectorActivity: a lámpa megváltoztatja az érzékelt színt. Egy hideg
+  fehér LED alatt a bézs fehérnek, a sötétkék feketének látszik. Itt a rossz
+  válasz rosszabb, mint a „nem tudom".
+
+Ez a két kihagyás nem feledékenység — a következő menetben se kerüljön bele.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

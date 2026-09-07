@@ -56,6 +56,9 @@ class TextReaderActivity : AppCompatActivity() {
     private val latestSpeechText = AtomicReference("")
     private val pendingSpeechText = AtomicReference<String?>(null)
     private var imageAnalysis: ImageAnalysis? = null
+
+    /** Automatikus lámpa sötétben — lásd camera/AutoTorchController. */
+    private val autoTorch = com.superdl.launcher.camera.AutoTorchController()
     private var lastBackPressAt = 0L
     private var chunks: List<String> = emptyList()
     private var chunkIndex = 0
@@ -204,12 +207,18 @@ class TextReaderActivity : AppCompatActivity() {
                         analysis.setAnalyzer(cameraExecutor, FrameAnalyzer())
                     }
                 provider.unbindAll()
-                provider.bindToLifecycle(
+                val camera = provider.bindToLifecycle(
                     this,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
                     imageAnalysis
                 )
+                // AUTOMATIKUS LÁMPA — Péter jelentése (2026-09-06):
+                // „sötétben nem kapcsolja be a lámpát, így semmit nem tud
+                // felismerni". Szövegnél ez a leggyakoribb eset: gyógyszeres
+                // doboz, levél, felirat — ezeket ritkán olvassa az ember
+                // erős fényben.
+                autoTorch.attach(camera)
             } catch (_: Exception) {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.text_reader_camera_error))
@@ -450,6 +459,11 @@ class TextReaderActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
+        // A lámpa kilépéskor MINDIG lekapcsol.
+        try {
+            autoTorch.release()
+        } catch (_: Exception) {
+        }
         CameraStabilityHelper.shutdownExecutor(cameraExecutor)
         recognitionEngine?.close()
         recognitionEngine = null
@@ -478,6 +492,14 @@ class TextReaderActivity : AppCompatActivity() {
                 return
             }
             lastFrameProcessedAt.set(now)
+
+            // Fényerő mérése: sötétben ettől kapcsol be a lámpa.
+            try {
+                val fenyero = com.superdl.launcher.camera.AutoTorchController
+                    .meanLuminance(imageProxy)
+                postWhenAlive { autoTorch.update(fenyero) }
+            } catch (_: Exception) {
+            }
 
             val engine = recognitionEngine
             if (engine == null) {

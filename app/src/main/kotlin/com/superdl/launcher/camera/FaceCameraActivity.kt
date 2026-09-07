@@ -287,6 +287,19 @@ class FaceCameraActivity : AppCompatActivity() {
                     .build()
             )
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            // AUTOMATIKUS VAKU.
+            //
+            // A HIBA, AMIT EZ JAVÍT (Péter, 2026-09-06): „Kamera sem használ
+            // vakut a sötétben, így fekete fotó készül."
+            //
+            // MIÉRT NEM A LÁMPA (torch) EZ IS: a felismerőknél folyamatos
+            // fény kell, mert folyamatosan néznek. Fényképnél viszont a
+            // pillanatnyi vaku a helyes: kevesebb áram, és nem vakítja el a
+            // lefényképezett embert végig, amíg a kamera nyitva van.
+            //
+            // AUTO és nem ON: nappal a vaku fölösleges, és a képet is
+            // elronthatja. A készülék méri meg, kell-e.
+            .setFlashMode(ImageCapture.FLASH_MODE_AUTO)
             .build()
 
     private fun buildVideoCapture(): VideoCapture<Recorder> {
