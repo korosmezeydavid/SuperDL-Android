@@ -1,0 +1,43 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260906191134
+Username: DAVIDLAPI\msn
+RunAs User: DAVIDLAPI\msn
+Configuration Name: 
+Machine: DAVIDLAPI (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File C:\Users\msn\Documents\SuperDL-Android\tools\_pinellenor.ps1
+Process ID: 2352
+PSVersion: 5.1.26100.9278
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9278
+BuildVersion: 10.0.26100.9278
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+--- 1. KESZULEK ---
+
+
+--- 2. MELYIK SUPERDL, MILYEN VERZIO ---
+
+package:com.superdl.launcher.debug
+    versionName=1.63.1
+
+--- 3. ENGEDELYEZETT KISEGITO SZOLGALTATASOK ---
+
+--- kisegito fokapcsolo ---
+
+
+--- 4. VAN-E EGYALTALAN KEPERNYOZAR (ez a kulcskerdes) ---
+    Password quality: {0=0}
+ User "d├ívid" (id=0, flags=0xc13) (current): trusted=0, trustManaged=0, deviceLocked=0, strongAuthRequired=0x0
+
+--- 5. A PIN SEGED NAPLOJA A BEKAPCSOLAS OTA ---
+
+--- 6. UPTIME (mikor indult ujra) ---
+
+**********************
+Windows PowerShell transcript end
+End time: 20260906191135
+**********************

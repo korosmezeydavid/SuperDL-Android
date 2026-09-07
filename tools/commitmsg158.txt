@@ -1,0 +1,48 @@
+1.58.0 — osszeomlas-javitas es az e-mail atszervezese
+
+SULYOS OSSZEOMLAS JAVITVA: nevjegy-engedely nelkul a program meghalt.
+A ContactSyncReceiver es a BootReceiver engedely nelkul hivta a
+ContactHelper.listAllWithPhone-t, ami nem ures listat ad, hanem
+SecurityException-t DOB. Egy onReceive-ben ez azonnali programhalal.
+Minden friss telepitot erintett; a tesztelo ezt "az asszisztens
+beallitasakor leall" formaban latta, mert a hattereseany veletlenul
+ugyanabban a pillanatban futott be.
+
+A BootReceiver nyolc lepese egy kozos, vedohalo nelkuli blokkban futott,
+tehat a nevjegy-lepes elhasalasa ELVITTE AZ EBRESZTOK UJRAUTEMEZESET IS.
+Egy nevjegy-engedely hianya el tudta nemitani a masnap reggeli ebresztot.
+
+Javitas harom szinten:
+- ContactSyncHelper.hasPermission(); a sync engedely nelkul azonnal
+  visszater, es NEM irja felul ures listaval a mentett nevjegyeket.
+- ContactHelper.listAllWithPhone burkolo: hiba eseten ures lista.
+- BootReceiver: minden lepes kulon step("nev") vedohaloban, es a sorrend
+  atgondolva (ebreszto es gyogyszer elol).
+
+E-mail atszervezes:
+- Uj: email/EmailAction.kt es AppFlow.EmailActionMenu. Az elolvasott
+  levelnel a jobbra sopres (ami eddig nem csinalt semmit) elohozza a
+  muveleteket: valasz, tovabbitas, ujraolvasas, felado mentese, uj level.
+- Valasznal a cimzett ES a targy magatol kitoltodik -> egyenesen a szoveg
+  diktalasahoz ugrunk. Harom diktalasbol egy lett.
+- "Re:" csak egyszer kerul fel; a "Re: Re: Re:" lanc felolvasva
+  elviselhetetlen.
+- Ha nincs valaszolhato felado-cim, a program kimondja es nem kuld.
+  Egy rossz cimre elment valasz rosszabb, mint a beismert kudarc.
+- A tovabbitando level az exitFlow-ban MINDIG elengedodik, kulonben a
+  kovetkezo levelbe idezne bele magat.
+- MenuTree: Postafiok megnyitasa -> Uj level irasa -> ritkak.
+
+Gesztus-iskola: a negy alapmozdulat oraja a jelenlegi kezelesbol epul fel.
+Elforgatott modban eddig az ALAP kezelest tanitotta, es a helyes mozdulatot
+hibanak nezte volna a vizsgan.
+
+Hibajelento: a crash-naplo fejlecebe bekerul a verzio, es a jelentes a
+BEJEGYZES ELEJETOL vag, nem az utolso 25 sortol - eddig a fejlec (es vele
+a datum) mindig lemaradt. Ha a nyom mas verziobol valo vagy 7 napnal
+regebbi, a jelentes figyelmeztet. Ez egy fel oras teves nyomozas utan
+szuletett: egy 1.54.9-es, mar javitott bankjegy-hiba nyoma jelent meg egy
+1.57.0-s jelentesben.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

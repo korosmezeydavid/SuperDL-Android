@@ -1,0 +1,25 @@
+﻿START 2026-09-04T08:25:28
+--- go get fuggosegek ---
+go.exe : go: added golang.org/x/mobile v0.0.0-20260821190718-4776eadac327
+At C:\Users\msn\Documents\SuperDL-Android\tools\build_wormhole_aar.ps1:25 char:1
++ & go get -tool golang.org/x/mobile/cmd/gobind 2>&1 | Out-File $log -E ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (go: added golan...18-4776eadac327:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+go: added golang.org/x/mod v0.39.0
+go: added golang.org/x/sync v0.22.0
+go: added golang.org/x/tools v0.49.0
+--- gomobile telepites ---
+go.exe : go: golang.org/x/mobile@v0.0.0-20260821190718-4776eadac327 requires go >= 1.26.0; switching to go1.26.8
+At C:\Users\msn\Documents\SuperDL-Android\tools\build_wormhole_aar.ps1:29 char:1
++ & go install golang.org/x/mobile/cmd/gomobile@latest 2>&1 | Out-File  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (go: golang.org/...ing to go1.26.8:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+--- gomobile init ---
+--- gomobile bind ---
+BIND EXIT=0
+AAR: 9,9 MB
+VEGE 2026-09-04T08:27:49

@@ -1,0 +1,13 @@
+$adb = 'C:\Users\msn\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+Write-Output "=== bekapcsolt kisegito szolgaltatasok ==="
+& $adb shell "settings get secure enabled_accessibility_services"
+Write-Output "=== kisegito fokapcsolo ==="
+& $adb shell "settings get secure accessibility_enabled"
+Write-Output "=== talkback allapot ==="
+& $adb shell "settings get secure touch_exploration_enabled"
+Write-Output "=== alapertelmezett SMS app ==="
+& $adb shell "settings get secure sms_default_application"
+Write-Output "=== alapertelmezett telefon app ==="
+& $adb shell "cmd telecom get-default-dialer"
+Write-Output "=== kezdokepernyo ==="
+& $adb shell "cmd shortcut get-default-launcher"

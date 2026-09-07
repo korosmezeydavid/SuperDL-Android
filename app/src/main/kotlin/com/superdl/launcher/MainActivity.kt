@@ -6896,13 +6896,38 @@ class MainActivity : AppCompatActivity() {
         tts.speakAdd(bugReportOptions[0])
     }
 
+    /**
+     * A MENÜBŐL KÜLDÖTT HIBAJELENTÉS — MOSTANTÓL UGYANAZT TUDJA, MINT A
+     * VARÁZSLÓBÓL KÜLDÖTT.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Géza, 2026-09-07): „a haladó beállításoknál nem
+     * jó hibajelentést küldeni". Igaza volt, és a jelentése maga volt rá a
+     * bizonyíték: abból CSAK a fejléc érkezett meg — verzió, készülék,
+     * összeomlás-napló —, és hiányzott belőle az egész részletes napló.
+     *
+     * Két külön út épült: a varázslóból küldött jelentés hozzáfűzte a
+     * SetupDiagnostics naplóját, a menüből küldött viszont nem. Így aki nem
+     * épp a varázslóban akadt el — hanem mondjuk a podcastnál vagy a
+     * rádiónál —, az a leghasznosabb részt nem tudta elküldeni.
+     *
+     * Vagyis a tesztelő pontosan leírta, mi a baja, mi meg pont azt az adatot
+     * nem kaptuk meg, amiből meg lehetett volna találni. A varázsló naplója
+     * nem csak a varázslóról szól: benne van a szerepkörök állapota, a
+     * kisegítő szolgáltatások, a beszédmotorok és a korlátozott beállítások
+     * jelzése is — ezek MINDEN hibánál számítanak.
+     */
     private fun buildBugReport(description: String) {
         setupReportReturn = false
-        val report = com.superdl.launcher.report.BugReport.build(this, description)
-        activeFlow = AppFlow.BugReportSend(report, 0)
+        val base = com.superdl.launcher.report.BugReport.build(this, description)
+        val details = try {
+            com.superdl.launcher.setup.SetupDiagnostics.build(this, setupAttempts)
+        } catch (e: Exception) {
+            "A részletes napló nem készült el: ${e.javaClass.simpleName}"
+        }
+        activeFlow = AppFlow.BugReportSend("$base\n\n$details", 0)
         updateFlowDisplay()
         tts.speak(
-            "A jelentés elkészült. Hogyan küldjük el? " +
+            "A jelentés elkészült, a részletes naplóval együtt. Hogyan küldjük el? " +
                 "Fel-le választás, jobbra küldés, balra mégse."
         )
         tts.speakAdd(bugReportOptions[0])

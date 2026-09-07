@@ -1,0 +1,46 @@
+1.57.0 — S.O.S. teljes lánc és a felület elforgatása
+
+SÚLYOS S.O.S. HIBA JAVÍTVA: a lánc eddig nem nézte a hívás állapotát, húsz
+másodperc után rátárcsázott a következő számra akkor is, ha az elsőt
+felvették — vagyis el tudta vágni pont azt a hívást, ami sikerült.
+A SuperInCallService mostantól jelenti a hívásállapotot a SosCallWatcher-nek.
+
+S.O.S. lánc (MK-C), élesben tesztelve:
+- Négy SMS AZONNAL kimegy a helyzettel, akkor is, ha felveszik a hívást.
+  A hívás azt intézi, hogy tudjanak rólad; az SMS azt, hogy megtaláljanak.
+- Utolsó ismert pozíció azonnal, friss GPS a háttérben; pontosító SMS csak
+  akkor, ha az új mérés lényegesen jobb.
+- Két kör a négy számon, 25 mp csengetés, felvett hívásnál megvárjuk a végét.
+- A hangpostát NEM heurisztikával szűrjük: a lánc a hívás vége után mindig
+  folytatódik. Rossz tipp esetén rábontanánk arra, aki két másodperc alatt
+  felvette — ez vészhelyzetben megengedhetetlen.
+- Leállítás: az S.O.S. újraindítása. Vészhelyzetben újat tanulni nem lehet.
+- 112 két kör után, a meglévő visszaszámlálás-kapcsolóval.
+
+Felület elforgatása (MK-D):
+- GestureOrientation: a leképezés egyetlen helye. Szándékos leképezés-
+  táblázat, NEM geometria — a fejlécben rögzítve, hogy ne "javítsák ki".
+- SwipeGestureListener.dispatch(): a 41 képernyő egyszerre fordul el.
+- AccessibilityGestureMap: a képernyőolvasó gesztusai, az összetettek is.
+- GestureWords: a kimondott irányszavak és a kijelző nyilai.
+- HintText: a súgósor 88 kiírása egyetlen ponton fordul.
+
+A tesztelés két hibát hozott elő a szófordítóban, mindkettő javítva:
+- Kétszeres fordítás: a "Felület elforgatása" kimondta a szabályt, ami már
+  fizikai irányokban beszél, és a fordító azt is átírta — a program
+  lefordította a saját tanítását. Javítás: GestureWords.literal().
+- Útvonal-leírás elrontása: a lista tartalmazta a puszta "jobbra a"
+  kifejezést, ami illeszkedik a "fordulj jobbra a saroknál" mondatra is.
+  Elforgatva ez rossz irányba indított volna egy vak embert az utcán.
+  Javítás: looksLikeInstruction() — csak kezelési utasításban cserélünk.
+- A gesztus-iskola szövege sem fordul el: az órák a valódi, fizikai
+  mozdulatot nevezik meg, és a gyakorlat is azt várja vissza.
+
+Továbbá:
+- Varázsló: a billentyűzet-lépés a valódi választót nyitja (showInputMethodPicker).
+- S.O.S. visszaszámlálás ki-be kapcsolható.
+- Fájlkezelő: átnevezés (a kiterjesztés megmarad).
+- Rádió: időzített felvétel, újraindítást és frissítést túlélve.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

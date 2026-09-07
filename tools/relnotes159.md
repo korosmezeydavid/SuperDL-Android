@@ -102,11 +102,17 @@ tételről tételre végig nem hallgatott. Ha egy betű rosszat ad, **írd meg,
 melyik** — a hibajelentőben vagy levélben. A jel-rétegen néhány jel (`=`,
 `&`, `€`, `%`) helye még nincs eldöntve.
 
-## Frissítés
+## Frissítés — EZT OLVASD EL, ha 1.58.0 vagy régebbi van a telefonodon
 
-A telefon magától szól — a SuperDL naponta kétszer keres frissítést.
-Kézzel: `Beállítások → Program frissítése`, vagy töltsd le a `SuperDL.apk`-t
-innen.
+**A programon belüli frissítés eddig senkinél nem működött.** A telepítő
+„nem indítható" üzenettel kilépett — a program a letöltött fájlt nem tudta
+átadni a rendszernek, mert egyetlen mappát engedett megosztani, és nem azt,
+amelyikbe a frissítés került. Ez a hiba a kezdetek óta bent volt. **Javítva.**
+
+De a javítás csak ebben a verzióban van, tehát **erre a verzióra még kézzel
+kell frissíteni:** töltsd le innen a `SuperDL.apk`-t, és telepítsd. Ezután
+a következő frissítéseket már a program maga elintézi — naponta kétszer
+keres, és szól, ha van újabb. Kézzel: `Beállítások → Program frissítése`.
 
 A beállításaidat, névjegyeidet, könyvjelzőidet és saját elnevezéseidet a
 frissítés nem bántja.
