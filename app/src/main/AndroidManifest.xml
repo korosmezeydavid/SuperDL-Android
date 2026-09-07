@@ -186,6 +186,36 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!--
+                MIERT KELL A LAUNCHER KATEGORIA IS.
+
+                Eddig CSAK a HOME kategoria volt itt. Ez elmeletileg eleg:
+                a SuperDL kezdokepernyo, tehat a Kezdolap gombbal elerheto.
+                A GYAKORLATBAN viszont ket sulyos kovetkezmenye volt, es
+                mindketto pont az UJ felhasznalot uti meg, aki meg nem
+                allitotta be kezdokepernyonek:
+
+                1. A telepito "Megnyitas" gombja KIKAPCSOLVA marad. A gomb
+                   LAUNCHER szandekot keres, es ha nincs ilyen, nincs mit
+                   inditania. A felhasznalo azt latja, hogy "az alkalmazas
+                   telepitve van", de nem tudja megnyitni.
+                2. A program NEM JELENIK MEG az alkalmazaslistaban. Az
+                   inditopult a LAUNCHER kategoriara epul. Aki telepitette,
+                   sehol nem talalja.
+
+                Igy az uj felhasznalonak egyetlen utja maradt: kitalalni,
+                hogy a Kezdolap gombot kell megnyomnia, es a felugro
+                listabol kivalasztania. Vakon ez gyakorlatilag lehetetlen
+                elso alkalommal.
+
+                Sandor Karoly jelentese hozta ki (2026-09-07): "az
+                alkalmazas telepitve van, majd megnyitas kikapcsolva".
+                Pontosan ezt irta le, csak nem tudta, mit lat.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
                 <category android:name="android.intent.category.DEFAULT" />
