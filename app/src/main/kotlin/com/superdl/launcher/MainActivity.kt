@@ -8436,10 +8436,13 @@ class MainActivity : AppCompatActivity() {
                         cim = "Menüpont",
                         options = talalatok.map {
                             CalendarActionOption(
-                                label = it.label,
+                                label = it.cimke,
                                 action = com.superdl.launcher.calendar.CalendarAction.OpenMenu(
-                                    actionName = it.action.name,
-                                    spoken = it.label
+                                    actionName = it.item.action.name,
+                                    // A CSOPORTOS nevet mondjuk vissza, mert
+                                    // a felhasználó azt kereste: „Bevásárlólista,
+                                    // Listáim megnyitása" — nem csak az utóbbit.
+                                    spoken = it.cimke
                                 )
                             )
                         }
@@ -8450,29 +8453,75 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** A menüfa minden végpontja — az almenük maguk nem indíthatók. */
-    private fun menuVegpontok(items: List<MenuItem> = MenuTree.root): List<MenuItem> =
+    /**
+     * EGY INDÍTHATÓ MENÜPONT ÉS AZ ÚTVONALA.
+     *
+     * Az útvonal nem díszítés. Alph próbája (2026-09-08) ezen bukott el:
+     * bediktálta, hogy „bevásárlólista", és a program nem találta. Pedig ott
+     * van a menüben — CSAKHOGY ALMENÜKÉNT. A benne lévő indítható pont neve
+     * „Listáim megnyitása", és ezt senki nem fogja kimondani.
+     *
+     * Az ember a CSOPORT nevén hívja a dolgokat, nem a benne lévő gomb nevén.
+     * Ezért az illesztés az egész útvonalra megy, a felolvasott címke pedig
+     * az útvonal is: „Bevásárlólista, Listáim megnyitása". Így a diktált szó
+     * és a hallott válasz ugyanarról szól.
+     */
+    private data class MenuVegpont(val item: MenuItem, val ut: List<String>) {
+        /**
+         * A felolvasott név: a KÖZVETLEN csoport és a pont neve.
+         * „Bevásárlólista, Listáim megnyitása" — a teljes útvonal
+         * („Eszközök, Mindennapi, Bevásárlólista, …") vakon már túl hosszú
+         * ahhoz, hogy egy listában végig lehessen hallgatni.
+         */
+        val cimke: String get() = (ut.takeLast(1) + item.label).joinToString(", ")
+
+        /** Az illesztés viszont a TELJES útvonalra megy. */
+        val darabok: List<String> get() = ut + item.label
+    }
+
+    /** A menüfa minden INDÍTHATÓ pontja, az odavezető almenük nevével együtt. */
+    private fun menuVegpontok(
+        items: List<MenuItem> = MenuTree.root,
+        ut: List<String> = emptyList()
+    ): List<MenuVegpont> =
         items.flatMap { item ->
             if (item.children.isNotEmpty()) {
-                menuVegpontok(item.children)
+                menuVegpontok(item.children, ut + item.label)
             } else if (item.action != MenuAction.SUBMENU) {
-                listOf(item)
+                listOf(MenuVegpont(item, ut))
             } else {
                 emptyList()
             }
         }
 
-    private fun keresMenupontot(spoken: String): List<MenuItem> {
+    private fun keresMenupontot(spoken: String): List<MenuVegpont> {
         val norm = com.superdl.launcher.textreader.TextMatcher.normalize(spoken)
-        if (norm.isBlank()) return emptyList()
-        val vegpontok = menuVegpontok().distinctBy { it.action }
+        if (norm.length < 3) return emptyList()
+        val vegpontok = menuVegpontok().distinctBy { it.item.action }
+
+        fun normDarabok(v: MenuVegpont) =
+            v.darabok.map { com.superdl.launcher.textreader.TextMatcher.normalize(it) }
+
+        // 1. Pontos egyezés magára az indítható pontra.
         val pontos = vegpontok.filter {
-            com.superdl.launcher.textreader.TextMatcher.normalize(it.label) == norm
+            com.superdl.launcher.textreader.TextMatcher.normalize(it.item.label) == norm
         }
         if (pontos.isNotEmpty()) return pontos.take(8)
-        return vegpontok.filter {
-            val cimke = com.superdl.launcher.textreader.TextMatcher.normalize(it.label)
-            cimke.contains(norm) || norm.contains(cimke)
+
+        // 2. Pontos egyezés egy CSOPORT nevére — ez a „bevásárlólista" eset.
+        //    Ilyenkor a csoport minden indítható pontját felkínáljuk.
+        val csoport = vegpontok.filter { v ->
+            v.ut.any { com.superdl.launcher.textreader.TextMatcher.normalize(it) == norm }
+        }
+        if (csoport.isNotEmpty()) return csoport.take(8)
+
+        // 3. Részleges egyezés bárhol az útvonalon. A rövid szavakat itt már
+        //    csak befelé engedjük (a címke tartalmazza a keresettet), hogy a
+        //    „hol" vagy a „lista" ne hozzon vissza mindent.
+        return vegpontok.filter { v ->
+            normDarabok(v).any { d ->
+                d.contains(norm) || (norm.length >= 5 && d.length >= 5 && norm.contains(d))
+            }
         }.take(8)
     }
 
@@ -8760,12 +8809,33 @@ class MainActivity : AppCompatActivity() {
             tts.speak("A naptárhoz rendelt menüpont már nem létezik.")
             return
         }
+        pendingCalendarMenuAction = action
         // Késleltetve: a program indulása közben a beszéd és a képernyő még
         // nincs kész, és a menüpont saját bevezetője elveszne.
-        mainHandler.postDelayed({
-            if (LockSession.needsUnlock(this)) return@postDelayed
-            handleActionInner(MenuItem("naptar_muvelet", action.name, action))
-        }, 700L)
+        mainHandler.postDelayed({ runPendingCalendarMenuAction() }, 700L)
+    }
+
+    /**
+     * A NAPTÁRI MENÜPONT, AMI MÉG NEM INDULT EL.
+     *
+     * MIÉRT KELL EGY MEZŐ EGY EGYSZERŰ HÍVÁS HELYETT: ha a telefon zárva van,
+     * a menüpontot nem szabad elindítani — de ELDOBNI sem. Az első változat
+     * pontosan ezt tette: megnézte, hogy zárva van-e, és ha igen, csendben
+     * visszatért. A felhasználó igent mondott a riasztásnál, feloldotta a
+     * telefont, és nem történt semmi. Néma kudarc, ami vakon
+     * megkülönböztethetetlen attól, hogy nem is működik.
+     *
+     * Így viszont a feloldás után elindul, ott, ahol elmaradt.
+     */
+    private var pendingCalendarMenuAction: MenuAction? = null
+
+    private fun runPendingCalendarMenuAction() {
+        val action = pendingCalendarMenuAction ?: return
+        if (LockSession.needsUnlock(this)) return
+        pendingCalendarMenuAction = null
+        val cimke = menuVegpontok().firstOrNull { it.item.action == action }?.cimke
+            ?: action.name
+        handleAction(MenuItem("naptar_muvelet", cimke, action))
     }
 
     private fun handleCalendarAlarmIntent(intent: Intent?) {
@@ -10919,6 +10989,12 @@ class MainActivity : AppCompatActivity() {
                     updateDisplay()
                     feedbackSuccess()
                     tts.speak("PIN helyes. Super DL feloldva.")
+                    // Ha a naptári riasztás menüpontja a zárolás miatt várt,
+                    // most indul el. Enélkül némán elveszne — a felhasználó
+                    // igent mondott, feloldotta a telefont, és nem történt semmi.
+                    if (pendingCalendarMenuAction != null) {
+                        mainHandler.postDelayed({ runPendingCalendarMenuAction() }, 1200L)
+                    }
                 } else {
                     activeFlow = flow.copy(buffer = "", index = 0)
                     updateFlowDisplay()
