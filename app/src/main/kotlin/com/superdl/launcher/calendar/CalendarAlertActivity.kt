@@ -188,6 +188,16 @@ class CalendarAlertActivity : AppCompatActivity() {
         }
     }
 
+    /** Zárva van-e a telefon (nem csak alszik-e a képernyő). */
+    private fun zarva(): Boolean = try {
+        val km = getSystemService(android.content.Context.KEYGUARD_SERVICE)
+            as android.app.KeyguardManager
+        km.isKeyguardLocked
+    } catch (_: Exception) {
+        // Ha nem tudjuk megállapítani, a biztonságosabbat feltételezzük.
+        true
+    }
+
     private fun activateAction() {
         handler.removeCallbacks(repeatRunnable)
 
@@ -198,6 +208,27 @@ class CalendarAlertActivity : AppCompatActivity() {
         // Csak ezután indul el bármi.
         val attached = attachedAction
         if (attached != null && actionIndex == 0) {
+            // ZÁRT KÉPERNYŐ.
+            //
+            // Ez a riasztás szándékosan zárt telefonon is megjelenik — az
+            // emlékeztetőnek akkor is szólnia kell. Csakhogy két művelet
+            // KIFELÉ hat, és feloldás nélkül is végbemenne: az SMS elmegy,
+            // a műveletsor pedig a te nevedben nyomkod gombokat idegen
+            // alkalmazásokban. Aki felveszi a zsebedből a telefont, ezt egy
+            // söpréssel megtehetné.
+            //
+            // A menüpont és az alkalmazás megnyitása marad feloldás nélkül
+            // is: azoknál a rendszer maga kéri a feloldást, mielőtt bármi
+            // látszana, és önmagában semmi visszafordíthatatlan nem történik.
+            val kifeleHat = attached is CalendarAction.SendSms ||
+                attached is CalendarAction.RunTaskRoute
+            if (kifeleHat && zarva()) {
+                speakThenFinish(
+                    "Ehhez előbb fel kell oldanod a telefont. Oldd fel, és a naptárban " +
+                        "megtalálod a programot. Az emlékeztetőt most nem halasztom el."
+                )
+                return
+            }
             CalendarAlarmService.stop(this)
             CalendarReminderScheduler.cancelInstance(this, event.eventId, event.begin)
             val result = CalendarActionRunner.run(this, attached)
