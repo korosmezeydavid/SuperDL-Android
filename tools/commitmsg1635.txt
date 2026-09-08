@@ -1,0 +1,32 @@
+1.63.5 - inditopult, celra kereses, felirat kereses, naptari muvelet
+
+A LEGFONTOSABB: a program eddig NEM jelent meg az alkalmazaslistaban, mert a
+MainActivity-nek csak HOME kategoriaja volt, LAUNCHER nem. Uj felhasznalonak
+egyetlen ut maradt: kitalalni, hogy a Kezdolap gombot kell megnyomni. Ket
+teszteloe akadt el rajta.
+
+UJ FUNKCIOK (OOrion-jellegu ravezetes):
+- Keresd meg: celkategoria, GuidanceTone kattogas a kozeptol mert tavolsag
+  mertani aranyaban, elhallgat ha kozepen van.
+- Felirat kereses: OCR sordobozok, ekezet nelkuli illesztes, ugyanaz a
+  ravezeto hurok. Utcatabla, ajtoszam, peron.
+- Naptari muvelet: menupont, muveletsor, SMS vagy alkalmazas rendelheto egy
+  programhoz; a riasztasnal az ELSO valaszthato lehetoseg, csak megerositesre
+  indul. SMS es muveletsor csak feloldott telefonon.
+
+JAVITASOK:
+- A podcast modul gesztusai sehol nem voltak bekotve: a teljes modul
+  hasznalhatatlan volt.
+- A menubol kuldott hibajelentes csak a fejlecet vitte, a reszletes naplot
+  nem.
+- Radio: sajat allomas a vagolaprol; a kedvenc torlese hol van; tartalek
+  stream-cimek nema adonal; 4 es 5 oras idozitett felvetel.
+- Automatikus lampa a szovegfelismeroben es a kornyezetpasztazoban (a
+  fenymero es a szinfelismero szandekosan kimarad).
+- A varazslo kimondja, ha minden alapveto tetel megvan.
+- Ket telepitett peldany felismerese telepites szerint, nem bekapcsolas
+  szerint.
+- Kiejtes: "M2" nem negyzetmeter, "Destination" nem desztineson.
+- Fajlkezelo: visszalepes a helyere, egyseges elemszamlalas.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
