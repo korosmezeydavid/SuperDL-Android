@@ -71,8 +71,36 @@ class TaskRouteActivity : Activity() {
         )
     }
 
+    /**
+     * KÖZVETLEN INDÍTÁS A NAPTÁRBÓL.
+     *
+     * Ha a naptári riasztás egy műveletsort rendelt a programhoz, ide egy
+     * azonosítóval érkezünk. Ilyenkor NEM a listát nyitjuk meg: a felhasználó
+     * a riasztásnál már megmondta, mit akar, és egy vak embernek a lista
+     * ilyenkor csak akadály volna.
+     *
+     * Az azonosítót kivesszük az intentből, hogy visszatéréskor vagy
+     * képernyőforgatásnál ne induljon el újra magától.
+     */
+    private fun indulasNaptarbol(): Boolean {
+        val id = intent?.getStringExtra(
+            com.superdl.launcher.calendar.CalendarActionRunner.EXTRA_ROUTE_ID
+        )?.trim().orEmpty()
+        if (id.isBlank()) return false
+        intent?.removeExtra(com.superdl.launcher.calendar.CalendarActionRunner.EXTRA_ROUTE_ID)
+        buildList()
+        val route = routes.firstOrNull { it.id == id }
+        if (route == null) {
+            tts.speak("A naptárhoz rendelt műveletsor már nincs meg. A lista jön.")
+            return false
+        }
+        play(route)
+        return true
+    }
+
     override fun onResume() {
         super.onResume()
+        if (indulasNaptarbol()) return
         reload()
     }
 

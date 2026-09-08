@@ -217,6 +217,7 @@ import com.superdl.launcher.feedback.ToggleAnnouncement
 import com.superdl.launcher.voicetheme.VoiceThemeStore
 import com.superdl.launcher.tools.FlashlightState
 import com.superdl.launcher.flow.AppFlow
+import com.superdl.launcher.flow.CalendarActionOption
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.color.ColorDetectorActivity
 import com.superdl.launcher.games.blackjack.BlackjackActivity
@@ -902,6 +903,7 @@ class MainActivity : AppCompatActivity() {
         updateDisplay()
         val pendingCalendarAlarm = intent?.action == CalendarAlarmReceiver.ACTION_CALENDAR_ALARM
         handleCalendarAlarmIntent(intent)
+        handleCalendarMenuActionIntent(intent)
 
         queueVoiceAssistantLaunchIfNeeded(intent)
         handleDialIntent(intent)
@@ -1024,6 +1026,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.AlarmSkipCount -> navigateAlarmSkipCount(flow, +1)
             is AppFlow.CalendarPick -> navigateCalendarPick(flow, -1)
             is AppFlow.CalendarContextMenu -> navigateCalendarContextMenu(flow, -1)
+            is AppFlow.CalendarActionTypePick -> navigateCalendarActionTypePick(flow, -1)
+            is AppFlow.CalendarActionOptionPick -> navigateCalendarActionOption(flow, -1)
+            is AppFlow.CalendarActionConfirm ->
+                repeatCalendarActionConfirm(flow.events[flow.eventIndex], flow.action)
             is AppFlow.CalendarAlarmContextMenu -> navigateCalendarAlarmContextMenu(flow, -1)
             is AppFlow.CalendarDeleteConfirm -> repeatCalendarDeleteConfirm(flow.event)
             is AppFlow.CalendarWeekBrowse -> navigateCalendarWeek(flow, -1)
@@ -1222,6 +1228,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.AlarmSkipCount -> navigateAlarmSkipCount(flow, -1)
             is AppFlow.CalendarPick -> navigateCalendarPick(flow, +1)
             is AppFlow.CalendarContextMenu -> navigateCalendarContextMenu(flow, +1)
+            is AppFlow.CalendarActionTypePick -> navigateCalendarActionTypePick(flow, +1)
+            is AppFlow.CalendarActionOptionPick -> navigateCalendarActionOption(flow, +1)
+            is AppFlow.CalendarActionConfirm ->
+                repeatCalendarActionConfirm(flow.events[flow.eventIndex], flow.action)
             is AppFlow.CalendarAlarmContextMenu -> navigateCalendarAlarmContextMenu(flow, +1)
             is AppFlow.CalendarDeleteConfirm -> repeatCalendarDeleteConfirm(flow.event)
             is AppFlow.CalendarWeekBrowse -> navigateCalendarWeek(flow, +1)
@@ -1448,6 +1458,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarConfirm -> saveCalendarEvent(flow)
             is AppFlow.CalendarRecurrenceBrowse -> applyCalendarRecurrence(flow)
             is AppFlow.CalendarContextMenu -> onCalendarContextActivate(flow)
+            is AppFlow.CalendarActionTypePick -> onCalendarActionTypeActivate(flow)
+            is AppFlow.CalendarActionOptionPick -> onCalendarActionOptionActivate(flow)
+            is AppFlow.CalendarActionConfirm -> saveCalendarActionAssignment(flow)
             is AppFlow.CalendarAlarmContextMenu -> onCalendarAlarmContextActivate(flow)
             is AppFlow.CalendarDeleteConfirm -> deleteCalendarEvent(flow)
             is AppFlow.AlarmDeleteConfirm -> deleteAlarm(flow.alarm)
@@ -2006,6 +2019,20 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NewsFeedBrowse -> exitFlow("Hírek bezárva.")
             is AppFlow.CalendarContextMenu -> returnToCalendarBrowse(flow.events, flow.eventIndex)
             is AppFlow.CalendarDeleteConfirm -> returnToCalendarBrowse(flow.events, flow.index)
+            // A művelet-hozzárendelés bármelyik lépéséből a NAPTÁRBA lépünk
+            // vissza, nem a menübe: aki félbehagyja, ott folytatná.
+            is AppFlow.CalendarActionTypePick ->
+                returnToCalendarBrowse(flow.events, flow.eventIndex)
+            is AppFlow.CalendarActionOptionPick ->
+                returnToCalendarBrowse(flow.events, flow.eventIndex)
+            is AppFlow.CalendarActionSmsAwait -> {
+                voiceInput.cancel()
+                returnToCalendarBrowse(flow.events, flow.eventIndex)
+            }
+            is AppFlow.CalendarActionConfirm -> {
+                tts.speak("Nem mentettem el.")
+                returnToCalendarBrowse(flow.events, flow.eventIndex)
+            }
             is AppFlow.CalendarAlarmContextMenu -> dismissCalendarAlarm()
             is AppFlow.AlertSoundPresetBrowse -> exitFlow("Hangbeállítás megszakítva.")
             is AppFlow.CalendarRecurrenceBrowse -> exitFlow("Program beállítás megszakítva.")
@@ -8326,10 +8353,326 @@ class MainActivity : AppCompatActivity() {
     private fun onCalendarContextActivate(flow: AppFlow.CalendarContextMenu) {
         val event = flow.events[flow.eventIndex]
         when (flow.actions[flow.actionIndex]) {
-            CalendarContextAction.READ -> tts.speak(CalendarHelper.speakEvent(event))
+            CalendarContextAction.READ -> tts.speak(
+                CalendarHelper.speakEvent(event) +
+                    com.superdl.launcher.calendar.CalendarActionStore
+                        .speakSuffix(this, event.eventId)
+            )
             CalendarContextAction.EDIT -> startCalendarEditFlow(event)
+            CalendarContextAction.ACTION_ASSIGN ->
+                enterCalendarActionTypePick(flow.events, flow.eventIndex)
+            CalendarContextAction.ACTION_REMOVE ->
+                removeCalendarActionAssignment(flow.events, flow.eventIndex)
             CalendarContextAction.DELETE -> enterCalendarDeleteConfirm(event, flow.events, flow.eventIndex)
         }
+    }
+
+    // ==================== NAPTÁRI MŰVELET HOZZÁRENDELÉSE ====================
+    //
+    // Alph ötlete: „beállítom, hogy este fél hat boltba menni, a figyelmeztetés
+    // megerősítésével pedig meg is nyitja a bevásárlást."
+    //
+    // A végrehajtó mag korábban elkészült; ez itt a hozzárendelés. Három lépés,
+    // mert vakon a „mindent egy képernyőn" nem működik: FAJTA, aztán KONKRÉT
+    // dolog, végül VISSZAOLVASÁS. Az utolsó lépés nem elhagyható — a művelet a
+    // felhasználó nevében fog cselekedni, és amit nem hallott vissza, arra nem
+    // mondhat igent.
+
+    private val calendarActionTypes = listOf(
+        "Super D L menüpont megnyitása",
+        "Műveletsor indítása",
+        "S M S küldése",
+        "Alkalmazás megnyitása"
+    )
+
+    private fun enterCalendarActionTypePick(events: List<CalendarEvent>, eventIndex: Int) {
+        activeFlow = AppFlow.CalendarActionTypePick(events, eventIndex, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Milyen műveletet rendeljek ehhez: ${events[eventIndex].title}? " +
+                "Söpörj fel-le a választáshoz, jobbra a továbblépéshez, balra vissza."
+        )
+        tts.speakAdd(calendarActionTypes.first())
+    }
+
+    private fun navigateCalendarActionTypePick(flow: AppFlow.CalendarActionTypePick, delta: Int) {
+        val next = (flow.index + delta + calendarActionTypes.size) % calendarActionTypes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(calendarActionTypes[next])
+    }
+
+    private fun onCalendarActionTypeActivate(flow: AppFlow.CalendarActionTypePick) {
+        when (flow.index) {
+            0 -> startCalendarActionMenuSearch(flow.events, flow.eventIndex)
+            1 -> offerCalendarActionRoutes(flow.events, flow.eventIndex)
+            2 -> startCalendarActionSmsRecipient(flow.events, flow.eventIndex)
+            else -> offerCalendarActionApps(flow.events, flow.eventIndex)
+        }
+    }
+
+    /**
+     * MENÜPONT KERESÉSE DIKTÁLÁSSAL.
+     *
+     * MIÉRT NEM A TELJES MENÜT KÍNÁLJUK FEL: a SuperDL menüfája több száz
+     * pontot tartalmaz. Végigsöpörni rajta nem lista, hanem büntetés. A
+     * diktálás viszont pont jó ide: a menüpontok nevét mi találtuk ki, tehát
+     * a felhasználó ismerős szavakat mond, és az egyezést ékezet nélkül
+     * nézzük — a beszédfelismerő úgyis elhagyja őket.
+     */
+    private fun startCalendarActionMenuSearch(events: List<CalendarEvent>, eventIndex: Int) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Melyik menüpontot nyissa meg? Mondd ki, például: bevásárlólista.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val talalatok = keresMenupontot(spoken)
+                    if (talalatok.isEmpty()) {
+                        tts.speak("Nem találtam ilyen menüpontot: $spoken. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    openCalendarActionOptions(
+                        events, eventIndex,
+                        cim = "Menüpont",
+                        options = talalatok.map {
+                            CalendarActionOption(
+                                label = it.label,
+                                action = com.superdl.launcher.calendar.CalendarAction.OpenMenu(
+                                    actionName = it.action.name,
+                                    spoken = it.label
+                                )
+                            )
+                        }
+                    )
+                },
+                onError = { tts.speak("Művelet hozzárendelése megszakítva.") }
+            )
+        }
+    }
+
+    /** A menüfa minden végpontja — az almenük maguk nem indíthatók. */
+    private fun menuVegpontok(items: List<MenuItem> = MenuTree.root): List<MenuItem> =
+        items.flatMap { item ->
+            if (item.children.isNotEmpty()) {
+                menuVegpontok(item.children)
+            } else if (item.action != MenuAction.SUBMENU) {
+                listOf(item)
+            } else {
+                emptyList()
+            }
+        }
+
+    private fun keresMenupontot(spoken: String): List<MenuItem> {
+        val norm = com.superdl.launcher.textreader.TextMatcher.normalize(spoken)
+        if (norm.isBlank()) return emptyList()
+        val vegpontok = menuVegpontok().distinctBy { it.action }
+        val pontos = vegpontok.filter {
+            com.superdl.launcher.textreader.TextMatcher.normalize(it.label) == norm
+        }
+        if (pontos.isNotEmpty()) return pontos.take(8)
+        return vegpontok.filter {
+            val cimke = com.superdl.launcher.textreader.TextMatcher.normalize(it.label)
+            cimke.contains(norm) || norm.contains(cimke)
+        }.take(8)
+    }
+
+    private fun offerCalendarActionRoutes(events: List<CalendarEvent>, eventIndex: Int) {
+        val sajat = com.superdl.launcher.macro.TaskRouteStore.all(this)
+        val csomag = com.superdl.launcher.macro.RoutePackStore.all(this)
+        val mind = (sajat + csomag).distinctBy { it.id }
+        if (mind.isEmpty()) {
+            tts.speak(
+                "Még nincs egyetlen műveletsor sem, amit hozzárendelhetnék. " +
+                    "Felvenni a képernyőolvasóban tudsz."
+            )
+            return
+        }
+        openCalendarActionOptions(
+            events, eventIndex,
+            cim = "Műveletsor",
+            options = mind.map {
+                CalendarActionOption(
+                    label = it.name,
+                    action = com.superdl.launcher.calendar.CalendarAction.RunTaskRoute(it.id, it.name)
+                )
+            }
+        )
+    }
+
+    private fun offerCalendarActionApps(events: List<CalendarEvent>, eventIndex: Int) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Melyik alkalmazást nyissa meg? Mondd ki a nevét.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val app = com.superdl.launcher.apps.ExternalAppHelper.findByName(this, spoken)
+                    if (app == null) {
+                        tts.speak("Nem találtam ilyen alkalmazást: $spoken. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    enterCalendarActionConfirm(
+                        events, eventIndex,
+                        com.superdl.launcher.calendar.CalendarAction.OpenApp(app.packageName, app.label)
+                    )
+                },
+                onError = { tts.speak("Művelet hozzárendelése megszakítva.") }
+            )
+        }
+    }
+
+    /**
+     * SMS: ELŐBB A CÍMZETT, AZTÁN A SZÖVEG.
+     *
+     * Ez az egyetlen művelet, ami visszavonhatatlanul KIFELÉ hat. Ezért itt
+     * két külön lépés van, és a végén a megerősítésnél a címzett ÉS a teljes
+     * szöveg is elhangzik.
+     */
+    private fun startCalendarActionSmsRecipient(events: List<CalendarEvent>, eventIndex: Int) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Kinek küldjön üzenetet? Mondd a nevét.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val talalatok = try {
+                        ContactHelper.searchByName(this, spoken)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                    if (talalatok.isEmpty()) {
+                        tts.speak("Nem találtam ilyen névjegyet: $spoken. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    openCalendarActionOptions(
+                        events, eventIndex,
+                        cim = "Címzett",
+                        options = talalatok.take(8).map {
+                            CalendarActionOption(
+                                label = "${it.name}, ${ContactHelper.maskPhone(it.phone)}",
+                                // A szöveg SZÁNDÉKOSAN üres: a következő
+                                // lépésben diktálja be a felhasználó.
+                                action = com.superdl.launcher.calendar.CalendarAction.SendSms(
+                                    number = it.phone, text = "", who = it.name
+                                )
+                            )
+                        }
+                    )
+                },
+                onError = { tts.speak("Művelet hozzárendelése megszakítva.") }
+            )
+        }
+    }
+
+    private fun openCalendarActionOptions(
+        events: List<CalendarEvent>,
+        eventIndex: Int,
+        cim: String,
+        options: List<CalendarActionOption>
+    ) {
+        if (options.isEmpty()) {
+            tts.speak("Nincs miből választani.")
+            return
+        }
+        activeFlow = AppFlow.CalendarActionOptionPick(events, eventIndex, cim, options, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "$cim: ${options.size} találat. Söpörj fel-le a választáshoz, " +
+                "jobbra a kiválasztáshoz, balra vissza."
+        )
+        tts.speakAdd(options.first().label)
+    }
+
+    private fun navigateCalendarActionOption(flow: AppFlow.CalendarActionOptionPick, delta: Int) {
+        val next = (flow.index + delta + flow.options.size) % flow.options.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.options[next].label)
+    }
+
+    private fun onCalendarActionOptionActivate(flow: AppFlow.CalendarActionOptionPick) {
+        val valasztott = flow.options[flow.index].action
+        // Az üres szövegű SMS a félkész eset: a címzett megvan, a szöveg még
+        // nincs. Ilyenkor nem mentünk, hanem diktálást kérünk.
+        if (valasztott is com.superdl.launcher.calendar.CalendarAction.SendSms &&
+            valasztott.text.isBlank()
+        ) {
+            activeFlow = AppFlow.CalendarActionSmsAwait(
+                flow.events, flow.eventIndex, valasztott.number, valasztott.who
+            )
+            updateFlowDisplay()
+            listenCalendarActionSmsText(flow.events, flow.eventIndex, valasztott.number, valasztott.who)
+            return
+        }
+        enterCalendarActionConfirm(flow.events, flow.eventIndex, valasztott)
+    }
+
+    private fun listenCalendarActionSmsText(
+        events: List<CalendarEvent>,
+        eventIndex: Int,
+        number: String,
+        who: String
+    ) {
+        ensureMicAndRun {
+            voiceInput.listen(
+                prompt = "Mi legyen az üzenet szövege? Mondd ki.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val szoveg = spoken.trim()
+                    if (szoveg.isBlank()) {
+                        tts.speak("Üres üzenetet nem küldök. Próbáld újra a menüből.")
+                        return@listen
+                    }
+                    enterCalendarActionConfirm(
+                        events, eventIndex,
+                        com.superdl.launcher.calendar.CalendarAction.SendSms(number, szoveg, who)
+                    )
+                },
+                onError = { tts.speak("Művelet hozzárendelése megszakítva.") }
+            )
+        }
+    }
+
+    private fun enterCalendarActionConfirm(
+        events: List<CalendarEvent>,
+        eventIndex: Int,
+        action: com.superdl.launcher.calendar.CalendarAction
+    ) {
+        activeFlow = AppFlow.CalendarActionConfirm(events, eventIndex, action)
+        updateFlowDisplay()
+        repeatCalendarActionConfirm(events[eventIndex], action)
+    }
+
+    private fun repeatCalendarActionConfirm(
+        event: CalendarEvent,
+        action: com.superdl.launcher.calendar.CalendarAction
+    ) {
+        tts.speak(
+            "Ezt fogom csinálni, amikor a ${event.title} program riasztása megszólal, " +
+                "és te igent mondasz rá. ${action.label()}. " +
+                "Söpörj jobbra a mentéshez, balra a mégsehez."
+        )
+    }
+
+    private fun saveCalendarActionAssignment(flow: AppFlow.CalendarActionConfirm) {
+        val event = flow.events[flow.eventIndex]
+        com.superdl.launcher.calendar.CalendarActionStore.set(this, event.eventId, flow.action)
+        sounds.play(SoundType.ACTION_OK)
+        returnToCalendarBrowse(flow.events, flow.eventIndex)
+        tts.speakAdd(
+            "Elmentve. A ${event.title} riasztásánál ez lesz az első választható " +
+                "lehetőség: ${flow.action.label()}."
+        )
+    }
+
+    private fun removeCalendarActionAssignment(events: List<CalendarEvent>, eventIndex: Int) {
+        val event = events[eventIndex]
+        val meglevo = com.superdl.launcher.calendar.CalendarActionStore.get(this, event.eventId)
+        if (meglevo == null) {
+            tts.speak("Ehhez a programhoz nincs művelet rendelve.")
+            return
+        }
+        com.superdl.launcher.calendar.CalendarActionStore.clear(this, event.eventId)
+        sounds.play(SoundType.ACTION_OK)
+        tts.speak("A hozzárendelt művelet törölve: ${meglevo.label()}.")
     }
 
     private fun returnToCalendarBrowse(events: List<CalendarEvent>, index: Int) {
@@ -8369,6 +8712,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleCalendarAlarmIntent(intent)
+        handleCalendarMenuActionIntent(intent)
         handleOpenBookIntent(intent)
 
         queueVoiceAssistantLaunchIfNeeded(intent)
@@ -8391,6 +8735,37 @@ class MainActivity : AppCompatActivity() {
             if (LockSession.needsUnlock(this)) return@postDelayed
             enterCallConfirm(ContactMatch("dial", "Tárcsázás", number))
         }, 300)
+    }
+
+    /**
+     * A NAPTÁRI MŰVELET „MENÜPONT MEGNYITÁSA" ÁGA.
+     *
+     * A CalendarActionRunner ide küld egy kérést: nyisd meg ezt a menüpontot.
+     * Ez azért kell külön, mert a riasztás akkor is megszólalhat, amikor a
+     * SuperDL nem fut — ilyenkor nincs kinek szólni, csak egy szándékot lehet
+     * átadni az induló programnak.
+     *
+     * A kérést AZONNAL kivesszük az intentből. Enélkül a menüpont minden
+     * képernyőforgatásnál és minden visszatérésnél újra megnyílna: a rendszer
+     * ugyanazt az intentet adja vissza.
+     */
+    private fun handleCalendarMenuActionIntent(intent: Intent?) {
+        val nev = intent?.getStringExtra(
+            com.superdl.launcher.calendar.CalendarActionRunner.EXTRA_MENU_ACTION
+        )?.trim().orEmpty()
+        if (nev.isBlank()) return
+        intent?.removeExtra(com.superdl.launcher.calendar.CalendarActionRunner.EXTRA_MENU_ACTION)
+        val action = MenuAction.entries.firstOrNull { it.name == nev }
+        if (action == null || action == MenuAction.SUBMENU) {
+            tts.speak("A naptárhoz rendelt menüpont már nem létezik.")
+            return
+        }
+        // Késleltetve: a program indulása közben a beszéd és a képernyő még
+        // nincs kész, és a menüpont saját bevezetője elveszne.
+        mainHandler.postDelayed({
+            if (LockSession.needsUnlock(this)) return@postDelayed
+            handleActionInner(MenuItem("naptar_muvelet", action.name, action))
+        }, 700L)
     }
 
     private fun handleCalendarAlarmIntent(intent: Intent?) {
@@ -18966,6 +19341,26 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = if (calendarEditEventId != null) "Program szerkesztése" else "Új program"
                 tvPosition.text = "1 / 6  •  Név diktálása"
                 tvHint.text = "Mondd a program nevét  •  ⬅ mégse"
+            }
+            is AppFlow.CalendarActionTypePick -> {
+                tvItem.text = calendarActionTypes[flow.index]
+                tvPosition.text = "Művelet fajtája  •  ${flow.events[flow.eventIndex].title}"
+                tvHint.text = "⬆⬇ választás  •  ➡ tovább  •  ⬅ vissza"
+            }
+            is AppFlow.CalendarActionOptionPick -> {
+                tvItem.text = flow.options[flow.index].label
+                tvPosition.text = "${flow.cim}  •  ${flow.index + 1} / ${flow.options.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
+            is AppFlow.CalendarActionSmsAwait -> {
+                tvItem.text = flow.who
+                tvPosition.text = "Üzenet szövege  •  diktálás"
+                tvHint.text = "Mondd ki az üzenetet  •  ⬅ mégse"
+            }
+            is AppFlow.CalendarActionConfirm -> {
+                tvItem.text = flow.action.label()
+                tvPosition.text = "Mentés?  •  ${flow.events[flow.eventIndex].title}"
+                tvHint.text = "➡ mentés  •  ⬅ mégse"
             }
             is AppFlow.CalendarAwaitDate -> {
                 tvItem.text = flow.title

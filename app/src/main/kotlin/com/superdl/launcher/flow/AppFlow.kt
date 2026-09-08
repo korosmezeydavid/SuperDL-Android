@@ -371,6 +371,45 @@ sealed class AppFlow {
         val actionIndex: Int
     ) : AppFlow()
 
+    // ===== NAPTÁRI MŰVELET HOZZÁRENDELÉSE =====
+    //
+    // Három lépés, mert vakon a „mindent egy képernyőn" nem működik:
+    // előbb a FAJTA, aztán a KONKRÉT dolog, végül a VISSZAOLVASÁS. Az utolsó
+    // lépés nem elhagyható: a program visszamondja, mit fog csinálni, és csak
+    // azután menti. Egy naptári művelet a felhasználó nevében cselekszik —
+    // annak, amit nem hallott vissza, nem mondhat igent.
+
+    /** Melyik fajta műveletet rendeljük a programhoz. */
+    data class CalendarActionTypePick(
+        val events: List<com.superdl.launcher.calendar.CalendarEvent>,
+        val eventIndex: Int,
+        val index: Int
+    ) : AppFlow()
+
+    /** A fajtán belül melyiket: menüpont, műveletsor, alkalmazás vagy címzett. */
+    data class CalendarActionOptionPick(
+        val events: List<com.superdl.launcher.calendar.CalendarEvent>,
+        val eventIndex: Int,
+        val cim: String,
+        val options: List<CalendarActionOption>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Az SMS szövegének diktálására várunk. */
+    data class CalendarActionSmsAwait(
+        val events: List<com.superdl.launcher.calendar.CalendarEvent>,
+        val eventIndex: Int,
+        val number: String,
+        val who: String
+    ) : AppFlow()
+
+    /** Visszaolvasás és megerősítés mentés előtt. */
+    data class CalendarActionConfirm(
+        val events: List<com.superdl.launcher.calendar.CalendarEvent>,
+        val eventIndex: Int,
+        val action: com.superdl.launcher.calendar.CalendarAction
+    ) : AppFlow()
+
     data class CalendarAlarmContextMenu(
         val event: com.superdl.launcher.calendar.CalendarEvent,
         val actions: List<com.superdl.launcher.calendar.CalendarAlarmAction>,
