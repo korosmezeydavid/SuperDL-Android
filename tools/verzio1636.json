@@ -1,0 +1,7 @@
+{
+  "megjegyzes": "A SuperDL mobil legfrissebb verziója. A telefon naponta kétszer ránéz erre a fájlra, és szól, ha újabb van. Kiadáskor EZT a fájlt kell frissíteni.",
+  "verzio": "1.63.6",
+  "letoltes": "https://github.com/korosmezeydavid/SuperDL-Android/releases/latest/download/SuperDL.apk",
+  "kiadva": "2026-09-09",
+  "ujdonsagok": "SZEREPKÖRÖK: az egyik tesztelő telefonján az alapértelmezett üzenet alkalmazás tizenegy próbálkozás után is hiányzott. Kiderült, hogy nem ő mondott nemet: a telefon meg sem jelenítette a kérdést, azonnal visszadobta. Mostantól a program méri, mi történt, és két sikertelen kör után nem kérdez harmadszor is ugyanúgy, hanem megnyitja az alapértelmezett alkalmazások listáját, ahol nem kérdés van, hanem választás — és ki is mondja, hogy miért váltott, meg hogy nem a te hibád. A hibajelentésbe bekerül az utolsó próbálkozás eredménye. PODCAST: a letöltött adások eddig olyan mappába kerültek, amit az Android 11 óta egyetlen fájlkezelő sem nyithat meg — a fájl ott volt, csak láthatatlanul. Mostantól a közös Letöltések mappa Super DL almappájába kerülnek, a műsor és az adás címével, nem egy számsorral. A program eddig újra letöltötte azt is, ami már megvolt, mert a szolgáltatók változó mérőszámot fűznek a hivatkozás végére; ez rendben van, és a régi helyen is megkeresi, ami korábbról megvan. És végre lehet törölni: az adás menüjének második sora attól függ, hogy le van-e már töltve — ugyanott, ahol letöltötted, megerősítő kérdéssel. Használat csak tartalék készüléken egyelőre, vagy saját felelősségre!"
+}

@@ -1,0 +1,69 @@
+Xiaomi szerepkor: a nema visszautasitas merese; podcast letoltesek
+
+XIAOMI SZEREPKOR-HIBA (szonye48, 24094RAD4G, Android 16, 1.63.5)
+
+A jelentesben az "alapertelmezett uzenet alkalmazas" TIZENEGY probalkozas
+utan is hianyzott. A manifest es a keres utja is rendben van: mind a negy
+kotelezo osszetevo megvan a helyes engedelyekkel, es a szerepkort a modern
+RoleManager.createRequestRoleIntent uton, EREDMENYRE INDITVA kerjuk.
+
+A valodi ok: a rendszer meg sem jeleniti a kerdest, azonnal visszadobja.
+Ugyanaz a hibaosztaly, ami az asszisztens szerepkort fogta meg 1.62.1-ben.
+
+Az igazi baj a MERES HIANYA volt. Ket teljesen kulonbozo dolog adta ugyanazt
+a "probalkozas: 11" sort: (1) az ablak megjelent es a felhasznalo nemet
+mondott, (2) az ablak meg sem jelent. Vakon ez a kulonbseg minden.
+
+- SetupPrefs: noteOutcome / lastOutcome / silentRefusal. A hatar 900 ms:
+  ennyi ido alatt ember nem olvas el egy kerdest es nem valaszol ra.
+- SetupRequirements.manualRouteFor: a kezi ut (alapertelmezett alkalmazasok
+  oldal -> app-reszletek -> beallitasok fooldala), az elso feloldhato
+  jelolttel. Feloldhatatlan szandekot inditani nema zsakutca.
+- MainActivity: merjuk az idot es az eredmenykodot; szerepkornel ket
+  sikertelen probalkozas vagy egy nema visszautasitas utan a KEZI UTRA
+  valtunk, es ki is mondjuk, hogy miert.
+- A "meg mindig hianyzik" mondat uj aga: nem te rontottad el, a telefonod
+  meg sem jelenitette a kerdest.
+- systemScreenHint: kulon mondat a role_sms es role_dialer tetelekre. A
+  kerdes es a lista ket kulonbozo dolog, mas utbaigazitas kell rajuk.
+- SetupDiagnostics: uj sor tetelenkent az utolso probalkozas eredmenyerol,
+  es a probalkozas-szamlalo a lemezre irt erteket veszi, ha nagyobb (MIUI-n
+  a memoriabeli folyton nullazodik).
+
+PODCAST LETOLTESEK (Mezei Geza, "Minden ami belefer")
+
+Harom panasz, harom kulon ok.
+
+1. Nem erheto el fajlkezelovel. A fajlok az Android/data mappaba kerultek,
+   amit az Android 11 ota egyetlen fajlkezelo sem nyithat meg. Mostantol a
+   kozos Letoltesek / Super DL mappaba, olvashato fajlnevvel (muso es adas
+   cime), MediaScannerConnection ertesitessel. Ha a kozos mappa nem irhato,
+   marad a regi hely tartaleknak.
+
+2. Ujratoltotte a meglevot. A fajlnev a TELJES hivatkozasbol keszult, a
+   szolgaltatok viszont valtozo merszamot fuznek a vegere - mas hivatkozas,
+   mas fajlnev, minden alkalommal ujnak latszott. Most a kerdojel elotti
+   resz szamit, es a korabbiFajl() negy helyen keres (kozos mappa uj es regi
+   neven, regi sajat mappa, katalogus-utvonal).
+
+3. Nem lehetett torolni. Nem volt ra kod es menupont sem. Uj:
+   PodcastDownloadHelper.delete() (fajl ES katalogus-bejegyzes),
+   allapotfuggo menusor ("Letoltes" / "Torles a letoltesekbol"), es az
+   AppFlow.PodcastDeleteConfirm megerosites - mind a negy gesztus-
+   diszpecserbe es az updateFlowDisplay-be bekotve.
+
+Mellekesen: az adas-menu mostantol a menupont NEVERE kapcsol, nem a
+sorszamara. A lista hossza ugyanis mar nem allando (a Letoltesek alatt
+harom sor van, a musoroknal negy), es sorszamra hivatkozva ez pontosan az a
+hiba lenne, amit a naptari muveleteknel mar egyszer elkovettunk: minden
+mukodik, csak epp mast csinal, mint amit a felhasznalo hallott.
+
+A Letoltesek virtualis listaban nincs fel- es leiratkozas: az egy
+gyujtemeny, nem musor. Egy menupont, ami semmit nem csinal, vakon rosszabb,
+mintha ott sem lenne.
+
+Fordul: :app:compileDebugKotlin BUILD SUCCESSFUL. Telefonon meg nincs
+kiprobalva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -1,0 +1,22 @@
+1.63.6 - szerepkor-meres es kezi ut, podcast letoltesek
+
+versionCode 116, versionName 1.63.6.
+
+A Letoltesek bevezetoje csak akkor nevezi meg a kozos mappat, ha tenyleg
+oda kerulnek a fajlok. Fajl-engedely nelkul a tartalek helyre mennek, es
+ilyenkor a program ezt mondja meg, nem a masikat - kulonben pontosan azt a
+felrevezetest ismetelnenk, ami miatt Geza hiaba kereste a letolteseit.
+
+Kiadasi szkriptek: build_release1636, publish1636, relnotes1636,
+verzio1636, kiadas1636, finalcheck1636.
+
+A finalcheck mostantol az SMS-szerepkor mind a negy kotelezo osszetevojet
+is ellenorzi a KIADASI APK-ban. A szonye48-fele hibanal ez volt az elso
+kerdes, amire valaszolni kellett, es kezzel kellett megnezni.
+
+Ellenorizve a kiadasi APK-n: versionName 1.63.6, LAUNCHER es HOME kategoria
+megvan, mind a negy SMS-osszetevo megvan, 38 zarhang klip, 6 Elena klip,
+alairva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -9616,9 +9616,19 @@ class MainActivity : AppCompatActivity() {
         )
         activeFlow = AppFlow.PodcastEpisodeBrowse(virtualPodcast, episodes, 0)
         updateFlowDisplay()
+        // A HELY MEGNEVEZÉSE CSAK AKKOR HANGOZHAT EL, HA IGAZ. Fájl-engedély
+        // nélkül a letöltések a tartalék helyre kerülnek, ahova a fájlkezelő
+        // nem lát be — ott ezt a mondatot kimondani félrevezetés lenne.
+        val hol = if (PodcastDownloadHelper.kozosMappatHasznal()) {
+            "A fájlok a Letöltések mappa Super DL almappájában vannak. "
+        } else {
+            "A fájlok most a program saját mappájába kerülnek, mert hiányzik a " +
+                "fájl-engedély. Ha a beállítás varázslóban megadod az Összes fájl " +
+                "kezelése engedélyt, a Letöltések mappába kerülnek, ahol a " +
+                "fájlkezelővel is megtalálod őket. "
+        }
         tts.speak(
-            "Letöltéseim. ${episodes.size} adás. A fájlok a Letöltések mappa Super DL " +
-                "almappájában vannak. ${episodes.first().speakPreview()}"
+            "Letöltéseim. ${episodes.size} adás. $hol${episodes.first().speakPreview()}"
         )
     }
 

@@ -68,6 +68,17 @@ object PodcastDownloadHelper {
     private fun dir(context: Context): File = kozosMappa() ?: sajatMappa(context)
 
     /**
+     * A KÖZÖS MAPPÁT HASZNÁLJUK-E — HOGY NE MONDJUNK VALÓTLANT.
+     *
+     * A Letöltéseim bevezetője megmondja, hol vannak a fájlok. Ha nincs
+     * fájl-engedély, akkor viszont a tartalék helyre kerülnek, ahova a
+     * fájlkezelő nem lát be. Ilyenkor azt mondani, hogy „a Letöltések mappa
+     * Super DL almappájában", pontosan az a hazugság lenne, ami miatt Géza
+     * eddig hiába kereste őket.
+     */
+    fun kozosMappatHasznal(): Boolean = kozosMappa() != null
+
+    /**
      * AZ EPIZÓD AZONOSÍTÓJA — A KÉRDŐJEL UTÁNI RÉSZ NÉLKÜL.
      *
      * A MÁSIK HIBA UGYANEBBŐL A LEVÉLBŐL: „kipróbáltam hogy a telefont
