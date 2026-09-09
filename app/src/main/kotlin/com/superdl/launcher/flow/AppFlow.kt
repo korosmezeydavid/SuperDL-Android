@@ -1063,6 +1063,18 @@ sealed class AppFlow {
         val episodeIndex: Int,
         val actionIndex: Int
     ) : AppFlow()
+    /**
+     * LETÖLTÖTT ADÁS TÖRLÉSÉNEK MEGERŐSÍTÉSE.
+     *
+     * Ugyanazt a három adatot viszi tovább, amit az adás-menü, hogy törlés
+     * UTÁN vissza lehessen állni a helyére a listában. Aki a nyolcadik
+     * adásnál törölt, ne a lista elején találja magát.
+     */
+    data class PodcastDeleteConfirm(
+        val podcast: com.superdl.launcher.podcast.Podcast,
+        val episodes: List<com.superdl.launcher.podcast.PodcastEpisode>,
+        val episodeIndex: Int
+    ) : AppFlow()
     data class PodcastCountryBrowse(val index: Int) : AppFlow()
     object MedicationSearchLoading : AppFlow()
     data class MedicationSearchResult(

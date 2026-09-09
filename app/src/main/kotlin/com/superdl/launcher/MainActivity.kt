@@ -1080,6 +1080,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.PodcastListBrowse -> navigatePodcastList(flow, -1)
             is AppFlow.PodcastEpisodeBrowse -> navigatePodcastEpisodes(flow, -1)
             is AppFlow.PodcastEpisodeMenu -> navigatePodcastEpisodeMenu(flow, -1)
+            is AppFlow.PodcastDeleteConfirm ->
+                flow.episodes.getOrNull(flow.episodeIndex)?.let { repeatPodcastDeleteConfirm(it) }
             is AppFlow.PodcastCountryBrowse -> navigatePodcastCountry(flow, -1)
             is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, -1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
@@ -1280,6 +1282,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.PodcastListBrowse -> navigatePodcastList(flow, +1)
             is AppFlow.PodcastEpisodeBrowse -> navigatePodcastEpisodes(flow, +1)
             is AppFlow.PodcastEpisodeMenu -> navigatePodcastEpisodeMenu(flow, +1)
+            is AppFlow.PodcastDeleteConfirm ->
+                flow.episodes.getOrNull(flow.episodeIndex)?.let { repeatPodcastDeleteConfirm(it) }
             is AppFlow.PodcastCountryBrowse -> navigatePodcastCountry(flow, +1)
             is AppFlow.LocationProfileActions -> navigateLocationProfileActions(flow, +1)
             is AppFlow.LocationProfileDeleteConfirm -> repeatLocationProfileDeleteConfirm(flow.profile)
@@ -1526,6 +1530,7 @@ class MainActivity : AppCompatActivity() {
                 flow.podcasts.getOrNull(flow.index)?.let { openPodcast(it) }
             is AppFlow.PodcastEpisodeBrowse -> enterPodcastEpisodeMenu(flow)
             is AppFlow.PodcastEpisodeMenu -> onPodcastEpisodeMenuActivate(flow)
+            is AppFlow.PodcastDeleteConfirm -> deletePodcastDownload(flow)
             is AppFlow.PodcastCountryBrowse -> onPodcastCountryActivate(flow)
             is AppFlow.LocationProfileActions -> onLocationProfileActionActivate(flow)
             is AppFlow.LocationProfileDeleteConfirm -> deleteLocationProfile(flow)
@@ -1848,6 +1853,16 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 val ep = flow.episodes.getOrNull(flow.episodeIndex)
                 tts.speak(ep?.title ?: "Adások.")
+            }
+            // A törlés MEGSZAKÍTÁSA visszavisz az adás-menübe, nem ki a
+            // semmibe: aki meggondolta magát, ott folytassa, ahol volt.
+            is AppFlow.PodcastDeleteConfirm -> {
+                activeFlow = AppFlow.PodcastEpisodeMenu(
+                    flow.podcast, flow.episodes, flow.episodeIndex, 0
+                )
+                updateFlowDisplay()
+                val ep = flow.episodes.getOrNull(flow.episodeIndex)
+                tts.speak("Mégsem törlöm. ${ep?.title ?: ""}")
             }
             is AppFlow.PodcastCountryBrowse -> exitFlow("Ország választás megszakítva.")
             is AppFlow.LocationProfileActions -> {
@@ -4875,7 +4890,18 @@ class MainActivity : AppCompatActivity() {
      */
     private val setupSystemScreen = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) {
+    ) { eredmeny ->
+        // MENNYI IDEIG VOLT A KÉPERNYŐN — ez a mérés a diagnózis.
+        // Ha a rendszer fél másodpercen belül visszadobta, ott nem a
+        // felhasználó mondott nemet, hanem a telefon nem engedte. A kettőt
+        // eddig semmi nem különböztette meg, ezért látszott szonye48
+        // naplójában tizenegy egyforma, néma próbálkozás.
+        val id = setupScreenId
+        if (id != null) {
+            val eltelt = android.os.SystemClock.elapsedRealtime() - setupScreenStartedAt
+            SetupPrefs.noteOutcome(this, id, eredmeny.resultCode, eltelt)
+            setupScreenId = null
+        }
         val flow = activeFlow
         if (flow is AppFlow.SetupWizardAwaitReturn) {
             // Kis késleltetés: a rendszer néha csak a képernyő bezárása UTÁN
@@ -4890,6 +4916,10 @@ class MainActivity : AppCompatActivity() {
 
     /** Hányszor próbáltuk már megadni ugyanazt a tételt (a zsákutca ellen). */
     private val setupAttempts = mutableMapOf<String, Int>()
+
+    /** Melyik tételhez nyitottunk rendszerképernyőt, és mikor. */
+    private var setupScreenId: String? = null
+    private var setupScreenStartedAt: Long = 0L
 
     /** Melyik követelményre vár a varázsló a rendszer engedély-kérdése alatt. */
     private var setupWizardPending: String? = null
@@ -5746,9 +5776,28 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val intent = SetupRequirements.systemIntentFor(this, req)
+        // HA A KÉRŐ ABLAK MÁR KÉTSZER NEM JÖTT ELŐ, NEM PRÓBÁLJUK HARMADSZOR.
+        //
+        // A HIBA (szonye48, Xiaomi 24094RAD4G, Android 16, 1.63.5): az
+        // „alapértelmezett üzenet alkalmazás" TIZENEGYSZER futott le
+        // eredménytelenül. Ugyanaz az út, ugyanaz a néma vég. Aki vakon
+        // tizenegyszer végigcsinálja ugyanazt, az joggal hiszi, hogy ő
+        // rontja el — pedig a rendszer nem is kérdezett semmit.
+        //
+        // A kézi út MÁS: ott nem kérünk, hanem a felhasználó választ egy
+        // listából. Ezért a harmadik próbálkozástól a beállítás-oldalra
+        // visszük, és ezt ki is mondjuk.
+        val korabbiProbak = SetupPrefs.attemptCount(this, req.id)
+        val nemaVisszautasitas = SetupPrefs.silentRefusal(this, req.id)
+        val kezziUt = req.kind == SetupRequirements.RequestKind.ROLE &&
+            (korabbiProbak >= 2 || nemaVisszautasitas)
+        val intent = (if (kezziUt) SetupRequirements.manualRouteFor(this, req) else null)
+            ?: SetupRequirements.systemIntentFor(this, req)
+            ?: SetupRequirements.manualRouteFor(this, req)
             ?: SetupRequirements.appSettingsIntent(this)
         setupAttempts[req.id] = SetupPrefs.noteAttempt(this, req.id)
+        setupScreenId = req.id
+        setupScreenStartedAt = android.os.SystemClock.elapsedRealtime()
         activeFlow = if (req.kind == SetupRequirements.RequestKind.MANUAL) {
             AppFlow.SetupWizardConfirmManual(req, flow.firstRun)
         } else {
@@ -5761,12 +5810,22 @@ class MainActivity : AppCompatActivity() {
         // 2026-09-03: A KÉPERNYŐ AZONNAL NYÍLIK, nem várjuk meg a mondat végét.
         // A magyarázat a rendszerképernyőn is végigszól, tehát nem vész el —
         // aki viszont tudja, mit keres, ne álljon és várjon. (Alph kérése.)
-        tts.speakAndRun(
+        val bevezeto = if (kezziUt) {
+            // ŐSZINTÉN MEGMONDJUK, MIÉRT MÁS AZ ÚT. Enélkül a felhasználó azt
+            // hinné, elrontott valamit, holott a telefonja nem engedte a
+            // kérdést. Ez a mondat a különbség aközött, hogy valaki feladja,
+            // vagy hogy tudja, mit csinál.
+            "${req.title}. Ezt a kérdést a telefonod nem engedte feltenni, ezért most " +
+                "másik úton megyünk: megnyitom az alapértelmezett alkalmazások listáját, " +
+                "és ott te választod ki a Super DL-t. ${systemScreenHint(req)} " +
+                "Utána nyomd meg a vissza gombot, és ide visszatérve ellenőrizzük."
+        } else {
             "${req.title}. ${req.speakWhy()} " +
                 "Most megnyílik a rendszer beállítás képernyője. " +
                 "${systemScreenHint(req)} " +
                 "Utána nyomd meg a vissza gombot, és ide visszatérve ellenőrizzük."
-        ) {
+        }
+        tts.speakAndRun(bevezeto) {
             try {
                 // EREDMÉNYRE INDÍTVA, NEM startActivity-vel. A szerepkör-kérő
                 // ablak a hívó nevét a getCallingPackage()-ből olvassa, ami
@@ -5865,6 +5924,19 @@ class MainActivity : AppCompatActivity() {
                     "fel: Beállítások, Alkalmazások, Super DL, a jobb felső sarokban a három " +
                     "pont menü, és abban a Korlátozott beállítások engedélyezése. Utána " +
                     "gyere vissza ide. $kiut"
+            // A NÉMA VISSZAUTASÍTÁS KÜLÖN ESET, ÉS KI KELL MONDANI.
+            // Ha a rendszer fél másodpercen belül visszadobta a kérdést, akkor
+            // ott a felhasználó nem döntött semmiről. Ha ilyenkor is azt
+            // mondanánk neki, hogy „próbáld újra", azzal magára hagynánk egy
+            // körben, amiből nem tud kilépni.
+            req.kind == SetupRequirements.RequestKind.ROLE &&
+                SetupPrefs.silentRefusal(this, req.id) ->
+                "${req.title}: még mindig hiányzik, de nem te rontottad el. A telefonod " +
+                    "meg sem jelenítette a kérdést, azonnal visszadobta. Ezért a következő " +
+                    "jobbra söprésre már nem kérdezni fogunk, hanem megnyitom az " +
+                    "alapértelmezett alkalmazások listáját, ahol ki tudod választani a " +
+                    "Super DL-t. Ha ott sem engedi, akkor ezt a telefon gyártója zárta le. " +
+                    "$kiut"
             req.kind == SetupRequirements.RequestKind.ROLE ->
                 "${req.title}: még mindig hiányzik. Ha a választó lista nem jött elő, " +
                     "próbáld újra egy jobbra söpréssel, vagy állítsd be kézzel: Beállítások, " +
@@ -5884,6 +5956,16 @@ class MainActivity : AppCompatActivity() {
      */
     private fun systemScreenHint(req: SetupRequirements.Requirement): String = when (req.id) {
         "role_home" -> "Válaszd ki a Super DL-t alapértelmezett kezdőképernyőnek."
+        // A SZEREPKÖRÖKNEK KÉT ÚTJUK VAN, ÉS MÁST KELL MONDANI RÁJUK.
+        // Ha a kérő ablak jön, ott egy igen-nem kérdés van. Ha a kézi útra
+        // váltottunk, ott egy LISTA van, amiben előbb a sort kell megtalálni.
+        // Aki ugyanazt a mondatot hallja mindkettőre, az a listán elveszik.
+        "role_sms" ->
+            "Ha kérdés jön, mondj igent. Ha lista nyílik, keresd az " +
+                "Üzenetküldő alkalmazás sort, nyisd meg, és abban válaszd a Super DL-t."
+        "role_dialer" ->
+            "Ha kérdés jön, mondj igent. Ha lista nyílik, keresd a " +
+                "Telefon alkalmazás sort, nyisd meg, és abban válaszd a Super DL-t."
         "storage_all_files" ->
             "Kapcsold be az Összes fájl kezelése kapcsolót a Super DL-nél."
         "screen_reader" ->
@@ -9510,6 +9592,15 @@ class MainActivity : AppCompatActivity() {
         enterPodcastList(subs, "Feliratkozásaim")
     }
 
+    /**
+     * A LETÖLTÉSEIM VIRTUÁLIS MŰSOR AZONOSÍTÓJA.
+     *
+     * Nem egy podcast, hanem egy gyűjtemény — ezért néhány menüpont (fel- és
+     * leiratkozás) itt értelmetlen. Egy helyen írjuk le, hogy ne kelljen
+     * három helyen ugyanazt a szöveget egyeztetni.
+     */
+    private val PODCAST_DOWNLOADS_ID = "downloads"
+
     private fun startPodcastDownloadsFlow() {
         val episodes = PodcastDownloadHelper.downloadedEpisodes(this)
         if (episodes.isEmpty()) {
@@ -9517,10 +9608,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
         // A letöltéseket ugyanazzal az epizód-böngészővel mutatjuk.
-        val virtualPodcast = Podcast(id = "downloads", title = "Letöltéseim", author = "", feedUrl = "")
+        val virtualPodcast = Podcast(
+            id = PODCAST_DOWNLOADS_ID,
+            title = "Letöltéseim",
+            author = "",
+            feedUrl = ""
+        )
         activeFlow = AppFlow.PodcastEpisodeBrowse(virtualPodcast, episodes, 0)
         updateFlowDisplay()
-        tts.speak("Letöltéseim. ${episodes.size} adás. ${episodes.first().speakPreview()}")
+        tts.speak(
+            "Letöltéseim. ${episodes.size} adás. A fájlok a Letöltések mappa Super DL " +
+                "almappájában vannak. ${episodes.first().speakPreview()}"
+        )
     }
 
     private fun startPodcastCountryFlow() {
@@ -9614,36 +9713,75 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.PodcastEpisodeMenu(flow.podcast, flow.episodes, flow.index, 0)
         updateFlowDisplay()
         val ep = flow.episodes[flow.index]
-        tts.speak("${ep.title}. ${podcastEpisodeActions(flow.podcast).first()}")
+        tts.speak("${ep.title}. ${podcastEpisodeActions(flow.podcast, ep).first()}")
     }
 
-    private fun podcastEpisodeActions(podcast: Podcast): List<String> {
+    /**
+     * MI TEHETŐ EGY ADÁSSAL — ÉS MIÉRT FÜGG AZ ADÁSTÓL IS.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Mezei Géza, 2026-09-09): „a letöltéseinkből nem
+     * lehet kitörölni semmit, így viszont, ha úgy tetszik, foglalja a helyet."
+     * Igaza volt: a menüben volt Letöltés, de sehol nem volt Törlés. A program
+     * tudott gyűjteni, de nem tudott elengedni.
+     *
+     * Ezért a menü most az adás ÁLLAPOTÁT is figyeli. Ami már le van töltve,
+     * annál a második sor a törlés — nem egy külön menüpont, amit meg kell
+     * találni, hanem ugyanott, ahol letöltötte.
+     *
+     * A Letöltéseim listában nincs fel- és leiratkozás: az egy virtuális
+     * lista, nem egy műsor. Egy olyan menüpont, ami semmit nem csinál, vakon
+     * rosszabb, mint ha ott sem lenne.
+     */
+    private fun podcastEpisodeActions(podcast: Podcast, ep: PodcastEpisode?): List<String> {
+        val letoltve = ep != null && PodcastDownloadHelper.isDownloaded(this, ep)
+        val letoltesSor = if (letoltve) {
+            "Törlés a letöltésekből"
+        } else {
+            "Letöltés offline hallgatáshoz"
+        }
+        if (podcast.id == PODCAST_DOWNLOADS_ID) {
+            return listOf("Lejátszás", letoltesSor, "Leírás felolvasása")
+        }
         val subscribed = if (podcast.feedUrl.isNotBlank() && PodcastStore.isSubscribed(this, podcast)) {
             "Leiratkozás"
         } else {
             "Feliratkozás"
         }
-        return listOf("Lejátszás", "Letöltés offline hallgatáshoz", subscribed, "Leírás felolvasása")
+        return listOf("Lejátszás", letoltesSor, subscribed, "Leírás felolvasása")
     }
 
     private fun navigatePodcastEpisodeMenu(flow: AppFlow.PodcastEpisodeMenu, delta: Int) {
-        val actions = podcastEpisodeActions(flow.podcast)
+        val actions = podcastEpisodeActions(flow.podcast, flow.episodes.getOrNull(flow.episodeIndex))
         val next = (flow.actionIndex + delta + actions.size) % actions.size
         activeFlow = flow.copy(actionIndex = next)
         updateFlowDisplay()
         tts.speak(actions[next])
     }
 
+    /**
+     * A MENÜPONT NEVE DÖNT, NEM A SORSZÁMA.
+     *
+     * MIÉRT ÍRTAM ÁT: a lista mostantól nem mindig ugyanolyan hosszú — a
+     * Letöltéseim alatt három sor van, a műsoroknál négy, és a második sor
+     * hol letöltés, hol törlés. Sorszámra hivatkozva ez pontosan az a hiba
+     * lenne, amit a naptári műveleteknél már egyszer elkövettünk: minden
+     * működik, csak épp mást csinál, mint amit a felhasználó hallott.
+     *
+     * Névre hivatkozva a lista bármikor bővülhet anélkül, hogy itt bármit
+     * el lehetne rontani.
+     */
     private fun onPodcastEpisodeMenuActivate(flow: AppFlow.PodcastEpisodeMenu) {
         val ep = flow.episodes[flow.episodeIndex]
-        when (flow.actionIndex) {
-            0 -> {
+        val actions = podcastEpisodeActions(flow.podcast, ep)
+        when (actions.getOrNull(flow.actionIndex)) {
+            "Lejátszás" -> {
                 PodcastEpisodeHolder.current = ep
                 startActivity(Intent(this, PodcastPlayerActivity::class.java))
                 exitFlow("Lejátszás: ${ep.title}")
             }
-            1 -> downloadPodcastEpisode(ep)
-            2 -> {
+            "Letöltés offline hallgatáshoz" -> downloadPodcastEpisode(ep)
+            "Törlés a letöltésekből" -> enterPodcastDeleteConfirm(flow, ep)
+            "Feliratkozás", "Leiratkozás" -> {
                 if (flow.podcast.feedUrl.isBlank()) {
                     tts.speak("Ehhez a listához nem lehet feliratkozni.")
                     return
@@ -9654,12 +9792,56 @@ class MainActivity : AppCompatActivity() {
                     else "Leiratkozva: ${flow.podcast.title}."
                 )
             }
-            3 -> {
+            "Leírás felolvasása" -> {
                 val desc = ep.description.trim()
                 if (desc.isBlank()) tts.speak("Ehhez az adáshoz nincs leírás.")
                 else tts.speak(desc.take(900))
             }
         }
+    }
+
+    /**
+     * TÖRLÉS ELŐTT KÉRDEZÜNK.
+     *
+     * A letöltés visszavonható: újra le lehet tölteni. Egy félreértett
+     * söprés viszont ne vigyen el egy adást, amit valaki mobilneten,
+     * lassan szedett le. A megerősítés itt nem bürokrácia, hanem a
+     * visszaút.
+     */
+    private fun enterPodcastDeleteConfirm(flow: AppFlow.PodcastEpisodeMenu, ep: PodcastEpisode) {
+        activeFlow = AppFlow.PodcastDeleteConfirm(flow.podcast, flow.episodes, flow.episodeIndex)
+        updateFlowDisplay()
+        repeatPodcastDeleteConfirm(ep)
+    }
+
+    private fun repeatPodcastDeleteConfirm(ep: PodcastEpisode) {
+        tts.speak(
+            "Törlöd a letöltött adást? ${ep.title}. A telefonról törlődik, de bármikor " +
+                "letöltheted újra. Söprés jobbra a törléshez, söprés balra a mégsehez."
+        )
+    }
+
+    private fun deletePodcastDownload(flow: AppFlow.PodcastDeleteConfirm) {
+        val ep = flow.episodes[flow.episodeIndex]
+        val ok = PodcastDownloadHelper.delete(this, ep)
+        if (!ok) {
+            exitFlow("Ezt az adást nem sikerült törölni.", error = true)
+            return
+        }
+        // A LISTÁT ÚJRA KELL KÉRNI. Ha a régit hagynánk, a törölt adás
+        // továbbra is ott lenne — a felhasználó pedig azt hinné, nem sikerült.
+        val maradek = PodcastDownloadHelper.downloadedEpisodes(this)
+        if (flow.podcast.id == PODCAST_DOWNLOADS_ID && maradek.isNotEmpty()) {
+            val index = flow.episodeIndex.coerceIn(0, maradek.size - 1)
+            activeFlow = AppFlow.PodcastEpisodeBrowse(flow.podcast, maradek, index)
+            updateFlowDisplay()
+            tts.speak(
+                "Törölve: ${ep.title}. ${maradek.size} letöltött adás maradt. " +
+                    maradek[index].speakPreview()
+            )
+            return
+        }
+        exitFlow("Törölve: ${ep.title}.")
     }
 
     private fun downloadPodcastEpisode(ep: PodcastEpisode) {
@@ -18705,10 +18887,18 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = "⬆⬇ adások  •  ➡ menü  •  ⬅ vissza"
             }
             is AppFlow.PodcastEpisodeMenu -> {
-                val actions = podcastEpisodeActions(flow.podcast)
+                val actions = podcastEpisodeActions(
+                    flow.podcast,
+                    flow.episodes.getOrNull(flow.episodeIndex)
+                )
                 tvItem.text = actions.getOrNull(flow.actionIndex) ?: ""
                 tvPosition.text = flow.episodes.getOrNull(flow.episodeIndex)?.title ?: "Epizód"
                 tvHint.text = "⬆⬇ műveletek  •  ➡ indít  •  ⬅ vissza"
+            }
+            is AppFlow.PodcastDeleteConfirm -> {
+                tvItem.text = "Törlöd a letöltést?"
+                tvPosition.text = flow.episodes.getOrNull(flow.episodeIndex)?.title ?: "Epizód"
+                tvHint.text = "➡ törlés  •  ⬅ mégsem"
             }
             is AppFlow.PodcastCountryBrowse -> {
                 val c = PodcastStore.COUNTRIES.getOrNull(flow.index)

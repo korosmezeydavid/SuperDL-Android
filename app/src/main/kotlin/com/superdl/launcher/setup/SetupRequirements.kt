@@ -605,6 +605,46 @@ object SetupRequirements {
             else -> null
         }
 
+    /**
+     * A KÉZI ÚT EGY SZEREPKÖRHÖZ — HA A KÉRŐ ABLAK NEM JÖN ELŐ.
+     *
+     * MIÉRT KELL. A szerepkör-kérés egy IGEN-NEM ablak, amit a rendszer
+     * megtagadhat: ilyenkor azonnal, némán visszatér, és a felhasználó
+     * hiába söpör újra, ugyanaz történik. szonye48 telefonján (Xiaomi,
+     * Android 16) ez tizenegyszer ismétlődött meg — tizenegy azonos,
+     * eredménytelen kör.
+     *
+     * A beállítás-oldal viszont MÁS ÚT: ott nem kérünk, hanem a felhasználó
+     * választ egy listából. Amit a kérő ablak nem enged, azt a lista sokszor
+     * igen. Ezért a harmadik próbálkozástól erre visszük — nem azért, mert
+     * kényelmesebb, hanem mert az előző kettő bizonyítottan nem vezetett
+     * sehova.
+     *
+     * A jelöltek sorrendje szándékos: előbb a konkrét alapértelmezett-app
+     * oldal, aztán a részletes app-oldal, végül a beállítások főoldala. Ami
+     * feloldható, azt adjuk vissza — feloldhatatlan szándékot indítani néma
+     * zsákutca.
+     */
+    fun manualRouteFor(context: Context, requirement: Requirement): Intent? {
+        val jeloltek = mutableListOf<Intent>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            jeloltek += Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+        }
+        if (requirement.id == "role_home") {
+            jeloltek.add(0, Intent(Settings.ACTION_HOME_SETTINGS))
+        }
+        jeloltek += appSettingsIntent(context)
+        jeloltek += Intent(Settings.ACTION_SETTINGS)
+        return jeloltek.firstOrNull { feloldhato(context, it) }
+    }
+
+    /** Van-e egyáltalán, ami megnyitja. Feloldhatatlan szándék = néma zsákutca. */
+    private fun feloldhato(context: Context, intent: Intent): Boolean = try {
+        intent.resolveActivity(context.packageManager) != null
+    } catch (_: Exception) {
+        false
+    }
+
     /** Az app saját beállítás-oldala — ide navigálunk, ha más út nincs. */
     fun appSettingsIntent(context: Context): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {

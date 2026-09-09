@@ -27,6 +27,8 @@ object SetupPrefs {
     private const val KEY_ACK = "acknowledged_ids"
 
     private const val KEY_ATTEMPTS = "attempt_counts"
+    private const val KEY_RESULT = "last_result"
+    private const val KEY_ELAPSED = "last_elapsed"
 
     private fun prefs(context: Context) =
         com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
@@ -63,6 +65,74 @@ object SetupPrefs {
         } catch (_: Exception) {
         }
         return next
+    }
+
+    // ---- mi történt a rendszerképernyőn ----
+
+    /**
+     * A NÉMA VISSZAUTASÍTÁS MÉRÉSE.
+     *
+     * A HIBA, AMI EZT KIKÉNYSZERÍTETTE (szonye48, Xiaomi 24094RAD4G,
+     * Android 16, 1.63.5): az „alapértelmezett üzenet alkalmazás" TIZENEGY
+     * próbálkozás után is hiányzott. A naplóból viszont csak a szám látszott,
+     * az nem, hogy MI történt közben. Két teljesen különböző dolog adja
+     * ugyanazt a számot:
+     *
+     *   1. a rendszer ablaka MEGJELENT, és a felhasználó nemet mondott;
+     *   2. az ablak MEG SEM JELENT — a rendszer azonnal, némán visszadobta.
+     *
+     * A kettőt csak az idő és az eredménykód különbözteti meg: ha a képernyő
+     * fél másodpercen belül visszatér RESULT_CANCELED-del, ott senki nem
+     * döntött semmiről, hanem a telefon nem engedte. Ez a szerepköröknél
+     * ismert eset (lásd az asszisztens szerepkört a SetupRequirements-ben),
+     * és a felhasználónak joga van megtudni, hogy nem ő rontotta el.
+     *
+     * Vakon ez a különbség minden: az egyik esetben újra kell próbálni, a
+     * másikban a kézi út az egyetlen járható.
+     */
+    fun noteOutcome(context: Context, id: String, resultCode: Int, elapsedMs: Long) {
+        try {
+            prefs(context).edit()
+                .putInt(KEY_RESULT + "_" + id, resultCode)
+                .putLong(KEY_ELAPSED + "_" + id, elapsedMs)
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Az utolsó próbálkozás eredménye emberi szóval — a hibajelentéshez. */
+    fun lastOutcome(context: Context, id: String): String? = try {
+        val elapsed = prefs(context).getLong(KEY_ELAPSED + "_" + id, -1L)
+        if (elapsed < 0) {
+            null
+        } else {
+            val result = prefs(context).getInt(KEY_RESULT + "_" + id, 0)
+            val kod = when (result) {
+                -1 -> "rendben"
+                0 -> "megszakítva"
+                else -> "eredménykód $result"
+            }
+            "$kod, $elapsed ezredmásodperc alatt" +
+                if (silentRefusal(context, id)) " (a képernyő meg sem jelent)" else ""
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * NÉMÁN VISSZADOBTA-E A RENDSZER.
+     *
+     * A határ 900 ezredmásodperc. Ennyi idő alatt egy ember nem olvas el egy
+     * kérdést és nem is válaszol rá — még látóként sem, felolvasóval pedig
+     * végképp nem. Ha ennyin belül jött vissza megszakítással, akkor nem
+     * döntés történt, hanem elutasítás.
+     */
+    fun silentRefusal(context: Context, id: String): Boolean = try {
+        val elapsed = prefs(context).getLong(KEY_ELAPSED + "_" + id, -1L)
+        val result = prefs(context).getInt(KEY_RESULT + "_" + id, 0)
+        elapsed in 0..899 && result != -1
+    } catch (_: Exception) {
+        false
     }
 
     /** Végigment-e már valaha a varázslón. */

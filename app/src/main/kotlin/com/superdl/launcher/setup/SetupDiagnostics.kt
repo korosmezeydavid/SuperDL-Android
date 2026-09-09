@@ -107,8 +107,21 @@ object SetupDiagnostics {
             }
             appendLine("- ${req.id} — ${req.title}")
             appendLine("    állapot: $state   szint: ${req.severity}   mód: ${req.kind}")
-            val tries = attempts[req.id] ?: 0
+            // A TÁROLT SZÁMLÁLÓ A MÉRVADÓ, HA NAGYOBB. A memóriában tartott
+            // térkép a program minden leállításakor nullázódik — MIUI-n ez
+            // óránként többször megtörténik —, a lemezre írt szám viszont
+            // túléli. A kettő közül a nagyobb az igaz.
+            val tries = maxOf(attempts[req.id] ?: 0, SetupPrefs.attemptCount(context, req.id))
             if (tries > 0) appendLine("    próbálkozás: $tries")
+            // MI TÖRTÉNT AZ UTOLSÓ PRÓBÁLKOZÁSKOR.
+            //
+            // Enélkül egy „próbálkozás: 11" sorból nem derül ki, hogy a
+            // felhasználó tizenegyszer mondott-e nemet, vagy a rendszer
+            // tizenegyszer meg sem kérdezte. A két eset két különböző hiba,
+            // és eddig egyformán néztek ki. (szonye48, Xiaomi, Android 16.)
+            SetupPrefs.lastOutcome(context, req.id)?.let {
+                appendLine("    utolsó próbálkozás: $it")
+            }
             if (req.kind != SetupRequirements.RequestKind.RUNTIME) {
                 appendLine("    szándék: ${intentState(context, req)}")
             } else if (req.permissions.isNotEmpty()) {
