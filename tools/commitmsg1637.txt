@@ -1,0 +1,33 @@
+1.63.7 - csuszkak, olvaso-sebesseg, radio elalvas, m3u beolvasas
+
+versionCode 117, versionName 1.63.7.
+
+Negy javitas, es mindegyik ugyanabbol a hibaosztalybol valo: rossz kerdest
+tettunk fel.
+
+- CSUSZKAK a kepernyoolvasoban. Eddig "ez az elem nem nyomhato meg" - igaz
+  volt es teljesen felrevezeto. A csuszka nem kattinthato, tehat allitani
+  kell, nem megnyomni. Hangero, fenyero, lejatszo-pozicio: mind ilyen volt.
+- A KEPERNYOOLVASO SAJAT SEBESSEGE. A beszedmotor csak egyszer, indulaskor
+  olvasta ki a tempot, es a szolgaltatas a telefon ujrainditasaig el.
+- A RADIO ELALVASA lezart kepernyon: hianyzott a setWakeMode es a WifiLock.
+- M3U ES PLS beolvasasa a radioba - fajlkezelobol es vagolaprol is, es
+  MINDEN allomassal, nem csak az elsovel.
+
+Kiadasi szkriptek: build_release1637, publish1637, relnotes1637,
+verzio1637, kiadas1637, finalcheck1637.
+
+A finalcheck uj ellenorzese: a kepernyoolvaso szolgaltatas es a WAKE_LOCK
+engedely meglete a KIADASI APK-ban. Ez a ket tetel viszi ebben a korben a
+csuszka-javitast es a radio ebrentartasat - ha barmelyik kimaradna a
+release manifestbol, a javitas nemaan nem mukodne.
+
+Ellenorizve a kiadasi APK-n: versionName 1.63.7, LAUNCHER es HOME megvan,
+mind a negy SMS-osszetevo megvan, ScreenReaderService es WAKE_LOCK megvan,
+38 zarhang klip, 6 Elena klip, alairva.
+
+A 25 uj kviz-modul (10013 kerdes) mar korabban kiment a katalogusba, ahhoz
+nem kellett verzio.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
