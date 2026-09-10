@@ -44,6 +44,24 @@ class ScreenReaderService : AccessibilityService() {
     /** Szünetel-e az olvasó, mert billentyűzet van a képernyőn. */
     private var keyboardSuspended = false
 
+    /**
+     * IDEIGLENES ÜZEMMÓDOK — amikor a fel-le söprés MÁST jelent.
+     *
+     * A képernyőolvasó nyelvtana végig ugyanaz: fel-le lépked, jobbra
+     * elfogad, balra kilép. Két helyzetben viszont a fel-le nem lépkedés,
+     * hanem ÁLLÍTÁS — a beszédsebességnél és a csúszkáknál. Ezért kell egy
+     * állapot, ami megmondja, mit jelent épp a mozdulat.
+     *
+     * Egyetlen változó, nem kettő: két egyszerre aktív mód esetén a fel-le
+     * söprésről nem lehetne eldönteni, melyikhez tartozik.
+     */
+    private enum class AllitasMod { NINCS, SEBESSEG, CSUSZKA }
+
+    private var allitasMod = AllitasMod.NINCS
+
+    /** A csúszka, amit épp állítunk. Csak CSUSZKA módban érvényes. */
+    private var csuszkaNode: AccessibilityNodeInfo? = null
+
     /** A tanuló módból való kilépéshez: az utolsó dupla koppintás ideje. */
     private var lastTrainingDoubleTapAt = 0L
 
@@ -696,6 +714,13 @@ class ScreenReaderService : AccessibilityService() {
             "Balra majd fel: MŰVELETSOR felvétele. Elindítod, végigcsinálod a " +
                 "lépéseket, és ugyanezzel a mozdulattal leállítod. Utána egy " +
                 "névvel elindíthatod bármikor.",
+            "Balra majd le: BESZÉDSEBESSÉG. Utána a felfelé söprés gyorsít, a " +
+                "lefelé lassít, és minden lépést rögtön az új tempóval hallasz. " +
+                "Jobbra vagy balra: kész. Ez a képernyőolvasó SAJÁT tempója, " +
+                "független a Super DL menüjének beszédétől.",
+            "CSÚSZKÁNÁL — hangerő, fényerő, lejátszó-pozíció — a jobbra söprés " +
+                "nem megnyom, hanem ÁLLÍTÁSRA nyit: utána a felfelé söprés növel, " +
+                "a lefelé csökken, és hallod a százalékot. Jobbra vagy balra: kész.",
             "KÉT UJJAL — mit olvasunk.",
             "Jobbra és balra: váltás a módok között. Minden elem, címsorok, " +
                 "hivatkozások, gombok, beviteli mezők, szöveg.",
@@ -796,6 +821,23 @@ class ScreenReaderService : AccessibilityService() {
         // igen, balra megszakítás. Ez mindent megelőz — ha épp fut valami a
         // kezed helyett, a kiszállásnak kell a legkönnyebbnek lennie.
         if (handleRouteGesture(gestureId)) return true
+        // ÁLLÍTÁS KÖZBEN a négy alap mozdulat mást jelent: a fel-le nem
+        // lépkedés, hanem állítás. Ezért MINDEN más elé kerül — és külön
+        // feltételként, nem a `when`-en belül, mert az őrfeltételes ág a
+        // Kotlin nyelvben csak újabb változatokban stabil.
+        if (allitasMod != AllitasMod.NINCS) {
+            when (gestureId) {
+                GESTURE_SWIPE_UP, GESTURE_SWIPE_DOWN,
+                GESTURE_SWIPE_LEFT, GESTURE_SWIPE_RIGHT -> {
+                    kezelAllitas(gestureId)
+                    return true
+                }
+                // Bármi MÁS mozdulat kilép az állításból, és a szokásos
+                // módján fut tovább. Enélkül a felhasználó beragadhatna egy
+                // olyan állapotba, amiről nem tudja, hogy benne van.
+                else -> allitasBezar(csendben = true)
+            }
+        }
         return try {
             when (gestureId) {
                 // ── ALAP NÉGY GESZTUS ──────────────────────────────────────
@@ -853,6 +895,17 @@ class ScreenReaderService : AccessibilityService() {
                 // közepén. Menüből ez nem menne: a menübe lépéssel már
                 // elhagynád azt a képernyőt, amit fel akarsz venni.
                 GESTURE_SWIPE_LEFT_AND_UP -> { toggleRouteRecording(); true }
+
+                // ── BESZÉDSEBESSÉG ────────────────────────────────────────
+                // BALRA-MAJD-LE. Ez volt az EGYETLEN szabadon maradt
+                // egyujjas kombináció, és a sebességnek pont ilyen kell:
+                // bárhonnan elérhető, mert bármelyik alkalmazás közepén
+                // kiderülhet, hogy túl gyors vagy túl lassú.
+                //
+                // Menübe tenni nem lett volna jó: a menüig is el kell jutni,
+                // és ha épp azért nem érted a felolvasást, mert hadar, akkor
+                // a menü öt lépése is hadarva jön.
+                GESTURE_SWIPE_LEFT_AND_DOWN -> { sebessegModInditas(); true }
 
                 // ── KÉT UJJAL: MIT olvasunk ───────────────────────────────
                 // (Android 11 felett érkeznek ilyen események; régebbin a
@@ -2724,10 +2777,287 @@ class ScreenReaderService : AccessibilityService() {
         }
     }
 
+    // ── BESZÉDSEBESSÉG ÉS CSÚSZKÁK ──────────────────────────────────────────
+
+    /** Egy lépés a sebességben. Kicsi, hogy ne ugorjon át a jó fölött. */
+    private val SEBESSEG_LEPES = 0.1f
+
     /**
-     * Kimondás ÉS megjegyzés — az utolsó mondat így bármikor megismételhető.
+     * CSÚSZKA-E EZ AZ ELEM.
+     *
+     * HÁROM JELET NÉZÜNK, mert egy jel kevés:
+     *
+     * - `rangeInfo`: ez a mérvadó. Ha az elem megmondja, hogy van
+     *   minimuma, maximuma és pillanatnyi értéke, akkor csúszka, akárminek
+     *   is hívják az osztályát.
+     * - az osztály neve (`SeekBar`, `Slider`, `RatingBar`): régebbi és
+     *   egyedi elemek nem mindig adnak `rangeInfo`-t.
+     * - a SET_PROGRESS művelet megléte: a Material csúszkák ezzel jelzik
+     *   magukat akkor is, ha az osztálynevük semmitmondó.
+     *
+     * A haladásjelzőt (ProgressBar) SZÁNDÉKOSAN nem vesszük ide: annak is
+     * van `rangeInfo`-ja, de nem állítható — ott a fel-le söprés csak
+     * hiábavaló próbálkozás lenne. Ezért kérjük külön az állíthatóság
+     * valamelyik jelét is.
      */
+    private fun csuszkaE(node: AccessibilityNodeInfo): Boolean {
+        val cls = node.className?.toString().orEmpty()
+        val nevRe = cls.contains("SeekBar", true) ||
+            cls.contains("Slider", true) ||
+            cls.contains("RatingBar", true)
+        val allithato = try {
+            node.actionList.any {
+                it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id ||
+                    it.id == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD ||
+                    it.id == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            }
+        } catch (_: Exception) {
+            false
+        }
+        val vanTartomany = try {
+            node.rangeInfo != null
+        } catch (_: Exception) {
+            false
+        }
+        return (nevRe || vanTartomany) && (allithato || nevRe)
+    }
+
+    /**
+     * A SEBESSÉG-ÁLLÍTÁS ELINDÍTÁSA.
+     *
+     * Miért mód, és nem két külön gesztus: két szabad mozdulat nem volt, egy
+     * viszont igen. Így is jobb — a módban a MEGSZOKOTT fel-le mozdulattal
+     * lehet állítani, nem kell új mozdulatot megtanulni, és annyit lépegetsz,
+     * amennyit akarsz.
+     */
+    private fun sebessegModInditas() {
+        allitasMod = AllitasMod.SEBESSEG
+        csuszkaNode = null
+        sounds?.play(ScreenReaderSounds.Sound.FIELD)
+        val most = ScreenReaderPrefs.speechRate(this)
+        sayInfo(
+            "Beszédsebesség: ${sebessegSzoban(most)}. " +
+                "Söpörj felfelé a gyorsításhoz, lefelé a lassításhoz. " +
+                "Jobbra vagy balra: kész."
+        )
+    }
+
+    /**
+     * A SEBESSÉG SZÁMA EMBERI SZÓVAL.
+     *
+     * „Egész egy" helyett „száztíz százalék" — vakon egy százalék
+     * elképzelhető, egy tizedes tört kevésbé. A normálhoz képest mondjuk,
+     * mert az a fogódzó: tudni akarod, mennyivel tértél el tőle.
+     */
+    private fun sebessegSzoban(rate: Float): String {
+        val szazalek = Math.round(rate * 100)
+        return when {
+            szazalek == 100 -> "normál"
+            else -> "$szazalek százalék"
+        }
+    }
+
+    /**
+     * A CSÚSZKA-MÓD ELINDÍTÁSA.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-10): „ha valamilyen elemhez csúszka
+     * tartozik, azt nem tudja az olvasó kezelni. Azt mondja, hogy nem nyomható
+     * az adott elem."
+     *
+     * Igaza volt, és az ok egyszerű: a csúszkát NEM MEGNYOMNI kell. Az
+     * Androidban a csúszka nem kattintható elem, tehát a megnyomás tényleg
+     * nem sikerült — a program pedig ezt jelentette vissza, szó szerint és
+     * teljesen félrevezetően. Aki ezt hallja, azt hiszi, elromlott valami,
+     * pedig csak rossz kérdést tettünk fel az elemnek.
+     *
+     * Egy csúszkát ÁLLÍTANI lehet: kisebbre, nagyobbra. Ez pedig ugyanaz a
+     * fel-le mozdulat, amit a felhasználó már ismer.
+     */
+    private fun csuszkaModInditas(node: AccessibilityNodeInfo) {
+        allitasMod = AllitasMod.CSUSZKA
+        csuszkaNode = node
+        sounds?.play(ScreenReaderSounds.Sound.FIELD)
+        sayInfo(
+            "Csúszka. ${csuszkaAllas(node)}. " +
+                "Söpörj felfelé a növeléshez, lefelé a csökkentéshez. " +
+                "Jobbra vagy balra: kész."
+        )
+    }
+
+    /** A csúszka pillanatnyi állása felolvasva — százalékban, ha lehet. */
+    private fun csuszkaAllas(node: AccessibilityNodeInfo): String {
+        val r = try {
+            node.rangeInfo
+        } catch (_: Exception) {
+            null
+        } ?: return node.text?.toString().orEmpty().ifBlank { "állás ismeretlen" }
+        val min = r.min
+        val max = r.max
+        val ertek = r.current
+        // SZÁZALÉK, ha van értelmes tartomány. Egy „hét egész kettő" típusú
+        // nyers szám vakon semmit nem mond arról, hol tartasz a csúszkán.
+        return if (max > min) {
+            val szazalek = Math.round((ertek - min) / (max - min) * 100f)
+            "$szazalek százalék"
+        } else {
+            "${Math.round(ertek)}"
+        }
+    }
+
+    /**
+     * A FEL-LE ÉS A KILÉPÉS ÁLLÍTÁS KÖZBEN.
+     *
+     * A jobbra és a balra EGYARÁNT kilép. Állításnál nincs értelme
+     * „mégsem"-nek: amit közben hallottál, az már beállt — a csúszka is, a
+     * sebesség is. Ha visszaállítanánk, az lenne a meglepetés.
+     */
+    private fun kezelAllitas(gestureId: Int) {
+        when (gestureId) {
+            GESTURE_SWIPE_UP -> allitasLep(+1)
+            GESTURE_SWIPE_DOWN -> allitasLep(-1)
+            else -> allitasBezar(csendben = false)
+        }
+    }
+
+    private fun allitasLep(irany: Int) {
+        when (allitasMod) {
+            AllitasMod.SEBESSEG -> {
+                val most = ScreenReaderPrefs.speechRate(this)
+                val uj = (most + irany * SEBESSEG_LEPES).coerceIn(0.5f, 3.0f)
+                if (kotlin.math.abs(uj - most) < 0.001f) {
+                    sounds?.play(ScreenReaderSounds.Sound.EDGE)
+                    // A SZÉLÉN IS MEGMONDJUK, HOL VAGYUNK. Enélkül egy néma
+                    // koppanás azt is jelenthetné, hogy elromlott valami.
+                    sayInfo(
+                        if (irany > 0) "Ez a leggyorsabb. ${sebessegSzoban(most)}."
+                        else "Ez a leglassabb. ${sebessegSzoban(most)}."
+                    )
+                    return
+                }
+                ScreenReaderPrefs.setSpeechRate(this, uj)
+                // A VISSZAJELZÉS MÁR AZ ÚJ TEMPÓVAL SZÓL — ez a lényeg: nem
+                // elolvasni akarod a számot, hanem HALLANI, milyen lett.
+                sayInfo(sebessegSzoban(uj))
+            }
+            AllitasMod.CSUSZKA -> {
+                val node = csuszkaNode
+                if (node == null) {
+                    allitasBezar(csendben = true)
+                    return
+                }
+                val siker = csuszkatAllit(node, irany > 0)
+                if (siker) {
+                    sounds?.play(ScreenReaderSounds.Sound.NEXT)
+                    // Friss beolvasás: az elem állapota az állítás után
+                    // változott, a régi példány még a régit mondaná.
+                    val friss = try {
+                        node.refresh(); node
+                    } catch (_: Exception) {
+                        node
+                    }
+                    sayInfo(csuszkaAllas(friss))
+                } else {
+                    sounds?.play(ScreenReaderSounds.Sound.EDGE)
+                    sayInfo(
+                        if (irany > 0) "Nem lehet tovább növelni."
+                        else "Nem lehet tovább csökkenteni."
+                    )
+                }
+            }
+            AllitasMod.NINCS -> {}
+        }
+    }
+
+    /**
+     * A CSÚSZKA TÉNYLEGES ÁLLÍTÁSA — KÉT ÚTON.
+     *
+     * 1. ACTION_SET_PROGRESS (Android 7 óta): pontos, mi mondjuk meg az új
+     *    értéket. A lépés a tartomány huszada — elég finom a hangerőhöz, és
+     *    elég nagy ahhoz, hogy húsz mozdulattal végig lehessen menni.
+     * 2. Ha az elem ezt nem támogatja: a görgetés előre és vissza. Sok
+     *    csúszka ezt ismeri, és a rendszer maga dönti el a lépésközt.
+     *
+     * A kettő közül az elsőt próbáljuk előbb, mert az kiszámítható.
+     */
+    private fun csuszkatAllit(node: AccessibilityNodeInfo, novel: Boolean): Boolean {
+        val r = try {
+            node.rangeInfo
+        } catch (_: Exception) {
+            null
+        }
+        if (r != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            val min = r.min
+            val max = r.max
+            if (max > min) {
+                val lepes = (max - min) / 20f
+                val uj = (r.current + if (novel) lepes else -lepes).coerceIn(min, max)
+                if (kotlin.math.abs(uj - r.current) < 0.0001f) return false
+                val args = android.os.Bundle().apply {
+                    putFloat(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,
+                        uj
+                    )
+                }
+                val ok = try {
+                    node.performAction(
+                        AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id,
+                        args
+                    )
+                } catch (_: Exception) {
+                    false
+                }
+                if (ok) return true
+            }
+        }
+        return try {
+            node.performAction(
+                if (novel) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            )
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun allitasBezar(csendben: Boolean) {
+        val volt = allitasMod
+        allitasMod = AllitasMod.NINCS
+        csuszkaNode = null
+        if (csendben || volt == AllitasMod.NINCS) return
+        sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
+        when (volt) {
+            AllitasMod.SEBESSEG ->
+                sayInfo("Beszédsebesség beállítva: ${sebessegSzoban(ScreenReaderPrefs.speechRate(this))}.")
+            AllitasMod.CSUSZKA -> sayInfo("Kész.")
+            AllitasMod.NINCS -> {}
+        }
+    }
+
+    /**
+     * A TEMPÓ ÉRVÉNYESÍTÉSE MINDEN MEGSZÓLALÁS ELŐTT.
+     *
+     * MIÉRT ITT, ÉS MIÉRT MINDEN ALKALOMMAL. A képernyőolvasó szolgáltatás a
+     * bekapcsolástól a telefon újraindításáig él. A beszédmotorja a tempót
+     * eddig EGYSZER, induláskor olvasta ki — tehát ami sebességgel elindult,
+     * azzal is maradt. Aki menet közben állította át, a menüben hallotta a
+     * változást, a képernyőolvasóban nem. Kívülről ez pontosan úgy hangzik,
+     * mintha a program „fölvett volna egy automatikus sebességet". (Alph,
+     * 2026-09-10.)
+     *
+     * Egy beállítás-olvasás megszólalásonként elhanyagolható költség, cserébe
+     * a változás AZONNAL hallatszik — ami egy sebesség-állításnál nem
+     * kényelem, hanem maga a funkció: hallani kell, amit beállítasz.
+     */
+    private fun applySpeechRate() {
+        val motor = tts ?: return
+        val kert = ScreenReaderPrefs.speechRate(this)
+        if (kotlin.math.abs(motor.speechRate - kert) > 0.001f) {
+            motor.speechRate = kert
+        }
+    }
+
     private fun say(text: String) {
+        applySpeechRate()
         lastSpoken = text
         // A GESZTUS-ISKOLA SZÖVEGÉT NEM FORDÍTJUK EL.
         //
@@ -2757,6 +3087,7 @@ class ScreenReaderService : AccessibilityService() {
      * hogy nincs hálózat" — nem, a program mondta).
      */
     private fun sayInfo(text: String) {
+        applySpeechRate()
         lastSpoken = text
         tts?.speak(text, com.superdl.launcher.tts.SpeechRole.SYSTEM)
     }
@@ -3001,6 +3332,18 @@ class ScreenReaderService : AccessibilityService() {
                 sounds?.play(ScreenReaderSounds.Sound.ERROR)
                 tts?.speak("A szövegmező nem választható ki.")
             }
+            return
+        }
+
+        // CSÚSZKA: NEM MEGNYOMNI KELL, HANEM ÁLLÍTANI.
+        //
+        // Ez a sor a válasz Alph jelentésére: „ha valamilyen elemhez csúszka
+        // tartozik, azt nem tudja az olvasó kezelni, azt mondja, hogy nem
+        // nyomható az adott elem." A csúszka az Androidban nem kattintható,
+        // tehát a megnyomás tényleg nem sikerült — csak épp rossz kérdést
+        // tettünk fel neki. Hangerő, fényerő, lejátszó-pozíció: mind ilyen.
+        if (csuszkaE(node)) {
+            csuszkaModInditas(node)
             return
         }
 

@@ -1,0 +1,69 @@
+Kepernyoolvaso: sajat beszedsebesseg, es a csuszkak kezelese
+
+Ket hiba Alph jelentesebol (2026-09-10). Mind a ketto sulyos, es mind a
+ketto ugyanabbol a hibaosztalybol valo: rossz kerdest tettunk fel.
+
+1. "A KEPERNYOOLVASO HANGJA KULON NEM ALLITHATO"
+
+Szo szerint: "az valamiert folvesz egy automatikus sebesseget es az nem
+gyorsithato lassithato".
+
+KET oka volt.
+
+Eloszor: a szolgaltatas beszedmotorja a PROGRAM altalanos tempojat olvasta
+ki - de CSAK EGYSZER, indulaskor. A kepernyoolvaso szolgaltatas a
+bekapcsolastol a telefon ujrainditasaig el, tehat ami tempoval elindult,
+azzal is maradt. Aki utana atallitotta a SuperDL beszedsebesseget, az a
+menuben hallotta a valtozast, a kepernyoolvasoban nem. Kivulrol ez pontosan
+ugy hangzik, mintha a program "folvett volna egy automatikus sebesseget".
+
+Masodszor: nem is volt hova allitani. A kepernyoolvasonak nem volt sajat
+tempoja, pedig kell neki - a menut mashogy akarja hallani az ember, mint egy
+idegen alkalmazas gyors atfutasat.
+
+Javitas:
+- ScreenReaderPrefs.speechRate: SAJAT beallitas, fuggetlen a program
+  altalanos tempojatol.
+- applySpeechRate(): minden megszolalas elott ranez. Egy beallitas-olvasas
+  megszolalasonkent elhanyagolhato koltseg, cserebe a valtozas AZONNAL
+  hallatszik - ami egy sebesseg-allitasnal nem kenyelem, hanem maga a
+  funkcio: hallani kell, amit beallitasz.
+- Uj gesztus: BALRA MAJD LE. Ez volt az EGYETLEN szabadon maradt egyujjas
+  kombinacio. Utana a fel-le allit, a jobbra vagy balra kesz. Menube tenni
+  nem lett volna jo: ha epp azert nem erted a felolvasast, mert hadar, akkor
+  a menu ot lepese is hadarva jon.
+
+2. "A CSUSZKAT NEM TUDJA AZ OLVASO KEZELNI"
+
+Szo szerint: "azt mondja, hogy nem nyomhato az adott elem".
+
+Igaza volt, es az ok egyszeru: a csuszkat NEM MEGNYOMNI kell. Az Androidban
+a csuszka nem kattinthato elem, tehat a megnyomas tenyleg nem sikerult - a
+program pedig ezt jelentette vissza, szo szerint es teljesen felrevezetoen.
+Aki ezt hallja, azt hiszi, elromlott valami. Hangero, fenyero,
+lejatszo-pozicio: mind ilyen.
+
+Javitas: az aktivalas felismeri a csuszkat, es ALLITASRA nyit. Utana a
+fel-le novel es csokkent, a szazalek pedig minden lepesnel elhangzik.
+
+A felismeres harom jelet nez, mert egy jel keves: rangeInfo, az osztaly neve
+(SeekBar, Slider, RatingBar), es a SET_PROGRESS muvelet meglete. A
+haladasjelzot (ProgressBar) SZANDEKOSAN kihagyjuk: annak is van rangeInfo-ja,
+de nem allithato - ott a fel-le soproes csak hiabavalo probalkozas lenne.
+
+Az allitas ket uton megy: ACTION_SET_PROGRESS a tartomany huszadaval (pontos,
+mi mondjuk meg az uj erteket), es ha az elem ezt nem tamogatja, a gorgetes
+elore-vissza.
+
+KOZOS MEGOLDAS: egyetlen allitasMod valtozo, nem ketto. Ket egyszerre aktiv
+modnal a fel-le soproesrol nem lehetne eldonteni, melyikhez tartozik. Barmi
+MAS mozdulat kilep az allitasbol - enelkul a felhasznalo beragadhatna egy
+olyan allapotba, amirol nem tudja, hogy benne van.
+
+A gesztus-sugo mindkettot leirja.
+
+Fordul: :app:compileDebugKotlin BUILD SUCCESSFUL. Telefonon meg nincs
+kiprobalva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

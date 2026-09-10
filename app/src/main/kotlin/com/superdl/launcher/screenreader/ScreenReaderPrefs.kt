@@ -24,6 +24,7 @@ object ScreenReaderPrefs {
     private const val KEY_ENABLED = "enabled"
     private const val KEY_EMERGENCY = "emergency_disable"
     private const val KEY_FAILURES = "failure_count"
+    private const val KEY_RATE = "beszed_sebesseg"
 
     /** Ennyi egymást követő hiba után magától leáll. */
     private const val MAX_FAILURES = 3
@@ -62,6 +63,42 @@ object ScreenReaderPrefs {
         um.isUserUnlocked
     } catch (_: Exception) {
         true
+    }
+
+    /**
+     * A KÉPERNYŐOLVASÓ SAJÁT BESZÉDSEBESSÉGE.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-10): „a képernyőolvasó hangja külön
+     * nem állítható. Az valamiért fölvesz egy automatikus sebességet, és az nem
+     * gyorsítható, lassítható."
+     *
+     * Két oka volt, és mind a kettő valódi:
+     *
+     * 1. A szolgáltatás beszédmotorja a PROGRAM általános tempóját olvasta ki
+     *    — de CSAK EGYSZER, indításkor. A képernyőolvasó szolgáltatás a
+     *    bekapcsolástól a telefon újraindításáig él, tehát ami tempóval
+     *    elindult, azzal is maradt. Aki utána átállította a SuperDL
+     *    beszédsebességét, az a menüben hallotta a változást, a
+     *    képernyőolvasóban nem. Kívülről ez pontosan úgy néz ki, mintha a
+     *    program „fölvett volna egy automatikus sebességet".
+     *
+     * 2. Nem is volt hova állítani: a képernyőolvasónak nem volt saját tempója.
+     *    Márpedig kell neki: a menüt lassabban akarja hallani az ember, mint
+     *    egy idegen alkalmazás gyors átfutását — vagy épp fordítva.
+     *
+     * Ezért mostantól SAJÁT beállítás, és a szolgáltatás minden megszólalás
+     * előtt ránéz. Így a változás azonnal hallatszik, nem a következő
+     * újraindításkor.
+     */
+    fun speechRate(context: Context): Float = try {
+        prefs(context).getFloat(KEY_RATE, 1.0f).coerceIn(0.5f, 3.0f)
+    } catch (_: Exception) {
+        1.0f
+    }
+
+    fun setSpeechRate(context: Context, rate: Float) {
+        val ertek = rate.coerceIn(0.5f, 3.0f)
+        writeBoth(context) { it.putFloat(KEY_RATE, ertek) }
     }
 
     private fun prefs(context: Context): android.content.SharedPreferences {
