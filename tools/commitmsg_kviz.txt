@@ -1,0 +1,30 @@
+25 uj kviz-modul: 10013 kerdes
+
+A forras Alph regi kerdesbankja: nyolc fajl (het legacy .xls es egy CP852
+kodolasu .txt), osszesen 11127 nyers sor. Ebbol:
+
+- 1109 duplikatum kiszurve (a fajlok erosen atfedtek egymast; az
+  osszehasonlitas ekezet- es irasjel-fuggetlen, mert ugyanaz a kerdes tobb
+  fajlban mas irasmoddal szerepelt),
+- 5 hianyos vagy hibas tetel kidobva (nem A-D valasz, ures valaszlehetoseg,
+  vagy ket azonos valasz),
+- maradt 10013 hasznalhato kerdes.
+
+MODUL-BONTAS. Temank szerint csoportositva, es ahol egy tema 450 kerdesnel
+tobbet adott, ott KONNYEBB (1-5 nehezseg) es NEHEZEBB (6 folott) bontasban.
+Enelkul a kezdo az elso korben belefutna a 12-es nehezsegu tetelekbe, es
+ugyanabbol a modulbol a gyakorlott jatekos is csak konnyu kerdeseket kapna.
+
+A "Sorkerdesek" munkalapokat SZANDEKOSAN kihagytam: azok sorbarendezos
+feladatok (valasz: pl. "CADB"), amiket a mostani kviz-motor nem tud
+ertekelni. Kulon motor kellene hozzajuk; addig felvenni oket annyit tenne,
+hogy a jatekos ertelmezhetetlen kerdest kap.
+
+A magyarazat mezo ures marad. Tizezer kerdeshez magyarazatot irni csak
+talalgatassal lehetne, es egy rossz magyarazat rosszabb, mint a semmi — a
+motor ures magyarazattal is helyesen mukodik.
+
+A katalogus 6 modulrol 31-re bovult.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -7477,7 +7477,14 @@ class MainActivity : AppCompatActivity() {
         }
         activeFlow = AppFlow.QuizPick(sets, 0)
         updateFlowDisplay()
-        tts.speak("${sets.size} kvíz. Fel-le válogatás, jobbra indítás, balra vissza.")
+        // MEGMONDJUK, HOL VAN TÖBB. Géza jelentése szerint „a játékok nem
+        // ajánlanak fel új kérdések letöltését, nincs rajta menü" — és igaza
+        // volt: ezt eddig csak az üres állapot mondta ki, tehát pontosan az
+        // nem hallotta, akinek már volt egy kvízje.
+        tts.speak(
+            "${sets.size} kvíz. Fel-le válogatás, jobbra indítás, balra vissza. " +
+                "Továbbiakat a Beállítások, Katalógus, Elérhető modulok pontban tölthetsz le."
+        )
         tts.speakAdd("${sets[0].name}, ${sets[0].questions.size} kérdés.")
     }
 
@@ -7488,11 +7495,43 @@ class MainActivity : AppCompatActivity() {
         tts.speak("${flow.sets[next].name}, ${flow.sets[next].questions.size} kérdés.")
     }
 
+    /**
+     * EGY KÖR HOSSZA — MIÉRT NEM A TELJES KÉSZLET.
+     *
+     * A kvíz eddig a modul MINDEN kérdését végigkérdezte. Amíg a
+     * kérdéssorok húsz-harminc tételesek voltak, ez rendben volt. Egy ezer
+     * kérdéses modulnál viszont értelmetlen: a játék soha nem ér véget, az
+     * eredmény pedig — „hét a kilencszáznegyvenből" — nem mond semmit.
+     *
+     * Húsz kérdés az, ami egy ülésben végigvihető, és aminek az eredménye
+     * még értelmezhető: tíz-tizenöt perc, és a végén egy százalék, amit
+     * össze lehet hasonlítani a legutóbbival.
+     *
+     * A kérdések a betöltéskor MÁR keverve vannak (QuizLoader), tehát a
+     * húsz mindig más húsz — ugyanabból a modulból hetekig lehet játszani
+     * anélkül, hogy ismétlődne.
+     */
+    private val KVIZ_KOR_HOSSZ = 20
+
     private fun startQuizRound(set: com.superdl.launcher.games.quiz.QuizSet) {
-        activeFlow = AppFlow.QuizPlay(set, 0, 0, 0)
+        val kor = if (set.questions.size <= KVIZ_KOR_HOSSZ) {
+            set
+        } else {
+            set.copy(questions = set.questions.take(KVIZ_KOR_HOSSZ))
+        }
+        activeFlow = AppFlow.QuizPlay(kor, 0, 0, 0)
         updateFlowDisplay()
-        tts.speak("${set.name}. ${set.questions.size} kérdés. Fel-le a válaszok között, jobbra a válasz beadása.")
-        speakQuizQuestion(set, 0, 0)
+        // A KÉSZLET MÉRETÉT IS KIMONDJUK, ha nagyobb a körnél. Enélkül a
+        // felhasználó azt hinné, hogy egy ezerkérdéses modulból húszat kapott,
+        // és a többi elveszett — pedig a következő körben más húsz jön.
+        val bevezeto = if (set.questions.size > kor.questions.size) {
+            "${set.name}. ${kor.questions.size} kérdés ebben a körben, " +
+                "a modulban összesen ${set.questions.size} van, mindig másik húsz jön."
+        } else {
+            "${set.name}. ${kor.questions.size} kérdés."
+        }
+        tts.speak("$bevezeto Fel-le a válaszok között, jobbra a válasz beadása.")
+        speakQuizQuestion(kor, 0, 0)
     }
 
     private fun speakQuizQuestion(

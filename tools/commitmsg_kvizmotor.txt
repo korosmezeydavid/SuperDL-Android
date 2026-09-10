@@ -1,0 +1,35 @@
+Kviz: veges kor, es megmondjuk, hol van tobb kerdessor
+
+A katalogusba ma bekerult 25 uj kviz-modul, osszesen 10013 kerdessel. Ket
+dolog derult ki, ami enelkul hasznalhatatlanna tette volna oket.
+
+1. A KOR MOSTANTOL HUSZ KERDES
+
+A motor eddig a modul MINDEN kerdeset vegigkerdezte. Amig a keszletek
+husz-harminc telesek voltak, ez rendben volt. Egy ezerkerdeses modulnal
+viszont ertelmetlen: a jatek soha nem er veget, az eredmeny pedig - "het a
+kilencszaznegyvenbol" - nem mond semmit.
+
+Husz kerdes az, ami egy ulesben vegigviheto, es aminek az eredmenye meg
+ertelmezheto. A kerdesek a betolteskor MAR keverve vannak (QuizLoader),
+tehat a husz mindig masik husz - ugyanabbol a modulbol hetekig lehet
+jatszani anelkul, hogy ismetlodne.
+
+A bevezeto kimondja a keszlet teljes meretet is, ha az nagyobb a kornel.
+Enelkul a felhasznalo azt hinne, hogy egy ezerkerdeses modulbol huszat
+kapott, es a tobbi elveszett.
+
+2. MEGMONDJUK, HOL VAN TOBB
+
+Mezei Geza jelentese: "a jatekok nem ajanlanak fel uj kerdesek letolteset,
+nincs rajta menu". Igaza volt, es a magyarazat kellemetlen: ezt eddig CSAK
+az ures allapot mondta ki. Vagyis pontosan az nem hallotta soha, akinek mar
+volt egy letoltott kvizje - tehat minden tesztelo.
+
+Mostantol a kviz-valaszto bevezetoje is elmondja, hogy tovabbi kerdessorok a
+Beallitasok, Katalogus, Elerheto modulok pontban vannak.
+
+Fordul: :app:compileDebugKotlin BUILD SUCCESSFUL.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
