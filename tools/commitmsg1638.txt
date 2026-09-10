@@ -1,0 +1,74 @@
+1.63.8 - youtube takarekos mod osszeomlas, korlatozott beallitas sorrend
+
+versionCode 118, versionName 1.63.8.
+
+1. A TAKAREKOS MOD OSSZEOMLASA (Mezei Geza, 1.63.6 KIADASI valtozat)
+
+  java.lang.NoClassDefFoundError: android/support/v4/util/ArrayMap
+  at android.support.v4.media.MediaMetadataCompat.<clinit>
+  at YoutubeAudioService.setupMediaSession
+
+MEGMERVE, nem talalgatva. A `:app:dependencies` jelentes megmutatta:
+
+  com.android.support:support-v4:26.1.0
+  com.android.support:support-media-compat:26.1.0
+  ... es NINCS androidx.media
+
+A 2017-es tamogato konyvtar egesz csaladja bejott a tandroidlame csomagon
+keresztul, es ONNAN jott a MediaSessionCompat es a MediaMetadataCompat. A
+`support-compat`-ot viszont korabban kizartuk (utkozott az AndroidX-szel) -
+az `ArrayMap` pedig epp abban lakik. Forditaskor semmi nem latszik; a felso
+fele megvan. Futasidoben, az elso setMetadata hivasnal derul ki, hogy az
+also fele nincs.
+
+JAVITAS:
+- a tandroidlame-bol a TELJES `com.android.support` csoport kizarva (nem
+  csak a support-compat). Biztonsagos: a support-compat mar eddig is ki volt
+  zarva, es a radiofelvetel mukodott - tehat ez a csomag futas kozben nem
+  hasznalja a regi tamogato osztalyokat;
+- `androidx.media:media:1.7.0` felveve. Ez adja ugyanezeket az osztalyokat
+  ugyanazon a csomagneven (a binder-protokoll ezt varja), de AndroidX
+  alapokon;
+- proguard: keep az `android.support.v4.media.**`, `android.support.v4.util.**`
+  es `androidx.media.**` osztalyokra. A MediaSession reflexioval es binderen
+  at dolgozik, tehat az R8 statikusan alig latja hasznalva.
+
+ELLENORIZVE A KESZ CSOMAGBAN, nem csak a fordulassal:
+uj szkript (`media_ellenorzes1638.ps1`) a dex-allomanyokban keresi az
+osztalyneveket. Ez a hiba ugyanis forditaskor NEM latszott - latni kell a
+lenyomatot a kesz APK-ban.
+
+  MEGVAN  androidx/collection/ArrayMap
+  MEGVAN  android/support/v4/media/MediaMetadataCompat
+  MEGVAN  android/support/v4/media/session/MediaSessionCompat
+
+A fuggosegi fa most: csak `androidx.media:media:1.7.0`, a
+`com.android.support` csalad eltunt.
+
+MEGJEGYZES: az ellenorzo elso valtozata a REGI `android/support/v4/util/
+ArrayMap`-et kereste, es "HIANYZIK"-ot mondott. Ez teves riasztas volt: az
+androidx.media ugyanazt a munkat az `androidx/collection/ArrayMap`-pel
+vegzi, a regi nevre nincs is szukseg. A szkript javitva, a magyarazat benne
+maradt - hogy legkozelebb ne ijedjunk meg tole.
+
+2. A KORLATOZOTT BEALLITAS FELOLDASANAK SORRENDJE
+
+Negy tesztelo akadt el ugyanott (Geza, Sandor Karoly, szonye48, Richard), es
+mind a negyen ugyanazt irtak: "a menupontot nem talalom". Nem ok tevedtek.
+
+A "Korlatozott beallitasok engedelyezese" menupont a legtobb telefonon CSAK
+AKKOR jelenik meg a harom pont alatt, ha a rendszer MAR LATTA a bekapcsolasi
+kiserletet. A mi utmutatonk ezt a fele lepest elhallgatta: egybol az
+app-oldalra kuldott, ahol ilyenkor nincs is ilyen menupont.
+
+Mostantol harom lepesben mondjuk - probald meg, hadd tiltsa le, utana oldd
+fel, vegul gyere vissza -, harom helyen: a varazslo "meg mindig hianyzik"
+mondataban, a menubol inditott kepernyoolvaso-bekapcsolasnal, es a
+hibajelentes naplojaban.
+
+Ellenorizve a kiadasi APK-n: versionName 1.63.8, LAUNCHER es HOME megvan,
+mind a negy SMS-osszetevo, ScreenReaderService, WAKE_LOCK, 38 zarhang klip,
+6 Elena klip, alairva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

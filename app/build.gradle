@@ -17,8 +17,8 @@ android {
         applicationId "com.superdl.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 117
-        versionName "1.63.7"
+        versionCode 118
+        versionName "1.63.8"
     }
 
     signingConfigs {
@@ -146,10 +146,44 @@ dependencies {
     implementation 'com.google.mlkit:face-detection:16.1.7'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    // MP3-KÓDOLÓ A RÁDIÓFELVÉTELHEZ.
+    //
+    // A RÉGI TÁMOGATÓ KÖNYVTÁR TELJES KIZÁRÁSA — ÉS MIÉRT.
+    //
+    // A HIBA, AMIT EZ JAVÍT (Mezei Géza, 2026-09-10, 1.63.6 KIADÁSI változat):
+    // a YouTube takarékos módja összeomlott, amint elindult volna a hang.
+    //
+    //   java.lang.NoClassDefFoundError: android/support/v4/util/ArrayMap
+    //   at android.support.v4.media.MediaMetadataCompat.<clinit>
+    //   at YoutubeAudioService.setupMediaSession
+    //
+    // Ez a csomag behúzta a 2017-es `com.android.support:support-v4:26.1.0`
+    // egész családját, benne a `support-media-compat`-ot — ONNAN jött a
+    // MediaSessionCompat és a MediaMetadataCompat. A `support-compat`-ot
+    // viszont korábban KIZÁRTUK, mert ütközött az AndroidX-szel. Csakhogy az
+    // `ArrayMap` épp abban lakik.
+    //
+    // Fordításkor ebből semmi nem látszik: a media-compat osztályok ott
+    // vannak. Futásidőben, a legelső `setMetadata` hívásnál dől el, hogy a
+    // fele hiányzik. Egy funkció volt halott a kiadási változatban, miközben
+    // a fejlesztőiben tökéletesen működött.
+    //
+    // MEGOLDÁS: a régi könyvtárból SEMMIT nem engedünk be. A media-compat
+    // osztályokat az androidx.media adja (ugyanazon a csomagnéven, de
+    // AndroidX alapokon) — így egyetlen forrás van, nem kettő fél.
+    //
+    // A kizárás biztonságos: a `support-compat` már eddig is ki volt zárva,
+    // és a felvétel ettől függetlenül működött — tehát ez a csomag futás
+    // közben nem használja a régi támogató osztályokat.
     implementation('com.github.naman14:tandroidlame:1.1') {
-        exclude group: 'com.android.support', module: 'support-compat'
-        exclude group: 'com.android.support', module: 'support-annotations'
+        exclude group: 'com.android.support'
     }
+
+    // MÉDIA-MUNKAMENET (fülhallgató gombja, autórádió, zárképernyő).
+    // Ez adja a MediaSessionCompat és a MediaMetadataCompat osztályokat.
+    // Lásd a fenti magyarázatot: enélkül a régi támogató könyvtár félkész
+    // maradéka szolgálta ki őket.
+    implementation 'androidx.media:media:1.7.0'
 
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'

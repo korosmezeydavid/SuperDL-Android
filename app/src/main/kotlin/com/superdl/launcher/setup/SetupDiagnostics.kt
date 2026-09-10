@@ -49,8 +49,13 @@ object SetupDiagnostics {
             appendLine("  >>> rendszer NÉMÁN letiltja a kisegítő szolgáltatást (PIN segéd,")
             appendLine("  >>> képernyőolvasó), az értesítés-olvasást és a fölérajzolást.")
             appendLine("  >>> A kapcsoló látszik, meg is nyomható, de nem történik semmi.")
-            appendLine("  >>> FELOLDÁS: Beállítások, Alkalmazások, Super DL, jobbra fent a")
-            appendLine("  >>> három pont, majd „Korlátozott beállítások engedélyezése\".")
+            appendLine("  >>> FELOLDÁS — HÁROM LÉPÉS, A SORREND SZÁMÍT:")
+            appendLine("  >>>  1. Előbb PRÓBÁLD MEG bekapcsolni a szolgáltatást a kisegítő")
+            appendLine("  >>>     lehetőségeknél. A telefon letiltja — ettől jelenik meg a")
+            appendLine("  >>>     feloldó menüpont. Enélkül hiába keresed, nincs ott.")
+            appendLine("  >>>  2. Beállítások, Alkalmazások, Super DL, jobbra fent a három")
+            appendLine("  >>>     pont, majd „Korlátozott beállítások engedélyezése\".")
+            appendLine("  >>>  3. Vissza a kisegítő lehetőségekhez, és most már bekapcsol.")
         } else {
             appendLine("korlátozott beállítás érintheti: nem")
         }

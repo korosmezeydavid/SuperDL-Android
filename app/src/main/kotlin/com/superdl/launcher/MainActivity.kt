@@ -2918,11 +2918,19 @@ class MainActivity : AppCompatActivity() {
                 // a rendszer letiltja az akadálymentesítési kapcsolóját. A
                 // kapcsoló ott van, meg is található, csak nem enged — és a
                 // rendszer erről vakon szinte semmit nem mond.
+                // A SORREND SZÁMÍT, ÉS EDDIG ELHALLGATTUK. A feloldó menüpont
+                // csak azután jelenik meg a három pont alatt, hogy a rendszer
+                // MÁR LÁTTA a bekapcsolási kísérletet. Aki egyből az
+                // app-oldalra ment, ott nem talált semmit — négy tesztelő
+                // akadt el pontosan ezen.
                 tts.speakAdd(
                     "Ha a kapcsoló nem enged, az nem a te hibád: a Super DL nem " +
-                        "alkalmazásboltból jött, ezért az Android először letiltja. Így " +
-                        "oldható fel: Beállítások, Alkalmazások, Super DL, a három pont " +
-                        "menü, és abban a Korlátozott beállítások engedélyezése."
+                        "alkalmazásboltból jött, ezért az Android először letiltja. " +
+                        "Fontos a sorrend: MOST próbáld meg bekapcsolni, hadd írja ki a " +
+                        "telefon, hogy korlátozott beállítás — ettől jelenik meg a feloldás. " +
+                        "Utána Beállítások, Alkalmazások, Super DL, a jobb felső sarokban a " +
+                        "három pont menü, és abban a Korlátozott beállítások engedélyezése. " +
+                        "Végül gyere vissza ide, és másodszorra már bekapcsol."
                 )
                 try {
                     startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -5918,13 +5926,32 @@ class MainActivity : AppCompatActivity() {
             "A lista legvégén pedig hibajelentést küldhetsz nekünk arról, hogy itt " +
             "elakadtál — abból pontosan látjuk, mi nem engedte."
         return when {
+            // A KORLÁTOZOTT BEÁLLÍTÁS FELOLDÁSÁNAK VAN EGY LÉPÉSE, AMIT EDDIG
+            // ELHALLGATTUNK — ÉS EMIATT NEM MŰKÖDÖTT AZ ÚTMUTATÓ.
+            //
+            // A „Korlátozott beállítások engedélyezése" menüpont a legtöbb
+            // telefonon CSAK AKKOR jelenik meg a három pont alatt, ha a
+            // rendszer MÁR LÁTTA, hogy be akartad kapcsolni a szolgáltatást.
+            // Aki egyből az app-oldalra megy, ott nem talál ilyen menüpontot,
+            // és joggal hiszi, hogy rossz helyen jár.
+            //
+            // Négy tesztelő akadt el ugyanitt (Géza, Sándor Károly, szonye48
+            // és Richárd), és mind a négyen ugyanezt írták: „a menüpontot nem
+            // találom". Nem ők tévedtek — a mi útmutatónk hagyta ki a
+            // sorrend első felét.
             restricted ->
                 "${req.title}: még mindig hiányzik. Ha a kapcsoló nem engedett, ez a " +
                     "rendszer korlátozása, nem a te hibád: a SuperDL nem alkalmazásboltból " +
-                    "jött, ezért az Android először letiltja ezt a beállítást. Így oldható " +
-                    "fel: Beállítások, Alkalmazások, Super DL, a jobb felső sarokban a három " +
-                    "pont menü, és abban a Korlátozott beállítások engedélyezése. Utána " +
-                    "gyere vissza ide. $kiut"
+                    "jött, ezért az Android először letiltja ezt a beállítást. " +
+                    "A feloldásnak HÁROM lépése van, és a sorrend számít. " +
+                    "ELŐSZÖR: itt a varázslóban söpörj jobbra, és a kisegítő " +
+                    "szolgáltatások listájában próbáld meg bekapcsolni. A telefon ki fogja " +
+                    "írni, hogy ez korlátozott beállítás — ez most így jó, ettől jelenik " +
+                    "meg a feloldó menüpont. " +
+                    "MÁSODSZOR: Beállítások, Alkalmazások, Super DL, a jobb felső sarokban " +
+                    "a három pont menü, és abban a Korlátozott beállítások engedélyezése. " +
+                    "A telefon a PIN kódot vagy az ujjlenyomatot kéri. " +
+                    "HARMADSZOR: gyere vissza ide, és most már be tudod kapcsolni. $kiut"
             // A NÉMA VISSZAUTASÍTÁS KÜLÖN ESET, ÉS KI KELL MONDANI.
             // Ha a rendszer fél másodpercen belül visszadobta a kérdést, akkor
             // ott a felhasználó nem döntött semmiről. Ha ilyenkor is azt

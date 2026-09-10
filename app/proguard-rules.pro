@@ -18,6 +18,27 @@
 -keep class androidx.camera.** { *; }
 -dontwarn androidx.camera.**
 
+# Media-munkamenet (fulhallgato gomb, autoradio, zarkepernyo)
+#
+# MIERT KELL, ES MI TORTENT NELKULE (Mezei Geza, 2026-09-10, 1.63.6 kiadasi):
+# a YouTube takarekos modja osszeomlott az elso setMetadata hivasnal:
+#   NoClassDefFoundError: android/support/v4/util/ArrayMap
+#   at android.support.v4.media.MediaMetadataCompat.<clinit>
+#
+# Az AndroidX a media-compat osztalyokat a REGI csomagneven tartja
+# (android.support.v4.media.*), mert a binder-protokoll ezt varja. Az R8
+# viszont ezeket az osztalyokat statikusan alig latja hasznalva — a
+# MediaSession a rendszer fele reflexioval es binderen at dolgozik —, ezert
+# kesz kidobni oket vagy a beluk hivatkozott segedosztalyokat.
+#
+# Ez a hibafajta NEM latszik forditaskor, es a fejlesztoi valtozatban sem:
+# ott nincs tomorites. Csak a kiadasi APK-ban, es csak akkor, amikor a
+# felhasznalo tenylegesen elinditja a lejatszast.
+-keep class android.support.v4.media.** { *; }
+-keep class android.support.v4.util.** { *; }
+-keep class androidx.media.** { *; }
+-dontwarn android.support.v4.**
+
 # Speech / TTS reflection
 -keep class android.speech.** { *; }
 
