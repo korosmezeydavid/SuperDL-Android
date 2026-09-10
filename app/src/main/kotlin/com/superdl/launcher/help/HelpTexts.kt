@@ -165,7 +165,17 @@ object HelpTexts {
                 "válogatsz, jobbra söpréssel szól. Az Állomás keresése menüpontban " +
                 "bemondod az állomás nevét. Ami tetszik, azt lejátszás közben a " +
                 "Mentés a kedvencekhez vezérlővel elmented; onnantól a Kedvenc " +
-                "állomásaim menüpontban egy mozdulat.",
+                "állomásaim menüpontban egy mozdulat. " +
+                "SAJÁT ÁLLOMÁS FELVÉTELE két úton megy. Ha a cím a vágólapon van — " +
+                "kimásoltad egy levélből vagy a rádió honlapjáról —, akkor a Saját " +
+                "állomás vagy lista a vágólapról menüpont felveszi. Ha a cím " +
+                "lejátszási listára mutat, például listen pont p l s végződésű, " +
+                "akkor a lista MINDEN állomását felveszi, a saját nevükön. " +
+                "Ha viszont egy m három u vagy p l s FÁJL van a telefonodon, akkor " +
+                "azt nem másolni kell, hanem beolvasni: nyisd meg a Fájlkezelőt, " +
+                "keresd meg a fájlt, söpörj rajta jobbra, és válaszd a Hozzáadás a " +
+                "rádióhoz műveletet. A benne lévő állomások bekerülnek a kedvencek " +
+                "közé.",
             gestures = "Lejátszás közben fel-le söpréssel lépkedsz a vezérlők között, " +
                 "jobbra söpréssel kiválasztod, balra söpréssel kilépsz. A vezérlők: " +
                 "szünet vagy folytatás; következő állomás; előző állomás; mentés a " +

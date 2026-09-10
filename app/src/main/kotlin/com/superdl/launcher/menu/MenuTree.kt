@@ -690,7 +690,11 @@ object MenuTree {
                 MenuItem("radio_favorites", "Kedvenc állomásaim", MenuAction.RADIO_FAVORITES),
                 MenuItem("radio_search", "Állomás keresése", MenuAction.RADIO_SEARCH),
                 MenuItem("radio_fav_delete", "Kedvenc állomás törlése", MenuAction.RADIO_FAV_DELETE),
-                MenuItem("radio_add_clip", "Saját állomás a vágólapról", MenuAction.RADIO_ADD_CLIPBOARD),
+                // A NÉV KIMONDJA A LISTÁT IS. Géza m3u fájlokkal a kezében
+                // kereste ezt a menüpontot, és nem találta meg — mert a neve
+                // csak egyetlen állomást ígért. Mostantól egy listás cím
+                // (listen.pls, m3u) mögül MINDEN állomás bekerül.
+                MenuItem("radio_add_clip", "Saját állomás vagy lista a vágólapról", MenuAction.RADIO_ADD_CLIPBOARD),
                 MenuItem("radio_recordings", "Rádió felvételek megnyitása", MenuAction.RADIO_RECORDINGS),
                 MenuItem("radio_schedule", "Időzített felvétel hozzáadása", MenuAction.RADIO_SCHEDULE_ADD),
                 MenuItem("radio_schedule_list", "Időzített felvételeim", MenuAction.RADIO_SCHEDULE_LIST),

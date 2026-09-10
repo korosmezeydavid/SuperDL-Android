@@ -12,6 +12,7 @@ import com.superdl.launcher.R
 import com.superdl.launcher.feedback.SoundFeedback
 import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.gestures.SwipeGestureListener
+import com.superdl.launcher.radio.RadioPlaylistImporter
 import com.superdl.launcher.tts.TtsManager
 import com.superdl.launcher.voice.VoiceInput
 import java.io.File
@@ -87,6 +88,7 @@ class FileManagerActivity : AppCompatActivity() {
     private enum class FileAction(val label: String) {
         ENTER("Belépés a mappába"),
         OPEN("Megnyitás"),
+        RADIO_IMPORT("Hozzáadás a rádióhoz"),
         READ_TEXT("Felolvasás"),
         ZIP_INFO("Mi van a csomagban"),
         UNZIP("Kicsomagolás"),
@@ -417,6 +419,21 @@ class FileManagerActivity : AppCompatActivity() {
             } else if (ZipHelper.isUnsupportedArchive(target.file)) {
                 list.add(FileAction.ZIP_INFO)
             } else {
+                // LEJÁTSZÁSI LISTA: A RÁDIÓBA VALÓ FELVÉTEL AZ ELSŐ.
+                //
+                // A HIBA, AMIT EZ JAVÍT (Mezei Géza, 2026-09-09): „vannak m3u
+                // fájljaim, de amikor a szuper fájlkezelőbe bemegyek…
+                // másolni szeretném az adott fájlt, nem tudom hogy megoldani
+                // hogy úgy kerüljön a vágólapra hogy azt a rádióba
+                // bemásoljam, mert a másolandó helyek között nem szerepel,
+                // menüpont sincs rá."
+                //
+                // Nem a másolás hiányzott, hanem ez a menüpont. Egy m3u fájlt
+                // megnyitni nincs értelme (szövegként felolvasva csak
+                // webcímek), másolni sem — be kell OLVASNI.
+                if (RadioPlaylistImporter.listaFajl(target.name)) {
+                    list.add(FileAction.RADIO_IMPORT)
+                }
                 list.add(FileAction.OPEN)
                 if (FileKind.of(target.file) == FileKind.TEXT) list.add(FileAction.READ_TEXT)
             }
@@ -433,6 +450,53 @@ class FileManagerActivity : AppCompatActivity() {
         if (!inSearchResults) list.add(FileAction.SEARCH)
         list.add(FileAction.DELETE)
         return list
+    }
+
+    /**
+     * LEJÁTSZÁSI LISTA BEOLVASÁSA A RÁDIÓBA.
+     *
+     * A beolvasás fájlművelet, tehát gyors — de a lista lehet nagy, és a
+     * feldolgozás közben nem akarjuk megakasztani a felületet. Ezért
+     * háttérszálon fut, és a válasz mindig elhangzik: akkor is, ha nem
+     * sikerült. Egy néma menüpont vakon rosszabb, mint egy hibaüzenet.
+     */
+    private fun importPlaylistToRadio(file: File) {
+        tts.speak("Lista beolvasása: ${file.name}.")
+        Thread {
+            val bejegyzesek = RadioPlaylistImporter.fajlbol(file)
+            val uj = if (bejegyzesek.isEmpty()) 0 else RadioPlaylistImporter.ment(this, bejegyzesek)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                screen = Screen.BROWSE
+                updateDisplay()
+                when {
+                    bejegyzesek.isEmpty() -> {
+                        sounds.play(SoundType.ACTION_ERROR)
+                        tts.speak(
+                            "Ebben a fájlban nem találtam állomás címet. Lehet, hogy üres, " +
+                                "vagy nem lejátszási lista, csak a neve az."
+                        )
+                    }
+                    uj == 0 -> {
+                        // NEM HIBA, ÉS NEM IS SIKER. Ezt külön ki kell mondani,
+                        // különben a felhasználó azt hiszi, nem történt semmi.
+                        tts.speak(
+                            "Ebből a listából mind a ${bejegyzesek.size} állomás már a " +
+                                "kedvenceid között van. Nem vettem fel újra egyiket sem."
+                        )
+                    }
+                    else -> {
+                        sounds.play(SoundType.ACTION_OK)
+                        val elso = bejegyzesek.firstOrNull()?.nev.orEmpty()
+                        tts.speak(
+                            "$uj állomás felvéve a kedvencek közé. " +
+                                (if (elso.isNotBlank()) "Az első: $elso. " else "") +
+                                "A Média, Internetes rádió, Kedvenc állomásaim menüben találod őket."
+                        )
+                    }
+                }
+            }
+        }.start()
     }
 
     /**
@@ -463,6 +527,7 @@ class FileManagerActivity : AppCompatActivity() {
         when (action) {
             FileAction.ENTER -> loadDir(target.file)
             FileAction.OPEN -> openFile(target.file)
+            FileAction.RADIO_IMPORT -> importPlaylistToRadio(target.file)
             FileAction.READ_TEXT -> readTextFile(target.file)
             FileAction.ZIP_INFO -> tts.speak(ZipHelper.describe(target.file))
             FileAction.UNZIP -> runZipTask(kicsomagol = true, file = target.file)

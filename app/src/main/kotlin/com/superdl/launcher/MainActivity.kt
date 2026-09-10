@@ -145,6 +145,7 @@ import com.superdl.launcher.music.MusicTrack
 import com.superdl.launcher.radio.RadioBrowserClient
 import com.superdl.launcher.radio.RadioPlayerActivity
 import com.superdl.launcher.radio.RadioPlaylistHolder
+import com.superdl.launcher.radio.RadioPlaylistImporter
 import com.superdl.launcher.radio.RadioRecorder
 import com.superdl.launcher.radio.RadioStation
 import com.superdl.launcher.radio.RadioStore
@@ -10091,6 +10092,21 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
+        // HA A VÁGÓLAPON LEJÁTSZÁSI LISTA VAN, NEM EGY ÁLLOMÁS.
+        //
+        // A `listen.pls` a neten a leggyakoribb rádiós hivatkozás (SomaFM,
+        // Shoutcast és társaik mind így adják), és MÖGÖTTE TÖBB ÁLLOMÁS
+        // lehet. Eddig ilyenkor egyetlen kedvencet vettünk fel, a
+        // felhasználó által diktált néven, és lejátszáskor derült ki, hogy
+        // mi van benne. Ha tíz csatorna volt a listában, kilenc elveszett.
+        //
+        // Ezért itt megnézzük: ha lista, akkor MINDET felvesszük, a lista
+        // saját neveivel. Nevet ilyenkor nem is kérünk — a listában lévő
+        // nevek pontosabbak, mint amit bárki menet közben kitalálna.
+        if (RadioPlaylistImporter.listaFajl(url)) {
+            importRadioPlaylistFromUrl(url)
+            return
+        }
         ensureMicAndRun {
             voiceInput.listen(
                 prompt = "Megvan a cím a vágólapon. Mondd, milyen néven mentsem az állomást.",
@@ -10106,6 +10122,45 @@ class MainActivity : AppCompatActivity() {
                 onError = { tts.speak("Az állomás felvétele megszakítva.") }
             )
         }
+    }
+
+    /**
+     * LEJÁTSZÁSI LISTA LETÖLTÉSE ÉS FELVÉTELE — HÁLÓZATRÓL.
+     *
+     * A hálózat lassú lehet, ezért háttérszálon megy, és a felhasználó
+     * mindig kap választ. Ha a lista nem érhető el, azt is kimondjuk: a
+     * néma menüpont vakon a legrosszabb.
+     */
+    private fun importRadioPlaylistFromUrl(url: String) {
+        tts.speak("Ez egy lejátszási lista. Letöltöm, és megnézem, mi van benne.")
+        Thread {
+            val bejegyzesek = RadioPlaylistImporter.halozatrol(url)
+            val uj = if (bejegyzesek.isEmpty()) 0 else RadioPlaylistImporter.ment(this, bejegyzesek)
+            postWhenAlive {
+                when {
+                    bejegyzesek.isEmpty() -> {
+                        sounds.play(SoundType.ACTION_ERROR)
+                        tts.speak(
+                            "Ezt a listát nem sikerült letölteni, vagy nincs benne állomás cím. " +
+                                "Ellenőrizd az internetkapcsolatot, vagy próbálj másik címet."
+                        )
+                    }
+                    uj == 0 -> tts.speak(
+                        "Ebben a listában mind a ${bejegyzesek.size} állomás már a kedvenceid " +
+                            "között van. Nem vettem fel újra egyiket sem."
+                    )
+                    else -> {
+                        sounds.play(SoundType.ACTION_OK)
+                        val elso = bejegyzesek.firstOrNull()?.nev.orEmpty()
+                        tts.speak(
+                            "$uj állomás felvéve a kedvencek közé. " +
+                                (if (elso.isNotBlank()) "Az első: $elso. " else "") +
+                                "A Kedvenc állomásaim menüben találod őket."
+                        )
+                    }
+                }
+            }
+        }.start()
     }
 
     /** Az első http vagy https címet adja vissza a vágólapról, ha van. */

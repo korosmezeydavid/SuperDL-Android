@@ -1,0 +1,76 @@
+Radio: lejatszasi lista beolvasasa, es az elalvas javitasa
+
+Ket tetel Mezei Geza "Minden ami belefer" levelebol.
+
+1. AZ ELALVAS LEZART KEPERNYON
+
+Geza szavaival: "a radioban baj van, bealszik lezart kepernyon egy ido utan".
+
+Igaza volt, es az ok pontosan az, amit a neve mond: a telefon elalszik. A
+radio egy sima Activity + MediaPlayer volt, setWakeMode nelkul. Lezart
+kepernyonel az Android egy ido utan felfuggeszti a processzort, es ha a
+lejatszo nem szol, hogy neki futnia kell, a hang elhallgat. Nem szakadas,
+nem halozati hiba - a rendszer takarekoskodik.
+
+- setWakeMode(PARTIAL_WAKE_LOCK): a MediaPlayer maga tartja ebren a
+  processzort, amig szol, es elengedi, amikor leallitjuk. Ez az egyetlen
+  olyan ebrentartas, amit nem lehet elfelejteni elengedni.
+- WifiLock (nem szamlalt): a setWakeMode a processzort tartja ebren, a
+  wifi-radiot nem. Elo adasnal az is szamit. Allomasvaltasnal a foglalas es
+  az elengedes sorrendje nem allando, ezert setReferenceCounted(false) -
+  szamlalt zarnal egy elmaradt elengedes orokre bent ragadna.
+
+2. M3U ES PLS BEOLVASASA A RADIOBA
+
+Geza szavaival: "vannak m3u fajljaim, de amikor a szuper fajlkezelobe
+bemegyek... masolni szeretnem az adott fajlt, nem tudom hogy megoldani hogy
+ugy keruljon a vagolapra hogy azt a radioba bemasoljam, mert a masolando
+helyek kozott nem szerepel, menupont sincs ra. A sugo se tartalmaz erre
+vonatkozoan semmit."
+
+Nem a masolas hianyzott, hanem a beolvasas. Egy lejatszasi listat nem
+vagolapon at kell a radioba juttatni.
+
+Uj: RadioPlaylistImporter.
+
+MIERT KULON OSZTALY, HA VAN MAR RadioPlaylistResolver: a ketto ket kulonbozo
+kerdesre valaszol. A resolver LEJATSZASKOR fut, es az ELSO hasznalhato
+stream-cimet keresi, mert egy dolgot kell szolaltatni. Az importer
+FELVETELKOR fut, es MINDEN bejegyzest kigyujt, nevvel egyutt - egy m3u
+fajlban tiz allomas is lehet, es mind a tiz kell.
+
+- .pls: File1= / Title1= parok, a SORSZAM koti ossze oket (nem a sorrend: a
+  Title sor a File ele is kerulhet, es van, ahol egyaltalan nincs cim).
+- .m3u: a #EXTINF sor vesszo utani resze a nev.
+- Ha a lista nem ad nevet, a FAJL nevebol csinalunk nevet. Egy "http
+  kettospont perjel perjel" kezdetu felolvasas vakon hasznalhatatlan a
+  kedvencek listajaban.
+
+Harom uton erheto el:
+
+- FAJLKEZELO: uj muvelet a .m3u/.m3u8/.pls fajlokon - "Hozzaadas a radiohoz".
+  Ez az, amit Geza keresett. A lista ELSO eleme, mert egy m3u fajlt megnyitni
+  vagy masolni ertelmetlen.
+- VAGOLAP: ha a kimasolt cim listara mutat (listen.pls es tarsai), akkor
+  MINDEN allomast felveszunk, a lista sajat nevein. Eddig egyetlen kedvenc
+  lett belole a felhasznalo altal diktalt neven, es ha tiz csatorna volt
+  mogotte, kilenc elveszett. Nevet ilyenkor nem is kerunk.
+- A menupont neve is valtozott: "Sajat allomas VAGY LISTA a vagolaprol".
+  Geza m3u fajlokkal a kezeben kereste ezt a pontot, es nem talalta meg,
+  mert a neve csak egyetlen allomast igert.
+
+A valasz mindig elhangzik, harom kulon esettel: nincs benne allomas /
+mind megvolt mar / ennyi uj kerult be. A "mind megvolt mar" nem hiba es nem
+is siker - ha nem mondanank ki, a felhasznalo azt hinne, nem tortent semmi.
+
+3. SUGO
+
+A radio sugoja eddig tenyleg nem emlitette egyiket sem. Most leirja mind a
+ket utat, es kulon kimondja a kulonbseget: a vagolapra CIM valo, a telefonon
+levo FAJLT pedig a fajlkezelobol kell beolvasni.
+
+Fordul: :app:compileDebugKotlin BUILD SUCCESSFUL. Telefonon meg nincs
+kiprobalva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

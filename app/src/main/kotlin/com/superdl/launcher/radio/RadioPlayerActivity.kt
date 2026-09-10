@@ -1,5 +1,6 @@
 package com.superdl.launcher.radio
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
@@ -33,6 +34,9 @@ class RadioPlayerActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var prepared = false
     private var paused = false
+
+    /** A wifi ébren tartása, amíg élő adás szól. Lásd: halozatiZarFel(). */
+    private var wifiZar: android.net.wifi.WifiManager.WifiLock? = null
 
     /** Ha más alkalmazás megszólal, a rádió elhallgat — nem beszélnek egymásra. */
     private val focusGuard by lazy {
@@ -241,6 +245,7 @@ class RadioPlayerActivity : AppCompatActivity() {
     /** A feloldott stream-URL tényleges lejátszása. */
     private fun startStream(station: RadioStation, streamUrl: String) {
         try {
+            halozatiZarFel()
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -248,6 +253,22 @@ class RadioPlayerActivity : AppCompatActivity() {
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
+                // AZ ELALVÁS ELLEN — EZ A LÉNYEG.
+                //
+                // A HIBA (Mezei Géza, 2026-09-09): „a rádióban baj van,
+                // bealszik lezárt képernyőn egy idő után."
+                //
+                // Igaza volt, és az ok pontosan az, amit a neve mond: a
+                // telefon ELALSZIK. Lezárt képernyőnél az Android egy idő
+                // után felfüggeszti a processzort, és ha a lejátszó nem szól,
+                // hogy neki futnia kell, a hang egyszerűen elhallgat. Nem
+                // hiba, nem szakadás — a rendszer takarékoskodik.
+                //
+                // A setWakeMode pontosan erre való: a MediaPlayer maga tartja
+                // ébren a processzort, amíg szól, és elengedi, amikor
+                // leállítjuk. Ez az egyetlen olyan ébrentartás, amit nem kell
+                // kézzel elengedni — épp ezért nem is lehet elfelejteni.
+                setWakeMode(applicationContext, android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setDataSource(streamUrl)
                 setOnPreparedListener {
                     prepared = true
@@ -371,6 +392,50 @@ class RadioPlayerActivity : AppCompatActivity() {
         }
         mediaPlayer = null
         prepared = false
+        halozatiZarLe()
+    }
+
+    /**
+     * A WIFI IS ELALSZIK — NEM CSAK A PROCESSZOR.
+     *
+     * A setWakeMode ébren tartja a processzort, de a wifi-rádiót nem. Lezárt
+     * képernyőnél a telefon a wifit is takarékos állapotba teszi, és egy élő
+     * adás ettől akadozni kezd, majd elhallgat. Aki a konyhában hallgatja a
+     * rádiót és nem nyúl a telefonhoz, pontosan ezt tapasztalja.
+     *
+     * Mobilneten ez a zár nem csinál semmit — és nem is baj: ott a rendszer
+     * magától ébren tartja a kapcsolatot, amíg a hang szól.
+     *
+     * MIÉRT NEM SZÁMLÁLT (`setReferenceCounted(false)`): állomásváltásnál a
+     * felszabadítás és az újrafoglalás sorrendje nem mindig ugyanaz. Számlált
+     * zárnál egy elmaradt elengedés örökre bent ragadna, és a telefon az
+     * akkumulátorával fizetne érte.
+     */
+    private fun halozatiZarFel() {
+        if (wifiZar == null) {
+            wifiZar = try {
+                val wm = applicationContext.getSystemService(Context.WIFI_SERVICE)
+                    as? android.net.wifi.WifiManager
+                @Suppress("DEPRECATION")
+                wm?.createWifiLock(
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    "SuperDL:Radio"
+                )?.apply { setReferenceCounted(false) }
+            } catch (_: Exception) {
+                null
+            }
+        }
+        try {
+            wifiZar?.let { if (!it.isHeld) it.acquire() }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun halozatiZarLe() {
+        try {
+            wifiZar?.let { if (it.isHeld) it.release() }
+        } catch (_: Exception) {
+        }
     }
 
     override fun onDestroy() {
