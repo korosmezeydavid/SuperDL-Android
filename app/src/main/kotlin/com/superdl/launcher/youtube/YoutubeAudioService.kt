@@ -95,6 +95,9 @@ class YoutubeAudioService : Service() {
     private var title: String = ""
     private var paused = false
 
+    /** A visszaeséshez kell: melyik videót akartuk épp hallani. */
+    private var lastVideoId: String = ""
+
     private val headphoneGuard by lazy {
         HeadphoneUnplugGuard(this) { handler.post { pauseIfPlaying() } }
     }
@@ -155,12 +158,16 @@ class YoutubeAudioService : Service() {
         callGuard.register()
         focusGuard.request()
 
+        lastVideoId = videoId
+        YoutubeDiagnostics.begin(videoId)
+
         // A FELOLDÁS HÁLÓZATOT HASZNÁL, tehát háttérszálon kell.
         Thread {
             val urls = try {
                 YoutubeStreamResolver.resolveStreamUrls(videoId)
             } catch (e: Exception) {
                 Log.w(TAG, "feloldas hiba: ${e.message}")
+                YoutubeDiagnostics.note("feloldás elakadt: ${e.javaClass.simpleName}")
                 emptyList()
             }
             // CSAK A HANG. Ez a takarékos mód lényege: a videó-címeket
@@ -170,9 +177,12 @@ class YoutubeAudioService : Service() {
 
             handler.post {
                 if (candidates.isEmpty()) {
-                    speak("Ezt a videót nem sikerült hanggal lejátszani.")
-                    handler.postDelayed({ stopEverything() }, 3000L)
+                    // ELSŐ ZSÁKUTCA: a YouTube egyetlen címet sem adott ki.
+                    // Itt a FELOLDÓ szorul javításra — a lejátszóval nincs baj.
+                    YoutubeDiagnostics.finish(this, "nem jött hangfolyam (nulla cím)")
+                    failOver("A YouTube most nem adott ki hangfolyamot ehhez a videóhoz.")
                 } else {
+                    YoutubeDiagnostics.note("lejátszás indul, ${candidates.size} címmel")
                     playFirstWorking(candidates, 0)
                 }
             }
@@ -190,8 +200,13 @@ class YoutubeAudioService : Service() {
      */
     private fun playFirstWorking(urls: List<String>, index: Int) {
         if (index >= urls.size) {
-            speak("Ezt a videót nem sikerült lejátszani.")
-            handler.postDelayed({ stopEverything() }, 3000L)
+            // MÁSODIK ZSÁKUTCA: volt cím, de a lejátszó mindet elutasította.
+            // Itt a KLIENS-ÁLCA szorul javításra (származás-igazoló jelző),
+            // nem a feloldó. A két esetet a felhasználó sem, mi sem tudtuk
+            // eddig megkülönböztetni, mert majdnem ugyanaz a mondat volt.
+            YoutubeDiagnostics.note("mind a ${urls.size} címet elutasította a lejátszó")
+            YoutubeDiagnostics.finish(this, "megvolt a hang, de a lejátszás elutasítva")
+            failOver("Megvan a hang, de a YouTube elutasította a lejátszást.")
             return
         }
         try {
@@ -210,15 +225,22 @@ class YoutubeAudioService : Service() {
                 it.start()
                 setupMediaSession()
                 updateNotification()
+                // A SIKERT IS FELÍRJUK. Ha legközelebb más panaszkodik, ebből
+                // látszik, hogy ezen a telefonon a gépezet EGYSZER már ment —
+                // és melyik úton.
+                YoutubeDiagnostics.finish(this, "szól (${index + 1}. cím)")
                 speak("$title. Szól.")
             }
             mp.setOnCompletionListener {
                 speak("Vége.")
                 handler.postDelayed({ stopEverything() }, 2000L)
             }
-            mp.setOnErrorListener { _, _, _ ->
+            mp.setOnErrorListener { _, what, extra ->
                 // Csendben tovább a következő címre — a felhasználót nem
-                // érdekli, hányadik próbálkozásnál járunk.
+                // érdekli, hányadik próbálkozásnál járunk. A NYOMBA viszont
+                // bekerül: a -1005 (kapcsolat elveszett) és a 403-as burkolt
+                // alakja itt válik el egymástól.
+                YoutubeDiagnostics.note("${index + 1}. cím hibája: what=$what extra=$extra")
                 handler.post { playFirstWorking(urls, index + 1) }
                 true
             }
@@ -227,6 +249,47 @@ class YoutubeAudioService : Service() {
             Log.w(TAG, "lejatszas hiba: ${e.message}")
             handler.post { playFirstWorking(urls, index + 1) }
         }
+    }
+
+    /**
+     * A ZSÁKUTCA HELYETT KIJÁRAT.
+     *
+     * EDDIG EZ TÖRTÉNT: elhangzott egy mondat, majd három másodperc múlva a
+     * szolgáltatás leállt. A felhasználó ott maradt csendben, minden
+     * lehetőség nélkül — pedig a rendes, képes lejátszó sokszor elindul akkor
+     * is, amikor a hangfolyam feloldása nem sikerül (a beágyazott lejátszót
+     * ugyanis nem érinti a YouTube robotvédelme).
+     *
+     * Hang kép nélkül jobb, mint semmi; de a néma leállás a legrosszabb
+     * kimenet mind közül. Ezért most átadjuk a rendes lejátszónak, és MEG IS
+     * MONDJUK, hogy ez történik — enélkül a felhasználó csak annyit érzékel,
+     * hogy „valami történt".
+     *
+     * A takarékos mód beállítása ettől NEM változik. Ez egyetlen videóra szóló
+     * kerülőút, nem csendes visszakapcsolás a felhasználó háta mögött.
+     */
+    private fun failOver(reason: String) {
+        val videoId = lastVideoId
+        if (videoId.isBlank()) {
+            speak("$reason Próbáld meg később.")
+            handler.postDelayed({ stopEverything() }, 3000L)
+            return
+        }
+        speak("$reason Megnyitom a rendes lejátszóval, ott a kép is jön.")
+        handler.postDelayed({
+            try {
+                val intent = Intent(this, YoutubePlayerActivity::class.java).apply {
+                    putExtra(YoutubePlayerActivity.EXTRA_VIDEO_ID, videoId)
+                    putExtra(YoutubePlayerActivity.EXTRA_TITLE, title)
+                    putExtra(YoutubePlayerActivity.EXTRA_SKIP_SAVER, true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "visszaeses hiba: ${e.message}")
+            }
+            stopEverything()
+        }, 3500L)
     }
 
     private fun pauseIfPlaying() {

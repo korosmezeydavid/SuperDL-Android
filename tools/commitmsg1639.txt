@@ -1,0 +1,104 @@
+1.63.9 - youtube: egy kivetel megolte az egesz feloldast, es a ket zsakutca szetvalasztasa
+
+versionCode 119, versionName 1.63.9.
+
+Mezei Geza jelentese az 1.63.8-rol: "a frissites nem sikerult a verzioszam
+megemelkedett de a youtube-nal nem valtozott semmi".
+
+A FRISSITES SIKERULT, es az 1.63.8-as javitas is mukodik. A bizonyitek
+magaban a jelentesben volt: az osszeomlas-naplo utolso bejegyzese 1.63.6-os.
+Az ArrayMap-hiba nem szeszelyes - az onPrepared utan azonnal es mindig
+eldurran. Ha benne maradt volna, friss 1.63.8-as nyom allna ott.
+
+Tanulsag a jelentes olvasasahoz: a crash-naplo VERZIOJA onmagaban is meres.
+
+1. EGY KIVETEL MEGOLTE AZ EGESZ FELOLDAST (ez volt a sulyosabb)
+
+A `useConnection` csak lezarja a kapcsolatot a `finally`-ben, a kivetelt NEM
+nyeli el. A lepesek viszont vedelem nelkul voltak egymas utan fuzve:
+
+  resolveInAppStreamUrls(videoId).let { urls += it }
+  for (client in INNERTUBE_CLIENTS) {
+      resolveFromInnerTube(videoId, client)?.let { urls += it }
+  }
+  resolveFromWatchPage(videoId)?.let { urls += it }
+
+Tehat az ELSO kliens idotullepese az EGESZ feloldast megszakitotta - az iOS
+klienst, a Piped- es Invidious-tukroket es a watch-oldalt meg sem kerdeztuk.
+A hivo ezt ures listanak latta.
+
+Rossz halozaton ez mindig igy vegzodott: 8 masodperc varakozas az elso
+kliensre, aztan csend. Pontosan az "egy ido utan jelzi, hogy nem sikerult"
+tunet.
+
+JAVITAS: `tryStep(nev) { ... }` minden lepes kore. Ugyanaz az elv, ami a
+lejatszasnal (playFirstWorking) mar megvolt: egy ut bukasa nem az egesz
+bukasa.
+
+2. A KET ZSAKUTCA EGYFORMAN HANGZOTT
+
+  nulla cim jott vissza      -> a FELOLDO szorul javitasra
+  volt cim, mind elutasitva  -> a KLIENS-ALCA (PO token) szorul javitasra
+
+Eddig: "Ezt a videot nem sikerult HANGGAL lejatszani" kontra "Ezt a videot
+nem sikerult lejatszani". Egyetlen szo kulonbseg, hallas utan
+megkulonboztethetetlen, sehol nem rogzitve. A felhasznalo nem tudta
+megmondani, mi tortent - es mi sem.
+
+Mostantol:
+- "A YouTube most nem adott ki hangfolyamot ehhez a videohoz."
+- "Megvan a hang, de a YouTube elutasitotta a lejatszast."
+
+3. UJ: YoutubeDiagnostics - a nyom eljut hozzank
+
+A resolveFromInnerTube EDDIG IS naplozta minden kliens valaszat
+android.util.Log-gal. Csakhogy a logcat a fejleszto gepehez van kotve: egy
+vak tesztelo a masik varosban nem tud logcatot huzni, es mire a telefon a
+kezunkbe kerulne, a gyurus puffer reg felulirta. Az adat LETEZETT, csak soha
+nem jutott el hozzank.
+
+Mostantol a nyom a tarolora kerul, es a hibajelentes viszi magaval:
+kliensenkent HTTP-kod es cimszam, playabilityStatus (LOGIN_REQUIRED =
+korhatar, UNPLAYABLE = regiozar vagy tiltott beagyazas), tukronkenti
+osszegzes, MediaPlayer hibakodok (what/extra), es a kimenetel.
+
+Egy probalkozas = egy iras (finish()), nem negyven - es azelott, hogy a
+szolgaltatas leallitana magat.
+
+BugReport uj szakasza: "UTOLSO YOUTUBE-PROBALKOZAS".
+
+ADATVEDELEM: a nyom tartalmazza a video azonositojat. Enelkul nem tudjuk
+ujrajatszani az esetet, es nem derul ki, hogy a hiba minden videonal
+jelentkezik-e, vagy csak a korhataros / regiozart / beagyazas-tiltott
+darabokon. A BugReport fejlecebol emiatt kikerult a "SEMMILYEN szemelyes
+adatot nem tartalmaz" allitas, es a helyere pontos megfogalmazas kerult. A
+jelentes csak akkor indul utnak, ha a felhasznalo maga elkuldi.
+
+4. VISSZAESES NEMA LEALLAS HELYETT
+
+Eddig: elhangzott egy mondat, harom masodperc mulva a szolgaltatas leallt. A
+felhasznalo ott maradt csendben. Most atadjuk a rendes, kepes lejatszonak -
+az gyakran elindul akkor is, amikor a hangfolyam feloldasa nem megy, mert a
+beagyazott lejatszot nem erinti a YouTube robotvedelme. Es MEG IS MONDJUK,
+hogy ez tortenik.
+
+Vegtelen kor veszelye elharitva: a YoutubePlayerActivity indulaskor
+megnezi a takarekos kapcsolot es visszaadja a szolgaltatasnak. Uj
+EXTRA_SKIP_SAVER tori meg a kort EGYETLEN videora. A beallitas nem valtozik
+- nem kapcsolunk vissza a felhasznalo hata mogott.
+
+ELLENORIZVE A KESZ CSOMAGBAN, nem csak a fordulassal:
+uj szkript (youtube_diag_ellenorzes1639.ps1) a kiadasi APK dex-fajljaiban
+keresi a mondatokat. Mind a hat MEGVAN, EXITCODE=0.
+
+MEGJEGYZES: az elso futas hamis "HIANYZIK"-ot adott, mert a SZKRIPT ekezetei
+romlottak el a szerkeszto es a PowerShell kozotti kodolasvaltason - nem a
+DEX-ben hianyzott semmi. Azota a keresett mintak ekezet nelkuli reszletek.
+
+EGYUTT MEGY: a tools/mobil-katalogus.json helyi masolata felzarkoztatva az
+elesben futo katalogushoz (31 modul, frissitve 2026-09-10). Ellenorizve: a
+modul-lista azonos az elessel. Ez a masolat korabban elavult volt, es epp ez
+a fajta elavulas okozott mar egyszer utkozest.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

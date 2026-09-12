@@ -20,9 +20,16 @@ import java.util.Locale
  * felhasználó jelenti a hibát: milyen készülék, mi van bekapcsolva, milyen
  * beállítások élnek.
  *
- * ADATVÉDELEM: a jelentés SEMMILYEN személyes adatot nem tartalmaz —
- * se névjegyet, se üzenetet, se helyzetet, se jelszót. Csak a program
- * állapotát és a felhasználó SAJÁT LEÍRÁSÁT.
+ * ADATVÉDELEM: a jelentés se névjegyet, se üzenetet, se helyzetet, se
+ * jelszót nem tartalmaz. Csak a program állapotát és a felhasználó SAJÁT
+ * LEÍRÁSÁT.
+ *
+ * EGYETLEN KIVÉTEL, és ez szándékos: az „UTOLSÓ YOUTUBE-PRÓBÁLKOZÁS"
+ * szakaszban benne van a videó azonosítója. Enélkül nem tudjuk újrajátszani
+ * az esetet, és nem derül ki, hogy a hiba minden videónál jelentkezik-e,
+ * vagy csak a korhatáros, régiózárt, beágyazás-tiltott darabokon. A jelentés
+ * csak akkor indul útnak, ha a felhasználó maga elküldi — és előtte
+ * végighallgathatja.
  */
 object BugReport {
 
@@ -65,6 +72,21 @@ object BugReport {
             appendLine(crash)
         } else {
             appendLine("ÖSSZEOMLÁS-NAPLÓ: üres (nem volt összeomlás)")
+        }
+
+        // AMI NEM OMLIK ÖSSZE, AZ IS LEHET HIBA.
+        //
+        // A 2026-09-11-i eset: az 1.63.6-os YouTube-összeomlást megjavítottuk,
+        // és a jelentésből LÁTSZOTT is, hogy már nem omlik össze — a tesztelő
+        // mégis pontosan ugyanazt tapasztalta. A takarékos módnak ugyanis két
+        // külön zsákutcája van, és a jelentésből egyik sem derült ki.
+        //
+        // Ez a szakasz azért van, hogy a következő kör ne találgatás legyen.
+        val youtube = com.superdl.launcher.youtube.YoutubeDiagnostics.report(context)
+        if (youtube.isNotBlank()) {
+            appendLine()
+            appendLine("UTOLSÓ YOUTUBE-PRÓBÁLKOZÁS:")
+            appendLine(youtube.trimEnd())
         }
     }
 

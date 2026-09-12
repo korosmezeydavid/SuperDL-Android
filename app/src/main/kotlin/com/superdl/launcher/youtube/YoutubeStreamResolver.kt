@@ -98,12 +98,13 @@ object YoutubeStreamResolver {
         if (videoId.isBlank()) return emptyList()
         val urls = linkedSetOf<String>()
         for (client in INNERTUBE_CLIENTS.take(2)) {
-            resolveFromInnerTube(videoId, client)?.let { urls += it }
+            tryStep("InnerTube ${client.clientName}") { resolveFromInnerTube(videoId, client) }
+                ?.let { urls += it }
             if (urls.isNotEmpty()) break
         }
         if (urls.isEmpty()) {
-            resolveFromPipedInstances(videoId)?.let { urls += it }
-            resolveFromInvidiousInstances(videoId)?.let { urls += it }
+            tryStep("Piped tükrök") { resolveFromPipedInstances(videoId) }?.let { urls += it }
+            tryStep("Invidious tükrök") { resolveFromInvidiousInstances(videoId) }?.let { urls += it }
         }
         return prioritizeVideoUrls(urls.toList())
     }
@@ -111,12 +112,39 @@ object YoutubeStreamResolver {
     fun resolveStreamUrls(videoId: String): List<String> {
         if (videoId.isBlank()) return emptyList()
         val urls = linkedSetOf<String>()
-        resolveInAppStreamUrls(videoId).let { urls += it }
+        tryStep("gyors feloldás") { resolveInAppStreamUrls(videoId) }?.let { urls += it }
         for (client in INNERTUBE_CLIENTS) {
-            resolveFromInnerTube(videoId, client)?.let { urls += it }
+            tryStep("InnerTube ${client.clientName}") { resolveFromInnerTube(videoId, client) }
+                ?.let { urls += it }
         }
-        resolveFromWatchPage(videoId)?.let { urls += it }
+        tryStep("watch-oldal") { resolveFromWatchPage(videoId) }?.let { urls += it }
         return prioritizeVideoUrls(urls.toList())
+    }
+
+    /**
+     * EGY LÉPÉS BUKÁSA NEM AZ EGÉSZ BUKÁSA.
+     *
+     * A HIBA, AMIT EZ JAVÍT (2026-09-11, Géza jelentése nyomán találtuk):
+     * a `useConnection` csak lezárja a kapcsolatot, a kivételt NEM nyeli el.
+     * A lépések viszont `?.let`-tel voltak egymás után fűzve, védelem nélkül —
+     * így az ELSŐ kliens időtúllépése az EGÉSZ feloldást megszakította.
+     * A hívó ezt üres listának látta, és a felhasználó azt hallotta, hogy a
+     * videó nem játszható le, holott a maradék öt utat meg sem próbáltuk.
+     *
+     * Rossz hálózaton ez mindig így végződött: 8 másodperc várakozás az első
+     * kliensre, aztán csend. Pontosan az „egy idő után jelzi, hogy nem
+     * sikerült" tünet.
+     *
+     * Ugyanaz az elv, mint a lejátszásnál (`playFirstWorking`): egy cím
+     * hibája nem jelenti, hogy a videó néma — csak azt, hogy jön a következő.
+     */
+    private fun <T> tryStep(name: String, block: () -> T?): T? = try {
+        block()
+    } catch (e: Exception) {
+        val ok = e.javaClass.simpleName
+        android.util.Log.w("SDL_YOUTUBE", "$name elakadt: $ok ${e.message}")
+        YoutubeDiagnostics.note("$name: elakadt ($ok)")
+        null
     }
 
     private fun prioritizeVideoUrls(urls: List<String>): List<String> {
@@ -139,14 +167,20 @@ object YoutubeStreamResolver {
         resolveStreamUrls(videoId).firstOrNull()
 
     private fun resolveFromPipedInstances(videoId: String): List<String>? {
+        var tried = 0
         for (base in PIPED_INSTANCES) {
             try {
+                tried++
                 val urls = resolveFromPiped("$base/streams/$videoId")
-                if (urls.isNotEmpty()) return urls
+                if (urls.isNotEmpty()) {
+                    YoutubeDiagnostics.note("Piped: $tried. tükör adott ${urls.size} címet")
+                    return urls
+                }
             } catch (_: Exception) {
                 continue
             }
         }
+        YoutubeDiagnostics.note("Piped: $tried tükör, egyik sem adott címet")
         return null
     }
 
@@ -164,14 +198,20 @@ object YoutubeStreamResolver {
     }
 
     private fun resolveFromInvidiousInstances(videoId: String): List<String>? {
+        var tried = 0
         for (base in INVIDIOUS_INSTANCES) {
             try {
+                tried++
                 val urls = resolveFromInvidious("$base/api/v1/videos/$videoId")
-                if (urls.isNotEmpty()) return urls
+                if (urls.isNotEmpty()) {
+                    YoutubeDiagnostics.note("Invidious: $tried. tükör adott ${urls.size} címet")
+                    return urls
+                }
             } catch (_: Exception) {
                 continue
             }
         }
+        YoutubeDiagnostics.note("Invidious: $tried tükör, egyik sem adott címet")
         return null
     }
 
@@ -228,7 +268,13 @@ object YoutubeStreamResolver {
                 "SDL_YOUTUBE",
                 "InnerTube ${client.clientName}: HTTP ${it.responseCode}"
             )
-            if (it.responseCode !in 200..299) return@useConnection null
+            if (it.responseCode !in 200..299) {
+                // A 403 ITT A BESZÉDES: az a származás-igazoló jelző (PO token)
+                // hiányát jelenti, és kliens-cserét kíván. A logcat ezt eddig
+                // is tudta — csak soha nem jutott el hozzánk.
+                YoutubeDiagnostics.note("${client.clientName}: HTTP ${it.responseCode} — elutasítva")
+                return@useConnection null
+            }
             val body = it.inputStream.bufferedReader().use { reader -> reader.readText() }
             val root = JSONObject(body)
             val status = root.optJSONObject("playabilityStatus")?.optString("status")
@@ -238,6 +284,11 @@ object YoutubeStreamResolver {
                     "SDL_YOUTUBE",
                     "${client.clientName}: NINCS streamingData, allapot=$status"
                 )
+                // AZ ÁLLAPOT ITT A VÁLASZ: LOGIN_REQUIRED (korhatár),
+                // UNPLAYABLE (régiózár vagy letiltott beágyazás), ERROR
+                // (törölt videó). Ezek nem a mi hibáink, és MÁST kell rájuk
+                // mondani, mint egy elakadt feloldásra.
+                YoutubeDiagnostics.note("${client.clientName}: nincs hangfolyam, állapot=$status")
                 return@useConnection null
             }
             val urls = mutableListOf<String>()
@@ -249,6 +300,9 @@ object YoutubeStreamResolver {
                     "progressziv=${streaming.optJSONArray("formats")?.length() ?: 0}, " +
                     "adaptiv=${streaming.optJSONArray("adaptiveFormats")?.length() ?: 0}, " +
                     "HASZNALHATO CIM=${urls.size}"
+            )
+            YoutubeDiagnostics.note(
+                "${client.clientName}: állapot=$status, cím=${urls.size}"
             )
             urls.takeIf { urls -> urls.isNotEmpty() }
         }
@@ -273,11 +327,18 @@ object YoutubeStreamResolver {
         } ?: return null
         val playerJson = extractEmbeddedJson(html, "ytInitialPlayerResponse")
             ?: extractEmbeddedJson(html, "ytInitialData")
-            ?: return null
-        val streaming = JSONObject(playerJson).optJSONObject("streamingData") ?: return null
+            ?: run {
+                YoutubeDiagnostics.note("watch-oldal: nincs benne lejátszó-adat")
+                return null
+            }
+        val streaming = JSONObject(playerJson).optJSONObject("streamingData") ?: run {
+            YoutubeDiagnostics.note("watch-oldal: nincs hangfolyam az adatban")
+            return null
+        }
         val urls = mutableListOf<String>()
         streaming.optJSONArray("formats")?.let { pickInnerTubeProgressiveUrls(it) }?.let { urls += it }
         streaming.optJSONArray("adaptiveFormats")?.let { pickInnerTubeAdaptiveUrls(it) }?.let { urls += it }
+        YoutubeDiagnostics.note("watch-oldal: cím=${urls.size}")
         return urls.takeIf { it.isNotEmpty() }
     }
 

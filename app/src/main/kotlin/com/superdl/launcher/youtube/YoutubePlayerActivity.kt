@@ -142,7 +142,13 @@ class YoutubePlayerActivity : AppCompatActivity() {
         // telefont, a beágyazott lejátszó képfelülete megszűnik, és a hang is
         // vele megy. A szolgáltatás viszont nem függ a képernyőtől: ott a
         // lejátszás akkor is megy, ha a telefon a zsebedben van.
-        if (YoutubeSaverPrefs.isEnabled(this)) {
+        //
+        // A KIVÉTEL: ha épp a takarékos mód küldött ide vissza, mert nem
+        // talált hangot, akkor NEM adjuk vissza neki — abból végtelen kör
+        // lenne, és a felhasználó két mondat között ingázna örökké.
+        if (YoutubeSaverPrefs.isEnabled(this) &&
+            !intent.getBooleanExtra(EXTRA_SKIP_SAVER, false)
+        ) {
             YoutubeAudioService.start(this, videoId, title.ifBlank { "YouTube" })
             finish()
             return
@@ -629,5 +635,14 @@ class YoutubePlayerActivity : AppCompatActivity() {
         const val EXTRA_TITLE = "video_title"
         const val EXTRA_CHANNEL = "video_channel"
         const val EXTRA_DURATION = "video_duration"
+
+        /**
+         * „Most az egyszer ne add át a takarékos módnak."
+         *
+         * Csak a `YoutubeAudioService` visszaesése állítja be, amikor ő maga
+         * nem talált hangot. A beállítás ettől NEM változik: a következő
+         * videónál megint a takarékos mód próbálkozik először.
+         */
+        const val EXTRA_SKIP_SAVER = "skip_saver"
     }
 }

@@ -1,0 +1,49 @@
+$apk = 'C:\Users\msn\Documents\SuperDL-Android\app\build\outputs\apk\release\SuperDL.apk'
+$aapt = Get-ChildItem 'C:\Users\msn\AppData\Local\Android\Sdk\build-tools' -Filter aapt2.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+
+Write-Output '--- 1. verzio a kiadasi APK-ban ---'
+if ($aapt) {
+    & $aapt.FullName dump badging $apk 2>$null | Select-String -Pattern "versionName" | Select-Object -First 1
+}
+
+Write-Output '--- 2. INDITOPULT ---'
+if ($aapt) {
+    $tree = & $aapt.FullName dump xmltree --file AndroidManifest.xml $apk 2>$null
+    $launcher = $tree | Select-String -Pattern 'android.intent.category.LAUNCHER'
+    $kezdo = $tree | Select-String -Pattern 'android.intent.category.HOME'
+    Write-Output ("    LAUNCHER kategoria: " + $(if ($launcher) { "MEGVAN" } else { "HIANYZIK" }))
+    Write-Output ("    HOME kategoria:     " + $(if ($kezdo) { "MEGVAN" } else { "HIANYZIK" }))
+}
+
+Write-Output '--- 3. SMS SZEREPKOR + KEPERNYOOLVASO ---'
+if ($aapt) {
+    $tree = & $aapt.FullName dump xmltree --file AndroidManifest.xml $apk 2>$null
+    foreach ($p in @('SMS_DELIVER', 'WAP_PUSH_DELIVER', 'RESPOND_VIA_MESSAGE', 'BROADCAST_WAP_PUSH', 'SEND_RESPOND_VIA_MESSAGE', 'ScreenReaderService', 'WAKE_LOCK')) {
+        $van = $tree | Select-String -Pattern $p
+        Write-Output ("    " + $p.PadRight(26) + $(if ($van) { "MEGVAN" } else { "HIANYZIK" }))
+    }
+}
+
+Write-Output '--- 4. hangok ---'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead($apk)
+$k = $zip.Entries | Where-Object { $_.FullName -like "assets/zarhang/*" }
+Write-Output ("zarhang: $($k.Count) klip")
+$e = $zip.Entries | Where-Object { $_.FullName -like "assets/hangtemak/elena/*" }
+Write-Output ("Elena: $($e.Count) klip")
+$zip.Dispose()
+
+Write-Output '--- 5. ALAIRAS ---'
+$apksigner = Get-ChildItem 'C:\Users\msn\AppData\Local\Android\Sdk\build-tools' -Filter apksigner.bat -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($apksigner) {
+    & $apksigner.FullName verify --print-certs $apk 2>&1 | Select-String -Pattern 'Signer #1 certificate SHA-256|Verified using' | ForEach-Object { Write-Output ("    " + $_.Line.Trim()) }
+}
+
+Write-Output '--- 6. MEDIA OSZTALYOK A DEX-BEN (az 1.63.8 javitasa, nem eshet ki) ---'
+& powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\msn\Documents\SuperDL-Android\tools\media_ellenorzes1638.ps1'
+
+Write-Output '--- 7. YOUTUBE-DIAGNOSZTIKA A DEX-BEN (ez a kiadas lenyege) ---'
+# MIERT ITT: a diagnosztika sztringjei nelkul a jelentes ugyanolyan nema
+# lenne, mint eddig - es ezt csak a KESZ csomagban lehet latni.
+& powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\msn\Documents\SuperDL-Android\tools\youtube_diag_ellenorzes1639.ps1'
+Write-Output 'KESZ.'
