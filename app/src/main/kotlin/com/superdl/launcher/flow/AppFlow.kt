@@ -128,6 +128,21 @@ sealed class AppFlow {
     data class AlarmConfirm(val hour: Int, val minute: Int, val label: String) : AppFlow()
     data class AlarmListBrowse(val alarms: List<AlarmEntry>, val index: Int, val deleteMode: Boolean = false) : AppFlow()
     data class AlarmDeleteConfirm(val alarm: AlarmEntry, val alarms: List<AlarmEntry>, val index: Int) : AppFlow()
+    /**
+     * ÁTJÁRÓ A KATALÓGUSHOZ — egy söprés oda, ahol tartalom van.
+     *
+     * A HIBA, AMI EZT KIKÉNYSZERÍTETTE: egy friss telepítő ennyit jelentett,
+     * hogy „a játékok nem töltöttek le". A program addig annyit mondott, hogy
+     * „a Beállítások, Katalógus, Elérhető modulok pontban tölthetsz le
+     * kérdéssorokat" — ez igaz, de HÁROM menülépés, amit vakon fejben kell
+     * tartani, miközben ki kell lépni onnan, ahol épp vagy.
+     *
+     * Aki most hallja először, annak nem útbaigazítás kell, hanem ajtó.
+     *
+     * @param reason amit a felhasználó hallott (miért nincs tartalom)
+     */
+    data class CatalogGate(val reason: String) : AppFlow()
+
     /** Kvíz: melyik letöltött kérdéssort játsszuk. */
     data class QuizPick(
         val sets: List<com.superdl.launcher.games.quiz.QuizSet>,

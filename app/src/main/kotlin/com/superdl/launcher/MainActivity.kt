@@ -1020,6 +1020,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BugReportSend -> navigateBugReport(flow, -1)
             is AppFlow.StepsLive -> speakLiveSteps(flow)
             is AppFlow.UpdateOffer -> tts.speak(flow.info.speak())
+            // Az átjárón a fel-le ISMÉTLI az indoklást — nincs mit válogatni,
+            // de a magyarázat bármikor újrahallgatható.
+            is AppFlow.CatalogGate -> tts.speak(flow.reason)
             is AppFlow.QuizPick -> navigateQuizPick(flow, -1)
             is AppFlow.QuizPlay -> navigateQuizAnswer(flow, -1)
             is AppFlow.CalendarTargetPick -> navigateCalendarTargetPick(flow, -1)
@@ -1224,6 +1227,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BugReportSend -> navigateBugReport(flow, +1)
             is AppFlow.StepsLive -> speakLiveSteps(flow)
             is AppFlow.UpdateOffer -> tts.speak(flow.info.speak())
+            is AppFlow.CatalogGate -> tts.speak(flow.reason)
             is AppFlow.QuizPick -> navigateQuizPick(flow, +1)
             is AppFlow.QuizPlay -> navigateQuizAnswer(flow, +1)
             is AppFlow.CalendarTargetPick -> navigateCalendarTargetPick(flow, +1)
@@ -1579,6 +1583,8 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.StepsLive -> speakLiveSteps(flow)
             is AppFlow.UpdateOffer -> downloadAndInstallUpdate(flow.info)
+            // AZ AJTÓ. Egy söprés, és ott vagy, ahol tartalom van.
+            is AppFlow.CatalogGate -> startCatalogBrowse()
             is AppFlow.QuizPick -> startQuizRound(flow.sets[flow.index])
             is AppFlow.QuizPlay -> answerQuizQuestion(flow)
             is AppFlow.CalendarTargetPick -> confirmCalendarTarget(flow)
@@ -2094,6 +2100,7 @@ class MainActivity : AppCompatActivity() {
             // rossz kategóriába lépett, a főmenüben kötött ki, és kezdhette
             // elölről. A felső ágat töröltük, ez maradt.
             is AppFlow.ExternalAppBrowse -> startExternalAppsFlow()
+            is AppFlow.CatalogGate -> exitFlow("Rendben, most nem töltünk le semmit.")
             is AppFlow.QuizPick -> exitFlow("Kvíz bezárva.")
             is AppFlow.QuizPlay -> exitFlow(
                 "Kvíz megszakítva. Eddig ${flow.score} helyes válasz."
@@ -7490,14 +7497,17 @@ class MainActivity : AppCompatActivity() {
      * fájlt feltölteni, nem kell új alkalmazás-verzió.
      */
     private fun startQuizGame() {
-        val sets = com.superdl.launcher.games.quiz.QuizLoader.loadAll(this)
+        val loaded = com.superdl.launcher.games.quiz.QuizLoader.loadAllDetailed(this)
+        val sets = loaded.sets
         if (sets.isEmpty()) {
-            tts.speak(
-                "Még nincs letöltött kvíz. A Beállítások, Katalógus, Elérhető modulok " +
-                    "pontban tölthetsz le kérdéssorokat."
-            )
+            // KÉT KÜLÖN ESET, ÉS EDDIG UGYANÚGY HANGZOTT. Vagy nincs letöltve
+            // semmi, vagy le van töltve, csak hibás — az elsőnél tölteni kell,
+            // a másodiknál ÚJRA tölteni. A régi mondat a másodikat aktívan
+            // elhallgatta, és a felhasználót visszaküldte oda, ahol már volt.
+            openCatalogGate(loaded.speakWhyEmpty())
             return
         }
+        loaded.speakPartialWarning()?.let { tts.speak(it) }
         if (sets.size == 1) {
             startQuizRound(sets.first())
             return
@@ -7699,10 +7709,20 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * ÁTJÁRÓ A KATALÓGUSHOZ. Elmondja, miért nincs tartalom, és felajánl egy
+     * söprést — nem három menülépést, amit fejben kell tartani.
+     */
+    private fun openCatalogGate(reason: String) {
+        activeFlow = AppFlow.CatalogGate(reason)
+        updateFlowDisplay()
+        tts.speak(reason)
+    }
+
     private fun startCatalogBrowse() {
         tts.speak("Katalógus betöltése.")
         Thread {
-            val result = com.superdl.launcher.catalog.CatalogClient.fetchCatalog()
+            val result = com.superdl.launcher.catalog.CatalogClient.fetchCatalog(this)
             postWhenAlive {
                 if (result.error != null || result.modules.isEmpty()) {
                     tts.speak(result.error ?: "A katalógus most üres.")
@@ -7753,7 +7773,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun speakCatalogEntry(module: com.superdl.launcher.catalog.CatalogModule): String {
         val installed = com.superdl.launcher.catalog.CatalogStore.installedVersion(this, module.id)
-        return module.speakSummary(installed)
+        // A VERZIÓ-KORLÁTOT ELŐRE MONDJUK, ne a letöltés végén. A `minAppVersion`
+        // mezőt eddig beolvastuk és soha nem néztük meg; így lehetett letölteni
+        // olyan modult, amit a motor nem tud elolvasni — és utána a játék azt
+        // mondta rá, hogy „még nincs letöltött kvíz".
+        val blocked = if (com.superdl.launcher.catalog.CatalogClient.isSupported(this, module)) {
+            ""
+        } else {
+            " Ehhez újabb Super DL kell."
+        }
+        return module.speakSummary(installed) + blocked
     }
 
     private fun navigateCatalog(flow: AppFlow.CatalogBrowse, delta: Int) {
@@ -7780,17 +7809,16 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Ez már letöltve van. ${module.description}")
             return
         }
-        tts.speak("Letöltés: ${module.name}.")
-        Thread {
-            val error = com.superdl.launcher.catalog.CatalogClient.downloadModule(this, module)
-            postWhenAlive {
-                if (error != null) {
-                    tts.speak(error)
-                } else {
-                    tts.speak("Letöltve: ${module.name}. ${module.description}")
-                }
-            }
-        }.start()
+        // A LETÖLTÉST SZOLGÁLTATÁS VÉGZI, NEM EZ A KÉPERNYŐ.
+        //
+        // Eddig itt egy nyers `Thread` futott, és az eredmény a
+        // `postWhenAlive`-on ment át — ami eldobta az egészet, ha a
+        // felhasználó közben kilépett, vagy a telefon leállította a
+        // programot. Pontosan ez adta a „azt mondta letöltés, aztán semmi"
+        // tünetet. A szolgáltatás túléli ezt a képernyőt, és a végén akkor
+        // is megszólal, ha már máshol jársz.
+        tts.speak("Letöltés: ${module.name}. Szólok, ha kész.")
+        com.superdl.launcher.catalog.CatalogDownloadService.start(this, module)
     }
 
     /**
@@ -7844,8 +7872,9 @@ class MainActivity : AppCompatActivity() {
     private fun speakInstalledModules() {
         val ids = com.superdl.launcher.catalog.CatalogStore.installedIds(this)
         if (ids.isEmpty()) {
-            tts.speak(
-                "Még nincs letöltött modul. Az Elérhető modulok pontban válogathatsz."
+            openCatalogGate(
+                "Még nincs letöltött modul. Söpörj jobbra, és megnyitom a katalógust, " +
+                    "ahol válogathatsz."
             )
             return
         }
@@ -18510,7 +18539,7 @@ class MainActivity : AppCompatActivity() {
     private fun startVoiceThemeCatalog() {
         tts.speak("Beszédtémák betöltése a közösből.")
         Thread {
-            val result = com.superdl.launcher.catalog.CatalogClient.fetchCatalog()
+            val result = com.superdl.launcher.catalog.CatalogClient.fetchCatalog(this)
             postWhenAlive {
                 if (result.error != null) {
                     tts.speak(result.error)
@@ -18638,10 +18667,14 @@ class MainActivity : AppCompatActivity() {
         if (!VoiceThemeStore.isEnabled(this)) VoiceThemeStore.setEnabled(this, true)
         // A katalógus is tudja meg, hogy ez már a tiéd — különben legközelebb
         // is „nincs letöltve" állapotot mondana rá.
-        flow.modules.getOrNull(flow.moduleIndex)?.let {
+        val bookkeepingError = flow.modules.getOrNull(flow.moduleIndex)?.let {
             com.superdl.launcher.catalog.CatalogClient.markModuleInstalled(this, it)
         }
         sounds.play(SoundType.ACTION_OK)
+        // Ha az elkönyvelés elbukott, azt KI KELL MONDANI: a téma megvan és
+        // szól, de a katalógus legközelebb „nincs letöltve"-t mondana rá, és
+        // a felhasználó nem értené, miért.
+        bookkeepingError?.let { tts.speakAdd(it) }
         exitFlow(
             "Megtartva és bekapcsolva: ${flow.name}. $moved hang. " +
                 "Amihez ebben a témában nincs hang, ott Elena szólal meg. " +
@@ -19595,6 +19628,11 @@ class MainActivity : AppCompatActivity() {
                 val verb = if (flow.purpose == CalendarPickPurpose.EDIT) "szerkesztés" else "törlés"
                 tvPosition.text = "Program $verb  •  ${flow.index + 1} / ${flow.events.size}"
                 tvHint.text = "⬆⬇ választás  •  ➡ $verb  •  ⬅ vissza"
+            }
+            is AppFlow.CatalogGate -> {
+                tvItem.text = "Katalógus"
+                tvPosition.text = "Nincs letölthető tartalom itt"
+                tvHint.text = "➡ vidd a katalógusba  •  ⬅ most nem"
             }
             is AppFlow.QuizPick -> {
                 val s = flow.sets[flow.index]

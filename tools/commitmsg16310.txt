@@ -1,0 +1,123 @@
+1.63.10 - a katalogus-letoltes csendes bukasa: hang, ok, es egy ajto
+
+versionCode 120, versionName 1.63.10.
+
+szanyuka1975 jelentese (Xiaomi M2103K19G, Android 13, 1.63.8), harom szo:
+"a jatekok nem toltottek le". Elso jelentese, es elso levele egyaltalan.
+
+A SZERVER-OLDALT ELOSZOR MEGMERTUK, nem feltetelezzuk:
+  mobil-katalogus.json          HTTP 200, 12 161 bajt, 31 modul
+  mind a 31 modul-fajl (HEAD)   ROSSZ=0 / OSSZES=31
+Tehat nem 404. A hiba a telefonon volt - vagy meg sem talalta a katalogust.
+
+1. A LETOLTES EDDIG NYERS SZALBAN FUTOTT AZ ACTIVITY-BEN
+
+Az eredmeny a postWhenAlive-on ment at:
+
+  mainHandler.post {
+      if (isFinishing || isDestroyed) return@post      // <-- ITT VESZETT EL
+      block()
+  }
+
+Ha az Activity a letoltes vege elott eltunt - a felhasznalo kilepett, vagy a
+MIUI leallitotta a programot -, a return@post ELDOBTA AZ EGESZ EREDMENYT:
+nincs beszed, nincs naplo, nincs ujraprobalas. A fajl akar le is johetett a
+lemezre; a felhasznalo soha nem tudta meg.
+
+Es epp ennel a telefonnal allt elesben a feltetel: a jelenteseben a
+"Korlatlan hatterfutas" tetele KIHAGYVA volt, ket probalkozas utan.
+
+A katalogus volt az EGYETLEN halozati funkcio szolgaltatas nelkul. A
+programban tucatnyi startForegroundService van (YouTube, idozito, megosztas,
+diktafon, radiofelvetel) - a modul-letoltes maradt ki.
+
+UJ: catalog/CatalogDownloadService.kt. Elter-szolgaltatas, dataSync tipussal.
+Tuleli az Activityt, es a veget a PatrolAnnouncer mondja be - az akkor is
+megszolal, ha a felhasznalo mar mashol jar, sajat ebrentarto zarral es sajat
+beszedmotorral.
+
+Nem WorkManager: a projektben egyetlen sor WorkManager sincs, es egy uj
+fuggoseg uj kockazat (lasd az 1.63.6 osszeomlasat, amit egy regi tamogato
+konyvtar okozott). Az elter-szolgaltatas a haz bevalt mintaja.
+
+2. A HTTP-KOD SOSEM JUTOTT EL A FELHASZNALOIG
+
+A regi download() ugyanazt a null-t adta a 404-re, az 500-ra, a 403-ra
+(GitHub keres-korlat), az idotullepesre es a nevfeloldasi hibara. Ebbol lett
+az egy mondat: "A katalogus nem erheto el. Van internet?" - ami akkor is
+elhangzott, amikor boven volt internet. A felhasznalo a wifit kapcsolgatta
+egy 404 miatt.
+
+Ugyanez a hibaosztaly az AppUpdateInstaller-ben MAR meg volt oldva
+(lastInstallError), es a kommentje szo szerint ezt irja: "es pont ez a mondat
+rejtett el egy hibat hetekig." A katalogus maradt a regi hibaban.
+
+MOST a download() nem null-t ad, hanem OKOT (sealed Fetched.Ok / Fail), es az
+ok megmondja, KIN MULIK:
+  403 -> "a kiszolgalo most nem enged tobb letoltest. Varj par percet."
+  404 -> "ez a fajl nincs a kiszolgalon. Ez a mi hibank, nem a tied."
+  5xx -> "a kiszolgalo hibat jelez. Ez nem a te telefonod."
+  idotulepes / DNS / SSL / IO -> sajat mondat mindegyikre
+
+3. HALOZAT-ELLENORZES ELORE
+
+A net/NetworkHelper.isOnline() keszen volt, a doc-commentje pont ezt a
+csapdat irja le ("husz masodpercig var, majd annyit mond: ismeretlen cim") -
+es a catalog csomagbol NULLA hivasa volt. Ez a "jo szolgaltatas, amit senki
+nem hiv" mintajanak ujabb elofordulasa.
+
+4. minAppVersion: BEOLVASVA, SOHA NEM ELLENORIZVE
+
+Ket elofordulasa volt a projektben, mindketto beolvasas. Egy ujabb
+alkalmazast igenylo modult a program felajanlott es letoltott, aztan a motor
+nem tudta ertelmezni - es a jatek azt mondta ra, hogy "meg nincs letoltott
+kviz". Vegtelen kor. Most a lista bemondja elore ("Ehhez ujabb Super DL
+kell"), es a letoltes is megall rajta.
+
+5. ATOMI IRAS
+
+A regi valtozat egyenesen a helyere irt. Ha a telefon kozben leallitotta a
+programot - MIUI-n ez a leggyakoribb eset -, FELBEVAGOTT fajl maradt. Most
+.tmp + renameTo.
+
+6. A QuizLoader NEMA KIESESEI
+
+loadAll = ids.mapNotNull { load(...) }, a load pedig NEGY helyen adott vissza
+null-t, egyetlen naplo-sor nelkul. Kovetkezmeny: a katalogus "letoltve"-t
+mondott a modulra, a jatek viszont azt, hogy "Meg nincs letoltott kviz", es
+visszairanyitotta a felhasznalot ABBA a menube, ahol mar volt.
+
+Uj loadAllDetailed() a hibasak szambavetelevel, es KET kulon mondat:
+  nincs letoltve  -> "Meg nincs letoltott kviz..."
+  letoltve, hibas -> "N letoltott kerdessor hibas... Toltsd le ujra."
+
+Reszleges eset is: ha van hasznalhato es van hibas is, a jatek elindul, es
+szol, hogy mit hagyott ki.
+
+7. ATJARO A KATALOGUSHOZ - uj AppFlow.CatalogGate
+
+A program eddig annyit mondott: "a Beallitasok, Katalogus, Elerheto modulok
+pontban toltehetsz le kerdessorokat". Ez igaz, de HAROM menulepes, amit vakon
+fejben kell tartani, mikozben ki kell lepni onnan, ahol epp vagy. Aki most
+hallja eloszor - mint szanyuka1975 -, annak nem utbaigazitas kell, hanem
+ajto: jobbra sopres, es ott van.
+
+Bekotve a Kviz ures allapotabol es a "Letoltott modulok" pontbol is.
+
+8. markModuleInstalled VISSZATERESI ERTEKET KAPOTT
+
+Eddig semmit nem adott vissza, es a hivo nem tudta meg, ha elbukott: a tema
+megvolt es szolt, a katalogus megis "nincs letoltve"-t mondott ra.
+
+ELLENORIZVE A KESZ CSOMAGBAN, nem csak a fordulassal:
+uj tools/katalogus_ellenorzes16310.ps1 - 11 mondat es a CatalogDownloadService
+a manifestben. Mind MEGVAN, EXITCODE=0. A finalcheck mostantol harom korabbi
+javitast is orzi (media osztalyok, youtube-diagnosztika, katalogus).
+
+MEGJEGYZES: az ellenorzo elso futasa hamis "HIANYZIK"-ot adott az "odaviszlek"
+mondatra - a keresett minta volt elgepelve a szkriptben, nem a DEX-bol
+hianyzott. Harmadszor futunk bele ugyanebbe: az ellenorzo szkript is tud
+hazudni.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -421,6 +421,19 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!--
+            Katalógus-modulok letöltése.
+
+            MIÉRT SZOLGÁLTATÁS: a letöltés eddig nyers szálban futott az
+            Activity-ben, és ha a felhasználó kilépett — vagy a MIUI
+            leállította a programot —, az eredmény NÉMÁN elveszett. Ez volt az
+            egyetlen hálózati funkció a programban szolgáltatás nélkül.
+        -->
+        <service
+            android:name=".catalog.CatalogDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Fájl- és mappamegosztás -->
         <activity
             android:name=".share.ShareActivity"
