@@ -426,6 +426,18 @@ class MainActivity : AppCompatActivity() {
     private var dictaphoneElapsedRunnable: Runnable? = null
     private var pendingSmsForwardBody: String? = null
     private var pendingSmsFolderRead: SmsFolder? = null
+
+    /**
+     * A SABLON SZÖVEGE, amíg a címzettet választjuk.
+     *
+     * Ugyanaz a minta, mint a `pendingSmsForwardBody`-nál: a címzettválogató
+     * változatlan marad, csak a végén nem diktáltatunk, hanem ezt küldjük.
+     * Így a sablon-küldés nem kényszerít ki új állapotokat a négy söprés-táblába.
+     */
+    private var pendingTemplateText: String? = null
+
+    /** Kiknek megy az üzenet, amíg a szövegtárból választunk sablont. */
+    private var textBankInsertRecipients: List<Recipient>? = null
     private var smsInboxRestore: AppFlow.SmsInbox? = null
     private var calendarEditEventId: Long? = null
     private var calendarPickPurpose: CalendarPickPurpose = CalendarPickPurpose.EDIT
@@ -1020,6 +1032,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsScheduleAwaitTime ->
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, -1)
+            is AppFlow.TextBankBrowse -> navigateTextBank(flow, -1)
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
@@ -1236,6 +1249,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsScheduleAwaitTime ->
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, +1)
+            is AppFlow.TextBankBrowse -> navigateTextBank(flow, +1)
+            // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
+            // A címzettek megmaradnak, csak a szöveg jön a szövegtárból.
+            is AppFlow.SmsMultiAwaitMessage -> startTextBankInsertFlow(flow.recipients)
+            is AppFlow.SmsAwaitMessage -> startTextBankInsertFlow(listOf(flow.recipient))
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
@@ -1479,6 +1497,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiNameBrowse -> toggleSmsMultiName(flow)
             is AppFlow.SmsMultiConfirm -> sendSmsMulti(flow)
             is AppFlow.SmsScheduleList -> deleteScheduledSms(flow)
+            is AppFlow.TextBankBrowse -> onTextBankActivate(flow)
             AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
             is AppFlow.SmsContextMenu -> onSmsContextActivate(flow)
@@ -2151,6 +2170,22 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarWeekBrowse -> exitFlow("Heti program bezárva.")
             AppFlow.PatrolNightAwaitStart,
             AppFlow.PatrolNightAwaitEnd -> exitFlow("Éjszakai csend beállítás megszakítva.")
+            // SZÖVEGTÁR: ha diktálás közben nyitottuk meg, a balra VISSZAVISZ
+            // a diktáláshoz — a címzetteket nem veszítjük el egy meggondolás
+            // miatt. Ha önálló küldésbe indultunk, a balra kilépés.
+            is AppFlow.TextBankBrowse -> {
+                val recipients = textBankInsertRecipients
+                textBankInsertRecipients = null
+                pendingTemplateText = null
+                if (flow.forInsert && !recipients.isNullOrEmpty()) {
+                    activeFlow = AppFlow.SmsMultiAwaitMessage(recipients, false)
+                    updateFlowDisplay()
+                    tts.speak("Vissza a diktáláshoz.")
+                    listenForSmsMultiMessage(recipients, false)
+                } else {
+                    exitFlow("Szövegtár bezárva.")
+                }
+            }
             AppFlow.HomeTrainConfirm -> exitFlow("Betanítás megszakítva. Nem jegyeztem meg semmit.")
             AppFlow.HomeWatchAwaitTime -> {
                 voiceInput.cancel()
@@ -2415,6 +2450,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SMS_MULTI_WRITE -> startSmsMultiFlow()
             MenuAction.SMS_SCHEDULE_NEW -> startSmsMultiFlow(scheduled = true)
             MenuAction.SMS_SCHEDULE_LIST -> startSmsScheduleList()
+            MenuAction.SMS_TEMPLATE_SEND -> startTextBankSendFlow()
+            MenuAction.TEXT_BANK_LIST ->
+                tts.speak(com.superdl.launcher.textbank.TextBankStore.speakAll(this))
             MenuAction.HOME_TRAIN -> startHomeTrainFlow()
             MenuAction.HOME_WATCH_STATUS ->
                 tts.speak(com.superdl.launcher.home.HomeWatchSettings.speakStatus(this))
@@ -3717,10 +3755,24 @@ class MainActivity : AppCompatActivity() {
      */
     private fun finishSmsMultiPick(flow: AppFlow.SmsMultiLetterBrowse) {
         if (flow.selected.isEmpty()) {
+            pendingTemplateText = null
             exitFlow("Kijelölés megszakítva.")
             return
         }
         val names = flow.selected.joinToString(", ") { it.label }
+
+        // SABLON-KÜLDÉS: ha van előkészített szöveg, NEM diktáltatunk.
+        // A sablon lényege épp az, hogy már megvan a szöveg.
+        val template = pendingTemplateText
+        if (template != null) {
+            pendingTemplateText = null
+            activeFlow = AppFlow.SmsMultiConfirm(flow.selected, template)
+            updateFlowDisplay()
+            tts.speak("${flow.selected.size} címzett: $names.")
+            repeatSmsMultiConfirm(flow.selected, template, null)
+            return
+        }
+
         activeFlow = AppFlow.SmsMultiAwaitMessage(flow.selected, flow.scheduled)
         updateFlowDisplay()
         tts.speak("${flow.selected.size} címzett mentve: $names.")
@@ -18357,6 +18409,106 @@ class MainActivity : AppCompatActivity() {
         tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
     }
 
+    // ==================== SZÖVEGTÁR / SABLONOK ====================
+    //
+    // MIÉRT VAN EGYÁLTALÁN: egy e-mail címet, egy számlaszámot vagy egy adószámot
+    // diktálni kín, és pont ott a legnagyobb az elgépelés esélye, ahol a
+    // legnehezebb ellenőrizni. Ha egyszer bekerült — legkönnyebben a WiFi portál
+    // Szövegtár lapján, begépelve —, onnantól két mozdulat elküldeni.
+
+    private fun startTextBankSendFlow() {
+        val items = com.superdl.launcher.textbank.TextBankStore.getAll(this)
+        if (items.isEmpty()) {
+            tts.speak(
+                "A szövegtár üres. A WiFi portál Szövegtár lapján a leggyorsabb " +
+                    "feltölteni, mert ott begépelheted."
+            )
+            return
+        }
+        pendingTemplateText = null
+        activeFlow = AppFlow.TextBankBrowse(items, 0, forInsert = false)
+        updateFlowDisplay()
+        tts.speak(
+            "Sablon küldése. ${items.size} sablon. Fel-le válogatás, jobbra " +
+                "kiválasztás, balra kilépés."
+        )
+        tts.speakAdd(items[0].speakShort())
+    }
+
+    /**
+     * „MONDD AZ ÜZENETET" KÖZBEN, LE SÖPRÉSRE: inkább sablont választok.
+     *
+     * MIÉRT ÍGY, ÉS NEM „BESZÚRÁS A DIKTÁLT SZÖVEG KÖZEPÉBE": a hangfelismerő
+     * csak a végén adja vissza, amit mondtál — közben nincs mit mibe beszúrni.
+     * Ami viszont valóban hiányzott: amikor a program az üzenetet kéri, és
+     * eszedbe jut, hogy ez pont a számlaszám, ne kelljen kilépni és elölről
+     * kezdeni. A címzettek megmaradnak, csak a szöveg jön a szövegtárból.
+     */
+    private fun startTextBankInsertFlow(recipients: List<Recipient>) {
+        val items = com.superdl.launcher.textbank.TextBankStore.getAll(this)
+        if (items.isEmpty()) {
+            tts.speak(
+                "A szövegtár üres. Mondd az üzenetet, vagy tölts fel sablonokat a " +
+                    "WiFi portál Szövegtár lapján."
+            )
+            return
+        }
+        voiceInput.cancel()
+        textBankInsertRecipients = recipients
+        activeFlow = AppFlow.TextBankBrowse(items, 0, forInsert = true)
+        updateFlowDisplay()
+        tts.speak(
+            "Sablon a szövegtárból. Fel-le válogatás, jobbra kiválasztás, " +
+                "balra vissza a diktáláshoz."
+        )
+        tts.speakAdd(items[0].speakShort())
+    }
+
+    private fun navigateTextBank(flow: AppFlow.TextBankBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.items[next].speakShort())
+    }
+
+    private fun onTextBankActivate(flow: AppFlow.TextBankBrowse) {
+        val entry = flow.items[flow.index]
+        if (flow.forInsert) {
+            val recipients = textBankInsertRecipients
+            textBankInsertRecipients = null
+            if (recipients.isNullOrEmpty()) {
+                exitFlow("Elveszett a címzett. Kezdd elölről.", error = true)
+                return
+            }
+            activeFlow = AppFlow.SmsMultiConfirm(recipients, entry.text)
+            updateFlowDisplay()
+            repeatSmsMultiConfirm(recipients, entry.text, null)
+            return
+        }
+        // ÖNÁLLÓ KÜLDÉS: a szöveg készen van, már csak címzett kell.
+        // Ugyanaz a betűindexes kijelölő, mint az „Üzenet több címzettnek"-nél —
+        // nincs új mozdulat, és több embernek is mehet egyszerre.
+        pendingTemplateText = entry.text
+        speakTextBankEntry(entry)
+        tts.speakAdd("Most válaszd ki, kinek küldjem.")
+        startSmsMultiFlow()
+    }
+
+    /**
+     * A KIVÁLASZTOTT SABLON TELJES FELOLVASÁSA.
+     *
+     * AZONOSÍTÓT BETŰZVE IS. Egy számlaszámot vagy e-mail címet a beszédmotor
+     * összemos, és a pont meg a kötőjel el is tűnhet — ez az egyetlen pillanat,
+     * amikor még kiderülhet, hogy nem az megy el, amit gondolsz. Mondatot
+     * viszont nem betűzünk: az felesleges kínzás lenne.
+     */
+    private fun speakTextBankEntry(entry: com.superdl.launcher.textbank.TextBankEntry) {
+        tts.speak("${entry.name}: ${entry.text}")
+        if (entry.needsSpelling) {
+            tts.speakAdd("Betűzve: ${entry.spellOut()}")
+        }
+    }
+
     // ==================== OTTHON-FIGYELÉS (MK-V, M4) ====================
     //
     // EZ AZ ELSŐ FUNKCIÓ A PROGRAMBAN, AMI MAGÁTÓL CSELEKSZIK a felhasználó
@@ -20782,6 +20934,16 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = "Éjszakai csend vége"
                 tvPosition.text = "Őrség beállítás"
                 tvHint.text = "Mondd az időpontot  •  ⬅ mégse"
+            }
+            is AppFlow.TextBankBrowse -> {
+                val entry = flow.items[flow.index]
+                tvItem.text = entry.name
+                tvPosition.text = "Szövegtár  •  ${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = if (flow.forInsert) {
+                    "⬆⬇ válogatás  •  ➡ kiválasztás  •  ⬅ vissza a diktáláshoz"
+                } else {
+                    "⬆⬇ válogatás  •  ➡ küldés  •  ⬅ vissza"
+                }
             }
             AppFlow.HomeTrainConfirm -> {
                 tvItem.text = "Otthon betanítása"

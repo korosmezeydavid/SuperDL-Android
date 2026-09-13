@@ -464,6 +464,22 @@ class WifiPortalServer(
                 method == "POST" && route == "/radio/delete" ->
                     serveHtml(output, PortalControlPages.handleRadioDelete(context, readBody(input, headers)))
 
+                // SZÖVEGTÁR — sablonok szerkesztése.
+                // Küldés SZÁNDÉKOSAN nincs innen: a portál nem HTTPS, és a
+                // védelme egy négyjegyű PIN. Szerkeszteni lehet, küldeni nem.
+                method == "GET" && route == "/textbank" ->
+                    serveHtml(output, PortalControlPages.textBankPage(context))
+                method == "POST" && route == "/textbank/add" ->
+                    serveHtml(output, PortalControlPages.handleTextBankAdd(context, readBody(input, headers)))
+                method == "POST" && route == "/textbank/save" ->
+                    serveHtml(output, PortalControlPages.handleTextBankSave(context, readBody(input, headers)))
+                method == "POST" && route == "/textbank/delete" ->
+                    serveHtml(output, PortalControlPages.handleTextBankDelete(context, readBody(input, headers)))
+                method == "POST" && route == "/textbank/up" ->
+                    serveHtml(output, PortalControlPages.handleTextBankMove(context, readBody(input, headers), -1))
+                method == "POST" && route == "/textbank/down" ->
+                    serveHtml(output, PortalControlPages.handleTextBankMove(context, readBody(input, headers), +1))
+
                 // "Hol a telóm?" — hangos csörgetés a portálról.
                 method == "POST" && route == "/find-phone/start" -> {
                     com.superdl.launcher.files.FindPhoneHelper.start(context)
@@ -1208,6 +1224,7 @@ class WifiPortalServer(
     <a href="/podcast" class="tab">Podcast</a>
     <a href="/media" class="tab">Fotók és hangok</a>
     <a href="/radio" class="tab">Rádió</a>
+    <a href="/textbank" class="tab">Szövegtár</a>
     <a href="/status" class="tab">Állapot</a>
     <a href="/setup" class="tab">Beállítás</a>
     <a href="/diagnostics" class="tab">Diagnosztika</a>

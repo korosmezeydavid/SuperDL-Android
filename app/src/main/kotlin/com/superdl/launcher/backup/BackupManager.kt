@@ -44,6 +44,14 @@ object BackupManager {
         "superdl_screenreader_pack_discards", // elvetett közösségi címkék: a te döntésed
         "superdl_screenreader_sharing", // a megosztás kapcsolója és a küldő-azonosító
         "superdl_task_routes",         // a betanított műveletsorok
+        // A RÉGI, GOMBHOZ KÖTÖTT SZÖVEGTÁR.
+        //
+        // Ez eddig KIMARADT a listából, vagyis a szövegtár telefoncserénél
+        // elveszett — pont az az adat, amit a legnehezebb újra bevinni
+        // (számlaszám, e-mail cím). Az új szövegtár már a „superdl" prefsben
+        // él, tehát magától mentődik; ez a sor a migráció ELŐTTI mentésekért
+        // van itt, hogy azok se vesszenek el.
+        "superdl_text_bank",
         "superdl_route_pack_discards", // elvetett letöltött műveletsorok
         "keyguard_pin_assist",
         "com.superdl.launcher_preferences",

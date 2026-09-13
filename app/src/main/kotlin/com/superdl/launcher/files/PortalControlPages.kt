@@ -78,6 +78,7 @@ object PortalControlPages {
             ${tab("podcast", "Podcast", "/podcast")}
             ${tab("media", "Fotók és hangok", "/media")}
             ${tab("radio", "Rádió", "/radio")}
+            ${tab("textbank", "Szövegtár", "/textbank")}
             ${tab("status", "Állapot", "/status")}
             ${tab("setup", "Beállítás", "/setup")}
             ${tab("diagnostics", "Diagnosztika", "/diagnostics")}
@@ -2014,6 +2015,158 @@ object PortalControlPages {
             <h3>Mentett állomásaim (${saved.size})</h3>
             $rows
         """.trimIndent() + footer()
+    }
+
+    // ==================== Szövegtár (sablonok) ====================
+    //
+    // EZ A LAP A KÉRÉS LÉNYEGE. Egy huszonnégy jegyű számlaszámot vagy egy
+    // hosszú e-mail címet DIKTÁLNI kín, begépelni viszont húsz másodperc.
+    // Ezért a felvitel és a szerkesztés itt van, a gépen.
+    //
+    // KÜLDENI VISZONT NEM LEHET INNEN, és ez szándékos: a portál nem HTTPS,
+    // nincs forrás-IP szűrés, a védelme egy négyjegyű PIN. Ugyanaz a döntés,
+    // ami az otthon-figyelésnél is: a portál az ÍRÓASZTAL, a telefon a POSTA.
+
+    fun textBankPage(context: Context, msg: String? = null, error: String? = null): String {
+        val items = try {
+            com.superdl.launcher.textbank.TextBankStore.getAll(context)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val max = com.superdl.launcher.textbank.TextBankStore.MAX_ITEMS
+
+        val slotOptions = { selected: String? ->
+            val keys = listOf(
+                "KEY_1" to "1", "KEY_2" to "2", "KEY_3" to "3", "KEY_4" to "4",
+                "KEY_5" to "5", "KEY_6" to "6", "KEY_7" to "7", "KEY_8" to "8",
+                "KEY_9" to "9", "KEY_STAR" to "csillag", "KEY_0" to "0",
+                "KEY_HASH" to "kettőskereszt"
+            )
+            "<option value=\"\">— nincs gombhoz kötve —</option>" +
+                keys.joinToString("") { (value, label) ->
+                    val sel = if (value == selected) " selected" else ""
+                    "<option value=\"$value\"$sel>$label gomb</option>"
+                }
+        }
+
+        val rows = if (items.isEmpty()) {
+            "<p>Még nincs egyetlen sablonod sem. Vegyél fel egyet alább.</p>"
+        } else {
+            items.joinToString("") { e ->
+                """
+                <form method="POST" action="/textbank/save" class="stack"
+                      style="border:1px solid #3c4043; border-radius:8px; padding:12px; margin-bottom:12px">
+                  <input type="hidden" name="id" value="${e.id}">
+                  <label class="lbl" for="n${e.id}">Név</label>
+                  <input type="text" id="n${e.id}" name="name" value="${esc(e.name)}" required>
+                  <label class="lbl" for="t${e.id}">Szöveg</label>
+                  <textarea id="t${e.id}" name="text" rows="2" required>${esc(e.text)}</textarea>
+                  <label class="lbl" for="s${e.id}">Billentyűzet-gomb</label>
+                  <select id="s${e.id}" name="slot">${slotOptions(e.matrixSlot)}</select>
+                  <div>
+                    <button type="submit" class="btn">Mentés</button>
+                    <button type="submit" class="btn secondary" formaction="/textbank/up"
+                            aria-label="Feljebb: ${esc(e.name)}">Feljebb</button>
+                    <button type="submit" class="btn secondary" formaction="/textbank/down"
+                            aria-label="Lejjebb: ${esc(e.name)}">Lejjebb</button>
+                    <button type="submit" class="btn secondary" formaction="/textbank/delete"
+                            aria-label="Törlés: ${esc(e.name)}">Törlés</button>
+                  </div>
+                </form>
+                """.trimIndent()
+            }
+        }
+
+        return header("Szövegtár", "textbank") + """
+            <h2>Szövegtár — sablonok</h2>
+            ${if (msg != null) "<p class=\"msg\">${esc(msg)}</p>" else ""}
+            ${if (error != null) "<p class=\"err\">${esc(error)}</p>" else ""}
+            <p>Ide kerülnek azok a szövegek, amiket gyakran küldesz, de diktálni
+               nehéz: e-mail cím, számlaszám, adószám, pontos cím. A telefonon az
+               <strong>Üzenetek &gt; SMS üzenetek &gt; Sablon küldése</strong> pontban
+               küldheted el bármelyiket, bárkinek.</p>
+            <p>Amelyikhez gombot rendelsz, az a mátrix billentyűzet szövegtárából
+               is elérhető lesz, egyetlen mozdulattal.</p>
+            <p><em>Küldeni innen szándékosan nem lehet — ez a lap az íróasztal,
+               a küldés a telefonon történik.</em></p>
+
+            <h3>Új sablon</h3>
+            <form method="POST" action="/textbank/add" class="stack">
+              <label class="lbl" for="newname">Név (ezt mondja majd a telefon)</label>
+              <input type="text" id="newname" name="name" required
+                     placeholder="Pl. Számlaszám">
+              <label class="lbl" for="newtext">Szöveg</label>
+              <textarea id="newtext" name="text" rows="2" required
+                     placeholder="Pl. 11773016-00000000-12345678"></textarea>
+              <label class="lbl" for="newslot">Billentyűzet-gomb (nem kötelező)</label>
+              <select id="newslot" name="slot">${slotOptions(null)}</select>
+              <button type="submit" class="btn">Hozzáadás</button>
+            </form>
+
+            <h3>Sablonjaim (${items.size} / $max)</h3>
+            $rows
+        """.trimIndent() + footer()
+    }
+
+    fun handleTextBankAdd(context: Context, body: String): String {
+        val form = parseForm(body)
+        val name = form["name"]?.trim().orEmpty()
+        val text = form["text"]?.trim().orEmpty()
+        val slot = form["slot"]?.trim()?.ifBlank { null }
+        if (text.isBlank()) return textBankPage(context, error = "A szöveg nem lehet üres.")
+        return try {
+            val added = com.superdl.launcher.textbank.TextBankStore.add(context, name, text, slot)
+            if (added == null) {
+                textBankPage(
+                    context,
+                    error = "Betelt a szövegtár (legfeljebb " +
+                        "${com.superdl.launcher.textbank.TextBankStore.MAX_ITEMS} sablon). " +
+                        "Törölj egyet, mielőtt újat veszel fel."
+                )
+            } else {
+                textBankPage(context, msg = "Hozzáadva: ${added.name}")
+            }
+        } catch (_: Exception) {
+            textBankPage(context, error = "Nem sikerült hozzáadni a sablont.")
+        }
+    }
+
+    fun handleTextBankSave(context: Context, body: String): String {
+        val form = parseForm(body)
+        val id = form["id"]?.trim()?.toIntOrNull()
+            ?: return textBankPage(context, error = "Hiányzó azonosító.")
+        val name = form["name"]?.trim().orEmpty()
+        val text = form["text"]?.trim().orEmpty()
+        val slot = form["slot"]?.trim()?.ifBlank { null }
+        if (text.isBlank()) return textBankPage(context, error = "A szöveg nem lehet üres.")
+        return try {
+            com.superdl.launcher.textbank.TextBankStore.update(context, id, name, text, slot)
+            textBankPage(context, msg = "Mentve: $name")
+        } catch (_: Exception) {
+            textBankPage(context, error = "Nem sikerült menteni.")
+        }
+    }
+
+    fun handleTextBankDelete(context: Context, body: String): String {
+        val id = parseForm(body)["id"]?.trim()?.toIntOrNull()
+            ?: return textBankPage(context, error = "Hiányzó azonosító.")
+        return try {
+            val removed = com.superdl.launcher.textbank.TextBankStore.remove(context, id)
+            textBankPage(context, msg = "Törölve: ${removed?.name ?: "sablon"}")
+        } catch (_: Exception) {
+            textBankPage(context, error = "Nem sikerült törölni.")
+        }
+    }
+
+    fun handleTextBankMove(context: Context, body: String, delta: Int): String {
+        val id = parseForm(body)["id"]?.trim()?.toIntOrNull()
+            ?: return textBankPage(context, error = "Hiányzó azonosító.")
+        return try {
+            com.superdl.launcher.textbank.TextBankStore.move(context, id, delta)
+            textBankPage(context)
+        } catch (_: Exception) {
+            textBankPage(context, error = "Nem sikerült átrendezni.")
+        }
     }
 
     fun handleRadioAdd(context: Context, body: String): String {

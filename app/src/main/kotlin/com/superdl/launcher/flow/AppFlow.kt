@@ -921,6 +921,19 @@ sealed class AppFlow {
     /** Az otthon-ellenőrzés napi időpontjának diktálása. */
     object HomeWatchAwaitTime : AppFlow()
 
+    /**
+     * SZÖVEGTÁR — a mentett sablonok listája.
+     *
+     * @param forInsert igaz, ha egy futó diktálásba illesztünk be, hamis, ha
+     *                  önálló küldésbe indulunk. A mozdulatok ugyanazok, csak a
+     *                  jobbra célja más.
+     */
+    data class TextBankBrowse(
+        val items: List<com.superdl.launcher.textbank.TextBankEntry>,
+        val index: Int,
+        val forInsert: Boolean = false
+    ) : AppFlow()
+
     data class NumericDictationAwait(
         val purpose: com.superdl.launcher.input.NumberPadPurpose,
         val sosSlot: Int? = null,

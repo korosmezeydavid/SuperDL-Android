@@ -1,6 +1,7 @@
 package com.superdl.launcher.keyboard
 
 import android.content.Context
+import com.superdl.launcher.textbank.TextBankStore
 
 /**
  * SZÖVEGTÁR — előre elmentett szövegek a mátrix billentyűzet gombjain.
@@ -10,32 +11,41 @@ import android.content.Context
  * a legnehezebb ellenőrizni. Ha egyszer eltároltad, onnantól EGY mozdulat.
  *
  * FELÉPÍTÉS: ugyanaz a 3x4-es rács, mint a betűbevitelnél — 1-től 9-ig, majd
- * csillag, nulla, kettőskereszt. Tizenkét hely, tizenkét szöveg.
- * Nem kell új mozdulatot tanulni: ugyanúgy leteszed az ujjad, csúsztatsz,
- * felengeded.
+ * csillag, nulla, kettőskereszt. Nem kell új mozdulatot tanulni: ugyanúgy
+ * leteszed az ujjad, csúsztatsz, felengeded.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * FIGYELEM — EZ MÁR CSAK EGY AJTÓ, NEM A TÁR.
+ *
+ * A tartalom mostantól a KÖZÖS szövegtárban él (`textbank/TextBankStore`), amit
+ * az SMS-küldés, a diktálás és a WiFi portál is lát. Ez az osztály csak
+ * lefordítja a gomb-alapú használatot a közös tár nyelvére.
+ *
+ * MIÉRT: két tár ugyanarra a célra azt jelentené, hogy a felhasználó soha nem
+ * tudja, melyikben van a számlaszám. A billentyűzeten SEMMI nem változik.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 object MatrixTextBank {
 
-    private const val PREFS = "superdl_text_bank"
-
-    private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-    private fun keyOf(slot: MatrixKey) = "slot_${slot.name}"
-
     /** A gombhoz tartozó szöveg, vagy null ha üres. */
     fun get(context: Context, slot: MatrixKey): String? =
-        prefs(context).getString(keyOf(slot), null)?.takeIf { it.isNotBlank() }
+        TextBankStore.forSlot(context, slot.name)?.text?.takeIf { it.isNotBlank() }
 
     fun set(context: Context, slot: MatrixKey, text: String) {
-        prefs(context).edit().putString(keyOf(slot), text.trim()).apply()
+        TextBankStore.setForSlot(context, slot.name, text)
     }
 
     fun clear(context: Context, slot: MatrixKey) {
-        prefs(context).edit().remove(keyOf(slot)).apply()
+        TextBankStore.clearSlot(context, slot.name)
     }
 
-    /** Hány hely van kitöltve. */
+    /**
+     * Hány GOMBHOZ KÖTÖTT hely van kitöltve.
+     *
+     * Szándékosan nem a teljes szövegtár mérete: a billentyűzeten csak azok
+     * érhetők el, amik gombon ülnek, és félrevezető lenne huszonhármat
+     * bemondani, ha csak négy van kéznél.
+     */
     fun count(context: Context): Int =
         MatrixKey.entries.count { get(context, it) != null }
 
@@ -51,7 +61,7 @@ object MatrixTextBank {
         return "${slot.label}: $preview"
     }
 
-    /** Az összes hely felolvasható listája (a menühöz). */
+    /** A gombokra kötött helyek felolvasható listája. */
     fun speakAll(context: Context): String {
         val filled = MatrixKey.entries.mapNotNull { slot ->
             get(context, slot)?.let { text ->
@@ -60,10 +70,11 @@ object MatrixTextBank {
             }
         }
         return if (filled.isEmpty()) {
-            "A szövegtár üres. A billentyűzeten két ujjal háromszor koppintva " +
-                "nyithatod meg, és ott töltheted fel."
+            "Egy gombra sincs szöveg kötve. A billentyűzeten két ujjal háromszor " +
+                "koppintva nyithatod meg a szövegtárat, és ott töltheted fel — " +
+                "vagy a WiFi portál Szövegtár lapján, begépelve."
         } else {
-            "${filled.size} mentett szöveg. ${filled.joinToString(". ")}"
+            "${filled.size} gombra kötött szöveg. ${filled.joinToString(". ")}"
         }
     }
 }

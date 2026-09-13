@@ -19,6 +19,8 @@ enum class MenuAction {
     SMS_MULTI_WRITE,  // Üzenet több címzettnek egyszerre
     SMS_SCHEDULE_NEW, // Időzített üzenet beállítása
     SMS_SCHEDULE_LIST, // Időzített üzeneteim (és törlésük)
+    SMS_TEMPLATE_SEND, // Sablon küldése a szövegtárból
+    TEXT_BANK_LIST,    // A szövegtár tartalmának felolvasása
     SMS_WRITE,      // SMS írás diktálással
     EMAIL_WRITE,    // E-mail diktálása és küldése
     EMAIL_IMPORT,   // E-mail címek importálása
@@ -585,6 +587,13 @@ object MenuTree {
                 // saját, könnyen megtalálható helye kell, hogy legyen.
                 MenuItem("sms_schedule_new", "Időzített üzenet", MenuAction.SMS_SCHEDULE_NEW),
                 MenuItem("sms_schedule_list", "Időzített üzeneteim", MenuAction.SMS_SCHEDULE_LIST),
+                // SABLON KÜLDÉSE — a szövegtárból.
+                //
+                // MIÉRT ITT, AZ SMS ALATT, és nem a billentyűzet-beállítások
+                // mélyén: amit a felhasználó akar, az nem „szövegtárat kezelni",
+                // hanem ELKÜLDENI a számlaszámát. A funkció ott legyen, ahol a
+                // szándék van.
+                MenuItem("sms_template", "Sablon küldése", MenuAction.SMS_TEMPLATE_SEND),
                 // AZ ELKÜLDÖTT ÜZENET SORSA — mert a küldés pillanatában még
                 // nem tudjuk. A hálózat válasza másodpercekkel, a címzett
                 // készülékének visszajelzése akár PERCEKKEL később érkezik.
@@ -995,7 +1004,11 @@ object MenuTree {
                 MenuItem("keyboard", "Billentyűzet", MenuAction.SUBMENU, listOf(
                     MenuItem("kb_picker", "Billentyűzet választása", MenuAction.KEYBOARD_PICKER),
                     MenuItem("kb_settings", "Billentyűzetek engedélyezése", MenuAction.KEYBOARD_SETTINGS),
-                    MenuItem("kb_text_bank", "Szövegtár tartalma", MenuAction.KEYBOARD_TEXT_BANK),
+                    // A TELJES szövegtárat mondja, nem csak a gombra kötötteket.
+                    // A gombhoz kötés innentől CSAK egy gyorsbillentyű a
+                    // billentyűzeten; a tartalom ugyanaz mindenhol.
+                    MenuItem("kb_text_bank", "Szövegtár tartalma", MenuAction.TEXT_BANK_LIST),
+                    MenuItem("kb_text_bank_keys", "Gombokra kötött szövegek", MenuAction.KEYBOARD_TEXT_BANK),
                     MenuItem("kb_matrix", "Mátrix billentyűzet", MenuAction.SUBMENU, listOf(
                         MenuItem("kb_matrix_help", "Súgó: a mátrix mozdulatai", MenuAction.KEYBOARD_MATRIX_HELP),
                         MenuItem("kb_matrix_cell", "Gombok távolsága", MenuAction.KEYBOARD_MATRIX_CELL),

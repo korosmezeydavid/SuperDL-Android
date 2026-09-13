@@ -1,0 +1,52 @@
+1.66.0 - MK-V M4: otthon-figyeles ("meg nem vagyok otthon")
+
+Ez az elso funkcio a programban, ami MAGATOL cselekszik a felhasznalo
+helyett: uzenetet kuld valaki masnak, kerdes nelkul. Minden dontes ebbol
+kovetkezik.
+
+NEM GEOKERITES, hanem hatarido, ami ellenoriz
+- HomeWatchScheduler: napi egy pontos ebreszto a megadott percre.
+  Ujrainditas utan a BootReceiver visszaallitja.
+- HomeWatchService: par masodpercre elotér-szolgaltatas (location),
+  korulnez, dont, leall. Nincs ACCESS_BACKGROUND_LOCATION, nincs
+  folyamatosan futo szolgaltatas, nincs Play Services fugges.
+
+AZ "OTTHON VAGYOK-E" HAROM JELZESBOL
+- HomeEnvironment: KAPCSOLODO wifi BSSID (pasztazas NINCS, a manifest
+  neverForLocation jelzoje marad), latott mobilcellak, es GPS.
+- HomeDetector: wifi -> cella -> GPS sorrendben. A GPS kuszobei tagak
+  (80 m otthon, 250 m nem otthon), mert beltéren a GPS megbizhatatlan.
+- DONTETLENNEL NEM RIASZTUNK, de nem is hallgatunk: a program KIMONDJA,
+  hogy nem tudta eldonteni. Egy hamis riasztas rosszabb, mint egy
+  elmaradt - az elso hamis riasztas utan senki nem kapcsolja vissza.
+
+BETANITAS, NEM KOORDINATA-BEIRAS
+- HomeSignature/Store: wifi- es cellahalmaz + opcionalis helyzet.
+  Tobbszor is betanithato, minden alkalom HOZZAAD, nem felulir.
+- Ures kornyezetet nem mentunk el.
+
+A LANC, HA NINCS OTTHON
+- Visszaszamlalas (alapbol be): HomeWatchAlertActivity, zarolt kepernyon
+  is, balra sopres a leallitas - ugyanaz a mozdulat, mint az ebresztonel.
+- PROBA MOD, ES ELSO BEKAPCSOLASKOR EZ AZ ERVENYES: mindent vegigcsinal,
+  de nem kuld, csak bemondja, mit kuldott volna.
+- Alapbol EGY cimzett (az 1. S.O.S. szam). A tobbi kulon kapcsolhato.
+- HomeWatchMessage: sajat fejszoveg. Az S.O.S. szo szerinti mondata
+  ("eltevedtem, vagy bajban vagyok!") NEM megy ki itt - ket kulonbozo
+  sulyu helyzet nem moshato ossze.
+- Az uzenet megmondja magarol, hogy automatikus.
+
+MENU
+Beallitasok > S.O.S. parameterek > Otthon-figyeles: betanitas, allapot,
+ki-be, idopont, eles/proba, visszaszamlalas, cimzettek, proba most,
+utolso eredmeny, otthon elfelejtese.
+
+Ellenorizve a kiadasi APK DEX-eiben (tools/otthon_ellenorzes1660.ps1),
+plusz a finalcheck kulon ellenorzi, hogy az ACCESS_BACKGROUND_LOCATION
+NEM szivargott be a manifestbe.
+
+KIADAS MEG NINCS: a terv sajat dontese szerint az M4 addig nem megy ki,
+amig Alph napokig elesben nem futtatta magan, proba modban.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
