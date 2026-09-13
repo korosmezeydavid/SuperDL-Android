@@ -908,6 +908,19 @@ sealed class AppFlow {
     object PatrolNightAwaitStart : AppFlow()
     object PatrolNightAwaitEnd : AppFlow()
 
+    /**
+     * OTTHON BETANÍTÁSA — „állj meg otthon, és söpörj jobbra".
+     *
+     * Azért megerősítő képernyő, és nem azonnali felvétel, mert a betanítás
+     * helye számít: ha valaki véletlenül máshol indítja el, a rossz wifi és a
+     * rossz cella kerülne be az otthon ujjlenyomatába, és onnantól a
+     * védőháló csendben rosszul döntene.
+     */
+    object HomeTrainConfirm : AppFlow()
+
+    /** Az otthon-ellenőrzés napi időpontjának diktálása. */
+    object HomeWatchAwaitTime : AppFlow()
+
     data class NumericDictationAwait(
         val purpose: com.superdl.launcher.input.NumberPadPurpose,
         val sosSlot: Int? = null,

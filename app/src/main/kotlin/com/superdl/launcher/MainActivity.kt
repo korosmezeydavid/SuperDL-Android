@@ -1020,6 +1020,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsScheduleAwaitTime ->
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, -1)
+            AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, -1)
@@ -1235,6 +1236,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsScheduleAwaitTime ->
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, +1)
+            AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, +1)
@@ -1477,6 +1479,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiNameBrowse -> toggleSmsMultiName(flow)
             is AppFlow.SmsMultiConfirm -> sendSmsMulti(flow)
             is AppFlow.SmsScheduleList -> deleteScheduledSms(flow)
+            AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
             is AppFlow.SmsContextMenu -> onSmsContextActivate(flow)
             is AppFlow.SmsDeleteConfirm -> deleteSmsMessage(flow)
@@ -2148,6 +2151,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarWeekBrowse -> exitFlow("Heti program bezárva.")
             AppFlow.PatrolNightAwaitStart,
             AppFlow.PatrolNightAwaitEnd -> exitFlow("Éjszakai csend beállítás megszakítva.")
+            AppFlow.HomeTrainConfirm -> exitFlow("Betanítás megszakítva. Nem jegyeztem meg semmit.")
+            AppFlow.HomeWatchAwaitTime -> {
+                voiceInput.cancel()
+                exitFlow("Időpont beállítás megszakítva.")
+            }
             AppFlow.EmailAwaitRecipient,
             is AppFlow.EmailAwaitSubject,
             is AppFlow.EmailAwaitBody,
@@ -2407,6 +2415,21 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SMS_MULTI_WRITE -> startSmsMultiFlow()
             MenuAction.SMS_SCHEDULE_NEW -> startSmsMultiFlow(scheduled = true)
             MenuAction.SMS_SCHEDULE_LIST -> startSmsScheduleList()
+            MenuAction.HOME_TRAIN -> startHomeTrainFlow()
+            MenuAction.HOME_WATCH_STATUS ->
+                tts.speak(com.superdl.launcher.home.HomeWatchSettings.speakStatus(this))
+            MenuAction.HOME_WATCH_TOGGLE -> toggleHomeWatch()
+            MenuAction.HOME_WATCH_TIME -> startHomeWatchTimeFlow()
+            MenuAction.HOME_WATCH_MODE_TOGGLE -> toggleHomeWatchMode()
+            MenuAction.HOME_WATCH_COUNTDOWN_TOGGLE -> toggleHomeWatchCountdown()
+            MenuAction.HOME_WATCH_SLOT_1 -> toggleHomeWatchSlot(1)
+            MenuAction.HOME_WATCH_SLOT_2 -> toggleHomeWatchSlot(2)
+            MenuAction.HOME_WATCH_SLOT_3 -> toggleHomeWatchSlot(3)
+            MenuAction.HOME_WATCH_SLOT_4 -> toggleHomeWatchSlot(4)
+            MenuAction.HOME_WATCH_TEST_NOW -> runHomeWatchTestNow()
+            MenuAction.HOME_WATCH_LAST ->
+                tts.speak(com.superdl.launcher.home.HomeWatchSettings.speakLastOutcome(this))
+            MenuAction.HOME_FORGET -> forgetHome()
             MenuAction.CHAT_OPEN -> com.superdl.launcher.chat.ChatActivity.start(this)
             MenuAction.EMAIL_WRITE -> {
                 // Menüből indított ÚJ levél: soha ne hozzon magával egy
@@ -18334,6 +18357,243 @@ class MainActivity : AppCompatActivity() {
         tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
     }
 
+    // ==================== OTTHON-FIGYELÉS (MK-V, M4) ====================
+    //
+    // EZ AZ ELSŐ FUNKCIÓ A PROGRAMBAN, AMI MAGÁTÓL CSELEKSZIK a felhasználó
+    // helyett: üzenetet küld valaki másnak, kérdés nélkül. Ebből következik
+    // minden döntés itt lent — a próba mód, a visszaszámlálás, a külön
+    // állapot-felolvasás, és az, hogy a bekapcsolás KIMONDJA, mi fog történni
+    // és kinek.
+
+    private fun startHomeTrainFlow() {
+        if (!ensureLocationPermission()) return
+        activeFlow = AppFlow.HomeTrainConfirm
+        updateFlowDisplay()
+        speakHomeTrainPrompt()
+    }
+
+    private fun speakHomeTrainPrompt() {
+        val eddig = com.superdl.launcher.home.HomeSignatureStore.get(this)
+        val elozmeny = if (eddig.isEmpty) {
+            "Még nincs betanítva. "
+        } else {
+            "${eddig.speakSummary()} Az új betanítás hozzáad, nem törli a régit. "
+        }
+        tts.speak(
+            "Otthon betanítása. ${elozmeny}Állj meg otthon, és söpörj jobbra. " +
+                "Balra a mégse."
+        )
+    }
+
+    /**
+     * A BETANÍTÁS. Felírja, mit lát a telefon MOST: a kapcsolódó wifit, a
+     * látott mobilcellákat, és a helyzetet, ha van.
+     *
+     * MIÉRT HOZZÁAD, ÉS NEM FELÜLÍR: egy lakás több cellát is láthat, és a
+     * router is cserélhető. Ezért érdemes többször is betanítani — például
+     * egyszer a nappaliban, egyszer az előszobában.
+     */
+    private fun finishHomeTrain() {
+        val sample = com.superdl.launcher.home.HomeEnvironment.sample(
+            this, com.superdl.launcher.gps.GpsLocationHelper.getLastLocation(this)
+        )
+        if (sample.isBlind) {
+            // NEM MENTÜNK ÜRESET. Egy üres betanítás olyan védőhálót adna,
+            // ami sosem tudna dönteni — és a felhasználó azt hinné, van neki.
+            exitFlow(
+                "A telefon most nem lát se wifit, se mobilcellát, se helyzetet. " +
+                    "Így nincs mit megjegyeznem. Kapcsold be a wifit, és próbáld újra.",
+                error = true
+            )
+            return
+        }
+        val next = com.superdl.launcher.home.HomeSignatureStore.merge(this, sample)
+        feedbackSuccess()
+        exitFlow(
+            "Megjegyeztem. ${sample.speakSummary()} ${next.speakSummary()}",
+            success = true
+        )
+    }
+
+    private fun toggleHomeWatch() {
+        val settings = com.superdl.launcher.home.HomeWatchSettings
+        if (!settings.isEnabled(this)) {
+            // BEKAPCSOLÁSKOR KIMONDJUK, MI FOG TÖRTÉNNI ÉS KINEK.
+            // Egy funkció, ami magától üzen valakinek, nem kapcsolódhat be
+            // csendben.
+            if (!com.superdl.launcher.home.HomeSignatureStore.isTrained(this)) {
+                tts.speak(
+                    "Előbb tanítsd be az otthont. Állj otthon, és válaszd az " +
+                        "Otthon betanítása pontot. Enélkül a figyelés nem tudna dönteni."
+                )
+                return
+            }
+            settings.setEnabled(this, true)
+            com.superdl.launcher.home.HomeWatchScheduler.reschedule(this)
+            feedbackSuccess()
+            val modText = if (settings.isProbe(this)) {
+                "Próba módban van, tehát NEM küld üzenetet, csak bemondja, mit küldene. " +
+                    "Ha éles működést akarsz, váltsd át az Éles és próba mód pontban."
+            } else {
+                "ÉLES módban van: üzenetet fog küldeni."
+            }
+            val kinek = settings.numbers(this).size
+            val kinekText = when (kinek) {
+                0 -> "Figyelem: jelenleg nincs kitöltve egyetlen kiválasztott S.O.S. szám sem."
+                1 -> "Egy címzettnek szólna."
+                else -> "$kinek címzettnek szólna."
+            }
+            val pontos = com.superdl.launcher.home.HomeWatchScheduler.canScheduleExact(this)
+            val figyelmeztetes = if (!pontos) {
+                " Figyelem: a pontos ébresztő nincs engedélyezve, ezért az ellenőrzés késhet."
+            } else {
+                ""
+            }
+            tts.speak(
+                "Otthon-figyelés bekapcsolva. Minden nap ${settings.speakTime(this)}-kor " +
+                    "megnézem, otthon vagy-e. Ha nem, előbb visszaszámolok, és csak utána " +
+                    "üzenek. $kinekText $modText$figyelmeztetes"
+            )
+        } else {
+            settings.setEnabled(this, false)
+            com.superdl.launcher.home.HomeWatchScheduler.cancel(this)
+            feedbackSuccess()
+            tts.speak("Otthon-figyelés kikapcsolva. Mostantól nem ellenőrzök semmit.")
+        }
+    }
+
+    private fun startHomeWatchTimeFlow() {
+        ensureMicAndRun {
+            activeFlow = AppFlow.HomeWatchAwaitTime
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mikor nézzem meg, otthon vagy-e? Például: huszonkettő óra.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val parsed = VoiceTimeParser.parse(spoken)
+                    if (parsed == null) {
+                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        return@listen
+                    }
+                    com.superdl.launcher.home.HomeWatchSettings
+                        .setTime(this, parsed.first, parsed.second)
+                    com.superdl.launcher.home.HomeWatchScheduler.reschedule(this)
+                    activeFlow = AppFlow.Menu
+                    updateDisplay()
+                    tts.speak(
+                        "Az ellenőrzés ezentúl ekkor lesz: " +
+                            "${com.superdl.launcher.home.HomeWatchSettings.speakTime(this)}."
+                    )
+                },
+                onError = { exitFlow("Nem értettem az időpontot.") }
+            )
+        }
+    }
+
+    private fun toggleHomeWatchMode() {
+        val settings = com.superdl.launcher.home.HomeWatchSettings
+        val probeNow = !settings.isProbe(this)
+        settings.setProbe(this, probeNow)
+        feedbackSuccess()
+        if (probeNow) {
+            tts.speak(
+                "Próba mód bekapcsolva. Mostantól nem küldök üzenetet, csak bemondom, " +
+                    "mit küldtem volna."
+            )
+        } else {
+            // AZ ÉLESRE VÁLTÁS TUDATOS LÉPÉS, ezért itt hangzik el a teljes
+            // következmény — nem elég annyit mondani, hogy „éles".
+            val kinek = settings.numbers(this).size
+            tts.speak(
+                "ÉLES mód bekapcsolva. Mostantól, ha az ellenőrzéskor nem vagy otthon, " +
+                    "a program valóban SMS-t küld " +
+                    (if (kinek == 1) "egy címzettnek" else "$kinek címzettnek") +
+                    ", anélkül hogy rákérdezne. Előbb visszaszámol, hogy le tudd állítani."
+            )
+        }
+    }
+
+    private fun toggleHomeWatchCountdown() {
+        val settings = com.superdl.launcher.home.HomeWatchSettings
+        val on = !settings.isCountdownEnabled(this)
+        settings.setCountdownEnabled(this, on)
+        feedbackSuccess()
+        tts.speak(
+            if (on) {
+                "Visszaszámlálás bekapcsolva. Riasztás előtt szólok, és balra söpréssel " +
+                    "leállíthatod. Ez az, ami a téves riasztást megfogja."
+            } else {
+                "Visszaszámlálás kikapcsolva. FIGYELEM: mostantól az üzenet azonnal megy, " +
+                    "leállítási lehetőség nélkül."
+            }
+        )
+    }
+
+    private fun toggleHomeWatchSlot(slot: Int) {
+        val settings = com.superdl.launcher.home.HomeWatchSettings
+        val on = settings.toggleSlot(this, slot)
+        val number = com.superdl.launcher.sos.SosPreferences.getNumber(this, slot)
+        feedbackSuccess()
+        val allapot = if (on) "kap értesítést" else "nem kap értesítést"
+        val szam = if (number.isBlank()) {
+            " Figyelem: ez a szám nincs kitöltve, tehát nem menne rá üzenet."
+        } else {
+            ""
+        }
+        tts.speak(
+            "A(z) $slot. S.O.S. szám mostantól $allapot. " +
+                "Összesen ${settings.slots(this).size} kiválasztott szám van.$szam"
+        )
+    }
+
+    /**
+     * ELLENŐRZÉS PRÓBÁJA MOST.
+     *
+     * Ez MINDIG próba, akkor is, ha a figyelés éles módban van — innen soha
+     * nem megy ki valódi üzenet. Aki kipróbálja a funkciót, ne riassza fel
+     * vele az anyját.
+     */
+    private fun runHomeWatchTestNow() {
+        if (!ensureLocationPermission()) return
+        if (!com.superdl.launcher.home.HomeSignatureStore.isTrained(this)) {
+            tts.speak("Előbb tanítsd be az otthont, különben nincs mihez hasonlítanom.")
+            return
+        }
+        if (com.superdl.launcher.home.HomeWatchService.isRunning) {
+            tts.speak("Egy ellenőrzés épp fut.")
+            return
+        }
+        try {
+            val intent = android.content.Intent(
+                this, com.superdl.launcher.home.HomeWatchService::class.java
+            ).apply {
+                putExtra(com.superdl.launcher.home.HomeWatchService.EXTRA_MANUAL, true)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            tts.speak(
+                "Próba-ellenőrzés indul. Körülnézek, és bemondom, mit találtam. " +
+                    "Ez a próba soha nem küld üzenetet."
+            )
+        } catch (t: Throwable) {
+            tts.speak("A próbát nem sikerült elindítani.")
+        }
+    }
+
+    private fun forgetHome() {
+        com.superdl.launcher.home.HomeSignatureStore.clear(this)
+        com.superdl.launcher.home.HomeWatchSettings.setEnabled(this, false)
+        com.superdl.launcher.home.HomeWatchScheduler.cancel(this)
+        feedbackSuccess()
+        tts.speak(
+            "Az otthon elfelejtve, és a figyelést is kikapcsoltam. " +
+                "Betanítás nélkül nem tudna dönteni."
+        )
+    }
+
     private fun startPatrolNightStartFlow() {
         ensureMicAndRun {
             activeFlow = AppFlow.PatrolNightAwaitStart
@@ -20521,6 +20781,16 @@ class MainActivity : AppCompatActivity() {
             AppFlow.PatrolNightAwaitEnd -> {
                 tvItem.text = "Éjszakai csend vége"
                 tvPosition.text = "Őrség beállítás"
+                tvHint.text = "Mondd az időpontot  •  ⬅ mégse"
+            }
+            AppFlow.HomeTrainConfirm -> {
+                tvItem.text = "Otthon betanítása"
+                tvPosition.text = "Állj meg otthon"
+                tvHint.text = "➡ megjegyzés  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+            }
+            AppFlow.HomeWatchAwaitTime -> {
+                tvItem.text = "Otthon-ellenőrzés időpontja"
+                tvPosition.text = "Otthon-figyelés"
                 tvHint.text = "Mondd az időpontot  •  ⬅ mégse"
             }
             is AppFlow.NotificationBrowse -> {

@@ -1,0 +1,26 @@
+1.65.0 - MK-V M2+M3: tobb cimzettes es idozitett SMS
+
+M2 - Uzenet tobb cimzettnek
+- SmsHelper.sendToMany + MultiSendReport: cimzettenkenti eredmeny,
+  a visszajelzes megmondja, kinek NEM ment el.
+- Cimzettvalogato a meglevo betuindexen (ContactLetterIndex).
+- Balra a neveknel: vissza a betukhoz, a kijeloles megmarad.
+  Balra a betuknel: kesz. Ures kijelolesnel nem enged tovabb.
+
+M3 - Idozitett uzenet
+- ScheduledSms + ScheduledSmsStore: max 20 tetel, a kesz tetelek
+  7 nap utan kiesnek.
+- ScheduledSmsScheduler + ScheduledSmsReceiver: setExactAndAllowWhileIdle,
+  goAsync a kuldeshez. Ujrainditas utan a BootReceiver visszaallitja.
+- SIKERES kuldeskor NEM beszel (hajnali idozites nem ebreszt fel),
+  sikertelenkor PatrolAnnouncer-rel igen.
+- ScheduledSmsTime: magyar idoparser (relativ es abszolut). Ha nem
+  erti, NEM tippel - ujrakerdez.
+- Ha a pontos ebreszto nincs engedelyezve, ezt beallitaskor kimondja.
+- Kulon menupont a torlesnek ("Idozitett uzeneteim"), mert a kuldes
+  nem kerdez ra semmire.
+
+Ellenorizve a kiadasi APK DEX-eiben (tools/mkv_ellenorzes1650.ps1).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

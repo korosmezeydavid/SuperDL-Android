@@ -134,6 +134,12 @@ class BootReceiver : BroadcastReceiver() {
                 step("idozitett-sms") {
                     com.superdl.launcher.sms.ScheduledSmsScheduler.scheduleAll(context)
                 }
+                // Az otthon-figyelés napi ellenőrzése is elvész újraindításkor.
+                // Ha ez elmarad, a felhasználó abban a hiszemben él, hogy van
+                // védőhálója — miközben nincs.
+                step("otthon-figyeles") {
+                    com.superdl.launcher.home.HomeWatchScheduler.reschedule(context)
+                }
                 step("akku-orseg") {
                     com.superdl.launcher.battery.BatteryPatrolManager.start(context)
                 }

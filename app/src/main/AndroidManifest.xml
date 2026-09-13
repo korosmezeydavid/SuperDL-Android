@@ -439,6 +439,37 @@
             android:name=".sms.ScheduledSmsReceiver"
             android:exported="false" />
 
+        <!--
+          OTTHON-FIGYELÉS („még nem vagyok otthon").
+
+          EZ NEM GEOKERÍTÉS, hanem egy HATÁRIDŐ, ami ellenőriz: naponta
+          egyszer felébred, pár másodpercre körülnéz, és utána megint alszik.
+          Ezért nincs ACCESS_BACKGROUND_LOCATION, nincs folyamatosan futó
+          szolgáltatás, és nincs Play Services függőség sem.
+
+          A szolgáltatás "location" típusú, mert az ellenőrzés PILLANATÁBAN
+          helyzetet olvas — de csak akkor, ha a wifi és a mobilcella nem
+          döntött.
+        -->
+        <receiver
+            android:name=".home.HomeWatchReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".home.HomeWatchService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <activity
+            android:name=".home.HomeWatchAlertActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
         <!-- Fájl- és mappamegosztás -->
         <activity
             android:name=".share.ShareActivity"

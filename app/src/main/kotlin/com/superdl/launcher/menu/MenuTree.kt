@@ -28,6 +28,20 @@ enum class MenuAction {
     EMAIL_SMTP_READ,   // E-mail küldő felolvasása
     EMAIL_SMTP_CLEAR,  // E-mail küldő törlése
     SOS,            // S.O.S. hívás
+    // OTTHON-FIGYELÉS („még nem vagyok otthon")
+    HOME_TRAIN,                    // Az otthon betanítása (állj otthon, és söpörj jobbra)
+    HOME_WATCH_STATUS,             // Mi az állapot: be van-e kapcsolva, kinek szól, éles-e
+    HOME_WATCH_TOGGLE,             // A figyelés ki és be
+    HOME_WATCH_TIME,               // Mikor ellenőrizzen
+    HOME_WATCH_MODE_TOGGLE,        // Éles vagy próba
+    HOME_WATCH_COUNTDOWN_TOGGLE,   // Visszaszámlálás a riasztás előtt
+    HOME_WATCH_SLOT_1,             // Melyik S.O.S. szám kapjon értesítést
+    HOME_WATCH_SLOT_2,
+    HOME_WATCH_SLOT_3,
+    HOME_WATCH_SLOT_4,
+    HOME_WATCH_TEST_NOW,           // Futtassuk le most, próbaként
+    HOME_WATCH_LAST,               // Mi lett az utolsó ellenőrzéssel
+    HOME_FORGET,                   // Az otthon elfelejtése
     ALARM_SET,      // Új ébresztő diktálása
     ALARM_LIST,     // Ébresztők listája
     ASSISTANT_CONTINUOUS,  // Elena: folyamatos beszélgetés (parancs után tovább hallgat)
@@ -1023,6 +1037,29 @@ object MenuTree {
                 MenuItem("sos_countdown", "Visszaszámlálás ki és be", MenuAction.SOS_COUNTDOWN_TOGGLE),
                 MenuItem("sos_phrase_train", "S.O.S. hívómondat tanítása", MenuAction.SOS_PHRASE_TRAIN),
                 MenuItem("sos_phrase_list", "S.O.S. hívómondataim", MenuAction.SOS_PHRASE_LIST),
+                // OTTHON-FIGYELÉS — saját almenü.
+                //
+                // MIÉRT KÜLÖN ALMENÜ, ÉS NEM EGY KAPCSOLÓ: ez az első funkció
+                // a programban, ami MAGÁTÓL cselekszik a felhasználó helyett.
+                // Egy ilyet nem lehet egyetlen menüpont mögé rejteni — látni
+                // kell, hogy be van-e tanítva, kinek szólna, és éles-e vagy
+                // próba. Ezért van külön pont az állapot felolvasására is.
+                MenuItem("home_watch", "Otthon-figyelés", MenuAction.SUBMENU, listOf(
+                    MenuItem("home_train", "Otthon betanítása", MenuAction.HOME_TRAIN),
+                    MenuItem("home_status", "Otthon-figyelés állapota", MenuAction.HOME_WATCH_STATUS),
+                    MenuItem("home_toggle", "Otthon-figyelés ki és be", MenuAction.HOME_WATCH_TOGGLE),
+                    MenuItem("home_time", "Ellenőrzés időpontja", MenuAction.HOME_WATCH_TIME),
+                    MenuItem("home_mode", "Éles és próba mód váltása", MenuAction.HOME_WATCH_MODE_TOGGLE),
+                    MenuItem("home_countdown", "Visszaszámlálás ki és be", MenuAction.HOME_WATCH_COUNTDOWN_TOGGLE),
+                    MenuItem("home_slot_1", "Értesítés az 1. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_1),
+                    MenuItem("home_slot_2", "Értesítés a 2. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_2),
+                    MenuItem("home_slot_3", "Értesítés a 3. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_3),
+                    MenuItem("home_slot_4", "Értesítés a 4. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_4),
+                    MenuItem("home_test", "Ellenőrzés próbája most", MenuAction.HOME_WATCH_TEST_NOW),
+                    MenuItem("home_last", "Utolsó ellenőrzés eredménye", MenuAction.HOME_WATCH_LAST),
+                    MenuItem("home_forget", "Otthon elfelejtése", MenuAction.HOME_FORGET),
+                    MenuItem("home_back", "Vissza az S.O.S. paraméterekhez", MenuAction.SUBMENU)
+                )),
                 MenuItem("sos_settings_back", "Vissza a beállításokhoz", MenuAction.SUBMENU)
             )),
             MenuItem("patrol_master", "Teljes őrség ki-be", MenuAction.BATTERY_PATROL_TOGGLE),
