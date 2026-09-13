@@ -125,6 +125,26 @@ sealed class AppFlow {
         val options: List<com.superdl.launcher.alarm.AlarmRepeatType>,
         val index: Int
     ) : AppFlow()
+    /**
+     * ÉBRESZTŐ: MELYIK NAPOKON SZÓLJON.
+     *
+     * Fel-le: lépkedés a hét napjai között. Jobbra: a nap be- és kijelölése.
+     * Balra: kész, tovább a megerősítéshez.
+     *
+     * MIÉRT MOST KÉSZÜLT EL: az adatréteg — `AlarmRepeatType.CUSTOM`, a
+     * `weekDays` halmaz, az `isActiveOnDay`, a mentés és az ütemező
+     * napkereső ciklusa — MÁR RÉG MEGVOLT. Egyedül ez a képernyő hiányzott,
+     * és emiatt az `alarmDraftWeekDays` mező holt mező volt: mindig üresen
+     * jutott el a mentésig.
+     */
+    data class AlarmWeekdayBrowse(
+        val hour: Int,
+        val minute: Int,
+        val label: String,
+        val selectedDays: Set<Int>,
+        val index: Int
+    ) : AppFlow()
+
     data class AlarmConfirm(val hour: Int, val minute: Int, val label: String) : AppFlow()
     data class AlarmListBrowse(val alarms: List<AlarmEntry>, val index: Int, val deleteMode: Boolean = false) : AppFlow()
     data class AlarmDeleteConfirm(val alarm: AlarmEntry, val alarms: List<AlarmEntry>, val index: Int) : AppFlow()

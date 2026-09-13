@@ -22,10 +22,28 @@ class SmsComposeActivity : AppCompatActivity() {
         finish()
     }
 
+    /**
+     * A CÍMZETT KIOLVASÁSA EGY `smsto:` HIVATKOZÁSBÓL.
+     *
+     * A HIBA, AMIT EZ JAVÍT: a régi változat a teljes `schemeSpecificPart`-ot
+     * adta vissza. Egy `smsto:+3630111,+3630222` alakú hivatkozásnál — és az
+     * szabályos, a szabvány engedi a több címzettet — ez egyetlen sztringként
+     * jött át, a `SmsHelper.normalizePhoneForSms` pedig a vesszőt kidobja.
+     * A két számból így EGY, nem létező szám lett, és az üzenet CSENDBEN
+     * rossz helyre ment.
+     *
+     * Amíg a többcímzettes küldés nincs kész (MK-V, M2), az ELSŐ címzettet
+     * vesszük, és a többit inkább elhagyjuk. Egy embernek elküldeni jobb,
+     * mint senkinek — de egy kitalált számra elküldeni a legrosszabb.
+     */
     private fun extractAddress(intent: Intent): String {
         intent.data?.let { uri ->
             if (uri.scheme == "smsto" || uri.scheme == "sms") {
-                return uri.schemeSpecificPart?.substringBefore('?').orEmpty().trim()
+                val raw = uri.schemeSpecificPart?.substringBefore('?').orEmpty()
+                return raw.split(',', ';')
+                    .firstOrNull { it.isNotBlank() }
+                    .orEmpty()
+                    .trim()
             }
         }
         return intent.getStringExtra("address").orEmpty().trim()

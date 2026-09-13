@@ -187,12 +187,25 @@ object AlarmStore {
         return removed
     }
 
+    /**
+     * A KÖVETKEZŐ ÉBRESZTŐ.
+     *
+     * A HIBA, AMIT EZ JAVÍT (2026-09-13): a régi változat CSAK az időpontot
+     * nézte (`hour * 60 + minute`), az ISMÉTLŐDÉST nem. Egy csak szombatra
+     * beállított ébresztőt szerdán is „következő ébresztő"-ként mondott be,
+     * és a felhasználó másnap reggel hiába várta.
+     *
+     * Eddig ez ritkán jött elő, mert a legtöbb ébresztő egyszeri vagy napi
+     * volt. Az „adott napokon" megjelenésével viszont egy csapásra
+     * mindennapos lett volna.
+     *
+     * A javításhoz nem kellett új logika: az `AlarmScheduler` napkereső
+     * számítása pontosan ezt tudja, csak eddig senki nem kérdezte meg innen.
+     */
     fun getNextAlarm(context: Context): AlarmEntry? {
-        val nowMinutes = java.util.Calendar.getInstance().let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
         val enabled = getEnabled(context)
-        val todayUpcoming = enabled.filter { it.hour * 60 + it.minute > nowMinutes }
-        if (todayUpcoming.isNotEmpty()) return todayUpcoming.minBy { it.hour * 60 + it.minute }
-        return enabled.minByOrNull { it.hour * 60 + it.minute }
+        if (enabled.isEmpty()) return null
+        return enabled.minByOrNull { AlarmScheduler.nextTriggerMillisForEntry(it) }
     }
 
     private fun save(context: Context, alarms: List<AlarmEntry>) {

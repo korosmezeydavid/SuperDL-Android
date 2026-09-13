@@ -324,6 +324,17 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_ASSISTANT_FROM_KEYGUARD = "assistant_from_keyguard"
         const val EXTRA_WAKE_COMMAND = "wake_command"
 
+        /**
+         * MENNYIT VÁRUNK A HÁLÓZAT VÁLASZÁRA EGY SMS UTÁN.
+         *
+         * A küldés elindítása és a hálózat elutasítása között néhány másodperc
+         * telik el. Rövidebb idő alatt a hibát elszalasztanánk; hosszabbnál a
+         * felhasználó már rég továbblépett, és egy odavetett mondat zavaróbb
+         * lenne, mint hasznos. Ha ezalatt nem jön válasz, a sorsát az „Utolsó
+         * üzenet sorsa" ponttal bármikor megkérdezheti.
+         */
+        private const val SMS_RESULT_WAIT_MS = 4500L
+
         /** A fájlkezelő ezzel kéri a könyvolvasót egy PDF-hez vagy ePub-hoz. */
         const val EXTRA_OPEN_BOOK_PATH = "open_book_path"
         const val EXTRA_WAKE_GREETING_ONLY = "wake_greeting_only"
@@ -1007,6 +1018,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, -1)
             is AppFlow.AlarmListBrowse -> navigateAlarmList(flow, -1)
             is AppFlow.AlarmRepeatBrowse -> navigateAlarmRepeat(flow, -1)
+            is AppFlow.AlarmWeekdayBrowse -> navigateAlarmWeekday(flow, -1)
             is AppFlow.CalendarBrowse -> navigateCalendar(flow, -1)
             is AppFlow.CatalogBrowse -> navigateCatalog(flow, -1)
             is AppFlow.AppCategoryPick -> navigateAppCategories(flow, -1)
@@ -1214,6 +1226,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, +1)
             is AppFlow.AlarmListBrowse -> navigateAlarmList(flow, +1)
             is AppFlow.AlarmRepeatBrowse -> navigateAlarmRepeat(flow, +1)
+            is AppFlow.AlarmWeekdayBrowse -> navigateAlarmWeekday(flow, +1)
             is AppFlow.CalendarBrowse -> navigateCalendar(flow, +1)
             is AppFlow.CatalogBrowse -> navigateCatalog(flow, +1)
             is AppFlow.AppCategoryPick -> navigateAppCategories(flow, +1)
@@ -1463,6 +1476,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HelpIndexBrowse -> onHelpIndexActivate(flow)
             is AppFlow.AlarmListBrowse -> onAlarmListActivate(flow)
             is AppFlow.AlarmRepeatBrowse -> onAlarmRepeatActivate(flow)
+            is AppFlow.AlarmWeekdayBrowse -> toggleAlarmWeekday(flow)
             is AppFlow.AlarmConfirm -> saveAlarm(flow.hour, flow.minute, flow.label)
             is AppFlow.CalendarConfirm -> saveCalendarEvent(flow)
             is AppFlow.CalendarRecurrenceBrowse -> applyCalendarRecurrence(flow)
@@ -2133,6 +2147,11 @@ class MainActivity : AppCompatActivity() {
             AppFlow.NavAwaitWalkDestination,
             AppFlow.NavAwaitPlaceQuery,
             AppFlow.YoutubeAwaitQuery -> exitFlow("Diktálás megszakítva.")
+            // A NAP-KIJELÖLŐN A BALRA NEM MÉGSE, HANEM KÉSZ — ezért KÜLÖN ág,
+            // a fenti felsorolás UTÁN. (Ha a felsorolás közepére kerülne, az
+            // előtte álló vessző beszívná, és az egész lista erre az ágra
+            // futna — ez pont megtörtént, és a fordító fogta meg.)
+            is AppFlow.AlarmWeekdayBrowse -> finishAlarmWeekdayPick(flow)
             AppFlow.SmsAwaitRecipient,
             is AppFlow.SmsPickContact,
             is AppFlow.SmsRecipientConfirm,
@@ -2349,6 +2368,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.DIAL -> startDialFlow()
             MenuAction.SMS_READ -> startSmsInboxFlow()
             MenuAction.SMS_SENT_READ -> startSmsSentFlow()
+            MenuAction.SMS_LAST_OUTCOME ->
+                tts.speak(com.superdl.launcher.sms.SmsOutcomeStore.speakLast(this))
             MenuAction.SMS_WRITE -> startSmsComposeFlow()
             MenuAction.CHAT_OPEN -> com.superdl.launcher.chat.ChatActivity.start(this)
             MenuAction.EMAIL_WRITE -> {
@@ -3469,10 +3490,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendSms(recipient: Recipient, message: String) {
+        // A RÉGI ÁLLAPOT TÖRLÉSE, MIELŐTT KÜLDÜNK. Enélkül egy korábbi küldés
+        // hibáját mondanánk rá erre az üzenetre.
+        com.superdl.launcher.sms.SmsSendReceiver.clearLastError()
+        com.superdl.launcher.sms.SmsOutcomeStore.note(
+            this, recipient.label, com.superdl.launcher.sms.SmsOutcomeStore.State.SENDING
+        )
+
         val ok = SmsHelper.send(this, recipient.phone, message)
         pendingSmsForwardBody = null
         val restore = smsInboxRestore
         smsInboxRestore = null
+
+        if (!ok) {
+            com.superdl.launcher.sms.SmsOutcomeStore.updateState(
+                this,
+                com.superdl.launcher.sms.SmsOutcomeStore.State.FAILED,
+                "a telefon el sem indította a küldést"
+            )
+        } else {
+            // A HÁLÓZAT VÁLASZÁRA VÁRUNK MÉG EGY KICSIT.
+            //
+            // A `SmsHelper.send` csak annyit jelent, hogy ÁTADTUK a
+            // rendszernek — a hálózat elutasítása néhány másodperccel később
+            // érkezik, a `SmsSendReceiver`-be. Az eddigi „Üzenet elküldve" épp
+            // ezért hangzott el olyankor is, amikor az üzenet sehova nem ment.
+            //
+            // Ha megjött a hiba, KIMONDJUK. Ha nem jött semmi, csendben
+            // maradunk: a jó hírt már elmondtuk, és fölösleges kétszer szólni.
+            mainHandler.postDelayed({
+                if (isFinishing || isDestroyed) return@postDelayed
+                val error = com.superdl.launcher.sms.SmsSendReceiver.lastError
+                if (error != null) {
+                    feedbackError()
+                    tts.speak(
+                        "Figyelem: az üzenet ${recipient.label} részére mégsem ment el: " +
+                            "$error. Próbáld újra."
+                    )
+                }
+            }, SMS_RESULT_WAIT_MS)
+        }
+
         if (restore != null && ok) {
             feedbackSuccess()
             activeFlow = restore
@@ -4634,7 +4692,11 @@ class MainActivity : AppCompatActivity() {
             AlarmRepeatType.ONCE,
             AlarmRepeatType.DAILY,
             AlarmRepeatType.WEEKDAYS,
-            AlarmRepeatType.WEEKEND
+            AlarmRepeatType.WEEKEND,
+            // A CUSTOM EDDIG HIÁNYZOTT EBBŐL A LISTÁBÓL — és emiatt az egész
+            // „adott napokon" gépezet elérhetetlen volt, pedig a mentés, az
+            // ütemezés és a felolvasás régóta tudta kezelni.
+            AlarmRepeatType.CUSTOM
         )
         activeFlow = AppFlow.AlarmRepeatBrowse(hour, minute, label, options, 0)
         updateFlowDisplay()
@@ -4654,6 +4716,90 @@ class MainActivity : AppCompatActivity() {
     private fun onAlarmRepeatActivate(flow: AppFlow.AlarmRepeatBrowse) {
         alarmDraftRepeat = flow.options[flow.index]
         alarmDraftWeekDays = mutableSetOf()
+        if (alarmDraftRepeat == AlarmRepeatType.CUSTOM) {
+            startAlarmWeekdayPick(flow.hour, flow.minute, flow.label)
+            return
+        }
+        enterAlarmConfirm(flow.hour, flow.minute, flow.label)
+    }
+
+    // ── AZ „ADOTT NAPOKON" KÉPERNYŐ ─────────────────────────────────────────
+    //
+    // A minta a gyógyszer-emlékeztető nap-választójából jön (ugyanaz a
+    // feladat, ugyanaz a Set<Int> Calendar-értékekkel), a kijelölés-jelzés
+    // stílusa pedig az „Ébresztések kihagyása" képernyőből: a jelzés BEÉPÜL a
+    // tétel bemondásába, nem külön hangként szól. Vakon ez a kulcs.
+    //
+    // A FUTÓ ÖSSZEG a csoportos fájlműveletekből jött át („Összesen 3.").
+    // A gyógyszeres ág ezt nem mondja, és hiányzik: három nap bejelölése után
+    // tudni akarod, hogy hármat jelöltél, nem kettőt.
+
+    private fun startAlarmWeekdayPick(hour: Int, minute: Int, label: String) {
+        activeFlow = AppFlow.AlarmWeekdayBrowse(hour, minute, label, emptySet(), 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Mely napokon szóljon? Söpörj fel-le a napok között, jobbra a nap " +
+                "kijelöléséhez, és balra, ha kész vagy."
+        )
+        tts.speakAdd(speakAlarmWeekday(AlarmRepeatType.ORDER[0], emptySet(), 0))
+    }
+
+    /**
+     * Egy nap bemondása. A kijelölés állapota MINDIG elhangzik, mert a
+     * felhasználó bármikor visszaléphet egy napra, és tudnia kell, hol tart.
+     */
+    private fun speakAlarmWeekday(day: Int, selected: Set<Int>, total: Int): String {
+        val name = AlarmRepeatType.dayName(day).replaceFirstChar { it.uppercase() }
+        val state = if (day in selected) "kijelölve" else "nincs kijelölve"
+        val sum = if (total > 0) " Összesen $total nap." else ""
+        return "$name, $state.$sum"
+    }
+
+    private fun navigateAlarmWeekday(flow: AppFlow.AlarmWeekdayBrowse, delta: Int) {
+        val days = AlarmRepeatType.ORDER
+        val next = (flow.index + delta + days.size) % days.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(speakAlarmWeekday(days[next], flow.selectedDays, flow.selectedDays.size))
+    }
+
+    /** Jobbra söprés: a nap be- és kijelölése. */
+    private fun toggleAlarmWeekday(flow: AppFlow.AlarmWeekdayBrowse) {
+        val day = AlarmRepeatType.ORDER[flow.index]
+        val updated = if (day in flow.selectedDays) {
+            flow.selectedDays - day
+        } else {
+            flow.selectedDays + day
+        }
+        activeFlow = flow.copy(selectedDays = updated)
+        updateFlowDisplay()
+        val name = AlarmRepeatType.dayName(day).replaceFirstChar { it.uppercase() }
+        val verb = if (day in updated) "kijelölve" else "kijelölés törölve"
+        tts.speak("$name $verb. Összesen ${updated.size} nap.")
+    }
+
+    /**
+     * Balra söprés: kész.
+     *
+     * ÜRES HALMAZNÁL NEM LÉPÜNK TOVÁBB, és ez NEM kozmetika. Az
+     * `AlarmScheduler.nextTriggerMillisForEntry` egy üres napkészletnél
+     * végigfut a nyolcnapos keresőciklusán, és egy SOSEM AKTÍV napra ütemez —
+     * vagyis egy néma ébresztő születne, ami a legrosszabb fajta hiba ebben a
+     * programban.
+     */
+    private fun finishAlarmWeekdayPick(flow: AppFlow.AlarmWeekdayBrowse) {
+        if (flow.selectedDays.isEmpty()) {
+            feedbackError()
+            tts.speak(
+                "Legalább egy napot válassz ki, különben az ébresztő soha nem szólalna meg. " +
+                    "Söpörj jobbra a kijelöléshez."
+            )
+            return
+        }
+        alarmDraftRepeat = AlarmRepeatType.CUSTOM
+        alarmDraftWeekDays = flow.selectedDays.toMutableSet()
+        val days = AlarmRepeatType.CUSTOM.speakLabel(flow.selectedDays)
+        tts.speak("Kész: $days.")
         enterAlarmConfirm(flow.hour, flow.minute, flow.label)
     }
 
@@ -19291,6 +19437,14 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.options[flow.index].speakLabel(alarmDraftWeekDays)
                 tvPosition.text = "3 / 4  •  Ismétlés"
                 tvHint.text = "⬆⬇ választás  •  ➡ tovább  •  ⬅ mégse"
+            }
+            is AppFlow.AlarmWeekdayBrowse -> {
+                val day = AlarmRepeatType.ORDER[flow.index]
+                val mark = if (day in flow.selectedDays) "✔ " else ""
+                tvItem.text = mark + AlarmRepeatType.dayName(day)
+                    .replaceFirstChar { it.uppercase() }
+                tvPosition.text = "3 / 4  •  Napok  •  ${flow.selectedDays.size} kijelölve"
+                tvHint.text = "⬆⬇ napok  •  ➡ kijelölés  •  ⬅ kész"
             }
             is AppFlow.AlarmConfirm -> {
                 val name = flow.label.ifBlank { "Névtelen" }

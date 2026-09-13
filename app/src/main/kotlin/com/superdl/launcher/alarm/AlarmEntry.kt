@@ -73,11 +73,29 @@ enum class AlarmRepeatType {
         CUSTOM -> if (weekDays.isEmpty()) {
             "egyéni napokon"
         } else {
-            weekDays.sorted().joinToString(", ") { dayName(it) }
+            // HÉTFŐVEL KEZDVE, nem vasárnappal.
+            //
+            // A `Calendar` számozásában a VASÁRNAP az 1, tehát egy sima
+            // `sorted()` így mondaná: „vasárnap, hétfő, kedd". Magyarul a hét
+            // hétfővel kezdődik, és egy vak felhasználónál a felolvasott
+            // sorrend AZ EGYETLEN fogódzó — nincs mellette képernyő, amiről
+            // helyre lehetne tenni.
+            ORDER.filter { it in weekDays }.joinToString(", ") { dayName(it) }
         }
     }
 
     companion object {
+        /** A hét napjai magyar sorrendben: hétfőtől vasárnapig. */
+        val ORDER: List<Int> = listOf(
+            Calendar.MONDAY,
+            Calendar.TUESDAY,
+            Calendar.WEDNESDAY,
+            Calendar.THURSDAY,
+            Calendar.FRIDAY,
+            Calendar.SATURDAY,
+            Calendar.SUNDAY
+        )
+
         fun dayName(calendarDay: Int): String = when (calendarDay) {
             Calendar.MONDAY -> "hétfő"
             Calendar.TUESDAY -> "kedd"

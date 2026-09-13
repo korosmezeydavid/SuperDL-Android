@@ -1,0 +1,131 @@
+1.64.0 - MK-V M0 es M1: az igazmondo SMS-kuldes, es az ebreszto adott napokon
+
+versionCode 121, versionName 1.64.0.
+
+Az MK-V ("a Vedohalo") elso kiadasa. Terv: claude/android-mkv-vedohalo-terv.md
+
+=== M1: EBRESZTO ADOTT NAPOKON ===
+
+Alph kerese: "egy ebreszto csak minden kedden 5-kor szoljon, hogy vidd ki a
+kukat."
+
+A LEMEZ-ELLENORZES MEGLEPETESE: az adatreteg MAR KESZ VOLT. Az
+AlarmRepeatType.CUSTOM, a weekDays: Set<Int>, az isActiveOnDay CUSTOM-aga, a
+napnev-felolvasas, a JSON mentes-olvasas es az utemezo napkereso ciklusa mind
+megvolt es eles volt. A SCHEMA_VERSION-t sem kellett emelni.
+
+Hianyzott: EGY KEPERNYO, es EGY SOR. A startAlarmRepeatSelect options listaja
+kihagyta a CUSTOM-ot, ezert az alarmDraftWeekDays mezo HOLT MEZO volt: mindig
+uresen jutott el a mentesig.
+
+Uj: AppFlow.AlarmWeekdayBrowse + a hozza tartozo ot bekotes (fel, le, jobbra,
+balra, kijelzo).
+
+  fel/le  - lepkedes a napok kozott
+  jobbra  - a nap be- es kijelolese
+  balra   - kesz
+
+A minta a MedicationWeekdayBrowse CUSTOM-agabol jon (ugyanaz a feladat), a
+kijeloles-jelzes stilusa az AlarmSkipPick-bol (a jelzes BEEPUL a tetel
+bemondasaba, nem kulon hangkent szol), a FUTO OSSZEG pedig a csoportos
+fajlmuveletekbol ("Osszesen 3 nap"). A gyogyszeres ag ezt nem mondja, es
+hianyzik: harom nap bejelolese utan tudni akarod, hogy harmat jeloltel.
+
+KET HIBA, AMI CSAK MOST VALT LATHATOVA:
+
+1. AlarmStore.getNextAlarm NEM VIZSGALTA AZ ISMETLODEST. Csak a
+   `hour * 60 + minute` szerint keresett, tehat egy csak-szombati ebresztot
+   szerdan is "kovetkezo ebreszto"-kent mondott be. Eddig ritkan jott elo
+   (a legtobb ebreszto egyszeri vagy napi), az "adott napokon" megjelenesevel
+   viszont mindennapos lett volna. Javitas: minByOrNull {
+   AlarmScheduler.nextTriggerMillisForEntry(it) } - nem kellett uj logika,
+   csak megkerdezni azt, ami mar tudta.
+
+2. URES NAPKESZLET = NEMA EBRESZTO. A nextTriggerMillisForEntry guard<8
+   ciklusa egy ures weekDays-nel vegigfutna mind a nyolc koren, es egy nyolc
+   nappal kesobbi, ugyanugy nem aktiv napra utemezne. Az ebreszto
+   beallitottnak latszana, es soha nem szolalna meg.
+   KET retegben vedve: a felulet nem enged tovabb ures halmazzal ES megmondja
+   miert; az utemezo pedig ures keszletet MINDEN NAPKENT kezel - mert az
+   adatreteg nem tamaszkodhat arra, hogy a felulet hibatlan (egy regi mentes
+   vagy egy visszatoltott biztonsagi masolat is hozhat ilyet).
+
+3. A NAPOK SORRENDJE. A speakLabel `weekDays.sorted()`-et hasznalt, a Calendar
+   szamozasaban viszont a VASARNAP az 1 - tehat "vasarnap, hetfo, kedd"
+   hangzott volna el. Uj AlarmRepeatType.ORDER: hetfotol vasarnapig. Vakon a
+   felolvasott sorrend AZ EGYETLEN fogodzo.
+
+=== M0: AZ IGAZMONDO SMS-KULDES ===
+
+Nem keres volt, hanem a tobbi MK-V utem elofeltetele: az idozitett es a
+vesz-SMS erteke KIZAROLAG a kuldes megbizhatosagan all.
+
+A PROBLEMA: a sendSms csak a SmsHelper.send boolean visszatereset nezte, ami
+annyit jelent, hogy ATADTUK a rendszernek. A halozat elutasitasa nehany
+masodperccel kesobb erkezik a SmsSendReceiver-be - ami a hibat MEGKAPTA,
+emberi nyelvre is leforditotta ("nincs halozat", "a radio ki van kapcsolva"),
+eltarolta a lastError-ba, es SENKI NEM OLVASTA. Igy egy elutasitott kuldesre
+is az hangzott el, hogy "Uzenet elkuldve".
+
+Ez a "jo szolgaltatas, amit senki nem hiv" minta ujabb elofordulasa - a
+00-OLVASD-ELOSZOR +7. tanulsaga.
+
+JAVITAS:
+- a kuldes elott clearLastError (kulonben egy korabbi kuldes hibajat mondanank
+  rea erre az uzenetre);
+- 4,5 masodperccel kesobb a program megnezi a lastError-t, es ha van,
+  KIMONDJA: "Figyelem: az uzenet ... megsem ment el: nincs halozat.";
+- ha nem jott valasz, CSENDBEN marad - a jo hirt mar elmondtuk.
+
+UJ: sms/SmsOutcomeStore.kt + "Utolso uzenet sorsa" menupont.
+
+MIERT KELL KULON MENUPONT: egy SMS-nek harom allapota van, es ezek IDOBEN
+szetesnek - atadas a rendszernek (azonnal), a halozat atveszi (par masodperc),
+a cimzett keszuleke megkapja (akar PERCEK). A kezbesitest a kuldes
+pillanataban nem lehet bemondani, mert meg nem tudjuk.
+
+ADATVEDELEM: az UZENET SZOVEGE NEM kerul a taroloba, csak a cimzett neve, az
+ido es a kimenetel. Egy "mi lett az utolso uzenettel" kerdeshez a tartalom nem
+kell, tarolni viszont kockazat.
+
+KET CSENDES HIBA MENET KOZBEN:
+
+1. KET SMS-KULDO VOLT A PROGRAMBAN. A CalendarActionRunner.sendSms sajat
+   SmsManager-hivast hasznalt, nem a SmsHelper-t - es igy hianyzott belole a
+   szam-normalizalas (a "+36 30 123-4567" alakot a halozat elfogadja, de nem
+   kezbesiti), a PendingIntent-es visszajelzes, es a mentes a kimeno mappaba.
+   Pontosan az a nema-vesztes-osztaly, amit a SmsHelper-ben mar megoldottunk.
+   Ket kuldo ket igazsagot jelent.
+
+2. A TOBB CIMZETTES smsto: HIVATKOZAS. A SmsComposeActivity.extractAddress a
+   teljes schemeSpecificPart-ot adta vissza, a normalizePhoneForSms pedig a
+   vesszot kidobja - igy egy `smsto:+3630111,+3630222` linkbol EGY, nem letezo
+   szam lett, es az uzenet CSENDBEN rossz helyre ment. Most az elso cimzettet
+   vesszuk. (A valodi tobbcimzettes kuldes az M2.)
+
+=== AMI NEM KELLETT: A SosConfigReceiver ===
+
+A terv blokkolo elofeltetelkent jelolte, mert a felmeres "exportalt, engedely
+nelkuli" receivernek irta le. TEVES RIASZTAS VOLT: a manifest 158-160.
+soraban ott a <permission ... protectionLevel="signature">, es a receiver
+hivatkozik ra. A felmeres csak a receiver-blokkot olvasta, a deklaraciot nem.
+
+Nincs teendo. A finalcheck viszont mostantol ORZI (3b. pont), hogy egy kesobbi
+atrendezes csendben le ne vegye.
+
+TANULSAG: a lemez-ellenorzes is tud tevedni, ha nem olvassa vegig a fajlt.
+Hat korbol ototben tevedett a terv - most a terv tevedett a kod javara.
+
+ELLENORIZVE A KESZ CSOMAGBAN:
+uj tools/mkv_ellenorzes1640.ps1 - 10 mondat az M0-bol es az M1-bol. A
+finalcheck mostantol NEGY korabbi javitast is oriz (media osztalyok,
+youtube-diagnosztika, katalogus, SET_SOS engedely).
+
+MEGJEGYZES A FORDITASROL: az elso nekifutas elbukott, mert az uj
+AlarmWeekdayBrowse agat a balra-sopres when-tablazataban egy vesszovel vegzodo
+felsorolas KOZEPERE tettem - igy a CallConfirm vesszoje beszivta, es az egesz
+lista erre az agra futott volna. A fordito fogta meg (Type mismatch). Az uj ag
+mostantol a felsorolas UTAN all, sajat kommenttel.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

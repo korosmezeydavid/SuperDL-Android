@@ -15,6 +15,7 @@ enum class MenuAction {
     DIAL,           // Számtárcsázás
     SMS_READ,       // SMS olvasás
     SMS_SENT_READ,  // Kimenő SMS olvasás
+    SMS_LAST_OUTCOME, // Mi lett az utolsó elküldött üzenettel
     SMS_WRITE,      // SMS írás diktálással
     EMAIL_WRITE,    // E-mail diktálása és küldése
     EMAIL_IMPORT,   // E-mail címek importálása
@@ -561,6 +562,11 @@ object MenuTree {
                 MenuItem("sms_read", "Bejövő üzenetek olvasása", MenuAction.SMS_READ),
                 MenuItem("sms_sent_read", "Kimenő üzenetek", MenuAction.SMS_SENT_READ),
                 MenuItem("sms_write", "Üzenet diktálása és küldése", MenuAction.SMS_WRITE),
+                // AZ ELKÜLDÖTT ÜZENET SORSA — mert a küldés pillanatában még
+                // nem tudjuk. A hálózat válasza másodpercekkel, a címzett
+                // készülékének visszajelzése akár PERCEKKEL később érkezik.
+                // A program eddig mindkettőt megkapta, és egyiket sem mondta el.
+                MenuItem("sms_last_outcome", "Utolsó üzenet sorsa", MenuAction.SMS_LAST_OUTCOME),
                 MenuItem("sms_settings_sub", "SMS beállítások", MenuAction.SUBMENU, listOf(
                     MenuItem("sms_default_setup", "Alapértelmezett üzenet app beállítása", MenuAction.SMS_DEFAULT_SETUP),
                     MenuItem("sms_default_status", "Üzenet app állapota", MenuAction.SMS_DEFAULT_STATUS),

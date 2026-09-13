@@ -57,18 +57,28 @@ object CalendarActionRunner {
      * ezért a címzettet és a szöveget is felolvasta a megerősítés előtt.
      */
     private fun sendSms(context: Context, action: CalendarAction.SendSms): String {
-        val manager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            context.getSystemService(SmsManager::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            SmsManager.getDefault()
-        } ?: return "Az SMS küldés most nem érhető el."
-
-        val parts = manager.divideMessage(action.text)
-        if (parts.size <= 1) {
-            manager.sendTextMessage(action.number, null, action.text, null, null)
-        } else {
-            manager.sendMultipartTextMessage(action.number, null, parts, null, null)
+        // A KÖZÖS KÜLDŐT HASZNÁLJUK, NEM SAJÁT MÁSOLATOT.
+        //
+        // Ez a függvény korábban maga hívta az `SmsManager`-t, és emiatt
+        // HÁROM dolog hiányzott belőle, amit a `SmsHelper`-ben már
+        // megoldottunk: a szám-normalizálás (a „+36 30 123-4567" alakot a
+        // hálózat elfogadja, de nem kézbesíti), a küldési és kézbesítési
+        // visszajelzés (enélkül a hiba a semmibe ment), és a mentés a kimenő
+        // mappába (tehát a felhasználó nem is látta, hogy ment valami).
+        //
+        // Két küldő két igazságot jelent. Egy helyen legyen.
+        com.superdl.launcher.sms.SmsSendReceiver.clearLastError()
+        com.superdl.launcher.sms.SmsOutcomeStore.note(
+            context, action.who, com.superdl.launcher.sms.SmsOutcomeStore.State.SENDING
+        )
+        val ok = com.superdl.launcher.sms.SmsHelper.send(context, action.number, action.text)
+        if (!ok) {
+            com.superdl.launcher.sms.SmsOutcomeStore.updateState(
+                context,
+                com.superdl.launcher.sms.SmsOutcomeStore.State.FAILED,
+                "a telefon el sem indította a küldést"
+            )
+            return "Az üzenetet nem sikerült elküldeni neki: ${action.who}."
         }
         return "Az üzenet elküldve neki: ${action.who}."
     }

@@ -166,6 +166,23 @@ object AlarmScheduler {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
         }
+        // ÜRES NAPKÉSZLET: NÉMA ÉBRESZTŐ LENNE.
+        //
+        // Egy CUSTOM ébresztő üres `weekDays` halmazzal SOHA nem aktív, tehát
+        // az alábbi ciklus végigfutna mind a nyolc körén, és a végén egy
+        // nyolc nappal későbbi, ugyanúgy nem aktív napra adna időpontot. Az
+        // ébresztő beállítottnak látszana, és soha nem szólalna meg.
+        //
+        // A felületen ezt a „legalább egy napot válassz" ellenőrzés fogja meg,
+        // de az adatréteg nem támaszkodhat arra, hogy a felület hibátlan: egy
+        // régi mentés vagy egy visszatöltött biztonsági másolat is hozhat ilyet.
+        // Ilyenkor MINDEN NAPKÉNT kezeljük — jobb egy fölösleges ébresztés,
+        // amit a felhasználó észrevesz és kijavít, mint egy néma, amiről soha
+        // nem tudja meg, miért maradt el.
+        if (entry.repeatType == AlarmRepeatType.CUSTOM && entry.weekDays.isEmpty()) {
+            return cal.timeInMillis
+        }
+
         // Legfeljebb egy hetet előre keresünk egy aktív napot.
         var guard = 0
         while (guard < 8 && !entry.isActiveOnDay(cal.get(Calendar.DAY_OF_WEEK))) {

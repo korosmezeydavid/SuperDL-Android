@@ -24,24 +24,32 @@ class SmsSendReceiver : BroadcastReceiver() {
         val total = intent?.getIntExtra(SmsHelper.EXTRA_PART_TOTAL, 1) ?: 1
 
         when (intent?.action) {
-            SmsHelper.ACTION_SMS_SENT -> handleSent(index, total)
-            SmsHelper.ACTION_SMS_DELIVERED -> handleDelivered(index, total)
+            SmsHelper.ACTION_SMS_SENT -> handleSent(context, index, total)
+            SmsHelper.ACTION_SMS_DELIVERED -> handleDelivered(context, index, total)
             else -> return
         }
     }
 
     /** A telefon átadta a hálózatnak — ez MÉG NEM kézbesítés! */
-    private fun handleSent(index: Int, total: Int) {
+    private fun handleSent(context: Context?, index: Int, total: Int) {
         when (resultCode) {
             Activity.RESULT_OK -> {
                 Log.i(TAG, "SMS rész $index/$total: ELKÜLDVE a hálózatnak")
                 lastError = null
+                // CSAK AZ UTOLSÓ RÉSZ SZÁMÍT SIKERNEK. Egy hosszú, darabolt
+                // üzenetnél az első rész sikere még nem jelenti, hogy az egész
+                // elment — és épp a végén szokott elfogyni a térerő.
+                if (index >= total) {
+                    context?.let {
+                        SmsOutcomeStore.updateState(it, SmsOutcomeStore.State.HANDED_OVER)
+                    }
+                }
             }
-            SmsManager.RESULT_ERROR_GENERIC_FAILURE -> fail(index, total, "általános hiba")
-            SmsManager.RESULT_ERROR_NO_SERVICE -> fail(index, total, "nincs hálózat")
-            SmsManager.RESULT_ERROR_NULL_PDU -> fail(index, total, "üres üzenet")
-            SmsManager.RESULT_ERROR_RADIO_OFF -> fail(index, total, "a rádió ki van kapcsolva")
-            else -> fail(index, total, "ismeretlen hiba ($resultCode)")
+            SmsManager.RESULT_ERROR_GENERIC_FAILURE -> fail(context, index, total, "általános hiba")
+            SmsManager.RESULT_ERROR_NO_SERVICE -> fail(context, index, total, "nincs hálózat")
+            SmsManager.RESULT_ERROR_NULL_PDU -> fail(context, index, total, "üres üzenet")
+            SmsManager.RESULT_ERROR_RADIO_OFF -> fail(context, index, total, "a rádió ki van kapcsolva")
+            else -> fail(context, index, total, "ismeretlen hiba ($resultCode)")
         }
     }
 
@@ -52,24 +60,39 @@ class SmsSendReceiver : BroadcastReceiver() {
      * üzenet elakadt a hálózatban (hibás szám, kikapcsolt készülék, a
      * szolgáltató elutasította).
      */
-    private fun handleDelivered(index: Int, total: Int) {
+    private fun handleDelivered(context: Context?, index: Int, total: Int) {
         when (resultCode) {
             Activity.RESULT_OK -> {
                 Log.i(TAG, "SMS rész $index/$total: KÉZBESÍTVE a címzettnek")
                 lastDelivered = true
                 lastError = null
+                if (index >= total) {
+                    context?.let {
+                        SmsOutcomeStore.updateState(it, SmsOutcomeStore.State.DELIVERED)
+                    }
+                }
             }
             else -> {
                 Log.w(TAG, "SMS rész $index/$total: NEM KÉZBESÍTHETŐ (kód: $resultCode)")
                 lastDelivered = false
                 lastError = "az üzenet nem jutott el a címzetthez"
+                context?.let {
+                    SmsOutcomeStore.updateState(
+                        it,
+                        SmsOutcomeStore.State.FAILED,
+                        "nem jutott el a címzetthez"
+                    )
+                }
             }
         }
     }
 
-    private fun fail(index: Int, total: Int, reason: String) {
+    private fun fail(context: Context?, index: Int, total: Int, reason: String) {
         Log.w(TAG, "SMS rész $index/$total: SIKERTELEN — $reason")
         lastError = reason
+        context?.let {
+            SmsOutcomeStore.updateState(it, SmsOutcomeStore.State.FAILED, reason)
+        }
     }
 
     companion object {
