@@ -1013,6 +1013,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ContactDeleteConfirm -> repeatContactDeleteConfirm(flow.contact)
             is AppFlow.SmsRecipientConfirm -> repeatSmsRecipientConfirm(flow.recipient)
             is AppFlow.SmsConfirm -> repeatSmsConfirm(flow.recipient, flow.message)
+            is AppFlow.SmsMultiLetterBrowse -> navigateSmsMultiLetter(flow, -1)
+            is AppFlow.SmsMultiNameBrowse -> navigateSmsMultiName(flow, -1)
+            is AppFlow.SmsMultiConfirm ->
+                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt)
+            is AppFlow.SmsScheduleAwaitTime ->
+                tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
+            is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, -1)
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, -1)
@@ -1221,6 +1228,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ContactDeleteConfirm -> repeatContactDeleteConfirm(flow.contact)
             is AppFlow.SmsRecipientConfirm -> repeatSmsRecipientConfirm(flow.recipient)
             is AppFlow.SmsConfirm -> repeatSmsConfirm(flow.recipient, flow.message)
+            is AppFlow.SmsMultiLetterBrowse -> navigateSmsMultiLetter(flow, +1)
+            is AppFlow.SmsMultiNameBrowse -> navigateSmsMultiName(flow, +1)
+            is AppFlow.SmsMultiConfirm ->
+                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt)
+            is AppFlow.SmsScheduleAwaitTime ->
+                tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
+            is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, +1)
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, +1)
@@ -1459,6 +1473,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.EmailBrowseRecipients -> tts.speak(flow.recipients[flow.index].speakFull())
             is AppFlow.SmsRecipientConfirm -> proceedToSmsMessage(flow.recipient)
             is AppFlow.SmsConfirm -> sendSms(flow.recipient, flow.message)
+            is AppFlow.SmsMultiLetterBrowse -> enterSmsMultiLetter(flow)
+            is AppFlow.SmsMultiNameBrowse -> toggleSmsMultiName(flow)
+            is AppFlow.SmsMultiConfirm -> sendSmsMulti(flow)
+            is AppFlow.SmsScheduleList -> deleteScheduledSms(flow)
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
             is AppFlow.SmsContextMenu -> onSmsContextActivate(flow)
             is AppFlow.SmsDeleteConfirm -> deleteSmsMessage(flow)
@@ -2152,6 +2170,21 @@ class MainActivity : AppCompatActivity() {
             // előtte álló vessző beszívná, és az egész lista erre az ágra
             // futna — ez pont megtörtént, és a fordító fogta meg.)
             is AppFlow.AlarmWeekdayBrowse -> finishAlarmWeekdayPick(flow)
+            // ÜZENET TÖBBEKNEK: a balra itt sem mégse.
+            // A neveknél: vissza a betűkhöz, a kijelölés megmarad.
+            // A betűknél: kész (üres kijelölésnél kilépés).
+            is AppFlow.SmsMultiNameBrowse -> backToSmsMultiLetters(flow)
+            is AppFlow.SmsMultiLetterBrowse -> finishSmsMultiPick(flow)
+            is AppFlow.SmsMultiAwaitMessage -> {
+                voiceInput.cancel()
+                exitFlow("Üzenet megszakítva.")
+            }
+            is AppFlow.SmsMultiConfirm -> exitFlow("Üzenet megszakítva.")
+            is AppFlow.SmsScheduleAwaitTime -> {
+                voiceInput.cancel()
+                exitFlow("Időzítés megszakítva. Nem küldtem el semmit.")
+            }
+            is AppFlow.SmsScheduleList -> exitFlow("Vissza.")
             AppFlow.SmsAwaitRecipient,
             is AppFlow.SmsPickContact,
             is AppFlow.SmsRecipientConfirm,
@@ -2371,6 +2404,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SMS_LAST_OUTCOME ->
                 tts.speak(com.superdl.launcher.sms.SmsOutcomeStore.speakLast(this))
             MenuAction.SMS_WRITE -> startSmsComposeFlow()
+            MenuAction.SMS_MULTI_WRITE -> startSmsMultiFlow()
+            MenuAction.SMS_SCHEDULE_NEW -> startSmsMultiFlow(scheduled = true)
+            MenuAction.SMS_SCHEDULE_LIST -> startSmsScheduleList()
             MenuAction.CHAT_OPEN -> com.superdl.launcher.chat.ChatActivity.start(this)
             MenuAction.EMAIL_WRITE -> {
                 // Menüből indított ÚJ levél: soha ne hozzon magával egy
@@ -3544,6 +3580,299 @@ class MainActivity : AppCompatActivity() {
             success = ok,
             error = !ok
         )
+    }
+
+    // ==================== ÜZENET TÖBBEKNEK (MK-V, M2) ====================
+    //
+    // Az út, ahogy Alph leírta: betűindexen fel-le, belépés a betűbe, ott a
+    // neveknél jobbra jelöl, vissza a betűkhöz, másik betű, és a végén a
+    // betű-szinten balra menti a címzetteket.
+    //
+    // A jelzés MINDIG a név bemondásába épül, és a futó összeg is elhangzik —
+    // vakon ez az egyetlen fogódzó arról, hol tartasz.
+
+    private fun startSmsMultiFlow(scheduled: Boolean = false) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("SMS küldés engedély szükséges.")
+            return
+        }
+        val contacts = ContactHelper.listAllWithPhone(this)
+        if (contacts.isEmpty()) {
+            tts.speak("Nincs telefonszámmal ellátott névjegy.")
+            return
+        }
+        val groups = com.superdl.launcher.contacts.ContactLetterIndex.buildGroups(contacts)
+        if (groups.isEmpty()) {
+            tts.speak("Nincs telefonszámmal ellátott névjegy.")
+            return
+        }
+        activeFlow = AppFlow.SmsMultiLetterBrowse(groups, 0, emptyList(), scheduled)
+        updateFlowDisplay()
+        val cim = if (scheduled) "Időzített üzenet. " else ""
+        tts.speak(
+            "${cim}Címzettek kijelölése. Söpörj fel-le a kezdőbetűk között, jobbra a " +
+                "belépéshez. A neveknél jobbra jelölöd ki. Ha megvagy, a betűknél söpörj balra."
+        )
+        tts.speakAdd(groups[0].speakLabel())
+    }
+
+    private fun navigateSmsMultiLetter(flow: AppFlow.SmsMultiLetterBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.groups.size) % flow.groups.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.groups[next].speakLabel())
+    }
+
+    private fun enterSmsMultiLetter(flow: AppFlow.SmsMultiLetterBrowse) {
+        val group = flow.groups[flow.index]
+        activeFlow = AppFlow.SmsMultiNameBrowse(
+            flow.groups, flow.index, 0, flow.selected, flow.scheduled
+        )
+        updateFlowDisplay()
+        tts.speak(
+            "${group.letter} betű, ${group.contacts.size} névjegy. Jobbra kijelölés, " +
+                "balra vissza a betűkhöz."
+        )
+        tts.speakAdd(speakSmsMultiName(group.contacts[0], flow.selected))
+    }
+
+    private fun speakSmsMultiName(
+        contact: com.superdl.launcher.contacts.ContactMatch,
+        selected: List<Recipient>
+    ): String {
+        val mark = if (selected.any { it.phone == contact.phone }) "Kijelölve. " else ""
+        val sum = if (selected.isEmpty()) "" else " Összesen ${selected.size} címzett."
+        return "$mark${contact.name}.$sum"
+    }
+
+    private fun navigateSmsMultiName(flow: AppFlow.SmsMultiNameBrowse, delta: Int) {
+        val items = flow.groups[flow.groupIndex].contacts
+        val next = (flow.index + delta + items.size) % items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(speakSmsMultiName(items[next], flow.selected))
+    }
+
+    /** Jobbra: a névjegy kijelölése vagy a kijelölés visszavonása. */
+    private fun toggleSmsMultiName(flow: AppFlow.SmsMultiNameBrowse) {
+        val contact = flow.groups[flow.groupIndex].contacts[flow.index]
+        val already = flow.selected.firstOrNull { it.phone == contact.phone }
+        val updated = if (already != null) {
+            flow.selected - already
+        } else {
+            flow.selected + Recipient(contact.phone, contact.name)
+        }
+        activeFlow = flow.copy(selected = updated)
+        updateFlowDisplay()
+        val verb = if (already != null) "kijelölés visszavonva" else "kijelölve"
+        tts.speak("${contact.name} $verb. Összesen ${updated.size} címzett.")
+    }
+
+    /** Balra a neveknél: vissza a betűkhöz — a kijelölés MEGMARAD. */
+    private fun backToSmsMultiLetters(flow: AppFlow.SmsMultiNameBrowse) {
+        activeFlow = AppFlow.SmsMultiLetterBrowse(
+            flow.groups, flow.groupIndex, flow.selected, flow.scheduled
+        )
+        updateFlowDisplay()
+        val sum = if (flow.selected.isEmpty()) {
+            "Még nincs kijelölt címzett."
+        } else {
+            "${flow.selected.size} címzett kijelölve."
+        }
+        tts.speak("Vissza a betűkhöz. $sum")
+        tts.speakAdd(flow.groups[flow.groupIndex].speakLabel())
+    }
+
+    /**
+     * Balra a betűknél: kész.
+     *
+     * Üres kijelölésnél kilépünk — ugyanaz a minta, mint az ébresztések
+     * kihagyásánál: üres halmaznál kilép, tele halmaznál továbbmegy. Így
+     * nincs olyan állapot, amiből ne lenne kiút.
+     */
+    private fun finishSmsMultiPick(flow: AppFlow.SmsMultiLetterBrowse) {
+        if (flow.selected.isEmpty()) {
+            exitFlow("Kijelölés megszakítva.")
+            return
+        }
+        val names = flow.selected.joinToString(", ") { it.label }
+        activeFlow = AppFlow.SmsMultiAwaitMessage(flow.selected, flow.scheduled)
+        updateFlowDisplay()
+        tts.speak("${flow.selected.size} címzett mentve: $names.")
+        listenForSmsMultiMessage(flow.selected, flow.scheduled)
+    }
+
+    private fun listenForSmsMultiMessage(recipients: List<Recipient>, scheduled: Boolean) {
+        voiceInput.listen(
+            prompt = "Mondd az üzenetet. Kimondhatod az írásjeleket is: vessző, pont, kérdőjel.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val message = SpeechPunctuation.apply(spoken).trim()
+                if (message.isBlank()) {
+                    exitFlow("Üres üzenet, nem küldtem el semmit.")
+                    return@listen
+                }
+                if (scheduled) {
+                    activeFlow = AppFlow.SmsScheduleAwaitTime(recipients, message)
+                    updateFlowDisplay()
+                    listenForSmsScheduleTime(recipients, message)
+                } else {
+                    activeFlow = AppFlow.SmsMultiConfirm(recipients, message)
+                    updateFlowDisplay()
+                    repeatSmsMultiConfirm(recipients, message, null)
+                }
+            },
+            onError = { exitFlow("Nem értettem az üzenetet.") }
+        )
+    }
+
+    // ── IDŐZÍTÉS (MK-V, M3) ─────────────────────────────────────────────────
+
+    private fun listenForSmsScheduleTime(recipients: List<Recipient>, message: String) {
+        voiceInput.listen(
+            prompt = "Mikor menjen el? Mondhatod így: másfél óra múlva, " +
+                "vagy így: délután ötkor.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val at = com.superdl.launcher.sms.ScheduledSmsTime.parse(spoken)
+                if (at == null) {
+                    // NEM TIPPELÜNK. Egy félreértett időpont csendben rossz
+                    // órában küldene el egy üzenetet.
+                    feedbackError()
+                    tts.speak("Ezt nem értettem. Mondd újra, például: két óra múlva.")
+                    listenForSmsScheduleTime(recipients, message)
+                    return@listen
+                }
+                activeFlow = AppFlow.SmsMultiConfirm(recipients, message, at)
+                updateFlowDisplay()
+                repeatSmsMultiConfirm(recipients, message, at)
+            },
+            onError = { exitFlow("Időzítés megszakítva.") }
+        )
+    }
+
+    private fun repeatSmsMultiConfirm(
+        recipients: List<Recipient>,
+        message: String,
+        triggerAt: Long?
+    ) {
+        val names = recipients.joinToString(", ") { it.label }
+        if (triggerAt == null) {
+            tts.speak(
+                "${recipients.size} címzett: $names. Üzenet: $message. Elküldjem? " +
+                    "Söpörj jobbra az elküldéshez, balra a mégsehez. Ismétlés: söprés fel."
+            )
+        } else {
+            val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(triggerAt)
+            tts.speak(
+                "Időzített üzenet. Címzett: $names. Üzenet: $message. Elküldés ekkor: " +
+                    "$whenText. Beállítsam? Söpörj jobbra, balra a mégsehez. " +
+                    "Ismétlés: söprés fel."
+            )
+        }
+    }
+
+    /** Az időzített üzenet felvétele a listába. NEM küld most semmit. */
+    private fun saveScheduledSms(flow: AppFlow.SmsMultiConfirm) {
+        val at = flow.triggerAt ?: return
+        val entry = com.superdl.launcher.sms.ScheduledSmsStore.add(
+            this, flow.recipients, flow.message, at
+        )
+        if (entry == null) {
+            exitFlow(
+                "Túl sok időzített üzenet van. Törölj néhányat az Időzített üzeneteim pontban.",
+                error = true
+            )
+            return
+        }
+        com.superdl.launcher.sms.ScheduledSmsScheduler.schedule(this, entry)
+
+        // HA A KORLÁTLAN HÁTTÉRFUTÁS NINCS MEG, AZT KI KELL MONDANI.
+        //
+        // Enélkül a gyártói takarékosság késleltetheti vagy elnyelheti az
+        // ébresztőt. Egy védőhálót adni, ami néha nincs ott, rosszabb, mint
+        // nem adni — a felhasználó ilyenkor abban a hiszemben él, hogy
+        // számíthat rá.
+        val pontos = com.superdl.launcher.sms.ScheduledSmsScheduler.canScheduleExact(this)
+        val figyelmeztetes = if (!pontos) {
+            " Figyelem: a pontos ébresztő nincs engedélyezve, ezért az üzenet késhet. " +
+                "A beállítás varázslóban add meg a Korlátlan háttérfutást."
+        } else {
+            ""
+        }
+        val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(at)
+        exitFlow(
+            "Időzített üzenet beállítva: $whenText. Bármikor törölheted az " +
+                "Időzített üzeneteim pontban.$figyelmeztetes",
+            success = true
+        )
+    }
+
+    private fun startSmsScheduleList() {
+        val items = com.superdl.launcher.sms.ScheduledSmsStore.getAll(this)
+        if (items.isEmpty()) {
+            tts.speak("Nincs időzített üzeneted.")
+            return
+        }
+        activeFlow = AppFlow.SmsScheduleList(items, 0)
+        updateFlowDisplay()
+        val varakozo = items.count { it.isPending }
+        tts.speak(
+            "$varakozo várakozó üzenet, összesen ${items.size} tétel. " +
+                "Fel-le válogatás, jobbra törlés, balra vissza."
+        )
+        tts.speakAdd(items[0].speakSummary())
+    }
+
+    private fun navigateSmsScheduleList(flow: AppFlow.SmsScheduleList, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.items[next].speakSummary())
+    }
+
+    /** Jobbra: törlés. Egy lejárt tételnél ez csak a naplóból veszi ki. */
+    private fun deleteScheduledSms(flow: AppFlow.SmsScheduleList) {
+        val entry = flow.items[flow.index]
+        com.superdl.launcher.sms.ScheduledSmsScheduler.cancel(this, entry.id)
+        com.superdl.launcher.sms.ScheduledSmsStore.remove(this, entry.id)
+        val remaining = com.superdl.launcher.sms.ScheduledSmsStore.getAll(this)
+        feedbackSuccess()
+        if (remaining.isEmpty()) {
+            exitFlow("Törölve. Nincs több időzített üzeneted.")
+            return
+        }
+        val newIndex = flow.index.coerceAtMost(remaining.lastIndex)
+        activeFlow = AppFlow.SmsScheduleList(remaining, newIndex)
+        updateFlowDisplay()
+        tts.speak("Törölve: ${entry.whoText()}.")
+        tts.speakAdd(remaining[newIndex].speakSummary())
+    }
+
+    private fun sendSmsMulti(flow: AppFlow.SmsMultiConfirm) {
+        if (flow.triggerAt != null) {
+            saveScheduledSms(flow)
+            return
+        }
+        com.superdl.launcher.sms.SmsSendReceiver.clearLastError()
+        val report = SmsHelper.sendToMany(this, flow.recipients, flow.message)
+        // A „sorsa" tárolóba a CSOPORT megy be, nem az egyes emberek: a
+        // felhasználó erre az egy küldésre kíváncsi, nem négy külön bejegyzésre.
+        val label = if (flow.recipients.size == 1) {
+            flow.recipients.first().label
+        } else {
+            "${flow.recipients.size} címzett"
+        }
+        com.superdl.launcher.sms.SmsOutcomeStore.note(
+            this,
+            label,
+            if (report.anySent) com.superdl.launcher.sms.SmsOutcomeStore.State.SENDING
+            else com.superdl.launcher.sms.SmsOutcomeStore.State.FAILED,
+            if (report.anySent) null else "a telefon el sem indította a küldést"
+        )
+        exitFlow(report.speak(), success = report.anySent, error = !report.anySent)
     }
 
     private fun startSmsToPhone(phone: String, name: String) {
@@ -19241,6 +19570,49 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.message
                 tvPosition.text = "3 / 3  •  ${flow.recipient.label}"
                 tvHint.text = "➡ küldés  •  ⬅ mégse  •  szóban: küldés, nem  •  ⬆⬇ ismétlés"
+            }
+            is AppFlow.SmsMultiLetterBrowse -> {
+                val g = flow.groups[flow.index]
+                tvItem.text = "${g.letter} — ${g.contacts.size} névjegy"
+                tvPosition.text = "Címzettek  •  ${flow.selected.size} kijelölve"
+                tvHint.text = "⬆⬇ betűk  •  ➡ belépés  •  ⬅ kész"
+            }
+            is AppFlow.SmsMultiNameBrowse -> {
+                val c = flow.groups[flow.groupIndex].contacts[flow.index]
+                val mark = if (flow.selected.any { it.phone == c.phone }) "✔ " else ""
+                tvItem.text = "$mark${c.name}"
+                tvPosition.text = "${flow.groups[flow.groupIndex].letter}  •  " +
+                    "${flow.index + 1} / ${flow.groups[flow.groupIndex].contacts.size}  •  " +
+                    "${flow.selected.size} címzett"
+                tvHint.text = "⬆⬇ nevek  •  ➡ kijelölés  •  ⬅ vissza a betűkhöz"
+            }
+            is AppFlow.SmsMultiAwaitMessage -> {
+                tvItem.text = "${flow.recipients.size} címzett"
+                tvPosition.text = "Üzenet diktálása"
+                tvHint.text = "Diktáld az üzenetet  •  ⬅ mégse"
+            }
+            is AppFlow.SmsMultiConfirm -> {
+                tvItem.text = flow.message
+                val at = flow.triggerAt
+                if (at == null) {
+                    tvPosition.text = "${flow.recipients.size} címzett"
+                    tvHint.text = "➡ küldés mindenkinek  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+                } else {
+                    tvPosition.text = "${flow.recipients.size} címzett  •  " +
+                        com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(at)
+                    tvHint.text = "➡ időzítés beállítása  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+                }
+            }
+            is AppFlow.SmsScheduleAwaitTime -> {
+                tvItem.text = flow.message
+                tvPosition.text = "${flow.recipients.size} címzett  •  Időpont diktálása"
+                tvHint.text = "Mondd: két óra múlva, vagy délután ötkor  •  ⬅ mégse"
+            }
+            is AppFlow.SmsScheduleList -> {
+                val item = flow.items[flow.index]
+                tvItem.text = item.message
+                tvPosition.text = "${item.whoText()}  •  ${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ törlés  •  ⬅ vissza"
             }
             is AppFlow.SmsInbox -> {
                 val msg = flow.messages[flow.index]

@@ -96,6 +96,64 @@ object SmsHelper {
     }
 
     /**
+     * TÖBB CÍMZETTNEK EGYSZERRE.
+     *
+     * Mit ad vissza: kinek ment el és kinek nem — NÉV SZERINT. Ez a lényeg.
+     * Négy címzettnél előfordul, hogy három elmegy és egy nem; ilyenkor a
+     * „elküldve" és a „sikertelen" is hazugság lenne. Az egyetlen becsületes
+     * mondat az, hogy melyik melyik.
+     *
+     * A gépezet nem új: az S.O.S. lánc évek óta így küld a négy segélyhívó
+     * számra. Eddig csak a felület volt egy-címzetes.
+     *
+     * MIÉRT NEM ÁLL LE AZ ELSŐ HIBÁNÁL: mert a többinek akkor is el kell
+     * mennie. Ez ugyanaz az elv, mint a YouTube-feloldásnál: egy lépés bukása
+     * nem az egész bukása.
+     */
+    data class MultiSendReport(
+        val sentTo: List<String>,
+        val failedTo: List<String>
+    ) {
+        val anySent: Boolean get() = sentTo.isNotEmpty()
+
+        /** Amit a felhasználó hall. Pontosan annyit, amennyi igaz. */
+        fun speak(): String = when {
+            failedTo.isEmpty() && sentTo.size == 1 ->
+                "Üzenet elküldve ${sentTo.first()} részére."
+            failedTo.isEmpty() ->
+                "Üzenet elküldve mind a ${sentTo.size} címzettnek."
+            sentTo.isEmpty() && failedTo.size == 1 ->
+                "Az üzenetet nem sikerült elküldeni ${failedTo.first()} részére."
+            sentTo.isEmpty() ->
+                "Az üzenetet egyik címzettnek sem sikerült elküldeni."
+            else ->
+                "${sentTo.size} címzettnek elment. Nem ment el neki: " +
+                    "${failedTo.joinToString(", ")}."
+        }
+    }
+
+    fun sendToMany(
+        context: Context,
+        recipients: List<Recipient>,
+        message: String
+    ): MultiSendReport {
+        val sent = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+        recipients.forEach { r ->
+            val ok = try {
+                send(context, r.phone, message)
+            } catch (t: Throwable) {
+                // Throwable, nem Exception: egy címzettnél eldobott hiba nem
+                // viheti magával a többit.
+                Log.w(TAG, "tobbcimzettes kuldes hiba (${r.label})", t)
+                false
+            }
+            if (ok) sent.add(r.label) else failed.add(r.label)
+        }
+        return MultiSendReport(sent, failed)
+    }
+
+    /**
      * A telefonszám előkészítése küldéshez.
      *
      * MIÉRT KELL: a diktált vagy névjegyből vett szám gyakran tartalmaz

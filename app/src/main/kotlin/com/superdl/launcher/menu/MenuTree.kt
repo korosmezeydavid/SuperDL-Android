@@ -16,6 +16,9 @@ enum class MenuAction {
     SMS_READ,       // SMS olvasás
     SMS_SENT_READ,  // Kimenő SMS olvasás
     SMS_LAST_OUTCOME, // Mi lett az utolsó elküldött üzenettel
+    SMS_MULTI_WRITE,  // Üzenet több címzettnek egyszerre
+    SMS_SCHEDULE_NEW, // Időzített üzenet beállítása
+    SMS_SCHEDULE_LIST, // Időzített üzeneteim (és törlésük)
     SMS_WRITE,      // SMS írás diktálással
     EMAIL_WRITE,    // E-mail diktálása és küldése
     EMAIL_IMPORT,   // E-mail címek importálása
@@ -562,6 +565,12 @@ object MenuTree {
                 MenuItem("sms_read", "Bejövő üzenetek olvasása", MenuAction.SMS_READ),
                 MenuItem("sms_sent_read", "Kimenő üzenetek", MenuAction.SMS_SENT_READ),
                 MenuItem("sms_write", "Üzenet diktálása és küldése", MenuAction.SMS_WRITE),
+                MenuItem("sms_multi", "Üzenet több címzettnek", MenuAction.SMS_MULTI_WRITE),
+                // AZ IDŐZÍTÉS KÉT MENÜPONT, és ez szándékos. A küldés nem
+                // kérdez rá semmire — épp ez a lényege —, ezért a TÖRLÉS-nek
+                // saját, könnyen megtalálható helye kell, hogy legyen.
+                MenuItem("sms_schedule_new", "Időzített üzenet", MenuAction.SMS_SCHEDULE_NEW),
+                MenuItem("sms_schedule_list", "Időzített üzeneteim", MenuAction.SMS_SCHEDULE_LIST),
                 // AZ ELKÜLDÖTT ÜZENET SORSA — mert a küldés pillanatában még
                 // nem tudjuk. A hálózat válasza másodpercekkel, a címzett
                 // készülékének visszajelzése akár PERCEKKEL később érkezik.

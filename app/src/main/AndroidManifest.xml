@@ -434,6 +434,11 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Időzített üzenetek: amikor eljött az idő, ez küldi el. -->
+        <receiver
+            android:name=".sms.ScheduledSmsReceiver"
+            android:exported="false" />
+
         <!-- Fájl- és mappamegosztás -->
         <activity
             android:name=".share.ShareActivity"

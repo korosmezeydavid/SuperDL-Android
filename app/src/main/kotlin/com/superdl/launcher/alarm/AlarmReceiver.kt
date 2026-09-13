@@ -129,6 +129,11 @@ class BootReceiver : BroadcastReceiver() {
                 step("idozito") {
                     com.superdl.launcher.timer.TimerManager.resumeIfNeeded(context)
                 }
+                // Az időzített üzenetek ébresztői is elvesznek újraindításkor.
+                // Egy be nem küldött vészjelző üzenet a legrosszabb kimenet.
+                step("idozitett-sms") {
+                    com.superdl.launcher.sms.ScheduledSmsScheduler.scheduleAll(context)
+                }
                 step("akku-orseg") {
                     com.superdl.launcher.battery.BatteryPatrolManager.start(context)
                 }

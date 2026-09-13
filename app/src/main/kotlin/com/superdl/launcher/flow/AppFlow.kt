@@ -15,6 +15,60 @@ sealed class AppFlow {
     data class SmsAwaitMessage(val recipient: Recipient) : AppFlow()
     data class SmsConfirm(val recipient: Recipient, val message: String) : AppFlow()
 
+    // ── ÜZENET TÖBBEKNEK ────────────────────────────────────────────────────
+    //
+    // KÜLÖN MÓD, nem a megszokott névjegyzék átértelmezése. A névjegyzékben a
+    // jobbra söprés ma a művelet-menüt nyitja; ha ugyanott csendben mást
+    // jelentene, az pont az a fajta meglepetés, amiből a legtöbb panasz lesz.
+    //
+    // Az út: betűk → egy betűn belül a nevek → vissza a betűkhöz (a kijelölés
+    // megmarad) → másik betű → ... → a betű-szinten balra: kész.
+
+    /** Betű-szint. Fel-le: betűk. Jobbra: belépés. Balra: kész vagy kilépés. */
+    data class SmsMultiLetterBrowse(
+        val groups: List<com.superdl.launcher.contacts.ContactLetterIndex.LetterGroup>,
+        val index: Int,
+        val selected: List<Recipient>,
+        val scheduled: Boolean = false
+    ) : AppFlow()
+
+    /** Név-szint. Fel-le: nevek. Jobbra: kijelölés. Balra: vissza a betűkhöz. */
+    data class SmsMultiNameBrowse(
+        val groups: List<com.superdl.launcher.contacts.ContactLetterIndex.LetterGroup>,
+        val groupIndex: Int,
+        val index: Int,
+        val selected: List<Recipient>,
+        val scheduled: Boolean = false
+    ) : AppFlow()
+
+    /** A címzettek megvannak, jöhet a szöveg. */
+    data class SmsMultiAwaitMessage(
+        val recipients: List<Recipient>,
+        val scheduled: Boolean = false
+    ) : AppFlow()
+
+    /** Időzített üzenetnél: mikor menjen. */
+    data class SmsScheduleAwaitTime(
+        val recipients: List<Recipient>,
+        val message: String
+    ) : AppFlow()
+
+    /**
+     * Utolsó megerősítés.
+     * @param triggerAt null = most megy; egyébként az időzítés időpontja
+     */
+    data class SmsMultiConfirm(
+        val recipients: List<Recipient>,
+        val message: String,
+        val triggerAt: Long? = null
+    ) : AppFlow()
+
+    /** Az időzített üzenetek listája. Jobbra: törlés. */
+    data class SmsScheduleList(
+        val items: List<com.superdl.launcher.sms.ScheduledSms>,
+        val index: Int
+    ) : AppFlow()
+
     data class SmsInbox(
         val messages: List<SmsMessage>,
         val index: Int,
