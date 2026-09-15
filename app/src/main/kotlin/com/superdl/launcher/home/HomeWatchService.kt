@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * AZ OTTHON-ELLENŐRZÉS.
@@ -43,9 +44,17 @@ class HomeWatchService : Service() {
         const val CHANNEL_ID = "HOME_WATCH_CHANNEL"
         const val ACTION_STOP = "com.superdl.launcher.home.STOP"
         const val EXTRA_MANUAL = "kezi_proba"
+        const val EXTRA_FOLLOWUP = "frissites"
 
         /** Ennyit várunk a GPS-re, ha a wifi és a cella nem döntött. */
         private const val GPS_WINDOW_MS = 40_000L
+
+        /**
+         * Ennyit várunk a GPS-re CSAK AZ ÜZENET KEDVÉÉRT, ha a döntés már
+         * megvan, de helyzetünk nincs. Rövidebb, mint a döntéshez szabott
+         * ablak: a riasztást nem késleltetheti sokáig.
+         */
+        private const val MESSAGE_GPS_WINDOW_MS = 20_000L
 
         /** A visszaszámlálás hossza. Elég ahhoz, hogy elő lehessen venni a telefont. */
         private const val COUNTDOWN_SECONDS = 45
@@ -88,10 +97,11 @@ class HomeWatchService : Service() {
         isRunning = true
         stopRequested = false
         val manual = intent?.getBooleanExtra(EXTRA_MANUAL, false) ?: false
+        val followUp = intent?.getBooleanExtra(EXTRA_FOLLOWUP, false) ?: false
 
         scope.launch {
             try {
-                run(manual)
+                run(manual, followUp)
             } catch (t: Throwable) {
                 // VÉDŐHÁLÓ: egy csendben elbukott ellenőrzés a legrosszabb
                 // kimenetel, mert a felhasználó azt hiszi, van védőhálója.
@@ -109,8 +119,16 @@ class HomeWatchService : Service() {
 
     // ── A LÁNC ───────────────────────────────────────────────────────────
 
-    private suspend fun run(manual: Boolean) {
-        notify("Körülnézek…")
+    private suspend fun run(manual: Boolean, followUp: Boolean) {
+        notify(if (followUp) "Frissítés…" else "Körülnézek…")
+
+        // Egy ÚJ esti ellenőrzés tiszta lappal indul: a tegnapi frissítések
+        // számlálója nullázódik, és egy régen ottfelejtett frissítés sem
+        // szólalhat meg a semmiből.
+        if (!followUp) {
+            HomeWatchSettings.resetFollowUps(this)
+            HomeWatchFollowUp.cancel(this)
+        }
 
         // 1. Az olcsó jelek: kapcsolódó wifi és látott mobilcellák.
         var sample = HomeEnvironment.sample(this, GpsLocationHelper.getLastLocation(this))
@@ -134,7 +152,15 @@ class HomeWatchService : Service() {
             HomeVerdict.HOME -> {
                 // SZÁNDÉKOSAN NÉMA. Aki hazaért, ne kapjon bemondást arról,
                 // hogy hazaért. Ez a leggyakoribb eset, és a legjobb kimenetel.
-                note("Otthon voltál (${check.reason}). Nem küldtem semmit.")
+                //
+                // FRISSÍTÉSKOR EZ KÜLÖN FONTOS: közben hazaérhetett. Ilyenkor
+                // a függő frissítéseket le kell mondani, különben negyedóra
+                // múlva riasztás menne valakiről, aki már otthon alszik.
+                HomeWatchFollowUp.cancel(this)
+                note(
+                    if (followUp) "Frissítéskor már otthon voltál. Nem küldtem többet."
+                    else "Otthon voltál (${check.reason}). Nem küldtem semmit."
+                )
                 if (manual) {
                     announce("Próba: otthon vagy. ${check.reason}. Ilyenkor nem küldenék semmit.")
                 }
@@ -153,13 +179,18 @@ class HomeWatchService : Service() {
                 )
             }
 
-            HomeVerdict.AWAY -> alarm(check, sample.location, manual)
+            HomeVerdict.AWAY -> alarm(check, sample.location, manual, followUp)
         }
     }
 
     // ── A RIASZTÁS ───────────────────────────────────────────────────────
 
-    private suspend fun alarm(check: HomeCheck, location: Location?, manual: Boolean) {
+    private suspend fun alarm(
+        check: HomeCheck,
+        location: Location?,
+        manual: Boolean,
+        followUp: Boolean
+    ) {
         val probe = manual || HomeWatchSettings.isProbe(this)
         val numbers = HomeWatchSettings.numbers(this)
         val deadline = HomeWatchSettings.speakTime(this)
@@ -173,34 +204,70 @@ class HomeWatchService : Service() {
             return
         }
 
-        // 1. VISSZASZÁMLÁLÁS. Ez az, ami a hamis riasztást megfogja: ha a
+        // 1. A HELYZET BEGYŰJTÉSE, MÁR MOST. A döntés sokszor a wifiből vagy
+        //    a cellából született, és olyankor a GPS-t el sem indítottuk —
+        //    a segítőnek viszont helyzet kell. A GPS itt indul, és a
+        //    visszaszámlálás alatt végig gyűjt: az a negyvenöt másodperc
+        //    amúgy is eltelik, legalább dolgozzon.
+        startGps()
+
+        // 2. VISSZASZÁMLÁLÁS. Ez az, ami a hamis riasztást megfogja: ha a
         //    felhasználó ott van a telefonnál, egy balra söpréssel leállítja.
-        if (HomeWatchSettings.isCountdownEnabled(this)) {
+        //    Frissítéskor NINCS visszaszámlálás: az első riasztást már nem
+        //    állította le, a másodikat éjfélkor pláne nem fogja.
+        if (!followUp && HomeWatchSettings.isCountdownEnabled(this)) {
             notify("Visszaszámlálás…")
             openAlert(check.reason, probe)
             for (second in COUNTDOWN_SECONDS downTo 1) {
                 if (stopRequested) {
+                    stopGps()
+                    HomeWatchFollowUp.cancel(this)
                     note("Nem voltál otthon, de te állítottad le a riasztást.")
                     announce("Otthon-figyelés leállítva. Nem küldtem üzenetet.")
                     return
                 }
                 delay(1_000L)
             }
+        } else {
+            // Visszaszámlálás nélkül is várunk egy keveset a helyzetre, ha
+            // egyáltalán nincs mit kiküldeni. Néhány másodperc késés árán a
+            // segítő térképet kap a „nem tudom, hol vagyok" helyett.
+            waitForLocationIfEmpty(location)
         }
+        stopGps()
         if (stopRequested) {
+            HomeWatchFollowUp.cancel(this)
             note("Nem voltál otthon, de te állítottad le a riasztást.")
             return
         }
 
-        // 2. AZ ÜZENET.
-        val message = HomeWatchMessage.build(null, deadline, location)
+        // 3. A LEGJOBB HELYZET ÉS AZ UTCANÉV.
+        val fix = HomeLocationResolver.bestWithLastKnown(this, bestLocation, location)
+        // Az utcanév hálózatot igényel, ezért HÁTTÉRSZÁLON kérjük le. A fő
+        // szálat semmilyen körülmények között nem foghatja le: ha nem jön meg,
+        // egyszerűen elmarad, és megy az üzenet nélküle.
+        val address = if (fix == null) null else withContext(Dispatchers.IO) {
+            HomeLocationResolver.addressOrNull(fix)
+        }
+
+        // 4. AZ ÜZENET.
+        val message = if (followUp) {
+            HomeWatchMessage.buildUpdate(fix, address)
+        } else {
+            HomeWatchMessage.build(null, deadline, fix, address)
+        }
 
         if (probe) {
-            // PRÓBA MÓD: mindent végigcsinálunk, de NEM küldünk.
+            // PRÓBA MÓD: mindent végigcsinálunk, de NEM küldünk. A frissítést
+            // is beütemezzük, mert a próba akkor ér valamit, ha tényleg
+            // mindent végigjátszik — csak éppen néma marad kifelé.
+            if (followUp) HomeWatchSettings.noteFollowUpSent(this)
+            HomeWatchFollowUp.schedule(this)
             note("PRÓBA: nem voltál otthon (${check.reason}). Élesben ment volna üzenet.")
             announce(
                 "Próba mód. Nem vagy otthon: ${check.reason}. Élesben most " +
-                    "${cimzettSzoveg(numbers.size)} ment volna üzenet. Nem küldtem el semmit."
+                    "${cimzettSzoveg(numbers.size)} ment volna üzenet. " +
+                    helyzetSzoveg(fix) + " Nem küldtem el semmit."
             )
             return
         }
@@ -217,8 +284,19 @@ class HomeWatchService : Service() {
         }
 
         if (sent > 0) {
-            note("Nem voltál otthon (${check.reason}). Üzenet elment $sent címzettnek.")
-            announce("Otthon-figyelés: nem vagy otthon, ezért üzentem $sent címzettnek.")
+            if (followUp) HomeWatchSettings.noteFollowUpSent(this)
+            // A KÖVETKEZŐ FRISSÍTÉS. Csak akkor ütemezünk, ha tényleg ment ki
+            // üzenet: egy elbukott küldés után a frissítés sem fog átmenni,
+            // és nem érdemes vele altatni a felhasználót.
+            HomeWatchFollowUp.schedule(this)
+            note(
+                if (followUp) "Frissítés: még mindig nem voltál otthon. Elment $sent címzettnek."
+                else "Nem voltál otthon (${check.reason}). Üzenet elment $sent címzettnek."
+            )
+            announce(
+                if (followUp) "Otthon-figyelés: friss helyzetet küldtem $sent címzettnek."
+                else "Otthon-figyelés: nem vagy otthon, ezért üzentem $sent címzettnek."
+            )
         } else {
             // A NÉMA KUDARC A LEGROSSZABB. Ha nem ment ki, azt ki kell mondani.
             note("Nem voltál otthon, de az üzenetet NEM sikerült elküldeni.")
@@ -231,6 +309,31 @@ class HomeWatchService : Service() {
 
     private fun cimzettSzoveg(n: Int): String =
         if (n == 1) "egy címzettnek" else "$n címzettnek"
+
+    /** Próba módban ezt hallja a felhasználó a helyzetről. */
+    private fun helyzetSzoveg(fix: Location?): String {
+        if (fix == null) return "A helyzetemet nem sikerült megállapítani."
+        val age = HomeLocationResolver.ageMinutes(fix)
+        return if (age == null) {
+            "A helyzet friss."
+        } else {
+            "A helyzet $age perces lett volna."
+        }
+    }
+
+    /**
+     * Ha egyáltalán nincs helyzetünk, várunk rá egy keveset — de csak akkor.
+     * Ha már van valamink, nem késleltetjük a riasztást a tökéletesért.
+     */
+    private suspend fun waitForLocationIfEmpty(existing: Location?) {
+        if (existing != null || bestLocation != null) return
+        val deadline = System.currentTimeMillis() + MESSAGE_GPS_WINDOW_MS
+        while (System.currentTimeMillis() < deadline) {
+            if (stopRequested) return
+            delay(1_000L)
+            if (bestLocation != null) return
+        }
+    }
 
     private fun openAlert(reason: String, probe: Boolean) {
         try {

@@ -145,7 +145,30 @@ object ScheduledSmsTime {
         // MÚLTBA NEM KÜLDÜNK. Ha a megadott idő ma már elmúlt, holnap lesz —
         // ez az, amit az ember is ért alatta.
         if (cal.timeInMillis <= now) cal.add(Calendar.DAY_OF_YEAR, 1)
+
+        // A KIMONDOTT NAP ERŐSEBB A SZÁMOLÁSNÁL. A „holnap délben" reggel
+        // kilenckor eddig MÁRA esett, mert dél még nem múlt el — pedig aki
+        // azt mondja, hogy holnap, az holnapot ért alatta.
+        if (text.contains("holnaputan")) {
+            while (!sameDayOffset(cal.timeInMillis, now, 2)) cal.add(Calendar.DAY_OF_YEAR, 1)
+        } else if (text.contains("holnap")) {
+            while (!sameDayOffset(cal.timeInMillis, now, 1)) cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
         return cal.timeInMillis
+    }
+
+    /** Pontosan `offset` nappal van-e `a` a `now` napja után. */
+    private fun sameDayOffset(a: Long, now: Long, offset: Int): Boolean {
+        val ca = Calendar.getInstance().apply { timeInMillis = a }
+        val cb = Calendar.getInstance().apply { timeInMillis = now }
+        listOf(ca, cb).forEach {
+            it.set(Calendar.HOUR_OF_DAY, 0)
+            it.set(Calendar.MINUTE, 0)
+            it.set(Calendar.SECOND, 0)
+            it.set(Calendar.MILLISECOND, 0)
+        }
+        val days = (ca.timeInMillis - cb.timeInMillis) / (24 * 60 * 60_000L)
+        return days.toInt() == offset
     }
 
     /** Ékezetek le, kisbetű — így egy szabály elég mindkét írásmódra. */

@@ -1035,6 +1035,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, -1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, -1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, -1)
+            is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, -1)
+            is AppFlow.ReminderList -> navigateReminderList(flow, -1)
+            is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, -1)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
@@ -1256,6 +1259,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, +1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, +1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, +1)
+            is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, +1)
+            is AppFlow.ReminderList -> navigateReminderList(flow, +1)
+            is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, +1)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
@@ -1508,6 +1514,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TextBankBrowse -> onTextBankActivate(flow)
             is AppFlow.MediaBrowse -> enterMediaContextMenu(flow)
             is AppFlow.MediaContextMenu -> onMediaContextActivate(flow)
+            is AppFlow.ReminderDelayChoice -> onReminderDelayActivate(flow)
+            is AppFlow.ReminderList -> enterReminderContext(flow)
+            is AppFlow.ReminderContextMenu -> onReminderContextActivate(flow)
             is AppFlow.MediaLabelRecording -> stopAndSaveMediaLabel(flow)
             AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
@@ -2199,6 +2208,10 @@ class MainActivity : AppCompatActivity() {
             }
             // FELVÉTELEIM: a balra egy szintet lép vissza, nem ugrik ki.
             is AppFlow.MediaContextMenu -> returnToMediaBrowse(flow.itemIndex)
+            // EMLÉKEZTETŐK: a művelet-menüből is egy szintet lépünk vissza.
+            is AppFlow.ReminderContextMenu -> returnToReminderList(flow.kind, flow.itemIndex)
+            is AppFlow.ReminderList -> exitFlow("Lista bezárva.")
+            is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
             is AppFlow.MediaLabelRecording -> cancelMediaLabelRecording(flow)
             is AppFlow.MediaBrowse -> {
                 com.superdl.launcher.gps.VoiceNoteRecorder.stopPlayback()
@@ -3489,6 +3502,10 @@ class MainActivity : AppCompatActivity() {
             MenuAction.FACE_CAMERA_SELFIE -> startFaceCameraFlow(selfie = true)
             MenuAction.FACE_CAMERA_VIDEO -> startFaceCameraFlow(video = true)
             MenuAction.MEDIA_BROWSE -> startMediaBrowseFlow()
+            MenuAction.CALLBACK_LIST ->
+                startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_CALL)
+            MenuAction.PENDING_SMS_LIST ->
+                startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_SMS)
             MenuAction.FACE_CAMERA_QUALITY -> startCameraQualityFlow()
             MenuAction.GPS_ROUTE_RECORD -> startGpsRouteRecordFlow()
             MenuAction.GPS_ROUTE_STOP -> stopGpsRouteOrGuidanceFlow()
@@ -4094,6 +4111,13 @@ class MainActivity : AppCompatActivity() {
             SmsContextAction.READ -> tts.speak(message.body.ifBlank { "Üres üzenet." })
             SmsContextAction.REPLY -> startSmsReplyTo(message, flow.messages, flow.messageIndex, flow.folder)
             SmsContextAction.FORWARD -> startSmsForward(message, flow.messages, flow.messageIndex, flow.folder)
+            SmsContextAction.REMIND_LATER -> startReminderFlow(
+                com.superdl.launcher.reminder.LaterReminder.KIND_SMS,
+                message.address,
+                com.superdl.launcher.contacts.ContactHelper
+                    .findNameByPhone(this, message.address).orEmpty(),
+                message.body
+            )
             SmsContextAction.DELETE -> enterSmsDeleteConfirm(flow.messages, flow.messageIndex, flow.folder)
         }
     }
@@ -9709,6 +9733,11 @@ class MainActivity : AppCompatActivity() {
             CallLogContextAction.CALL -> placeCall(entry.number, entry.name.ifBlank { entry.number })
             CallLogContextAction.SEND_SMS -> startSmsToPhone(entry.number, entry.name.ifBlank { entry.number })
             CallLogContextAction.COPY_NUMBER -> copyPhoneNumber(entry.number)
+            CallLogContextAction.REMIND_LATER -> startReminderFlow(
+                com.superdl.launcher.reminder.LaterReminder.KIND_CALL,
+                entry.number,
+                entry.name
+            )
             CallLogContextAction.SAVE_CONTACT -> startCallLogSaveContact(flow)
             CallLogContextAction.ADD_FAVORITE -> addCallLogToFavorites(entry, flow.entries, flow.entryIndex)
             CallLogContextAction.BLOCK_NUMBER -> blockCallLogNumber(entry)
@@ -18625,6 +18654,252 @@ class MainActivity : AppCompatActivity() {
         returnToMediaBrowse(flow.itemIndex)
     }
 
+    // ==================== EMLÉKEZTETÉS KÉSŐBBRE ====================
+    //
+    // MIÉRT VAN EGYÁLTALÁN: van, amikor a telefon rosszkor csörög. Nem vagy
+    // olyan helyzetben, hogy visszahívd — de tíz perc múlva már elfelejtetted.
+    //
+    // MIÉRT NEM AZ ÉBRESZTŐK KÖZÖTT LAKIK: a visszahívás nem ébresztő. Alph
+    // kérése volt, hogy a saját helyén legyen — a hívások közt egy
+    // „Visszahívandók", az üzenetek közt egy „Függő üzeneteim". Aki
+    // visszahívandót keres, ott fogja keresni, nem a reggeli ébresztők között.
+
+    /** Az emlékeztető felvétele: előbb az időpont. */
+    private fun startReminderFlow(kind: String, number: String, name: String, note: String = "") {
+        if (number.isBlank()) {
+            tts.speak("Ehhez nincs telefonszám, nem tudok emlékeztetőt kérni rá.")
+            return
+        }
+        val options = com.superdl.launcher.reminder.ReminderDelay.entries.toList()
+        activeFlow = AppFlow.ReminderDelayChoice(kind, number, name, note, options, 0)
+        updateFlowDisplay()
+        tts.speak("Mikor szóljak? ${options[0].label}")
+    }
+
+    private fun navigateReminderDelay(flow: AppFlow.ReminderDelayChoice, delta: Int) {
+        val next = (flow.index + delta + flow.options.size) % flow.options.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.options[next].label)
+    }
+
+    private fun onReminderDelayActivate(flow: AppFlow.ReminderDelayChoice) {
+        val choice = flow.options[flow.index]
+        val at = choice.dueAt()
+        if (at == null) {
+            // EGYÉNI IDŐPONT: bemondva, nem pötyögve. Ugyanaz az értelmező
+            // szolgál ki, mint az időzített SMS-t — „holnap reggel kilenckor",
+            // „két óra múlva", „pénteken délben".
+            listenForReminderTime(flow)
+            return
+        }
+        saveReminder(flow.kind, flow.number, flow.name, flow.note, at)
+    }
+
+    private fun listenForReminderTime(flow: AppFlow.ReminderDelayChoice) {
+        voiceInput.listen(
+            prompt = "Mikor szóljak? Mondhatod így: holnap reggel kilenckor, " +
+                "vagy így: két óra múlva.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val at = com.superdl.launcher.sms.ScheduledSmsTime.parse(spoken)
+                if (at == null) {
+                    // NEM TIPPELÜNK. Egy félreértett időpont rosszabb a
+                    // semminél: csendben elszalad mellette a visszahívás.
+                    feedbackError()
+                    tts.speak("Ezt nem értettem. Mondd újra, például: holnap reggel kilenckor.")
+                    listenForReminderTime(flow)
+                    return@listen
+                }
+                saveReminder(flow.kind, flow.number, flow.name, flow.note, at)
+            },
+            onError = { exitFlow("Emlékeztető megszakítva.") }
+        )
+    }
+
+    /** A mentés és az ütemezés. A visszamondás kötelező: ez az ellenőrzés. */
+    private fun saveReminder(
+        kind: String,
+        number: String,
+        name: String,
+        note: String,
+        at: Long
+    ) {
+        val entry = com.superdl.launcher.reminder.LaterReminderStore.add(
+            this, kind, number, name, at, note
+        )
+        if (entry == null) {
+            feedbackError()
+            exitFlow("Túl sok függő emlékeztető van. Előbb zárj le néhányat.")
+            return
+        }
+        com.superdl.launcher.reminder.LaterReminderScheduler.schedule(this, entry)
+        feedbackSuccess()
+        val hol = if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+            "A Visszahívandók között megtalálod."
+        } else {
+            "A Függő üzeneteim között megtalálod."
+        }
+        exitFlow(
+            "Rendben. Szólok: ${com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(at)}. $hol"
+        )
+    }
+
+    // ── A LISTA ──────────────────────────────────────────────────────────
+
+    private fun startReminderListFlow(kind: String) {
+        // Akit közben visszahívtál, itt kerül le magától.
+        try {
+            com.superdl.launcher.reminder.LaterReminderStore.pruneCalledBack(this)
+        } catch (_: Throwable) {
+        }
+        val items = if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+            com.superdl.launcher.reminder.LaterReminderStore.calls(this)
+        } else {
+            com.superdl.launcher.reminder.LaterReminderStore.messages(this)
+        }
+        if (items.isEmpty()) {
+            tts.speak(
+                if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+                    "Nincs visszahívandó. A hívásnaplóban a jobbra söprés műveleteiből " +
+                        "kérhetsz emlékeztetőt."
+                } else {
+                    "Nincs függő üzenet."
+                }
+            )
+            return
+        }
+        activeFlow = AppFlow.ReminderList(kind, items, 0)
+        updateFlowDisplay()
+        val cim = if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+            "Visszahívandók"
+        } else {
+            "Függő üzenetek"
+        }
+        tts.speak("$cim: ${items.size}. ${speakReminderEntry(items[0])}")
+    }
+
+    private fun navigateReminderList(flow: AppFlow.ReminderList, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(speakReminderEntry(flow.items[next]))
+    }
+
+    /** A lejártakat külön jelezzük — azok a sürgősek. */
+    private fun speakReminderEntry(entry: com.superdl.launcher.reminder.LaterReminder): String =
+        if (entry.isOverdue()) "Lejárt: ${entry.speakPreview()}" else entry.speakPreview()
+
+    private fun enterReminderContext(flow: AppFlow.ReminderList) {
+        val entry = flow.items[flow.index]
+        val actions = com.superdl.launcher.reminder.ReminderAction.forEntry(entry)
+        activeFlow = AppFlow.ReminderContextMenu(flow.kind, flow.items, flow.index, actions, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${actions[0].label}")
+    }
+
+    private fun navigateReminderContext(flow: AppFlow.ReminderContextMenu, delta: Int) {
+        val next = (flow.index + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun returnToReminderList(kind: String, itemIndex: Int) {
+        val items = if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+            com.superdl.launcher.reminder.LaterReminderStore.calls(this)
+        } else {
+            com.superdl.launcher.reminder.LaterReminderStore.messages(this)
+        }
+        if (items.isEmpty()) {
+            exitFlow("A lista kiürült.")
+            return
+        }
+        val index = itemIndex.coerceIn(0, items.lastIndex)
+        activeFlow = AppFlow.ReminderList(kind, items, index)
+        updateFlowDisplay()
+        tts.speak(speakReminderEntry(items[index]))
+    }
+
+    private fun onReminderContextActivate(flow: AppFlow.ReminderContextMenu) {
+        val entry = flow.items[flow.itemIndex]
+        when (flow.actions[flow.index]) {
+            com.superdl.launcher.reminder.ReminderAction.CALL_NOW -> {
+                // A hívás elintézi a tételt: nincs értelme emlékeztetni arra,
+                // amit épp most intézel.
+                clearReminder(entry.id)
+                placeCall(entry.number, entry.who())
+            }
+            com.superdl.launcher.reminder.ReminderAction.NEW_TIME -> {
+                // A RÉGIT NEM TÖRÖLJÜK ELŐRE. Ha most megszakad az új időpont
+                // megadása, a felhasználó emlékeztető nélkül maradna — pont
+                // arról, amire emlékeztetőt kért. A mentés úgyis felülírja a
+                // korábbit, mert ugyanarra a számra csak egy tartozhat.
+                com.superdl.launcher.reminder.LaterReminderScheduler.cancel(this, entry.id)
+                startReminderFlow(entry.kind, entry.number, entry.name, entry.note)
+            }
+            com.superdl.launcher.reminder.ReminderAction.SCHEDULE_SMS -> {
+                startScheduledSmsForReminder(entry)
+            }
+            com.superdl.launcher.reminder.ReminderAction.DELETE -> {
+                clearReminder(entry.id)
+                feedbackSuccess()
+                tts.speak("Törölve: ${entry.who()}.")
+                returnToReminderList(flow.kind, flow.itemIndex)
+            }
+            com.superdl.launcher.reminder.ReminderAction.BACK ->
+                returnToReminderList(flow.kind, flow.itemIndex)
+        }
+    }
+
+    private fun clearReminder(id: Int) {
+        try {
+            com.superdl.launcher.reminder.LaterReminderScheduler.cancel(this, id)
+            com.superdl.launcher.reminder.LaterReminderStore.remove(this, id)
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * IDŐZÍTETT SMS ERRE AZ IDŐPONTRA.
+     *
+     * MIÉRT MŰVELET ÉS NEM KÉRDÉS: eredetileg úgy terveztük, hogy az
+     * emlékeztető beállításakor rákérdez. A huszadik kérdés után viszont az
+     * ember gépiesen nemet mond mindenre — így viszont ott van, ha kell, és
+     * nincs útban, ha nem. Az üzenet szövegét innen diktálod.
+     */
+    private fun startScheduledSmsForReminder(
+        entry: com.superdl.launcher.reminder.LaterReminder
+    ) {
+        val recipient = Recipient(entry.who(), entry.number)
+        activeFlow = AppFlow.SmsMultiAwaitMessage(listOf(recipient), true)
+        updateFlowDisplay()
+        tts.speakThen(
+            "Időzített üzenet neki: ${entry.who()}, " +
+                "erre az időpontra: ${entry.speakDue()}."
+        ) {
+            listenForReminderSmsMessage(listOf(recipient), entry.dueAt)
+        }
+    }
+
+    private fun listenForReminderSmsMessage(recipients: List<Recipient>, at: Long) {
+        voiceInput.listen(
+            prompt = "Mondd az üzenetet.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val message = SpeechPunctuation.apply(spoken).trim()
+                if (message.isBlank()) {
+                    exitFlow("Üres üzenet, nem időzítettem semmit.")
+                    return@listen
+                }
+                activeFlow = AppFlow.SmsMultiConfirm(recipients, message, at)
+                updateFlowDisplay()
+                repeatSmsMultiConfirm(recipients, message, at)
+            },
+            onError = { exitFlow("Időzítés megszakítva.") }
+        )
+    }
+
     // ==================== SZÖVEGTÁR / SABLONOK ====================
     //
     // MIÉRT VAN EGYÁLTALÁN: egy e-mail címet, egy számlaszámot vagy egy adószámot
@@ -21179,6 +21454,30 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = "Hangcímke felvétele"
                 tvPosition.text = flow.items[flow.itemIndex].speakFallback()
                 tvHint.text = "➡ kész  •  ⬅ mégse"
+            }
+            is AppFlow.ReminderDelayChoice -> {
+                tvItem.text = flow.options[flow.index].label
+                tvPosition.text = "Mikor szóljak?  •  ${flow.index + 1} / ${flow.options.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ kiválasztás  •  ⬅ mégse"
+            }
+            is AppFlow.ReminderList -> {
+                val entry = flow.items[flow.index]
+                tvItem.text = entry.who()
+                tvPosition.text = buildString {
+                    append(if (flow.kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
+                        "Visszahívandók"
+                    } else {
+                        "Függő üzenetek"
+                    })
+                    append("  •  ${flow.index + 1} / ${flow.items.size}  •  ")
+                    append(entry.speakDue())
+                }
+                tvHint.text = "⬆⬇ válogatás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.ReminderContextMenu -> {
+                tvItem.text = flow.actions[flow.index].label
+                tvPosition.text = "Műveletek  •  ${flow.index + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
             }
             AppFlow.HomeTrainConfirm -> {
                 tvItem.text = "Otthon betanítása"

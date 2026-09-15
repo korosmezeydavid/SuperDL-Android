@@ -7,6 +7,11 @@ enum class CallLogContextAction(val label: String) {
     CALL("Hívás indítása"),
     SEND_SMS("SMS küldés"),
     COPY_NUMBER("Szám másolása"),
+    /**
+     * EMLÉKEZTETÉS KÉSŐBBRE. Ami ide kerül, az a „Visszahívandók" listára
+     * megy — nem az ébresztők közé. A visszahívás nem ébresztő.
+     */
+    REMIND_LATER("Emlékeztetés később"),
     SAVE_CONTACT("Mentés névjegyként"),
     ADD_FAVORITE("Hozzáadás a Kedvencekhez"),
     BLOCK_NUMBER("Telefonszám letiltása");
@@ -14,6 +19,7 @@ enum class CallLogContextAction(val label: String) {
     companion object {
         fun forEntry(context: Context, entry: CallLogEntry): List<CallLogContextAction> {
             val actions = mutableListOf(CALL, SEND_SMS, COPY_NUMBER)
+            if (entry.number.isNotBlank()) actions.add(REMIND_LATER)
             if (!ContactHelper.isKnownNumber(context, entry.number)) {
                 actions.add(SAVE_CONTACT)
             }

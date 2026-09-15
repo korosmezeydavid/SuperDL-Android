@@ -23,24 +23,61 @@ object HomeWatchMessage {
 
     private const val SIGNATURE = "Super DL otthon-figyelés (automatikus üzenet)"
 
-    fun build(name: String?, deadline: String, location: Location?): String = buildString {
+    fun build(
+        name: String?,
+        deadline: String,
+        location: Location?,
+        address: String? = null
+    ): String = buildString {
         append(if (name.isNullOrBlank()) "Figyelem!" else "Figyelem! $name")
         append('\n')
         append("A telefon $deadline-kor ellenőrizte, és még nem értem haza.")
         append('\n')
-        if (location == null) {
-            append("A helyzetemet nem sikerült megállapítani.")
-        } else {
-            val lat = String.format(Locale.US, "%.6f", location.latitude)
-            val lon = String.format(Locale.US, "%.6f", location.longitude)
-            append("Itt vagyok: $lat, $lon")
+        append(locationBlock(location, address))
+        append('\n')
+        append(SIGNATURE)
+    }
+
+    /**
+     * A FRISSÍTŐ ÜZENET. Ha negyedóra múlva sem értem haza, a segítőnek egy
+     * friss helyzet többet ér, mint az, amit negyedórája kapott: egy mozgó
+     * ember egyetlen pontja hamar elavul.
+     */
+    fun buildUpdate(location: Location?, address: String? = null): String = buildString {
+        append("Frissítés: még mindig nem értem haza.")
+        append('\n')
+        append(locationBlock(location, address))
+        append('\n')
+        append(SIGNATURE)
+    }
+
+    /**
+     * A HELYZET RÉSZ. Itt dől el, hogy a segítő meg tud-e találni.
+     *
+     * A KOR MINDIG KIÍRÓDIK, ha a mérés nem friss. Régi helyzetet kiadni
+     * frissként rosszabb a semminél: rossz helyre viszi a keresőt, és ott
+     * elvész az idő, amikor a legtöbbet érne.
+     */
+    private fun locationBlock(location: Location?, address: String?): String {
+        if (location == null) return "A helyzetemet nem sikerült megállapítani."
+        val lat = String.format(Locale.US, "%.6f", location.latitude)
+        val lon = String.format(Locale.US, "%.6f", location.longitude)
+        return buildString {
+            val age = HomeLocationResolver.ageMinutes(location)
+            if (age == null) {
+                append("Itt vagyok: $lat, $lon")
+            } else {
+                append("Itt voltam $age perce: $lat, $lon")
+            }
+            if (!address.isNullOrBlank()) {
+                append('\n')
+                append(address)
+            }
             append('\n')
             append("https://maps.google.com/?q=$lat,$lon")
             append('\n')
             append(accuracyLine(location))
         }
-        append('\n')
-        append(SIGNATURE)
     }
 
     private fun accuracyLine(location: Location): String {

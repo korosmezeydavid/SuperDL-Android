@@ -140,6 +140,12 @@ class BootReceiver : BroadcastReceiver() {
                 step("otthon-figyeles") {
                     com.superdl.launcher.home.HomeWatchScheduler.reschedule(context)
                 }
+                // A visszahívandók és a függő üzenetek emlékeztetői is
+                // elvesznek. Egy emlékeztető, ami néma marad, rosszabb, mint
+                // ha be sem állítottad volna: arra számítasz, hogy szól.
+                step("kesobbi-emlekeztetok") {
+                    com.superdl.launcher.reminder.LaterReminderScheduler.scheduleAll(context)
+                }
                 step("akku-orseg") {
                     com.superdl.launcher.battery.BatteryPatrolManager.start(context)
                 }

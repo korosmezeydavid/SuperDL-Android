@@ -960,6 +960,43 @@ sealed class AppFlow {
         val itemIndex: Int
     ) : AppFlow()
 
+    /**
+     * EMLÉKEZTETŐ KÉSŐBBRE — az időpont kiválasztása.
+     *
+     * Tíz perc, egy óra, holnap reggel, vagy bemondott időpont. A „holnap
+     * reggel" azért van köztük, mert a valóságban a visszahívás leggyakrabban
+     * másnapra csúszik.
+     */
+    data class ReminderDelayChoice(
+        val kind: String,
+        val number: String,
+        val name: String,
+        val note: String,
+        val options: List<com.superdl.launcher.reminder.ReminderDelay>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * VISSZAHÍVANDÓK / FÜGGŐ ÜZENETEK — a saját listájuk.
+     *
+     * MIÉRT NEM AZ ÉBRESZTŐK KÖZÖTT: a visszahívás nem ébresztő. Aki
+     * visszahívandót keres, a hívásoknál fogja keresni.
+     */
+    data class ReminderList(
+        val kind: String,
+        val items: List<com.superdl.launcher.reminder.LaterReminder>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Egy emlékeztető művelet-menüje (hívás, új időpont, időzített SMS, törlés). */
+    data class ReminderContextMenu(
+        val kind: String,
+        val items: List<com.superdl.launcher.reminder.LaterReminder>,
+        val itemIndex: Int,
+        val actions: List<com.superdl.launcher.reminder.ReminderAction>,
+        val index: Int
+    ) : AppFlow()
+
     data class NumericDictationAwait(
         val purpose: com.superdl.launcher.input.NumberPadPurpose,
         val sosSlot: Int? = null,

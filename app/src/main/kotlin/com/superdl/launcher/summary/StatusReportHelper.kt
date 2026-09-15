@@ -39,7 +39,31 @@ object StatusReportHelper {
         // Következő naptár esemény
         parts.add(nextEventLine(context))
 
+        // Mi vár rád: visszahívandók és függő üzenetek.
+        //
+        // MIÉRT ITT: a listáik szándékosan a saját helyükön laknak (a
+        // hívásoknál, illetve az üzeneteknél), nem az ébresztők között. Így
+        // viszont kell EGY hely, ahol kiderül, hogy egyáltalán van-e ilyesmi
+        // — különben a jól elrejtett lista csendben feledésbe merül.
+        pendingRemindersLine(context)?.let { parts.add(it) }
+
         return parts.joinToString(" ")
+    }
+
+    private fun pendingRemindersLine(context: Context): String? = try {
+        com.superdl.launcher.reminder.LaterReminderStore.pruneCalledBack(context)
+        val calls = com.superdl.launcher.reminder.LaterReminderStore
+            .count(context, com.superdl.launcher.reminder.LaterReminder.KIND_CALL)
+        val messages = com.superdl.launcher.reminder.LaterReminderStore
+            .count(context, com.superdl.launcher.reminder.LaterReminder.KIND_SMS)
+        when {
+            calls == 0 && messages == 0 -> null
+            messages == 0 -> "$calls visszahívandó vár rád."
+            calls == 0 -> "$messages függő üzenet vár rád."
+            else -> "$calls visszahívandó és $messages függő üzenet vár rád."
+        }
+    } catch (_: Throwable) {
+        null
     }
 
     private fun missedCallsLine(context: Context): String {

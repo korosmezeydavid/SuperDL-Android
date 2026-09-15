@@ -32,9 +32,17 @@ object HomeWatchSettings {
     private const val KEY_SLOTS = "otthon_figyeles_cimzettek"
     private const val KEY_LAST = "otthon_figyeles_utolso"
     private const val KEY_LAST_AT = "otthon_figyeles_utolso_ido"
+    private const val KEY_FOLLOWUP = "otthon_figyeles_kovetes"
+    private const val KEY_FOLLOWUP_SENT = "otthon_figyeles_kovetes_db"
 
     private const val DEFAULT_HOUR = 22
     private const val DEFAULT_MINUTE = 0
+
+    /** Ennyi frissítő üzenetnél többet SOHA nem küldünk egy riasztás után. */
+    const val MAX_FOLLOWUPS = 2
+
+    /** Ennyivel a riasztás után megy a frissítés. */
+    const val FOLLOWUP_DELAY_MS = 15 * 60_000L
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -78,6 +86,37 @@ object HomeWatchSettings {
 
     fun setCountdownEnabled(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean(KEY_COUNTDOWN, value).apply()
+    }
+
+    // ── Frissítő üzenet ──────────────────────────────────────────────────
+
+    /**
+     * Ha negyedóra múlva sem ér haza, menjen egy újabb üzenet friss
+     * helyzettel. Egy mozgó ember egyetlen pontja hamar elavul.
+     *
+     * ALAPBÓL BE VAN KAPCSOLVA, de kikapcsolható: pénzbe kerül, és a
+     * címzettnek is újabb riasztás. A darabszám kötötten korlátos
+     * (`MAX_FOLLOWUPS`) — senki ne kapjon öt SMS-t egy éjszaka.
+     */
+    fun isFollowUpEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_FOLLOWUP, true)
+
+    fun setFollowUpEnabled(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean(KEY_FOLLOWUP, value).apply()
+    }
+
+    fun followUpsSent(context: Context): Int =
+        prefs(context).getInt(KEY_FOLLOWUP_SENT, 0)
+
+    fun noteFollowUpSent(context: Context) {
+        prefs(context).edit()
+            .putInt(KEY_FOLLOWUP_SENT, followUpsSent(context) + 1)
+            .apply()
+    }
+
+    /** Minden új esti ellenőrzés nulláról indul. */
+    fun resetFollowUps(context: Context) {
+        prefs(context).edit().putInt(KEY_FOLLOWUP_SENT, 0).apply()
     }
 
     // ── Címzettek ────────────────────────────────────────────────────────
@@ -149,6 +188,13 @@ object HomeWatchSettings {
             }
         )
         sb.append(if (isCountdownEnabled(context)) "A riasztás előtt visszaszámlál. " else "Visszaszámlálás nélkül riaszt. ")
+        sb.append(
+            if (isFollowUpEnabled(context)) {
+                "Ha negyedóra múlva sem vagy otthon, friss helyzettel üzen még egyszer. "
+            } else {
+                "Frissítő üzenetet nem küld. "
+            }
+        )
         sb.append(HomeSignatureStore.get(context).speakSummary())
         return sb.toString()
     }

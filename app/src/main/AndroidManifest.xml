@@ -455,6 +455,32 @@
             android:name=".home.HomeWatchReceiver"
             android:exported="false" />
 
+        <!--
+            EMLÉKEZTETŐ KÉSŐBBRE (visszahívandók és függő üzenetek).
+            A képernyő zárolt telefonon is megjelenik, mert máskülönben a
+            bemondás után a felhasználó nem tud mit kezdeni vele.
+        -->
+        <receiver
+            android:name=".reminder.LaterReminderReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".reminder.LaterReminderAlertActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!--
+            A FRISSÍTŐ ÜZENET. Ha negyedóra múlva sem ért haza, egy friss
+            helyzet többet ér a segítőnek, mint a negyedórás. Legfeljebb
+            kétszer szólal meg: a címzett figyelmét nem szabad elhasználni.
+        -->
+        <receiver
+            android:name=".home.HomeWatchFollowUpReceiver"
+            android:exported="false" />
+
         <service
             android:name=".home.HomeWatchService"
             android:exported="false"

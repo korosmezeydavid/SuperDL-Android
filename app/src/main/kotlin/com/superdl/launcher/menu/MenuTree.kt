@@ -329,6 +329,8 @@ enum class MenuAction {
     FACE_CAMERA_SELFIE,        // Arc kamera – szelfi
     FACE_CAMERA_VIDEO,         // Videó felvétele (videó módban a jobbra indít és leállít)
     MEDIA_BROWSE,              // Felvételeim — saját képek és videók hangcímkével
+    CALLBACK_LIST,             // Visszahívandók (emlékeztetők a hívásnaplóból)
+    PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     FACE_CAMERA_QUALITY,       // Kamera minőség beállítás
     GPS_ROUTE_RECORD,          // GPS útvonal rögzítése
     GPS_ROUTE_STOP,            // GPS útvonal rögzítés / útmutatás leállítása
@@ -562,6 +564,10 @@ object MenuTree {
             MenuItem("contact_book", "Névjegyzék", MenuAction.CONTACT_BOOK),
             MenuItem("contact_sync", "Névjegyek szinkronizálása", MenuAction.CONTACT_SYNC),
             MenuItem("call_log", "Hívásnapló felolvasása", MenuAction.CALL_LOG),
+            // VISSZAHÍVANDÓK — a hívásnaplóból ide kért emlékeztetők.
+            // Szándékosan NEM az ébresztők között: a visszahívás nem ébresztő,
+            // és aki visszahívandót keres, a hívásoknál fogja keresni.
+            MenuItem("callback_list", "Visszahívandók", MenuAction.CALLBACK_LIST),
             MenuItem("call_dial", "Szám tárcsázása", MenuAction.DIAL),
             MenuItem("fav_add", "Kedvenc hozzáadása", MenuAction.FAVORITES_ADD),
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),
@@ -601,6 +607,10 @@ object MenuTree {
                 // készülékének visszajelzése akár PERCEKKEL később érkezik.
                 // A program eddig mindkettőt megkapta, és egyiket sem mondta el.
                 MenuItem("sms_last_outcome", "Utolsó üzenet sorsa", MenuAction.SMS_LAST_OUTCOME),
+                // FÜGGŐ ÜZENETEK — amikkel most nem tudtál foglalkozni, és
+                // kértél rájuk emlékeztetőt. A saját helyükön, az üzenetek
+                // között; nem az ébresztők közé keverve.
+                MenuItem("sms_pending", "Függő üzeneteim", MenuAction.PENDING_SMS_LIST),
                 MenuItem("sms_settings_sub", "SMS beállítások", MenuAction.SUBMENU, listOf(
                     MenuItem("sms_default_setup", "Alapértelmezett üzenet app beállítása", MenuAction.SMS_DEFAULT_SETUP),
                     MenuItem("sms_default_status", "Üzenet app állapota", MenuAction.SMS_DEFAULT_STATUS),
