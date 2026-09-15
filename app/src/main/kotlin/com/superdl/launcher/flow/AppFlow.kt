@@ -934,6 +934,32 @@ sealed class AppFlow {
         val forInsert: Boolean = false
     ) : AppFlow()
 
+    /**
+     * FELVÉTELEIM — a Super DL saját képei és videói, hangcímkével.
+     *
+     * A tétel felolvasásakor a SAJÁT HANGON felmondott címke szólal meg, ha
+     * van; ha nincs, a típus és az időpont. A fájlnév sosem hangzik el: a
+     * `SuperDL_20260915_120000.mp4` felolvasva értelmezhetetlen.
+     */
+    data class MediaBrowse(
+        val items: List<com.superdl.launcher.medialabel.MediaItem>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Egy felvétel művelet-menüje (hangcímke, megosztás, törlés). */
+    data class MediaContextMenu(
+        val items: List<com.superdl.launcher.medialabel.MediaItem>,
+        val itemIndex: Int,
+        val actions: List<com.superdl.launcher.medialabel.MediaAction>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Épp veszi a hangcímkét egy felvételhez. Jobbra: kész, balra: mégse. */
+    data class MediaLabelRecording(
+        val items: List<com.superdl.launcher.medialabel.MediaItem>,
+        val itemIndex: Int
+    ) : AppFlow()
+
     data class NumericDictationAwait(
         val purpose: com.superdl.launcher.input.NumberPadPurpose,
         val sosSlot: Int? = null,

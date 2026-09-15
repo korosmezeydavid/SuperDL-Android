@@ -28,6 +28,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Quality
+import com.superdl.launcher.gps.VoiceNoteRecorder
+import com.superdl.launcher.medialabel.MediaLabelStore
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
@@ -81,6 +83,19 @@ class FaceCameraActivity : AppCompatActivity() {
 
     private var qualityProfile = CameraQualityProfile.MEDIUM
     private var selfieMode = false
+
+    /**
+     * VIDEÓ MÓD — külön menüpontból indítva.
+     *
+     * MIÉRT KÜLÖN MÓD, ÉS NEM ÖTÖDIK MOZDULAT: mind a négy mozdulat foglalt
+     * (fel: kameraváltás, le: megosztás, jobbra: fénykép, balra: kilépés).
+     * Egy ötödik mozdulatot beszuszakolni a kamerába — ahol nem szabad
+     * melléfogni — rosszabb volna, mint egy külön belépő.
+     *
+     * A funkció ott legyen, ahol a szándék van: aki videózni akar, az nem a
+     * fényképezőt akarja más mozdulattal.
+     */
+    private var videoMode = false
     private var videoSupported = true
     private var bindMode = CameraBindMode.DETECT
     private var cameraProvider: ProcessCameraProvider? = null
@@ -99,10 +114,17 @@ class FaceCameraActivity : AppCompatActivity() {
     private var lastSavedPhotoUri: Uri? = null
     private var lastSavedPhotoName: String? = null
 
+    /** Melyik felvételhez kínáltuk fel a hangcímkét (null: nincs felkínálás). */
+    private var pendingLabelFor: String? = null
+
+    /** Épp veszi-e a hangcímkét. */
+    private var labelRecording = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_face_camera)
         selfieMode = intent.getBooleanExtra(EXTRA_SELFIE_MODE, false)
+        videoMode = intent.getBooleanExtra(EXTRA_VIDEO_MODE, false)
         qualityProfile = CameraQualityStore.load(this)
         title = getString(R.string.face_camera_title)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -143,6 +165,7 @@ class FaceCameraActivity : AppCompatActivity() {
             context = this,
             onSwipeUp = {
                 sounds.play(SoundType.SWIPE_UP)
+                dropLabelOffer()
                 if (isRecording.get()) {
                     tts.speak(getString(R.string.face_camera_switch_blocked_recording))
                 } else {
@@ -151,6 +174,7 @@ class FaceCameraActivity : AppCompatActivity() {
             },
             onSwipeDown = {
                 sounds.play(SoundType.SWIPE_DOWN)
+                dropLabelOffer()
                 if (isRecording.get()) {
                     stopVideoRecording()
                 } else if (lastSavedPhotoUri != null) {
@@ -161,9 +185,28 @@ class FaceCameraActivity : AppCompatActivity() {
             },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
-                takePhoto()
+                // VIDEÓ MÓDBAN A JOBBRA INDÍT ÉS LEÁLLÍT.
+                //
+                // A HIBA, AMIT EZ JAVÍT: a teljes videó-gépezet meg volt írva
+                // — kötési mód, felvevő, minőség, mentés, hibaág —, és a
+                // LEÁLLÍTÁS is be volt kötve a le söprésre. Csak épp az
+                // INDÍTÁST nem hívta meg semmi. Így az `isRecording` sosem
+                // lett igaz, tehát a leállítás-ág is holt kód volt, és a
+                // program egyszerűen nem tudott videózni.
+                // A HANGCÍMKE ELŐBBRE VALÓ: közvetlenül mentés után a jobbra
+                // a címkét veszi fel, nem új felvételt indít. Ezt a mentés
+                // utáni bemondás ki is mondja, és bármely más mozdulat elejti.
+                if (handleLabelGesture()) return@SwipeGestureListener
+                if (videoMode) {
+                    if (isRecording.get()) stopVideoRecording() else startVideoRecording()
+                } else {
+                    takePhoto()
+                }
             },
-            onSwipeLeft = { finishCamera() }
+            onSwipeLeft = {
+                dropLabelOffer()
+                finishCamera()
+            }
         )
 
         findViewById<View>(R.id.faceCameraRoot).setOnTouchListener { view, event ->
@@ -221,7 +264,14 @@ class FaceCameraActivity : AppCompatActivity() {
      * szólal meg, amiben nincs videó.
      */
     private fun buildIntroSpeech(): String =
-        if (selfieMode) {
+        if (videoMode) {
+            // VIDEÓ MÓD — itt a jobbra nem fénykép, hanem felvétel.
+            // A mozdulatokat KI KELL MONDANI, mert ugyanaz a képernyő
+            // másképp viselkedik, mint fényképezésnél.
+            "Videó felvétele. Söpörj jobbra a felvétel indításához, és " +
+                "még egyszer jobbra a leállításhoz. Fel: kamera váltás. " +
+                "Le: az utolsó felvétel megosztása. Balra: kilépés."
+        } else if (selfieMode) {
             getString(R.string.face_camera_intro_selfie)
         } else {
             getString(R.string.face_camera_intro)
@@ -362,9 +412,20 @@ class FaceCameraActivity : AppCompatActivity() {
                     bindMode = CameraBindMode.PHOTO
                 }
                 CameraBindMode.VIDEO -> {
-                    if (selfieMode) {
-                        throw IllegalStateException("Selfie video not supported")
-                    }
+                    // AZ ELŐLAPI VIDEÓT NEM TILTJUK KŐBE VÉSVE.
+                    //
+                    // Itt korábban egy feltétel nélküli tiltás állt. A CameraX
+                    // az előlapi videót alapból tudja; a tiltás egy régi,
+                    // készülék-specifikus hiba kerülőútja lehetett — és
+                    // elvett egy funkciót MINDEN telefonon, azoktól is, ahol
+                    // működik. Közösségi tartalomnál az előlapi kamera nem
+                    // ráadás, hanem a fő eset.
+                    //
+                    // Mostantól MEGPRÓBÁLJUK. Ha a készülék tényleg nem tudja,
+                    // a kötés kivételt dob, és a lenti hibaág úgyis elkapja:
+                    // `videoSupported = false`, kimondott hibaüzenet, és
+                    // visszakötés fényképre. A program akkor mond nemet,
+                    // amikor a telefon tényleg nemet mond — nem előre.
                     val preview = buildMinimalPreview()
                     videoCapture = buildVideoCapture()
                     provider.bindToLifecycle(this, cameraSelector(), preview, videoCapture)
@@ -513,6 +574,7 @@ class FaceCameraActivity : AppCompatActivity() {
                     val message = getString(R.string.face_camera_photo_saved, fileName)
                     setStatusText(message)
                     tts.speak(message)
+                    offerVoiceLabel(fileName)
                     if (bindMode == CameraBindMode.PHOTO && !isRecording.get()) {
                         rebindCamera(CameraBindMode.DETECT)
                     }
@@ -529,7 +591,8 @@ class FaceCameraActivity : AppCompatActivity() {
     }
 
     private fun startVideoRecording() {
-        if (!videoSupported || selfieMode) {
+        // A `selfieMode` MÁR NEM ZÁRJA KI — lásd a kötési ág indoklását.
+        if (!videoSupported) {
             tts.speak(getString(R.string.face_camera_video_unavailable))
             return
         }
@@ -602,6 +665,7 @@ class FaceCameraActivity : AppCompatActivity() {
                         val message = getString(R.string.face_camera_video_saved, fileName)
                         setStatusText(message)
                         tts.speak(message)
+                        offerVoiceLabel(fileName)
                     }
                     rebindCamera(CameraBindMode.DETECT)
                 }
@@ -616,6 +680,114 @@ class FaceCameraActivity : AppCompatActivity() {
             return
         }
         activeRecording?.stop()
+    }
+
+    // ==================== HANGCÍMKE ====================
+    //
+    // MIÉRT ITT, MENTÉS UTÁN, ÉS NEM UTÓLAG: egy mentett felvétel neve
+    // `SuperDL_20260915_120000.mp4` — ez nem név, hanem időbélyeg. Húsz ilyen
+    // után vakon képtelenség megtalálni bármit. A hangcímke viszont ABBAN A
+    // PILLANATBAN készül, amikor még tudod, mit vettél fel.
+    //
+    // MIÉRT NEM KÖTELEZŐ: aki sorozatban fényképez, ne kényszerüljön minden
+    // darabnál címkézni. Ezért a felkínálás egy ÁLLAPOT, amit bármelyik másik
+    // mozdulat elejt — és a bemondás kimondja, mi micsoda.
+
+    private fun offerVoiceLabel(fileName: String) {
+        if (!hasAudioPermission()) return
+        pendingLabelFor = fileName
+        tts.speakAdd(
+            "Hangcímke: söpörj jobbra, és mondd be, mi ez. Bármi más mozdulat: " +
+                "címke nélkül megyünk tovább."
+        )
+    }
+
+    /** @return igaz, ha a mozdulatot a hangcímke használta el. */
+    private fun handleLabelGesture(): Boolean {
+        if (labelRecording) {
+            finishVoiceLabel()
+            return true
+        }
+        val fileName = pendingLabelFor ?: return false
+        startVoiceLabel(fileName)
+        return true
+    }
+
+    /** Bármely más mozdulat elejti a felkínálást — csendben, de nem titokban. */
+    private fun dropLabelOffer() {
+        if (labelRecording || pendingLabelFor == null) return
+        pendingLabelFor = null
+    }
+
+    /**
+     * A SORREND ITT NEM MINDEGY: előbb az utasítás, AZTÁN a sípszó, és csak
+     * a sípszó UTÁN indul a felvétel.
+     *
+     * Enélkül a program saját bemondása („mondd be, mi ez") rákerülne a
+     * hangcímkére. Ugyanez a hiba egyszer már megtörtént a mentett helyek
+     * hangjegyzeténél — ott a megoldás pontosan ez lett, és itt sincs okunk
+     * máshogy csinálni.
+     */
+    private fun startVoiceLabel(fileName: String) {
+        setStatusText("Hangcímke felvétele…")
+        // AZONNAL beállítjuk, még az utasítás elhangzása előtt: különben egy
+        // gyors második söprés a szünetben újabb felvételt indítana.
+        labelRecording = true
+        tts.speakThen("Mondd be, mi ez. Ha kész, söpörj jobbra.") {
+            playRecordingStartBleep()
+            mainHandler.postDelayed({
+                if (isFinishing || isDestroyed) return@postDelayed
+                if (!VoiceNoteRecorder.startRecording(
+                        this,
+                        "media_" + fileName.substringBeforeLast('.')
+                    )
+                ) {
+                    sounds.play(SoundType.ACTION_ERROR)
+                    tts.speak("A hangcímke felvétele nem indult el.")
+                    pendingLabelFor = null
+                    labelRecording = false
+                    return@postDelayed
+                }
+                labelRecording = true
+            }, 350L)
+        }
+    }
+
+    /** Egyetlen sípszó a felvétel indulásának jelzésére, beszéd nélkül. */
+    private fun playRecordingStartBleep() {
+        try {
+            val tone = android.media.ToneGenerator(
+                android.media.AudioManager.STREAM_MUSIC, 100
+            )
+            tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 200)
+            mainHandler.postDelayed({
+                try {
+                    tone.release()
+                } catch (_: Exception) {
+                }
+            }, 300L)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun finishVoiceLabel() {
+        val fileName = pendingLabelFor
+        labelRecording = false
+        val path = VoiceNoteRecorder.stopRecording()
+        pendingLabelFor = null
+        if (fileName == null || path == null) {
+            sounds.play(SoundType.ACTION_ERROR)
+            tts.speak("A hangcímke nem sikerült, nem mentettem el.")
+            return
+        }
+        MediaLabelStore.put(this, fileName, path)
+        sounds.play(SoundType.ACTION_OK)
+        setStatusText("Hangcímke mentve")
+        // VISSZAJÁTSSZUK. Vakon ez az egyetlen mód meggyőződni róla, hogy
+        // tényleg felvette, és hogy az hangzik el, amit mondtál.
+        tts.speakThen("Hangcímke mentve. Így hangzik:") {
+            VoiceNoteRecorder.play(path) { }
+        }
     }
 
     private fun onFacesDetected(faces: List<com.google.mlkit.vision.face.Face>, imageWidth: Int, imageHeight: Int) {
@@ -699,6 +871,21 @@ class FaceCameraActivity : AppCompatActivity() {
         analyzing.set(false)
         pendingPhotoAfterBind = false
         pendingRebindMode = null
+        // A FÉLBEHAGYOTT HANGCÍMKE NEM MARADHAT A MIKROFONON.
+        // Ha kilépés közben még ment a felvétel, azt eldobjuk — egy fél
+        // mondatot tartalmazó címke rosszabb, mint a semmi.
+        if (labelRecording) {
+            labelRecording = false
+            try {
+                VoiceNoteRecorder.cancelRecording()
+            } catch (_: Exception) {
+            }
+        }
+        pendingLabelFor = null
+        try {
+            VoiceNoteRecorder.stopPlayback()
+        } catch (_: Exception) {
+        }
         try {
             activeRecording?.stop()
         } catch (_: Exception) {
@@ -784,6 +971,7 @@ class FaceCameraActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SELFIE_MODE = "selfie_mode"
+        const val EXTRA_VIDEO_MODE = "video_mode"
         private const val MEDIA_RELATIVE_PATH = "DCIM/SuperDL"
         private const val REQ_CAMERA = 7106
         private const val REQ_AUDIO = 7107

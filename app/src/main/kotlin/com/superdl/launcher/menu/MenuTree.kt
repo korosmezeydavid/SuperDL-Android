@@ -327,6 +327,8 @@ enum class MenuAction {
     LOCATION_WATCH_STOP,       // Helyszín figyelő leállítása
     FACE_CAMERA,               // Arc kamera – hátlapi
     FACE_CAMERA_SELFIE,        // Arc kamera – szelfi
+    FACE_CAMERA_VIDEO,         // Videó felvétele (videó módban a jobbra indít és leállít)
+    MEDIA_BROWSE,              // Felvételeim — saját képek és videók hangcímkével
     FACE_CAMERA_QUALITY,       // Kamera minőség beállítás
     GPS_ROUTE_RECORD,          // GPS útvonal rögzítése
     GPS_ROUTE_STOP,            // GPS útvonal rögzítés / útmutatás leállítása
@@ -894,6 +896,14 @@ object MenuTree {
             )),
             MenuItem("tools_camera", "Kamera", MenuAction.SUBMENU, listOf(
                 MenuItem("face_camera", "Kamera és szelfi", MenuAction.FACE_CAMERA),
+                // VIDEÓ — KÜLÖN BELÉPŐ, nem ötödik mozdulat a fényképezőben.
+                // A kamerában mind a négy mozdulat foglalt, és ott nem szabad
+                // melléfogni. Videó módban a jobbra indít és leállít.
+                MenuItem("face_camera_video", "Videó felvétele", MenuAction.FACE_CAMERA_VIDEO),
+                // FELVÉTELEIM — a hangcímkék itt hallatszanak.
+                // A fájlnév (SuperDL_20260915_120000.mp4) felolvasva
+                // értelmezhetetlen; a saját hangoddal felmondott címke nem.
+                MenuItem("media_browse", "Felvételeim", MenuAction.MEDIA_BROWSE),
                 MenuItem("face_camera_quality", "Kamera minőség", MenuAction.FACE_CAMERA_QUALITY),
                 MenuItem("tools_camera_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
             )),

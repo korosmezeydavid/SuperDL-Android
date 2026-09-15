@@ -135,6 +135,36 @@ object SetupPrefs {
         false
     }
 
+    /**
+     * HOSSZAN KÜZDÖTT, ÉS FELADTA.
+     *
+     * A HIBA, AMIT EZ JAVÍT (kissistvan0921, Xiaomi 24117RN76E, Android 16,
+     * 1.63.7): a kezdőképernyő-szerepkörnél MAJDNEM HAT PERCET töltött a
+     * rendszer képernyőjén, aztán megszakította. A varázsló viszont csak egy
+     * próbálkozást számolt, tehát azt mondta neki, hogy „próbáld meg még
+     * egyszer, és utána már ki tudod hagyni". Inkább hibát jelentett.
+     *
+     * Aki hat percig keresett és nem találta, azt nem attól fogja megtalálni,
+     * hogy még egyszer végigcsináljuk vele ugyanazt. A HOSSZÚ MEGSZAKÍTÁS
+     * önmagában bizonyíték az elakadásra — és ez MÉRT adat, nem találgatás:
+     * az eltelt időt eddig is tároltuk, csak nem használtuk semmire.
+     *
+     * A határ 60 másodperc. Ennyi idő alatt egy rendszerképernyőt vakon
+     * végig lehet hallgatni és dönteni lehet róla; ennél tovább maradni már
+     * keresgélés.
+     *
+     * A 900 ezredmásodperces néma visszautasítás a másik véglet — ott a
+     * képernyő meg sem jelent. Az is beleszámít, hiszen ott végképp nincs mit
+     * újrapróbálni ugyanazon az úton.
+     */
+    fun struggledLong(context: Context, id: String): Boolean = try {
+        val elapsed = prefs(context).getLong(KEY_ELAPSED + "_" + id, -1L)
+        val result = prefs(context).getInt(KEY_RESULT + "_" + id, 0)
+        result != -1 && (elapsed >= 60_000L || silentRefusal(context, id))
+    } catch (_: Exception) {
+        false
+    }
+
     /** Végigment-e már valaha a varázslón. */
     fun isWizardDone(context: Context): Boolean = try {
         prefs(context).getBoolean(KEY_DONE, false)

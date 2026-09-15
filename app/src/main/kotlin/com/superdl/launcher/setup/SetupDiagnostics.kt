@@ -43,7 +43,7 @@ object SetupDiagnostics {
         appendLine("BEÁLLÍTÁS VARÁZSLÓ — RÉSZLETES NAPLÓ")
         appendLine("========================================")
         appendLine("telepítés forrása: ${installSource(context)}")
-        if (isSideloaded(context)) {
+        if (isSideloaded(context) && restrictedStillBiting(context)) {
             appendLine("korlátozott beállítás érintheti: IGEN")
             appendLine("  >>> Android 13 óta az áruházon kívülről telepített programnál a")
             appendLine("  >>> rendszer NÉMÁN letiltja a kisegítő szolgáltatást (PIN segéd,")
@@ -56,6 +56,10 @@ object SetupDiagnostics {
             appendLine("  >>>  2. Beállítások, Alkalmazások, Super DL, jobbra fent a három")
             appendLine("  >>>     pont, majd „Korlátozott beállítások engedélyezése\".")
             appendLine("  >>>  3. Vissza a kisegítő lehetőségekhez, és most már bekapcsol.")
+        } else if (isSideloaded(context)) {
+            appendLine("korlátozott beállítás: FEL VAN OLDVA")
+            appendLine("  >>> A program áruházon kívülről jött, de a korlátozott tételek")
+            appendLine("  >>> működnek. Ezt tehát NEM kell keresni, nem ez a baj.")
         } else {
             appendLine("korlátozott beállítás érintheti: nem")
         }
@@ -331,6 +335,55 @@ object SetupDiagnostics {
             "com.amazon.venezia"            // Amazon Appstore
         )
         return aruhazak.none { src.startsWith(it) }
+    }
+
+    /**
+     * HARAP-E MÉG A KORLÁTOZOTT BEÁLLÍTÁS — MÉRVE, NEM FELTÉTELEZVE.
+     *
+     * A HIBA, AMIT EZ JAVÍT (kissistvan0921, Xiaomi 24117RN76E, Android 16,
+     * 1.63.7): a napló azt írta, hogy „korlátozott beállítás érintheti: IGEN",
+     * és a felhasználó ennek nyomán indult el keresgélni. Csakhogy nála már
+     * FEL VOLT OLDVA — ugyanannak a naplónak a következő oldalán ott állt,
+     * hogy a képernyőolvasónk ÉS a fölérajzolás is megvan. Pont ezt a kettőt
+     * tiltja a korlátozás.
+     *
+     * A régi ellenőrzés kizárólag a TELEPÍTÉS FORRÁSÁBÓL következtetett,
+     * vagyis minden áruházon kívüli példánynál elsült, akkor is, ha rég
+     * rendben volt. Egy vak felhasználót így percekre elküldtünk egy menübe,
+     * aminek semmi köze a bajához — miközben az igazi akadály (a
+     * kezdőképernyő-szerepkör) ott állt két sorral lejjebb.
+     *
+     * Mostantól mérünk: ha bármelyik korlátozás alá eső tétel MŰKÖDIK, akkor
+     * a korlátozás nem harap, és hallgatunk róla.
+     *
+     * A hamis riasztás rosszabb, mint a néma napló: elviszi a figyelmet.
+     */
+    private fun restrictedStillBiting(context: Context): Boolean {
+        val mukodik =
+            // Fölérajzolás — a sötét mód függönye ezen áll.
+            safeFlag {
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                    Settings.canDrawOverlays(context)
+            } ||
+            // Bármelyik SAJÁT kisegítő szolgáltatásunk (képernyőolvasó, PIN segéd).
+            safeFlag { ownEntryIn(context, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) } ||
+            // Értesítés-olvasás.
+            safeFlag { ownEntryIn(context, "enabled_notification_listeners") }
+        return !mukodik
+    }
+
+    /** Szerepel-e a saját csomagnevünk az adott, kettősponttal tagolt listában. */
+    private fun ownEntryIn(context: Context, key: String): Boolean {
+        val enabled = Settings.Secure.getString(context.contentResolver, key).orEmpty()
+        return enabled.split(':').any { entry ->
+            entry.substringBefore('/').trim() == context.packageName
+        }
+    }
+
+    private inline fun safeFlag(block: () -> Boolean): Boolean = try {
+        block()
+    } catch (_: Throwable) {
+        false
     }
 
     private fun defaultSms(context: Context): String = try {

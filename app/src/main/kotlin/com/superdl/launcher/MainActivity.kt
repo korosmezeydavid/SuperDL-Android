@@ -1033,6 +1033,10 @@ class MainActivity : AppCompatActivity() {
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, -1)
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, -1)
+            is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, -1)
+            is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, -1)
+            is AppFlow.MediaLabelRecording ->
+                tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
@@ -1250,6 +1254,10 @@ class MainActivity : AppCompatActivity() {
                 tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, +1)
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, +1)
+            is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, +1)
+            is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, +1)
+            is AppFlow.MediaLabelRecording ->
+                tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
             // A címzettek megmaradnak, csak a szöveg jön a szövegtárból.
             is AppFlow.SmsMultiAwaitMessage -> startTextBankInsertFlow(flow.recipients)
@@ -1498,6 +1506,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiConfirm -> sendSmsMulti(flow)
             is AppFlow.SmsScheduleList -> deleteScheduledSms(flow)
             is AppFlow.TextBankBrowse -> onTextBankActivate(flow)
+            is AppFlow.MediaBrowse -> enterMediaContextMenu(flow)
+            is AppFlow.MediaContextMenu -> onMediaContextActivate(flow)
+            is AppFlow.MediaLabelRecording -> stopAndSaveMediaLabel(flow)
             AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
             is AppFlow.SmsContextMenu -> onSmsContextActivate(flow)
@@ -2185,6 +2196,13 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     exitFlow("Szövegtár bezárva.")
                 }
+            }
+            // FELVÉTELEIM: a balra egy szintet lép vissza, nem ugrik ki.
+            is AppFlow.MediaContextMenu -> returnToMediaBrowse(flow.itemIndex)
+            is AppFlow.MediaLabelRecording -> cancelMediaLabelRecording(flow)
+            is AppFlow.MediaBrowse -> {
+                com.superdl.launcher.gps.VoiceNoteRecorder.stopPlayback()
+                exitFlow("Felvételeim bezárva.")
             }
             AppFlow.HomeTrainConfirm -> exitFlow("Betanítás megszakítva. Nem jegyeztem meg semmit.")
             AppFlow.HomeWatchAwaitTime -> {
@@ -3469,6 +3487,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.LOCATION_WATCH_STOP -> stopLocationWatchFlow()
             MenuAction.FACE_CAMERA -> startFaceCameraFlow(selfie = false)
             MenuAction.FACE_CAMERA_SELFIE -> startFaceCameraFlow(selfie = true)
+            MenuAction.FACE_CAMERA_VIDEO -> startFaceCameraFlow(video = true)
+            MenuAction.MEDIA_BROWSE -> startMediaBrowseFlow()
             MenuAction.FACE_CAMERA_QUALITY -> startCameraQualityFlow()
             MenuAction.GPS_ROUTE_RECORD -> startGpsRouteRecordFlow()
             MenuAction.GPS_ROUTE_STOP -> stopGpsRouteOrGuidanceFlow()
@@ -6039,7 +6059,15 @@ class MainActivity : AppCompatActivity() {
         // memóriában tartott érték a program leállításakor elvész, gyártói
         // rendszereken (MIUI) pedig ez naponta többször megtörténik.
         val attempts = maxOf(setupAttempts[req.id] ?: 0, SetupPrefs.attemptCount(this, req.id))
-        if (req.severity == SetupRequirements.Severity.ESSENTIAL && attempts < 2) {
+        // A HOSSZÚ KÜZDELEM KÉT PRÓBÁLKOZÁSNAK SZÁMÍT.
+        //
+        // Aki hat percet töltött a rendszer képernyőjén és úgy adta fel, az
+        // elakadt — nem attól fogja megtalálni, hogy még egyszer végigmegy
+        // ugyanazon az úton. Ugyanez igaz a néma visszautasításra, ahol a
+        // képernyő meg sem jelent. Mindkettő MÉRT adat.
+        val kuzdott = SetupPrefs.struggledLong(this, req.id)
+        val beszamit = if (kuzdott) maxOf(attempts, 2) else attempts
+        if (req.severity == SetupRequirements.Severity.ESSENTIAL && beszamit < 2) {
             sounds.play(SoundType.ACTION_ERROR)
             // MEGMONDJUK, HOL A KIJÁRAT.
             //
@@ -6051,7 +6079,7 @@ class MainActivity : AppCompatActivity() {
             // A kijárat eddig is megvolt (két próbálkozás után enged), csak
             // néma volt. Egy kijárat, amiről nem tud a felhasználó, nem
             // kijárat.
-            val maradt = 2 - attempts
+            val maradt = 2 - beszamit
             val kijarat = if (maradt == 1) {
                 "Ha még egyszer megpróbálod és úgy sem sikerül, utána már ki tudod hagyni."
             } else {
@@ -14385,16 +14413,17 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== ARC KAMERA ====================
 
-    private fun startFaceCameraFlow(selfie: Boolean = false) {
-        val message = if (selfie) {
-            "Kamera indítása szelfi módban."
-        } else {
-            "Kamera indítása."
+    private fun startFaceCameraFlow(selfie: Boolean = false, video: Boolean = false) {
+        val message = when {
+            video -> "Videó felvétele. Kamera indítása."
+            selfie -> "Kamera indítása szelfi módban."
+            else -> "Kamera indítása."
         }
         tts.speak(message)
         startActivity(
             Intent(this, FaceCameraActivity::class.java)
                 .putExtra(FaceCameraActivity.EXTRA_SELFIE_MODE, selfie)
+                .putExtra(FaceCameraActivity.EXTRA_VIDEO_MODE, video)
         )
     }
 
@@ -18409,6 +18438,193 @@ class MainActivity : AppCompatActivity() {
         tts.speak(ToggleAnnouncement.speakAfterToggle(label, next, extra))
     }
 
+    // ==================== FELVÉTELEIM (hangcímkékkel) ====================
+    //
+    // MIÉRT KELL: egy mentett felvétel neve `SuperDL_20260915_120000.mp4`.
+    // Ez nem név, hanem időbélyeg, és felolvasva értelmezhetetlen. A látók a
+    // bélyegképről tájékozódnak — vakon az semmit nem ér.
+    //
+    // Ezért a lista a HANGCÍMKÉT játssza le, ha van: a saját hangoddal
+    // felmondott „templomban a Batthyány téren". Ha nincs, a típus és az
+    // időpont szólal meg. A fájlnév soha.
+
+    private fun startMediaBrowseFlow() {
+        com.superdl.launcher.medialabel.MediaLabelStore.prune(this)
+        val items = com.superdl.launcher.medialabel.MediaLibrary.list(this)
+        if (items.isEmpty()) {
+            tts.speak(
+                "Még nincs mentett felvételed. A Kamera menüben fényképezhetsz, " +
+                    "a Videó felvétele pontban videózhatsz."
+            )
+            return
+        }
+        activeFlow = AppFlow.MediaBrowse(items, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Felvételeim. ${items.size} tétel. Fel-le válogatás, jobbra műveletek, " +
+                "balra vissza."
+        )
+        speakMediaItem(items[0], addToQueue = true)
+    }
+
+    private fun navigateMediaBrowse(flow: AppFlow.MediaBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakMediaItem(flow.items[next], addToQueue = false)
+    }
+
+    /**
+     * A TÉTEL BEMONDÁSA — a hangcímke az elsődleges.
+     *
+     * Ha van címke, azt JÁTSSZUK LE, nem felolvassuk: a saját hangod pontosan
+     * azt mondja, amit mondtál, és a beszédmotor nem tud belerondítani.
+     */
+    private fun speakMediaItem(
+        item: com.superdl.launcher.medialabel.MediaItem,
+        addToQueue: Boolean
+    ) {
+        val label = com.superdl.launcher.medialabel.MediaLabelStore.get(this, item.fileName)
+        if (label == null) {
+            if (addToQueue) tts.speakAdd(item.speakFallback()) else tts.speak(item.speakFallback())
+            return
+        }
+        // A beszédet elhallgattatjuk, hogy a címke ne keveredjen bele.
+        if (!addToQueue) tts.stop()
+        com.superdl.launcher.gps.VoiceNoteRecorder.play(label.audioPath) { }
+    }
+
+    private fun enterMediaContextMenu(flow: AppFlow.MediaBrowse) {
+        com.superdl.launcher.gps.VoiceNoteRecorder.stopPlayback()
+        val item = flow.items[flow.index]
+        val hasLabel = com.superdl.launcher.medialabel.MediaLabelStore.has(this, item.fileName)
+        val actions = com.superdl.launcher.medialabel.MediaAction.forItem(hasLabel)
+        activeFlow = AppFlow.MediaContextMenu(flow.items, flow.index, actions, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${actions[0].label}")
+    }
+
+    private fun navigateMediaContextMenu(flow: AppFlow.MediaContextMenu, delta: Int) {
+        val next = (flow.index + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun returnToMediaBrowse(itemIndex: Int) {
+        val items = com.superdl.launcher.medialabel.MediaLibrary.list(this)
+        if (items.isEmpty()) {
+            exitFlow("Nincs több felvételed.")
+            return
+        }
+        val index = itemIndex.coerceIn(0, items.lastIndex)
+        activeFlow = AppFlow.MediaBrowse(items, index)
+        updateFlowDisplay()
+    }
+
+    private fun onMediaContextActivate(flow: AppFlow.MediaContextMenu) {
+        val item = flow.items[flow.itemIndex]
+        when (flow.actions[flow.index]) {
+            com.superdl.launcher.medialabel.MediaAction.PLAY_LABEL -> {
+                val label = com.superdl.launcher.medialabel.MediaLabelStore
+                    .get(this, item.fileName)
+                if (label == null) {
+                    tts.speak("Ehhez nincs hangcímke.")
+                    return
+                }
+                tts.stop()
+                com.superdl.launcher.gps.VoiceNoteRecorder.play(label.audioPath) { }
+            }
+            com.superdl.launcher.medialabel.MediaAction.RECORD_LABEL,
+            com.superdl.launcher.medialabel.MediaAction.REPLACE_LABEL ->
+                startMediaLabelRecording(flow)
+            com.superdl.launcher.medialabel.MediaAction.DELETE_LABEL -> {
+                com.superdl.launcher.medialabel.MediaLabelStore.remove(this, item.fileName)
+                feedbackSuccess()
+                tts.speak("Hangcímke törölve. A felvétel megmaradt.")
+                returnToMediaBrowse(flow.itemIndex)
+            }
+            com.superdl.launcher.medialabel.MediaAction.SHARE -> shareMediaItem(item)
+            com.superdl.launcher.medialabel.MediaAction.BACK ->
+                returnToMediaBrowse(flow.itemIndex)
+        }
+    }
+
+    private fun shareMediaItem(item: com.superdl.launcher.medialabel.MediaItem) {
+        try {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = if (item.isVideo) "video/*" else "image/*"
+                putExtra(Intent.EXTRA_STREAM, item.uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(send, "Megosztás"))
+            tts.speak("Megosztás. Válaszd ki, hova küldöd.")
+        } catch (_: Exception) {
+            feedbackError()
+            tts.speak("A megosztás nem indult el.")
+        }
+    }
+
+    /**
+     * HANGCÍMKE FELVÉTELE UTÓLAG.
+     *
+     * A sorrend itt sem mindegy: előbb az utasítás, aztán a sípszó, és csak a
+     * sípszó UTÁN indul a felvétel — különben a program saját bemondása
+     * rákerül a címkére.
+     */
+    private fun startMediaLabelRecording(flow: AppFlow.MediaContextMenu) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Mikrofon engedély szükséges a hangcímkéhez.")
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), PERM_REQUEST
+            )
+            return
+        }
+        val item = flow.items[flow.itemIndex]
+        tts.speakThen("Mondd be, mi ez. Ha kész, söpörj jobbra. Balra: mégse.") {
+            playRecordingStartBleep()
+            Handler(Looper.getMainLooper()).postDelayed({
+                val ok = com.superdl.launcher.gps.VoiceNoteRecorder.startRecording(
+                    this, "media_" + item.fileName.substringBeforeLast('.')
+                )
+                if (!ok) {
+                    feedbackError()
+                    tts.speak("A hangcímke felvétele nem indult el.")
+                    return@postDelayed
+                }
+                activeFlow = AppFlow.MediaLabelRecording(flow.items, flow.itemIndex)
+                updateFlowDisplay()
+            }, 350L)
+        }
+    }
+
+    private fun stopAndSaveMediaLabel(flow: AppFlow.MediaLabelRecording) {
+        val item = flow.items[flow.itemIndex]
+        val path = com.superdl.launcher.gps.VoiceNoteRecorder.stopRecording()
+        if (path == null) {
+            feedbackError()
+            tts.speak("A felvétel túl rövid vagy sikertelen volt.")
+            returnToMediaBrowse(flow.itemIndex)
+            return
+        }
+        com.superdl.launcher.medialabel.MediaLabelStore.put(this, item.fileName, path)
+        feedbackSuccess()
+        // VISSZAJÁTSSZUK: vakon ez az egyetlen mód meggyőződni róla, hogy
+        // tényleg az van rajta, amit mondtál.
+        tts.speakThen("Hangcímke mentve. Így hangzik:") {
+            com.superdl.launcher.gps.VoiceNoteRecorder.play(path) { }
+        }
+        returnToMediaBrowse(flow.itemIndex)
+    }
+
+    private fun cancelMediaLabelRecording(flow: AppFlow.MediaLabelRecording) {
+        com.superdl.launcher.gps.VoiceNoteRecorder.cancelRecording()
+        tts.speak("Hangcímke megszakítva, nem mentettem el.")
+        returnToMediaBrowse(flow.itemIndex)
+    }
+
     // ==================== SZÖVEGTÁR / SABLONOK ====================
     //
     // MIÉRT VAN EGYÁLTALÁN: egy e-mail címet, egy számlaszámot vagy egy adószámot
@@ -20944,6 +21160,25 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     "⬆⬇ válogatás  •  ➡ küldés  •  ⬅ vissza"
                 }
+            }
+            is AppFlow.MediaBrowse -> {
+                val item = flow.items[flow.index]
+                val cimke = com.superdl.launcher.medialabel.MediaLabelStore
+                    .has(this, item.fileName)
+                tvItem.text = item.speakFallback()
+                tvPosition.text = "Felvételeim  •  ${flow.index + 1} / ${flow.items.size}" +
+                    if (cimke) "  •  hangcímke" else ""
+                tvHint.text = "⬆⬇ válogatás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.MediaContextMenu -> {
+                tvItem.text = flow.actions[flow.index].label
+                tvPosition.text = "Műveletek  •  ${flow.index + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
+            }
+            is AppFlow.MediaLabelRecording -> {
+                tvItem.text = "Hangcímke felvétele"
+                tvPosition.text = flow.items[flow.itemIndex].speakFallback()
+                tvHint.text = "➡ kész  •  ⬅ mégse"
             }
             AppFlow.HomeTrainConfirm -> {
                 tvItem.text = "Otthon betanítása"

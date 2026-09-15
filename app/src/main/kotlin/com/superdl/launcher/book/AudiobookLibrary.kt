@@ -95,6 +95,30 @@ object AudiobookLibrary {
     }
 
     /**
+     * A HANGOSKÖNYV-MAPPÁK útjai a megadott gyökerekben.
+     *
+     * Ugyanaz a felismerés, mint a `collectInto`-ban: egy gyökér közvetlen
+     * gyermek-mappája, amelyben bárhol van hangfájl, egy hangoskönyv. A
+     * gyökérben KÖZVETLENÜL álló hangfájlok szándékosan kimaradnak: egy
+     * letöltött mp3 a Letöltések mappában zene, nem könyv.
+     *
+     * A zenelejátszó ezeket a mappákat zárja ki a listájából.
+     */
+    fun audiobookFolders(roots: List<File>): List<String> {
+        val out = ArrayList<String>()
+        val seen = HashSet<String>()
+        for (root in roots) {
+            val kids = root.listFiles() ?: continue
+            for (child in kids) {
+                if (!child.isDirectory) continue
+                if (!seen.add(child.absolutePath)) continue
+                if (hasAudioRecursive(child)) out.add(child.absolutePath)
+            }
+        }
+        return out
+    }
+
+    /**
      * A könyv-térképbe felveszi a hangoskönyveket. Egy gyökér KÖZVETLEN
      * gyermek-mappája, ha BÁRHOL (akár almappában, pl. kötetekben) van hangfájl,
      * EGYETLEN hangoskönyv (a kötet-almappák a sávjai). Egy gyökérben közvetlenül

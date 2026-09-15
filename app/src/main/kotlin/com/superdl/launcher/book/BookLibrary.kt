@@ -22,6 +22,21 @@ object BookLibrary {
         return found.values.sortedBy { it.title.lowercase() }
     }
 
+    /**
+     * A HANGOSKÖNYVNEK számító mappák útjai.
+     *
+     * A zenelejátszó ezt kérdezi meg, és kihagyja őket a zenelistából: ami
+     * hangoskönyvként került a telefonra, az a könyvek között van a helye, a
+     * zenék között nem. (A fordítottja már régóta így van: a könyvtár
+     * szándékosan nem nézi a Zene mappát.)
+     */
+    fun audiobookFolderPaths(context: Context): List<String> =
+        try {
+            AudiobookLibrary.audiobookFolders(scanRoots(context))
+        } catch (_: Throwable) {
+            emptyList()
+        }
+
     /** A bejárt gyökér-mappák (a hangoskönyv-felismeréshez is ezeket használjuk). */
     private fun scanRoots(context: Context): List<File> {
         val dirs = mutableListOf<File>()
