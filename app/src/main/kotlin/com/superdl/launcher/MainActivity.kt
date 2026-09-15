@@ -7719,7 +7719,8 @@ class MainActivity : AppCompatActivity() {
         val message = when (flow.index) {
             0 -> {
                 if (sender.sendWithMailApp(this, flow.report, subject)) {
-                    "Megnyitottam a levelezőt. A levél kész, csak küldd el."
+                    "Megnyitottam a levelezőt. A jelentés csatolva van, csak küldd el. " +
+                    "A telefonra is elmentettem."
                 } else {
                     // Ha nincs levelező, NE hagyjuk a felhasználót üres kézzel:
                     // mentjük, és megmondjuk, hol van.
