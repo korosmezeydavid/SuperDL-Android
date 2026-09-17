@@ -1040,6 +1040,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, -1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
+            is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, -1)
+            is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, -1)
+            is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, -1)
+            is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, -1)
+            is AppFlow.FilteredCallMenu -> navigateFilteredCallMenu(flow, -1)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
@@ -1266,6 +1271,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, +1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
+            is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, +1)
+            is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, +1)
+            is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, +1)
+            is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, +1)
+            is AppFlow.FilteredCallMenu -> navigateFilteredCallMenu(flow, +1)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
@@ -1523,6 +1533,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> onReminderContextActivate(flow)
             is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
             is AppFlow.HistoryWipeConfirm -> performHistoryWipe(flow)
+            is AppFlow.ChoiceSettingBrowse -> onChoiceSettingActivate(flow)
+            is AppFlow.PhoneListBrowse -> enterPhoneListMenu(flow)
+            is AppFlow.PhoneListMenu -> onPhoneListMenuActivate(flow)
+            is AppFlow.FilteredCallBrowse -> enterFilteredCallMenu(flow)
+            is AppFlow.FilteredCallMenu -> onFilteredCallMenuActivate(flow)
             is AppFlow.MediaLabelRecording -> stopAndSaveMediaLabel(flow)
             AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
@@ -2219,6 +2234,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderList -> exitFlow("Lista bezárva.")
             is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
             is AppFlow.HistoryLimitChoice -> exitFlow("Marad, ami volt.")
+            is AppFlow.ChoiceSettingBrowse -> exitFlow("Marad, ami volt.")
+            // A LISTÁKNÁL a balra egy szintet lép vissza, nem ugrik ki.
+            is AppFlow.PhoneListMenu -> returnToPhoneList(flow.white, flow.itemIndex)
+            is AppFlow.PhoneListBrowse ->
+                exitFlow(if (flow.white) "Fehérlista bezárva." else "Feketelista bezárva.")
+            is AppFlow.FilteredCallMenu -> returnToFilteredCalls(flow.itemIndex)
+            is AppFlow.FilteredCallBrowse -> exitFlow("Szűrt hívások bezárva.")
             // A TÖRLÉS ELVETÉSE A KÖNNYŰ MOZDULAT. Ami visszavonhatatlan,
             // ahhoz a nehezebb irány tartozzon.
             is AppFlow.HistoryWipeConfirm -> exitFlow("Nem töröltem semmit.")
@@ -2334,7 +2356,9 @@ class MainActivity : AppCompatActivity() {
                 item.action == MenuAction.BT_TOGGLE ->
                     "${item.label}. ${ConnectivityHelper.bluetoothStatus(this)}"
                 item.action == MenuAction.CALL_FILTER_MODE_CYCLE ->
-                    "${item.label}. Jelenlegi mód: ${CallFilterStore.getMode(this).menuLabel}."
+                    "${item.label}. Jelenlegi mód: ${CallFilterStore.getMode(this).menuLabel}. " +
+                    "Rejtett számok: " +
+                    (if (CallFilterStore.isHiddenBlocked(this)) "tiltva." else "átengedve.")
                 ToggleAnnouncement.isToggle(item.action) ->
                     ToggleAnnouncement.speakFocused(this, item.label, item.action)
                 else -> item.label
@@ -3295,7 +3319,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.PATROL_SMS_ALERT_TOGGLE -> togglePatrolSmsAlert()
             MenuAction.PATROL_NOTIFICATION_ALERT_TOGGLE -> togglePatrolNotificationAlert()
             MenuAction.PATROL_TIME_ANNOUNCE_TOGGLE -> togglePatrolTimeAnnounce()
-            MenuAction.PATROL_TIME_INTERVAL_CYCLE -> cyclePatrolTimeInterval()
+            MenuAction.PATROL_TIME_INTERVAL_CYCLE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.TIME_INTERVAL)
             MenuAction.PATROL_NIGHT_MODE_TOGGLE -> togglePatrolNightMode()
             MenuAction.PATROL_NIGHT_START_SET -> startPatrolNightStartFlow()
             MenuAction.PATROL_NIGHT_END_SET -> startPatrolNightEndFlow()
@@ -3322,7 +3347,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.VOICE_THEME_SUBMIT -> submitVoiceThemeToCommunity()
             MenuAction.VOICE_THEME_INSTALL_FILE -> browseVoiceThemeFile()
             MenuAction.KEYGUARD_VOICE_TEST -> testKeyguardVoice()
-            MenuAction.BATTERY_FIRST_ALERT_CYCLE -> cycleBatteryFirstAlert()
+            MenuAction.BATTERY_FIRST_ALERT_CYCLE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.BATTERY_FIRST_ALERT)
             MenuAction.FLASHLIGHT -> toggleFlashlight()
             MenuAction.QR_SCAN -> {
                 tts.speak("Beépített Q R olvasó indítása.")
@@ -3385,7 +3411,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
             }
-            MenuAction.ALERT_SOUND_VOLUME_CYCLE -> cycleAlertSoundVolume()
+            MenuAction.ALERT_SOUND_VOLUME_CYCLE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.ALERT_VOLUME)
             MenuAction.ALERT_SILENT_MODE_TOGGLE -> toggleAlertSilentMode()
             MenuAction.ALERT_SOUND_CALENDAR -> startAlertSoundPresetFlow(AlertSoundCategory.CALENDAR)
             MenuAction.ALERT_SOUND_MEDICATION -> startAlertSoundPresetFlow(AlertSoundCategory.MEDICATION)
@@ -3432,9 +3459,20 @@ class MainActivity : AppCompatActivity() {
             MenuAction.WIFI_TOGGLE -> toggleWifi()
             MenuAction.HOTSPOT_TOGGLE -> toggleHotspot()
             MenuAction.BT_TOGGLE -> toggleBluetooth()
-            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE -> cycleCallFilterMode()
-            MenuAction.CALL_FILTER_MODE_CYCLE -> cycleCallFilterMode()
-            MenuAction.CALL_FILTER_MODE_STATUS -> tts.speak(CallFilterStore.speakMode(this))
+            // A KÖRBEFORGATÁS HELYETT VÁLASZTÓ. Eddig minden söprés azonnal
+            // életbe lépett, és útközben tényleg átmentél a Ne Zavarjon.
+            MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.HIDDEN_CALLS)
+            MenuAction.CALL_FILTER_MODE_CYCLE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.CALL_FILTER_MODE)
+            MenuAction.CALL_FILTER_HIDDEN ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.HIDDEN_CALLS)
+            MenuAction.CALL_FILTER_ANNOUNCE ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.FILTER_ANNOUNCE)
+            MenuAction.CALL_FILTER_WHITELIST -> startPhoneListFlow(white = true)
+            MenuAction.CALL_FILTER_BLACKLIST -> startPhoneListFlow(white = false)
+            MenuAction.FILTERED_CALLS -> startFilteredCallsFlow()
+            MenuAction.CALL_FILTER_MODE_STATUS -> tts.speak(CallFilterStore.speakStatus(this))
 
             MenuAction.VOICE_ASSISTANT -> startVoiceAssistantFlow()
             MenuAction.ELENA_WAKE_LISTEN_TOGGLE -> toggleElenaWakeListen()
@@ -9755,6 +9793,14 @@ class MainActivity : AppCompatActivity() {
             )
             CallLogContextAction.SAVE_CONTACT -> startCallLogSaveContact(flow)
             CallLogContextAction.ADD_FAVORITE -> addCallLogToFavorites(entry, flow.entries, flow.entryIndex)
+            CallLogContextAction.ADD_WHITELIST -> {
+                CallFilterStore.addToWhitelist(this, entry.number)
+                feedbackSuccess()
+                tts.speak(
+                    "${entry.name.ifBlank { entry.number }} felkerült a fehérlistára. " +
+                        "Mostantól minden szűrésen átjön, még Teljes Ne Zavarj módban is."
+                )
+            }
             CallLogContextAction.BLOCK_NUMBER -> blockCallLogNumber(entry)
         }
     }
@@ -18915,6 +18961,254 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    // ==================== TÖBB ÁLLÁSÚ BEÁLLÍTÁSOK VÁLASZTÓJA ====================
+    //
+    // Ez váltja fel a körbeforgatást. A hívásszűrőnél a régi megoldás nem
+    // kényelmetlen volt, hanem káros: minden söprés azonnal életbe lépett,
+    // tehát a „Mindent fogad"-ról a „Laza"-ra menet ÁTMENTÉL a Teljes Ne
+    // Zavarjon — és ha épp akkor csörgött valaki, azt a telefon eldobta.
+
+    private fun startChoiceSettingFlow(setting: com.superdl.launcher.settings.ChoiceSetting) {
+        val labels = setting.labels(this)
+        if (labels.isEmpty()) return
+        // A JELENLEGI ÁLLÁSON NYÍLIK. Aki beállítást nyit, tudni akarja,
+        // hol tart most — nem a lista elejére akar esni.
+        val index = setting.currentIndex(this).coerceIn(0, labels.lastIndex)
+        activeFlow = AppFlow.ChoiceSettingBrowse(setting, labels, index)
+        updateFlowDisplay()
+        tts.speak("${setting.title}. Most: ${labels[index]}. Fel-le válogatsz, jobbra beállítod.")
+    }
+
+    private fun navigateChoiceSetting(flow: AppFlow.ChoiceSettingBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.labels.size) % flow.labels.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.labels[next])
+    }
+
+    private fun onChoiceSettingActivate(flow: AppFlow.ChoiceSettingBrowse) {
+        val spoken = try {
+            flow.setting.apply(this, flow.index)
+        } catch (t: Throwable) {
+            feedbackError()
+            exitFlow("A beállítás nem sikerült.", error = true)
+            return
+        }
+        feedbackSuccess()
+        if (flow.setting.previewSound) {
+            com.superdl.launcher.feedback.AlertSoundPlayer.preview(
+                this, com.superdl.launcher.feedback.AlertSoundPreset.DOUBLE_BEEP
+            )
+        }
+        exitFlow(spoken)
+    }
+
+    // ==================== FEHÉRLISTA ÉS FEKETELISTA ====================
+    //
+    // A logika régóta kész volt — a fehérlista még a Teljes Ne Zavarjot is
+    // felülírja —, de NEM VOLT hozzá út: a fehérlistára sehogy nem lehetett
+    // felvenni senkit, a feketelistáról pedig levenni.
+
+    private fun startPhoneListFlow(white: Boolean) {
+        val items = if (white) {
+            CallFilterStore.getWhitelist(this)
+        } else {
+            CallFilterStore.getBlacklist(this)
+        }
+        if (items.isEmpty()) {
+            tts.speak(
+                if (white) {
+                    "A fehérlista üres. A hívásnaplóban vagy a szűrt hívásoknál a jobbra " +
+                        "söprés műveletei közül veheted fel, akit mindig át akarsz engedni."
+                } else {
+                    "A feketelista üres. A hívásnaplóban a jobbra söprés műveleteivel tilthatsz le számot."
+                }
+            )
+            return
+        }
+        activeFlow = AppFlow.PhoneListBrowse(white, items, 0)
+        updateFlowDisplay()
+        val cim = if (white) "Fehérlista" else "Feketelista"
+        tts.speak("$cim: ${items.size} szám. ${speakPhoneEntry(items[0])}")
+    }
+
+    private fun navigatePhoneList(flow: AppFlow.PhoneListBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(speakPhoneEntry(flow.items[next]))
+    }
+
+    /** A szám mellé a nevet is, ha ismerjük — a puszta szám vakon semmit nem mond. */
+    private fun speakPhoneEntry(number: String): String {
+        val name = try {
+            com.superdl.launcher.contacts.ContactHelper.findNameByPhone(this, number).orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
+        return if (name.isBlank()) number else "$name, $number"
+    }
+
+    private fun enterPhoneListMenu(flow: AppFlow.PhoneListBrowse) {
+        val actions = listOf("Hívás", "Levétel a listáról", "Vissza")
+        activeFlow = AppFlow.PhoneListMenu(flow.white, flow.items, flow.index, actions, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${actions[0]}")
+    }
+
+    private fun navigatePhoneListMenu(flow: AppFlow.PhoneListMenu, delta: Int) {
+        val next = (flow.index + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next])
+    }
+
+    private fun returnToPhoneList(white: Boolean, itemIndex: Int) {
+        val items = if (white) {
+            CallFilterStore.getWhitelist(this)
+        } else {
+            CallFilterStore.getBlacklist(this)
+        }
+        if (items.isEmpty()) {
+            exitFlow(if (white) "A fehérlista kiürült." else "A feketelista kiürült.")
+            return
+        }
+        val index = itemIndex.coerceIn(0, items.lastIndex)
+        activeFlow = AppFlow.PhoneListBrowse(white, items, index)
+        updateFlowDisplay()
+        tts.speak(speakPhoneEntry(items[index]))
+    }
+
+    private fun onPhoneListMenuActivate(flow: AppFlow.PhoneListMenu) {
+        val number = flow.items[flow.itemIndex]
+        when (flow.index) {
+            0 -> placeCall(number, speakPhoneEntry(number))
+            1 -> {
+                val ok = if (flow.white) {
+                    CallFilterStore.removeFromWhitelist(this, number)
+                } else {
+                    CallFilterStore.removeFromBlacklist(this, number)
+                }
+                if (ok) feedbackSuccess() else feedbackError()
+                tts.speak(
+                    if (ok) {
+                        if (flow.white) "Levéve a fehérlistáról." else "Levéve a feketelistáról."
+                    } else {
+                        "Nem sikerült levenni."
+                    }
+                )
+                returnToPhoneList(flow.white, flow.itemIndex)
+            }
+            else -> returnToPhoneList(flow.white, flow.itemIndex)
+        }
+    }
+
+    // ==================== SZŰRT HÍVÁSOK ====================
+    //
+    // Eddig semmi nem jegyezte fel, kit szűrt ki a program: elutasította a
+    // hívást, és néma maradt. Vagyis nem lehetett megtudni, ki próbált
+    // elérni — pedig lehet, hogy pont az volt a fontos.
+
+    private fun startFilteredCallsFlow() {
+        val items = com.superdl.launcher.callfilter.FilteredCallStore.all(this)
+        if (items.isEmpty()) {
+            tts.speak("Nincs kiszűrt hívás az elmúlt harminc napból.")
+            return
+        }
+        activeFlow = AppFlow.FilteredCallBrowse(items, 0)
+        updateFlowDisplay()
+        tts.speak("Szűrt hívások: ${items.size}. ${items[0].speakPreview()}")
+    }
+
+    private fun navigateFilteredCalls(flow: AppFlow.FilteredCallBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.items[next].speakPreview())
+    }
+
+    private fun enterFilteredCallMenu(flow: AppFlow.FilteredCallBrowse) {
+        val entry = flow.items[flow.index]
+        val actions = com.superdl.launcher.callfilter.FilteredCallAction.forEntry(
+            blacklisted = entry.number.isNotBlank() &&
+                CallFilterStore.isBlacklisted(this, entry.number),
+            hasNumber = entry.number.isNotBlank()
+        )
+        activeFlow = AppFlow.FilteredCallMenu(flow.items, flow.index, actions, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${actions[0].label}")
+    }
+
+    private fun navigateFilteredCallMenu(flow: AppFlow.FilteredCallMenu, delta: Int) {
+        val next = (flow.index + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun returnToFilteredCalls(itemIndex: Int) {
+        val items = com.superdl.launcher.callfilter.FilteredCallStore.all(this)
+        if (items.isEmpty()) {
+            exitFlow("A szűrt hívások listája kiürült.")
+            return
+        }
+        val index = itemIndex.coerceIn(0, items.lastIndex)
+        activeFlow = AppFlow.FilteredCallBrowse(items, index)
+        updateFlowDisplay()
+        tts.speak(items[index].speakPreview())
+    }
+
+    private fun onFilteredCallMenuActivate(flow: AppFlow.FilteredCallMenu) {
+        val entry = flow.items[flow.itemIndex]
+        val store = com.superdl.launcher.callfilter.FilteredCallStore
+        when (flow.actions[flow.index]) {
+            com.superdl.launcher.callfilter.FilteredCallAction.CALL_BACK ->
+                placeCall(entry.number, entry.who())
+
+            com.superdl.launcher.callfilter.FilteredCallAction.TO_WHITELIST -> {
+                // A FEHÉRLISTA MINDENT FELÜLÍR, a Teljes Ne Zavarjot is.
+                // Ezt ki kell mondani, mert ez a lista lényege.
+                CallFilterStore.addToWhitelist(this, entry.number)
+                feedbackSuccess()
+                tts.speak(
+                    "${entry.who()} felkerült a fehérlistára. Mostantól minden szűrésen " +
+                        "átjön, még Teljes Ne Zavarj módban is."
+                )
+                returnToFilteredCalls(flow.itemIndex)
+            }
+
+            com.superdl.launcher.callfilter.FilteredCallAction.TO_BLACKLIST -> {
+                CallFilterStore.addToBlacklist(this, entry.number)
+                feedbackSuccess()
+                tts.speak("${entry.who()} felkerült a feketelistára. Többé nem fog csörögni.")
+                returnToFilteredCalls(flow.itemIndex)
+            }
+
+            com.superdl.launcher.callfilter.FilteredCallAction.FROM_BLACKLIST -> {
+                CallFilterStore.removeFromBlacklist(this, entry.number)
+                feedbackSuccess()
+                tts.speak("${entry.who()} lekerült a feketelistáról.")
+                returnToFilteredCalls(flow.itemIndex)
+            }
+
+            com.superdl.launcher.callfilter.FilteredCallAction.DELETE -> {
+                store.remove(this, entry.id)
+                feedbackSuccess()
+                tts.speak("Törölve a listából.")
+                returnToFilteredCalls(flow.itemIndex)
+            }
+
+            com.superdl.launcher.callfilter.FilteredCallAction.DELETE_ALL -> {
+                store.clear(this)
+                feedbackSuccess()
+                exitFlow("A szűrt hívások listája kiürült.")
+            }
+
+            com.superdl.launcher.callfilter.FilteredCallAction.BACK ->
+                returnToFilteredCalls(flow.itemIndex)
+        }
+    }
+
     // ==================== HÍVÁSNAPLÓ ÉS ÜZENETEK: HOSSZ, TÖRLÉS ====================
     //
     // MIÉRT: mind a kettő fixen húsz tételnél véget ért, és nem lehetett
@@ -21634,6 +21928,34 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = if (flow.calls) "Teljes hívásnapló törlése" else "Összes üzenet törlése"
                 tvPosition.text = "${flow.count} tétel  •  NEM vonható vissza"
                 tvHint.text = "➡ törlés  •  ⬅ mégse"
+            }
+            is AppFlow.ChoiceSettingBrowse -> {
+                tvItem.text = flow.labels[flow.index]
+                tvPosition.text = "${flow.setting.title}  •  ${flow.index + 1} / ${flow.labels.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ beállítás  •  ⬅ mégse"
+            }
+            is AppFlow.PhoneListBrowse -> {
+                tvItem.text = flow.items[flow.index]
+                tvPosition.text = (if (flow.white) "Fehérlista" else "Feketelista") +
+                    "  •  ${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.PhoneListMenu -> {
+                tvItem.text = flow.actions[flow.index]
+                tvPosition.text = "Műveletek  •  ${flow.index + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
+            }
+            is AppFlow.FilteredCallBrowse -> {
+                val entry = flow.items[flow.index]
+                tvItem.text = entry.who()
+                tvPosition.text = "Szűrt hívások  •  ${flow.index + 1} / ${flow.items.size}  •  " +
+                    entry.reasonText()
+                tvHint.text = "⬆⬇ válogatás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.FilteredCallMenu -> {
+                tvItem.text = flow.actions[flow.index].label
+                tvPosition.text = "Műveletek  •  ${flow.index + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
             }
             AppFlow.HomeTrainConfirm -> {
                 tvItem.text = "Otthon betanítása"

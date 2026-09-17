@@ -146,6 +146,20 @@ object PatrolStore {
             ?: com.superdl.launcher.battery.BatteryPatrolLogic.DEFAULT_FIRST_ALERT
     }
 
+    /**
+     * A küszöb beállítása közvetlenül — a választóhoz. A körbeforgatás
+     * megmarad, de a menü mostantól nem azt használja.
+     */
+    fun setFirstAlertPercent(context: Context, percent: Int) {
+        val levels = com.superdl.launcher.battery.BatteryPatrolLogic.FIRST_ALERT_LEVELS
+        val value = levels.firstOrNull { it == percent }
+            ?: com.superdl.launcher.battery.BatteryPatrolLogic.DEFAULT_FIRST_ALERT
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putInt(KEY_FIRST_ALERT, value).apply()
+        // Új küszöbnél a régi „már szóltam" állapot félrevezető lenne.
+        resetAlertState(context)
+    }
+
     fun cycleFirstAlertPercent(context: Context): Int {
         val levels = com.superdl.launcher.battery.BatteryPatrolLogic.FIRST_ALERT_LEVELS
         val current = getFirstAlertPercent(context)

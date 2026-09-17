@@ -33,9 +33,10 @@ object ToggleAnnouncement {
         MenuAction.HOTSPOT_TOGGLE to ToggleSpec("Hotspot") { ConnectivityHelper.isHotspotEnabled(it) },
         MenuAction.BT_TOGGLE to ToggleSpec("Bluetooth") { ConnectivityHelper.isBluetoothEnabled(it) },
         MenuAction.LOCK_PIN_TOGGLE to ToggleSpec("PIN zárolás") { LockPinStore.isEnabled(it) },
-        MenuAction.CALL_FILTER_BLOCK_PRIVATE_TOGGLE to ToggleSpec("Rejtett számok tiltása") {
-            CallFilterStore.isBlockPrivateEnabled(it)
-        },
+        // A REJTETT SZÁMOK KIKERÜLTEK INNEN (2026-09-17). Ez már nem
+        // kapcsoló, hanem választó: a menüpont menüt nyit, nem átbillent.
+        // Ha itt maradna, a program a fókuszáláskor egy állapotot mondana be,
+        // ami után nem az történik, amit ígért.
         MenuAction.FLASHLIGHT to ToggleSpec("Zseblámpa") { FlashlightState.isOn }
     )
 

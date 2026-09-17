@@ -14,6 +14,11 @@ enum class CallLogContextAction(val label: String) {
     REMIND_LATER("Emlékeztetés később"),
     SAVE_CONTACT("Mentés névjegyként"),
     ADD_FAVORITE("Hozzáadás a Kedvencekhez"),
+    /**
+     * FEHÉRLISTÁRA. Aki rajta van, MINDEN szűrésen átjön — Teljes Ne Zavarj
+     * módban is. Eddig sehogy nem lehetett felvenni rá senkit.
+     */
+    ADD_WHITELIST("Fehérlistára — mindig engedd át"),
     BLOCK_NUMBER("Telefonszám letiltása");
 
     companion object {
@@ -24,6 +29,12 @@ enum class CallLogContextAction(val label: String) {
                 actions.add(SAVE_CONTACT)
             }
             actions.add(ADD_FAVORITE)
+            if (entry.number.isNotBlank() &&
+                !com.superdl.launcher.callfilter.CallFilterStore
+                    .isWhitelisted(context, entry.number)
+            ) {
+                actions.add(ADD_WHITELIST)
+            }
             if (entry.number.isNotBlank()) {
                 actions.add(BLOCK_NUMBER)
             }

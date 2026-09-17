@@ -11,6 +11,88 @@ object CallFilterStore {
     private const val KEY_BLOCK_PRIVATE = "call_filter_block_private"
     private const val KEY_MODE = "call_filter_mode"
 
+    /**
+     * REJTETT SZÁMOK — KÜLÖN KAPCSOLÓ, A MÓDTÓL FÜGGETLENÜL.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-17): a rejtett számok tiltása
+     * hozzá volt forrasztva a módhoz. „Mindent Fogad" módban is tiltva
+     * voltak — a mód saját felolvasott szövege így hangzott: „Mindent
+     * fogad. Rejtett és ismeretlen számok tiltva." Ez önmagával
+     * vitatkozott, és NEM VOLT olyan állapot, amiben egy rejtett hívás
+     * átjött volna. Akit nem zavar, annak sem volt választása.
+     *
+     * A kettő két külön kérdés: a MÓD arról szól, kit engedünk át; a
+     * rejtett szám arról, hogy elfogadjuk-e azt, aki nem mutatja magát.
+     *
+     * ALAPBÓL TILTVA marad, mert eddig is így működött — egy frissítés ne
+     * változtassa meg csendben, hogy kit enged be a telefon.
+     */
+    private const val KEY_HIDDEN_BLOCKED = "call_filter_hidden_blocked"
+
+    /** Szóljon-e a program, ha kiszűrt egy hívást. */
+    private const val KEY_ANNOUNCE = "call_filter_announce"
+
+    /**
+     * MIT CSINÁLJON A PROGRAM, HA KISZŰRT EGY HÍVÁST.
+     *
+     * A néma mellett szól, hogy éjjel ne ébresszen; ellene, hogy nem
+     * tudsz róla, ki keresett. Ezért választható, és az alapértelmezés a
+     * középút: néma marad, de a helyzetjelentés megmondja.
+     */
+    enum class AnnounceMode(val id: String, val label: String, val speakLabel: String) {
+        SUMMARY(
+            id = "summary",
+            label = "Csak a helyzetjelentésben",
+            speakLabel = "Szűrt hívásról csak a helyzetjelentés szól. A telefon néma marad."
+        ),
+        ALWAYS(
+            id = "always",
+            label = "Mindig szóljon",
+            speakLabel = "Szűrt hívásnál a program azonnal szól, hogy ki keresett."
+        ),
+        NEVER(
+            id = "never",
+            label = "Soha ne szóljon",
+            speakLabel = "Szűrt hívásról nem szólok. A Szűrt hívások listában így is megnézheted."
+        );
+
+        companion object {
+            fun fromId(id: String?): AnnounceMode =
+                entries.firstOrNull { it.id == id } ?: SUMMARY
+        }
+    }
+
+    fun isHiddenBlocked(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_HIDDEN_BLOCKED, true)
+
+    fun setHiddenBlocked(context: Context, blocked: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_HIDDEN_BLOCKED, blocked).apply()
+    }
+
+    fun announceMode(context: Context): AnnounceMode =
+        AnnounceMode.fromId(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_ANNOUNCE, null)
+        )
+
+    fun setAnnounceMode(context: Context, mode: AnnounceMode) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(KEY_ANNOUNCE, mode.id).apply()
+    }
+
+    /** A hívásszűrő teljes állapota egyetlen felolvasható mondatban. */
+    fun speakStatus(context: Context): String = buildString {
+        append(getMode(context).speakLabel)
+        append(" Rejtett számok: ")
+        append(if (isHiddenBlocked(context)) "tiltva." else "átengedve.")
+        val white = getWhitelist(context).size
+        val black = getBlacklist(context).size
+        if (white > 0) append(" Fehérlista: $white szám.")
+        if (black > 0) append(" Feketelista: $black szám.")
+    }
+
     fun getMode(context: Context): CallFilterMode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.contains(KEY_MODE)) {

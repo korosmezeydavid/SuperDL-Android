@@ -16,10 +16,17 @@ enum class CallFilterMode(val id: String, val menuLabel: String, val speakLabel:
         menuLabel = "Laza",
         speakLabel = "Laza szűrés. Csak ismert névjegyek hívhatnak."
     ),
+
+    /**
+     * A SZÖVEG ÁTÍRVA (2026-09-17). Eddig ez állt itt: „Mindent fogad.
+     * Rejtett és ismeretlen számok tiltva." Ez önmagával vitatkozott, és
+     * félrevezette a felhasználót. A rejtett számok mostantól külön
+     * kapcsolón vannak, a módtól függetlenül.
+     */
     ACCEPT_ALL(
         id = "accept_all",
         menuLabel = "Mindent Fogad",
-        speakLabel = "Mindent fogad. Rejtett és ismeretlen számok tiltva."
+        speakLabel = "Mindent fogad. Minden hívás átjön, a feketelistásokat kivéve."
     );
 
     fun next(): CallFilterMode {

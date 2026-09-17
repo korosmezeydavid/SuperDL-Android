@@ -333,6 +333,11 @@ enum class MenuAction {
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
     CALL_LOG_WIPE,             // Teljes hívásnapló törlése
+    CALL_FILTER_HIDDEN,        // Rejtett számú hívások: tiltva vagy átengedve
+    CALL_FILTER_ANNOUNCE,      // Szűrt hívás bemondása: soha / jelentésben / mindig
+    CALL_FILTER_WHITELIST,     // Fehérlista megtekintése
+    CALL_FILTER_BLACKLIST,     // Feketelista megtekintése
+    FILTERED_CALLS,            // Kiszűrt hívások listája
     SMS_LIMIT,                 // Üzenetek: hány tételt mutasson
     SMS_WIPE,                  // Összes üzenet törlése (bejövő és kimenő)
     FACE_CAMERA_QUALITY,       // Kamera minőség beállítás
@@ -577,6 +582,23 @@ object MenuTree {
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),
             MenuItem("fav_delete", "Kedvenc törlése", MenuAction.FAVORITES_DELETE),
             MenuItem("contact_create", "Új névjegy létrehozása", MenuAction.CONTACT_CREATE),
+            // HÍVÁSSZŰRŐ — egy helyen minden, ami a szűréshez tartozik.
+            //
+            // Eddig a mód a Beállítások, Biztonság alatt lapult, a listákhoz
+            // pedig egyáltalán nem volt út: a FEHÉRLISTÁRA sehogy nem lehetett
+            // felvenni senkit, pedig a kód tudta kezelni. Aki hívásszűrőt
+            // keres, a hívásoknál fogja keresni.
+            MenuItem("call_filter", "Hívásszűrő", MenuAction.SUBMENU, listOf(
+                MenuItem("cf_status", "Állapot", MenuAction.CALL_FILTER_MODE_STATUS),
+                MenuItem("cf_mode", "Szűrés erőssége", MenuAction.CALL_FILTER_MODE_CYCLE),
+                MenuItem("cf_hidden", "Rejtett számú hívások", MenuAction.CALL_FILTER_HIDDEN),
+                MenuItem("cf_white", "Fehérlista", MenuAction.CALL_FILTER_WHITELIST),
+                MenuItem("cf_black", "Feketelista", MenuAction.CALL_FILTER_BLACKLIST),
+                MenuItem("cf_announce", "Szűrt hívás bemondása", MenuAction.CALL_FILTER_ANNOUNCE),
+                MenuItem("cf_back", "Vissza", MenuAction.SUBMENU)
+            )),
+            // SZŰRT HÍVÁSOK — hátha mégis fontos volt.
+            MenuItem("filtered_calls", "Szűrt hívások", MenuAction.FILTERED_CALLS),
             // HÍVÁSNAPLÓ BEÁLLÍTÁSOK — mennyit mutasson, és a teljes törlés.
             //
             // A lista eddig fixen húsz hívásnál véget ért, és nem lehetett

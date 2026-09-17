@@ -33,6 +33,15 @@ object CallFilterEngine {
             return true
         }
 
+        // REJTETT SZÁM: KÜLÖN KÉRDÉS, A MÓDTÓL FÜGGETLENÜL.
+        //
+        // Korábban ez a módokba volt beleszőve, és emiatt NEM VOLT olyan
+        // állapot, amiben egy rejtett hívás átjött volna. Akit nem zavar,
+        // annak sem volt választása. Most a saját kapcsolója dönt.
+        if (isPrivateOrHidden(normalized, handlePresentation)) {
+            return CallFilterStore.isHiddenBlocked(context)
+        }
+
         // IDŐZÍTETT FÓKUSZ: ha épp érvényben van egy szabály (pl. este tíztől
         // reggel hatig), az FELÜLÍRJA a kézzel beállított módot. Így nem kell
         // esténként bekapcsolgatni, reggel meg kikapcsolni.
@@ -41,11 +50,33 @@ object CallFilterEngine {
         return when (mode) {
             CallFilterMode.TOTAL_DND -> true
             CallFilterMode.PRIORITY_ONLY -> !CallContactLookup.isPriorityCaller(context, normalized)
-            CallFilterMode.CONTACTS_ONLY -> {
-                if (isPrivateOrHidden(normalized, handlePresentation)) return true
-                !CallContactLookup.isKnownContact(context, normalized)
-            }
-            CallFilterMode.ACCEPT_ALL -> isPrivateOrHidden(normalized, handlePresentation)
+            CallFilterMode.CONTACTS_ONLY -> !CallContactLookup.isKnownContact(context, normalized)
+            CallFilterMode.ACCEPT_ALL -> false
+        }
+    }
+
+    /**
+     * MIÉRT SZŰRTÜK KI — a szűrt hívások listájába.
+     *
+     * Ezt csak MI tudjuk: a rendszer hívásnaplójában csak annyi látszik,
+     * hogy elutasított hívás volt. Az ok nélkül a lista fele annyit ér.
+     */
+    fun blockReasonId(
+        context: Context,
+        phoneNumber: String?,
+        handlePresentation: Int
+    ): String {
+        val normalized = phoneNumber?.let(CallFilterStore::normalizePhone).orEmpty()
+        if (normalized.isNotBlank() && CallFilterStore.isBlacklisted(context, normalized)) {
+            return "feketelista"
+        }
+        if (isPrivateOrHidden(normalized, handlePresentation)) return "rejtett"
+        val mode = FocusScheduleStore.activeMode(context) ?: CallFilterStore.getMode(context)
+        return when (mode) {
+            CallFilterMode.TOTAL_DND -> "nezavarj"
+            CallFilterMode.PRIORITY_ONLY -> "reszleges"
+            CallFilterMode.CONTACTS_ONLY -> "ismeretlen"
+            CallFilterMode.ACCEPT_ALL -> "egyeb"
         }
     }
 

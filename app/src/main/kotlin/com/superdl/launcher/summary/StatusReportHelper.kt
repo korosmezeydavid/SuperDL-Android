@@ -47,7 +47,31 @@ object StatusReportHelper {
         // — különben a jól elrejtett lista csendben feledésbe merül.
         pendingRemindersLine(context)?.let { parts.add(it) }
 
+        // Hány hívást szűrt ki ma a program.
+        //
+        // MIÉRT ITT: a szűrés néma — ez a helyes, mert éjjel senkit nem
+        // ébresztünk fel egy kiszűrt reklámhívással. De akkor kell EGY hely,
+        // ahol kiderül, hogy volt ilyen. Ha valakinek ez kevés vagy sok,
+        // a Hívásszűrő alatt átállíthatja.
+        filteredCallsLine(context)?.let { parts.add(it) }
+
         return parts.joinToString(" ")
+    }
+
+    private fun filteredCallsLine(context: Context): String? = try {
+        val mode = com.superdl.launcher.callfilter.CallFilterStore.announceMode(context)
+        if (mode == com.superdl.launcher.callfilter.CallFilterStore.AnnounceMode.NEVER) {
+            null
+        } else {
+            val count = com.superdl.launcher.callfilter.FilteredCallStore.countToday(context)
+            when (count) {
+                0 -> null
+                1 -> "Egy hívást szűrtem ki ma. A Szűrt hívások között megnézheted."
+                else -> "$count hívást szűrtem ki ma. A Szűrt hívások között megnézheted."
+            }
+        }
+    } catch (_: Throwable) {
+        null
     }
 
     private fun pendingRemindersLine(context: Context): String? = try {

@@ -1011,6 +1011,50 @@ sealed class AppFlow {
         val count: Int
     ) : AppFlow()
 
+    /**
+     * TÖBB ÁLLÁSÚ BEÁLLÍTÁS VÁLASZTÓJA.
+     *
+     * Ez váltja fel a körbeforgatást. Eddig a jobbra söprés minden lépésben
+     * AZONNAL életbe léptette a következő állást — a hívásszűrőnél ez azt
+     * jelentette, hogy útközben tényleg átmentél a Teljes Ne Zavarjon.
+     * Itt semmi nem lép életbe, amíg jobbra nem söpörsz a végén.
+     */
+    data class ChoiceSettingBrowse(
+        val setting: com.superdl.launcher.settings.ChoiceSetting,
+        val labels: List<String>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Fehérlista vagy feketelista böngészése. */
+    data class PhoneListBrowse(
+        val white: Boolean,
+        val items: List<String>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Egy szám művelet-menüje a fehér- vagy feketelistán. */
+    data class PhoneListMenu(
+        val white: Boolean,
+        val items: List<String>,
+        val itemIndex: Int,
+        val actions: List<String>,
+        val index: Int
+    ) : AppFlow()
+
+    /** A kiszűrt hívások listája. */
+    data class FilteredCallBrowse(
+        val items: List<com.superdl.launcher.callfilter.FilteredCall>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Egy kiszűrt hívás művelet-menüje. */
+    data class FilteredCallMenu(
+        val items: List<com.superdl.launcher.callfilter.FilteredCall>,
+        val itemIndex: Int,
+        val actions: List<com.superdl.launcher.callfilter.FilteredCallAction>,
+        val index: Int
+    ) : AppFlow()
+
     /** Egy emlékeztető művelet-menüje (hívás, új időpont, időzített SMS, törlés). */
     data class ReminderContextMenu(
         val kind: String,
