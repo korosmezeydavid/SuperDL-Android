@@ -1,0 +1,28 @@
+1.72.0 - minden ki-be kapcsolo helyi menut kap
+
+Eddig egyetlen jobbra soprés azonnal atbillentett minden kapcsolot.
+Aki nem latja a kepernyot, annak nem volt hol megallni: mire
+meghallotta, mi volt, mar meg is valtozott.
+
+Mostantol a jobbra soprés MENUT NYIT. A menu a mostani allas
+ELLENTETEN nyilik, tehat elsore azt hallod, mi FOG tortenni
+("Kikapcsolas"), es egy ujabb jobbra sopréssel hagyod jova. Ket
+gesztus, nem harom. A masodik sor a maradas ("Marad: bekapcsolva"),
+a balra soprés ugyanugy megse. Amig jova nem hagyod, semmi nem
+lep eletbe.
+
+Az otthon-figyeles modja nem "ki-be", hanem Eles / Proba - ott a
+menu is ezt a ket nevet mondja, mert az eles mod tenyleg SMS-t kuld.
+
+31 kapcsolo: nevjegyzek (2), otthon figyeles (3), S.O.S.
+visszaszamlalas, egyszeru mod, sotet mod, kepernyoolvaso (2),
+orjarat (8), beszedtema es koszonesek (4), nema mod, WiFi, hotspot,
+bluetooth, Elena figyeles, fulhallgato gomb, PIN zarolas, rendszer
+PIN seged, nyers felvetel, zseblampa.
+
+Uj: settings/ToggleChoice.kt (a kapcsolok nyilvantartasa),
+AppFlow.ToggleChoiceBrowse, es egyetlen elfogasi pont a menu
+inditasaban - a 31 meglevo kapcsolo-kezelot nem kellett atirni.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

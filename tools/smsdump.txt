@@ -1,0 +1,7 @@
+﻿adb.exe : adb.exe: no devices/emulators found
+At C:\Users\msn\Documents\SuperDL-Android\tools\otthonsms.ps1:2 char:8
++ $out = & $adb shell content query --uri content://sms/sent --projecti ...
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (adb.exe: no devices/emulators found:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

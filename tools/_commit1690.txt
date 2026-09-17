@@ -1,0 +1,33 @@
+1.69.0 - otthon-figyeles: helyzet-visszaeses; es emlekeztetes kesobbre
+
+Otthon-figyeles (Alph eles visszajelzese utan):
+- a helyzet mar a visszaszamlalas ALATT gyulik. Eddig ha a wifi vagy a
+  cella dontott, a GPS el sem indult, es a segito koordinata nelkul
+  maradt. Az a negyvenot masodperc ugyis eltelik - most dolgozik.
+- ha nincs friss meres, kimegy a legutobbi ismert, MEGMONDVA, hogy hany
+  perces. Regit sosem adunk ki frissnek: az rossz helyre viszi a kerésot.
+- utcanev is a koordinata mellett (nem helyette). Halozatot igenyel,
+  ezert hatterszalon, rovid hataridovel - ha nem jon meg, elmarad.
+- frissito uzenet negyedora mulva, ha meg mindig nincs otthon. Legfeljebb
+  ketszer, kikapcsolhato. Ha kozben hazaert, a fuggo frissites lemondva.
+
+Emlekeztetes kesobbre (Alph kerese):
+- a hivasnaplo es az SMS-ek muvelet-listaja kiegeszult vele.
+- idopont: 10 perc, 1 ora, holnap reggel, vagy BEMONDOTT idopont
+  ("holnap reggel kilenckor"). A megertett idopontot visszamondja.
+- a lista NEM az ebresztok kozott van: "Visszahivandok" a hivasoknal,
+  "Fuggo uzeneteim" az uzeneteknel. A visszahivas nem ebreszto.
+- az emlekeztetobol azonnal lehet hivni (jobbra) vagy halasztani (balra).
+  Enelkul a szolgaltatas felkesz: ujra meg kellene keresni a szamot.
+- akit kozben visszahivtal, MAGATOL lekerul a listarol (hivasnaplobol
+  latszik). Kezzel takaritando lista ket het alatt hasznalhatatlan.
+- "idozitett SMS erre az idopontra" sopres-muvelet a listan - nem kerdes.
+  A huszadik kerdes utan az ember gepiesen nemet mond mindenre.
+- a napi osszefoglalo megmondja, hany visszahivando es fuggo uzenet var.
+- ujraindulas utan az emlekeztetok visszakerulnek (BootReceiver).
+
+Mellekesen: az idopont-ertelmezo most mar erti a "holnap"-ot akkor is,
+ha a kimondott ora ma meg nem mult el ("holnap delben" reggel kilenckor).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

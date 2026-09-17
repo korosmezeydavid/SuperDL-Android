@@ -1,0 +1,21 @@
+A hibajelentes mostantol CSATOLMANYKENT megy, nem a level torzseben
+
+Kiss Istvan jelentese csonkan erkezett meg: a fejlec es a reszletes naplo
+ELSO SORA jott at, utana semmi. Az egesz szerepkor-resz, a kisegito
+szolgaltatasok es a tetelek listaja - vagyis pont az, amiert a naplo
+keszul - eltunt utkozben. Ugyanez tortent korabban Geza jelentesevel is;
+akkor a menu-utra fogtuk, de most kiderult, hogy a varazslo-uton is
+elveszik.
+
+A hosszu szoveg a levelezoig egy Intent extrajaban utazik, es ott barhol
+elcsonkulhat. Nincs hibauzenet, nincs jelzes.
+
+- a jelentes fajlba kerul, es a fajl megy csatolmanykent;
+- a level torzseben csak egy rovid kisero szoveg;
+- a mentes AKKOR IS megtortenik, ha a levelezo meg sem nyilik;
+- a level egyenesen a telefon levelezojebe megy (nem valaszto), mert a
+  menupont azt igerte, hogy "a sajat levelezommel";
+- a megosztas utja is csatolmannyal megy.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

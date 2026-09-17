@@ -1,0 +1,34 @@
+1.70.0 - a hivasnaplo es az uzenetlista hossza allithato, es torolheto
+
+Mind a ketto FIXEN husz tetelnel ert veget, es nem lehetett visszamenni
+regebbre. A lista neman allt meg a huszadiknal: a felhasznalo nem tudhatta,
+hogy van meg. A teljes torlesnek pedig egyaltalan nem volt helye a
+programban.
+
+Uj: Hivasok -> "Hivasnaplo beallitasok"
+  - Mennyit mutasson: 20 / 40 / 60 / 100 / 200 / mind
+  - Teljes hivasnaplo torlese
+
+Uj: SMS beallitasok alatt
+  - Mennyit mutasson (ugyanaz a lista)
+  - Osszes uzenet torlese (bejovo es kimeno egyben)
+
+Amire figyeltunk:
+
+- A "mind" sem vegtelen: otszaznal a fel-le soprogetes reménytelen, a
+  betoltes meg megakasztana a programot. A korlatot KIMONDJUK, mert egy
+  csendes felso hatar azt jelentene, hogy a felhasznalo azt hiszi,
+  mindent lat.
+- A torles KETSZER kerdez, es a masodik kerdes kimondja a DARABSZAMOT is.
+  Egy szam jobban megallitja az embert, mint egy altalanos "biztos vagy
+  benne" - es vakon egy elsoport mozdulat is elinditana.
+- Uzenetet csak az alapertelmezett uzenet alkalmazas torolhet. Ha nem mi
+  vagyunk az, a rendszer NEM szol, csak nem tortenik semmi. Ezert ezt
+  ELORE megmondjuk, es nem is kerdezunk ra.
+- Torles utan MEGSZAMOLJUK, tenyleg eltunt-e. A nema kudarc a legrosszabb
+  kimenetel: a rendszer nulla sort torol, es nem dob hibat.
+- WRITE_CALL_LOG bekerult a manifestbe - enelkul a hivasnaplo torlese
+  csendben nem csinalt volna semmit.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

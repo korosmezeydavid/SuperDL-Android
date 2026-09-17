@@ -1041,6 +1041,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, -1)
+            is AppFlow.ToggleChoiceBrowse -> navigateToggleChoice(flow, -1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, -1)
             is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, -1)
             is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, -1)
@@ -1272,6 +1273,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, +1)
+            is AppFlow.ToggleChoiceBrowse -> navigateToggleChoice(flow, +1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, +1)
             is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, +1)
             is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, +1)
@@ -1534,6 +1536,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
             is AppFlow.HistoryWipeConfirm -> performHistoryWipe(flow)
             is AppFlow.ChoiceSettingBrowse -> onChoiceSettingActivate(flow)
+            is AppFlow.ToggleChoiceBrowse -> onToggleChoiceActivate(flow)
             is AppFlow.PhoneListBrowse -> enterPhoneListMenu(flow)
             is AppFlow.PhoneListMenu -> onPhoneListMenuActivate(flow)
             is AppFlow.FilteredCallBrowse -> enterFilteredCallMenu(flow)
@@ -2235,6 +2238,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
             is AppFlow.HistoryLimitChoice -> exitFlow("Marad, ami volt.")
             is AppFlow.ChoiceSettingBrowse -> exitFlow("Marad, ami volt.")
+            is AppFlow.ToggleChoiceBrowse -> exitFlow("Marad, ami volt.")
             // A LISTÁKNÁL a balra egy szintet lép vissza, nem ugrik ki.
             is AppFlow.PhoneListMenu -> returnToPhoneList(flow.white, flow.itemIndex)
             is AppFlow.PhoneListBrowse ->
@@ -2486,7 +2490,30 @@ class MainActivity : AppCompatActivity() {
     /** Az ÉPPEN futó menüpont neve — a megszakító ebből tudja, mi hibázott. */
     private var currentActionName: String? = null
 
+    /**
+     * Igaz, amíg egy kapcsoló helyi menüjéből érkező JÓVÁHAGYÁS fut le.
+     * Enélkül a következő sor újra menüt nyitna — és soha nem történne semmi.
+     */
+    private var toggleAlreadyConfirmed = false
+
     private fun handleActionInner(item: MenuItem) {
+        // KÉT ÁLLÁSÚ KAPCSOLÓK: elsőre MENÜ nyílik, nem billen át.
+        //
+        // Eddig egyetlen jobbra söprés azonnal átkapcsolta. Aki nem látja a
+        // képernyőt, annak nem volt hol megállni: mire meghallotta, mi volt,
+        // már meg is változott. Most a menü a MOSTANI ELLENTÉTÉN nyílik,
+        // tehát elsőre azt hallja, mi FOG történni, és egy újabb jobbra
+        // söpréssel hagyja jóvá. Két gesztus, nem három.
+        val toggleSpec = if (toggleAlreadyConfirmed) {
+            null
+        } else {
+            com.superdl.launcher.settings.ToggleChoice.specFor(item.action)
+        }
+        toggleAlreadyConfirmed = false
+        if (toggleSpec != null) {
+            startToggleChoiceFlow(item, toggleSpec)
+            return
+        }
         when (item.action) {
             MenuAction.SUBMENU -> {
                 if (item.children.isNotEmpty()) enterSubMenu(item) else goBack()
@@ -19003,6 +19030,51 @@ class MainActivity : AppCompatActivity() {
         exitFlow(spoken)
     }
 
+    // ==================== KÉT ÁLLÁSÚ KAPCSOLÓK HELYI MENÜJE ====================
+    //
+    // Ugyanaz az elv, mint a több állású beállításoknál, csak két sorral.
+    // A menü a MOSTANI ELLENTÉTÉN nyílik: elsőre azt hallod, mi FOG történni,
+    // és egy újabb jobbra söpréssel hagyod jóvá. A második sor a maradás.
+
+    private fun startToggleChoiceFlow(
+        item: MenuItem,
+        spec: com.superdl.launcher.settings.ToggleChoice.Spec
+    ) {
+        val on = runCatching { spec.isOn(this) }.getOrDefault(false)
+        val labels = com.superdl.launcher.settings.ToggleChoice.labels(spec, on)
+        val state = com.superdl.launcher.settings.ToggleChoice.stateWord(spec, on)
+        activeFlow = AppFlow.ToggleChoiceBrowse(item, spec.title, labels, 0)
+        updateFlowDisplay()
+        tts.speak("${spec.title}: $state. ${labels[0]}? Jobbra jóváhagyod.")
+    }
+
+    private fun navigateToggleChoice(flow: AppFlow.ToggleChoiceBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.labels.size) % flow.labels.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.labels[next])
+    }
+
+    private fun onToggleChoiceActivate(flow: AppFlow.ToggleChoiceBrowse) {
+        // A MÁSODIK SOR A MARADÁS. Semmit nem futtatunk le.
+        if (flow.index != 0) {
+            exitFlow("Marad, ami volt.")
+            return
+        }
+        // Kilépünk a menüből NÉMÁN, mert a kapcsoló saját maga mondja el,
+        // mi lett belőle — két egymást átfedő mondat csak zavarna.
+        tts.stop()
+        activeFlow = AppFlow.Menu
+        updateDisplay()
+        feedbackSuccess()
+        toggleAlreadyConfirmed = true
+        try {
+            handleAction(flow.item)
+        } finally {
+            toggleAlreadyConfirmed = false
+        }
+    }
+
     // ==================== FEHÉRLISTA ÉS FEKETELISTA ====================
     //
     // A logika régóta kész volt — a fehérlista még a Teljes Ne Zavarjot is
@@ -21933,6 +22005,11 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.labels[flow.index]
                 tvPosition.text = "${flow.setting.title}  •  ${flow.index + 1} / ${flow.labels.size}"
                 tvHint.text = "⬆⬇ válogatás  •  ➡ beállítás  •  ⬅ mégse"
+            }
+            is AppFlow.ToggleChoiceBrowse -> {
+                tvItem.text = flow.labels[flow.index]
+                tvPosition.text = "${flow.title}  •  ${flow.index + 1} / ${flow.labels.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ jóváhagyás  •  ⬅ mégse"
             }
             is AppFlow.PhoneListBrowse -> {
                 tvItem.text = flow.items[flow.index]

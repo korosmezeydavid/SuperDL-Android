@@ -1,0 +1,53 @@
+1.67.0 - Szovegtar: sablonok kuldese, es a portalon szerkesztheto
+
+EGY TAR, TOBB AJTO
+Nem uj tarat epitettunk. A matrix billentyuzetnek mar volt szovegtara
+(keyboard/MatrixTextBank), pontosan erre a celra - csak be volt zarva a
+billentyuzetbe: a teteleknek nem volt nevuk, nem lehetett beloluk kuldeni,
+es a portalon sem latszottak. Ket tar ugyanarra a celra azt jelentene, hogy
+a felhasznalo soha nem tudja, melyikben van a szamlaszam.
+
+- textbank/TextBankEntry + TextBankStore: nev + szoveg + opcionalis
+  matrix-gomb, JSON a "superdl" prefsben, max 30 tetel.
+- MIGRACIO a regi, gombhoz kotott tarbol. A regi prefs-fajlt NEM toroljuk:
+  ha a migracio barmiert elhasal, a tartalom ott marad es visszaszedheto.
+- MatrixTextBank mostantol csak egy AJTO a kozos tarra. A billentyuzeten
+  semmi nem valtozik.
+- A sorrend a LETREHOZAS sorrendje, nem "leggyakoribb elol": vakon az
+  rosszabb, mert ami tegnap a harmadik volt, az ma is legyen a harmadik.
+
+HIBAJAVITAS: A SZOVEGTAR EDDIG ELVESZETT TELEFONCSERENEL
+A "superdl_text_bank" prefs-fajl NEM volt benne a BackupManager
+INCLUDED_PREFS listajaban. Pont az az adat veszett el, amit a legnehezebb
+ujra bevinni. Az uj tar mar a "superdl" prefsben el (az mentodik), es a
+regi kulcsot is felvettuk a listara a migracio elotti mentesek miatt.
+
+NEGY AJTO
+1. Matrix billentyuzet - valtozatlan.
+2. Menu: Uzenetek > SMS uzenetek > "Sablon kuldese". A cimzettvalasztas
+   UGYANAZ a betuindexes kijelolo, mint az "Uzenet tobb cimzettnek"-nel,
+   igy tobb embernek is mehet. Nincs uj mozdulat.
+3. "Mondd az uzenetet" kozben a LE sopres: megis sablont valasztok.
+   A cimzettek megmaradnak, a balra visszavisz a diktalashoz.
+4. WiFi portal: uj "Szovegtar" ful - felvitel, szerkesztes, torles,
+   sorrend, gombhoz kotes. KULDENI INNEN NEM LEHET: a portal nem HTTPS,
+   nincs forras-IP szures, a vedelme egy negyjegyu PIN. A portal az
+   IROASZTAL, a telefon a POSTA.
+
+AZONOSITOT BETUZVE IS FELOLVAS
+Ha a szoveg nem tartalmaz szokozt es 6..60 karakter, akkor ez AZONOSITO
+(szamlaszam, e-mail cim), nem mondat - ilyenkor betuzve is elhangzik,
+mert a beszedmotor osszemossa a szamjegyeket, es a pont meg a kotojel el
+is tunhet. Mondatot nem betuzunk.
+
+A navigacio KET helyen van duplikalva (PortalControlPages.header es
+WifiPortalServer.buildIndexPage) - mindkettobe bekerult, es az ellenorzo
+szkript kulon nezi.
+
+Ellenorizve a kiadasi APK DEX-eiben (tools/szovegtar_ellenorzes1670.ps1).
+
+KIADAS MEG NINCS: ez a verzio tartalmazza az M4 otthon-figyelest is, ami a
+terv sajat dontese szerint proba-uzemre var.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

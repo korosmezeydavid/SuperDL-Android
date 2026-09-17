@@ -1,0 +1,95 @@
+HA ELAKADSZ — SUPER DL, ANDROID
+Vészkijárat egy oldalon
+
+
+MIÉRT KAPOD EZT
+
+A Super DL a telefon kezdőképernyője lesz. Ez nagy hatalom, és néha
+elromlik valami. Ez a lap arról szól, hogyan kapod vissza a telefonodat
+akkor is, ha a program nem indul el, vagy nem azt csinálja, amit kell.
+
+Nyomtasd ki, vagy mentsd el egy másik eszközre. Egy kiút csak akkor kiút,
+ha akkor is megvan, amikor épp baj van.
+
+
+MIELŐTT BÁRMI TÖRTÉNNE — EGY PERC MOST
+
+Kapcsold be a telefon SAJÁT képernyőolvasójának gyorsbillentyűjét. Ez
+attól függetlenül működik, hogy a Super DL él-e:
+
+  Beállítások, Kisegítő lehetőségek, TalkBack, Gyorsparancs.
+
+Ha bekapcsoltad, a KÉT HANGERŐGOMBOT három másodpercig nyomva tartva a
+telefon saját felolvasója bármikor elindul. Ha egyszer ez megvan, sosem
+maradsz néma telefonnal.
+
+
+1. LÉPÉS — VISSZA A GYÁRI KEZDŐKÉPERNYŐRE
+
+Ha a Super DL elindul, de vissza akarsz állni:
+
+  Super DL menü, Beállítások, Kezdőképernyő váltás.
+
+Innen kiválaszthatod a telefon gyári kezdőképernyőjét. A Super DL
+telepítve marad, csak nem ő fogadja a Kezdőlap gombot.
+
+
+2. LÉPÉS — HA A SUPER DL EL SEM INDUL
+
+A telefon saját Beállításai akkor is elérhetők, ha a kezdőképernyő nem
+működik. Húzd le az ujjad a képernyő tetejéről kétszer, és keresd a
+fogaskerék ikont. Onnan:
+
+  Beállítások, Alkalmazások, Alapértelmezett alkalmazások,
+  Kezdőképernyő alkalmazás.
+
+Válaszd ki a gyári kezdőképernyőt.
+
+
+3. LÉPÉS — CSÖKKENTETT MÓD, HA SEMMI NEM MEGY
+
+A csökkentett mód az Android saját mentőöve: ilyenkor a telefon CSAK a
+gyári alkalmazásokat indítja el, a Super DL-t nem. Így biztosan
+hozzáférsz mindenhez.
+
+A legtöbb telefonon: tartsd nyomva a bekapcsoló gombot, majd a megjelenő
+"Kikapcsolás" feliratot tartsd nyomva hosszan. A telefon megkérdezi,
+hogy csökkentett módban induljon-e újra. Mondj igent.
+
+Gyártónként eltérhet. Xiaomi és néhány más készülék: kapcsold ki a
+telefont, majd bekapcsoláskor tartsd nyomva a HANGERŐ LE gombot, amíg el
+nem indul.
+
+Csökkentett módban a gyári kezdőképernyő fogad. Innen nyugodtan
+átállíthatod a beállításokat, vagy eltávolíthatod a programot.
+
+A csökkentett módból egy sima újraindítás hoz vissza.
+
+
+4. LÉPÉS — A PROGRAM ELTÁVOLÍTÁSA
+
+  Beállítások, Alkalmazások, Super DL, Eltávolítás.
+
+Ez mindent visszaállít. Az adataid — névjegyek, üzenetek, hívásnapló —
+a telefonhoz tartoznak, nem a Super DL-hez: ezek megmaradnak.
+
+
+HA SEGÍTSÉGET KÉRSZ
+
+Írj a fejlesztőnek: korosmezey.david.richard@gmail.com
+
+Ha tudod, küldd el a program hibajelentését is: Super DL menü,
+Beállítások, Hibajelentés. Csatolmányként megy, és minden benne van,
+ami a hibakereséshez kell. Személyes adat nincs benne.
+
+Ha a program el sem indul, írd meg egyszerű szavakkal, mit csináltál
+utoljára, és milyen telefonod van. Ennyi is sokat segít.
+
+
+EGY ŐSZINTE MONDAT
+
+A Super DL tesztverzió. Nem tökéletes, és nem is állítom, hogy az. Ezért
+kapod ezt a lapot: nem azért, mert baj lesz, hanem azért, hogy ha mégis,
+akkor ne érezd magad kiszolgáltatottnak.
+
+Kőrösmezey Dávid

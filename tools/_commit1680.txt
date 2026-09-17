@@ -1,0 +1,30 @@
+1.68.0 - video, hangcimkek, varazslo-javitasok, es a hangoskonyvek kivalasa a zenebol
+
+Varazslo (Kiss Istvan jelentese alapjan):
+- a "korlatozott beallitas erintheti" sor tobbe nem pusztan a telepites
+  forrasabol kovetkeztet: ha a kepernyoolvaso, az atfedes vagy az ertesites-
+  figyelo mar mukodik, akkor a korlatozas fel van oldva, es ezt mondjuk.
+- aki egy lepessel hosszan kuzdott (egy percnel tobb, vagy nema visszautasitas),
+  annak a lepes ket probalkozasnak szamit: nem ragad be a varazsloban.
+
+Kamera:
+- videofelvetel: a teljes gepezet megvolt, csak senki nem hivta. Uj menupont
+  ("Video felvetele"), az elso oldalra sopres indit es allit. A selfie-kamera
+  tiltasa megszunt.
+- hangcimke: mentes utan egy rovid hangfelvetel tarsithato a kephez vagy
+  videohoz. Elobb elhangzik az utasitas, utana csippan, es CSAK azutan indul a
+  felvetel - kulonben a sajat beszedunket vennenk fel.
+- "Felveteleim": a mentett kepek es videok listaja, hangcimkevel, helyi
+  menuvel (lejatszas, felvetel, csere, torles, megosztas).
+
+Zene es hangoskonyv szetvalasztasa:
+- a zenelejatszo eddig MINDEN hangfajlt listazott, igy a hangoskonyvek
+  fejezetei a zenek koze keveredtek, es a zenelejatszo el is inditotta oket.
+- mostantol kimarad, ami konyvmappaban van, amit a rendszer hangoskonyvnek
+  vagy podcastnak jelolt, es amit a konyvtar hangoskonyv-mappakent ismer fel.
+- a Zene mappa mindig erosebb: ami ott van, az zene marad.
+- a forditottja mar regota igy volt: a konyvtar szandekosan nem nezi a Zene
+  mappat. Most mar mindket irany all.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

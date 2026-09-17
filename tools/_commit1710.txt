@@ -1,0 +1,46 @@
+1.71.0 - hivasszuro: valaszto a korbeforgatas helyett, listak, szurt hivasok
+
+A KORBEFORGATAS HELYETT VALASZTO (Alph jelezte)
+
+Negy beallitas mukodott ugy, hogy a jobbra sopres korbeforgatta az
+allasokat, es minden lepes AZONNAL eletbe lepett. A hivasszuronel ez nem
+kenyelmetlenseg volt, hanem kar: a "Mindent fogad"-rol a "Laza"-ra menet
+UTKOZBEN atmentel a Teljes Ne Zavarjon - es ha epp akkor csorgott valaki,
+azt a telefon eldobta.
+
+Mostantol a jobbra sopres MENUT NYIT, es a menu a JELENLEGI allason
+nyilik. Kozben semmi nem lep eletbe.
+
+Erintett: hivas szuro mod, csengohang hangero, ido bemondas gyakorisaga,
+elso akku-figyelmeztetes szintje.
+
+REJTETT SZAMOK - KULON KAPCSOLO
+
+Eddig a modba volt beleszove: "Mindent Fogad" modban is tiltva voltak, es
+NEM VOLT olyan allapot, amiben egy rejtett hivas atjott volna. A mod sajat
+szovege igy hangzott: "Mindent fogad. Rejtett es ismeretlen szamok
+tiltva." - onmagaval vitatkozott. Most kulon kapcsolo, a modtol
+fuggetlenul. Alapbol tiltva marad, mert eddig is ugy mukodott.
+
+FEHERLISTA ES FEKETELISTA - VEGRE VAN HOZZA UT
+
+A logika regota keszen volt (a feherlista meg a Teljes Ne Zavarjot is
+felulirja), de a FEHERLISTARA SEHOGY NEM LEHETETT FELVENNI SENKIT, a
+feketelistarol pedig levenni. Uj: Hivasok -> Hivasszuro -> Feherlista /
+Feketelista, es a hivasnaplo muveletei kozt "Feherlistara".
+
+SZURT HIVASOK
+
+Eddig semmi nem jegyezte fel, kit szurt ki a program. Uj naplo: szam,
+idopont, es az OK (feketelistas / rejtett szam / Ne Zavarj / ismeretlen) -
+az okot csak mi tudjuk, a rendszer naplojaban nem latszik. 30 napig orzi.
+
+Uj menupont: Hivasok -> Szurt hivasok. Egy tetelen: visszahivas,
+feherlistara, feketelistara vagy le rola, torles, osszes torlese.
+
+Bemondas: soha / csak a helyzetjelentesben / mindig. Alapbol a kozeput:
+nema marad, de a helyzetjelentes megmondja, hany hivast szurt aznap -
+ejjel senkit nem ebresztunk fel egy kiszurt reklamhivassal.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
