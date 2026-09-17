@@ -1038,6 +1038,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, -1)
             is AppFlow.ReminderList -> navigateReminderList(flow, -1)
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, -1)
+            is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
+            is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
@@ -1262,6 +1264,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, +1)
             is AppFlow.ReminderList -> navigateReminderList(flow, +1)
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, +1)
+            is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
+            is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.MediaLabelRecording ->
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
@@ -1517,6 +1521,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderDelayChoice -> onReminderDelayActivate(flow)
             is AppFlow.ReminderList -> enterReminderContext(flow)
             is AppFlow.ReminderContextMenu -> onReminderContextActivate(flow)
+            is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
+            is AppFlow.HistoryWipeConfirm -> performHistoryWipe(flow)
             is AppFlow.MediaLabelRecording -> stopAndSaveMediaLabel(flow)
             AppFlow.HomeTrainConfirm -> finishHomeTrain()
             is AppFlow.SmsInbox -> enterSmsContextMenu(flow)
@@ -2212,6 +2218,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> returnToReminderList(flow.kind, flow.itemIndex)
             is AppFlow.ReminderList -> exitFlow("Lista bezárva.")
             is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
+            is AppFlow.HistoryLimitChoice -> exitFlow("Marad, ami volt.")
+            // A TÖRLÉS ELVETÉSE A KÖNNYŰ MOZDULAT. Ami visszavonhatatlan,
+            // ahhoz a nehezebb irány tartozzon.
+            is AppFlow.HistoryWipeConfirm -> exitFlow("Nem töröltem semmit.")
             is AppFlow.MediaLabelRecording -> cancelMediaLabelRecording(flow)
             is AppFlow.MediaBrowse -> {
                 com.superdl.launcher.gps.VoiceNoteRecorder.stopPlayback()
@@ -3506,6 +3516,10 @@ class MainActivity : AppCompatActivity() {
                 startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_CALL)
             MenuAction.PENDING_SMS_LIST ->
                 startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_SMS)
+            MenuAction.CALL_LOG_LIMIT -> startHistoryLimitFlow(calls = true)
+            MenuAction.SMS_LIMIT -> startHistoryLimitFlow(calls = false)
+            MenuAction.CALL_LOG_WIPE -> startHistoryWipeFlow(calls = true)
+            MenuAction.SMS_WIPE -> startHistoryWipeFlow(calls = false)
             MenuAction.FACE_CAMERA_QUALITY -> startCameraQualityFlow()
             MenuAction.GPS_ROUTE_RECORD -> startGpsRouteRecordFlow()
             MenuAction.GPS_ROUTE_STOP -> stopGpsRouteOrGuidanceFlow()
@@ -18901,6 +18915,135 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    // ==================== HÍVÁSNAPLÓ ÉS ÜZENETEK: HOSSZ, TÖRLÉS ====================
+    //
+    // MIÉRT: mind a kettő fixen húsz tételnél véget ért, és nem lehetett
+    // visszamenni régebbre. A lista némán állt meg a huszadiknál — a
+    // felhasználó nem tudhatta, hogy van még. A teljes törlésnek pedig
+    // egyáltalán nem volt helye a programban.
+
+    private fun startHistoryLimitFlow(calls: Boolean) {
+        val options = com.superdl.launcher.history.HistoryPrefs.CHOICES
+        val current = if (calls) {
+            com.superdl.launcher.history.HistoryPrefs.callLimit(this)
+        } else {
+            com.superdl.launcher.history.HistoryPrefs.smsLimit(this)
+        }
+        // A JELENLEGI ÉRTÉKRŐL INDULUNK. Aki beállítást nyit, tudni akarja,
+        // hol tart most — nem a lista elejére akar esni.
+        val index = options.indexOf(current).coerceAtLeast(0)
+        activeFlow = AppFlow.HistoryLimitChoice(calls, options, index)
+        updateFlowDisplay()
+        val mi = if (calls) "A hívásnapló" else "Az üzenetlista"
+        tts.speak(
+            "$mi hossza. Most: ${com.superdl.launcher.history.HistoryPrefs.label(current)}. " +
+                com.superdl.launcher.history.HistoryPrefs.label(options[index])
+        )
+    }
+
+    private fun navigateHistoryLimit(flow: AppFlow.HistoryLimitChoice, delta: Int) {
+        val next = (flow.index + delta + flow.options.size) % flow.options.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(com.superdl.launcher.history.HistoryPrefs.label(flow.options[next]))
+    }
+
+    private fun onHistoryLimitActivate(flow: AppFlow.HistoryLimitChoice) {
+        val value = flow.options[flow.index]
+        if (flow.calls) {
+            com.superdl.launcher.history.HistoryPrefs.setCallLimit(this, value)
+        } else {
+            com.superdl.launcher.history.HistoryPrefs.setSmsLimit(this, value)
+        }
+        feedbackSuccess()
+        val mi = if (flow.calls) "A hívásnapló" else "Az üzenetlista"
+        // A „MIND" NEM VÉGTELEN, és ezt ki kell mondani. Egy csendes felső
+        // korlát azt jelentené, hogy a felhasználó azt hiszi, mindent lát.
+        val megjegyzes = if (value <= 0) " Legfeljebb ötszázat mutatok." else ""
+        exitFlow(
+            "$mi mostantól: ${com.superdl.launcher.history.HistoryPrefs.label(value)}.$megjegyzes"
+        )
+    }
+
+    // ── A TELJES TÖRLÉS ──────────────────────────────────────────────────
+
+    private fun startHistoryWipeFlow(calls: Boolean) {
+        // AZ ÜZENETEKNÉL ELŐBB A VALÓSÁG: ha nem mi vagyunk az alapértelmezett
+        // üzenet alkalmazás, a rendszer NEM enged törölni — és nem is szól
+        // róla, csak nem történik semmi. Ezt előre meg kell mondani, különben
+        // a felhasználó azt hinné, hogy törölt.
+        if (!calls && !com.superdl.launcher.history.HistoryWipe.canDeleteMessages(this)) {
+            feedbackError()
+            tts.speak(
+                "Üzenetet csak az alapértelmezett üzenet alkalmazás törölhet, és most " +
+                    "nem a Super DL az. Az SMS beállítások között beállíthatod, " +
+                    "utána menni fog."
+            )
+            return
+        }
+        val count = if (calls) {
+            com.superdl.launcher.history.HistoryWipe.countCalls(this)
+        } else {
+            com.superdl.launcher.history.HistoryWipe.countMessages(this)
+        }
+        if (count == 0) {
+            tts.speak(if (calls) "A hívásnapló már üres." else "Nincs törölhető üzenet.")
+            return
+        }
+        activeFlow = AppFlow.HistoryWipeConfirm(calls, count)
+        updateFlowDisplay()
+        repeatHistoryWipeConfirm(activeFlow as AppFlow.HistoryWipeConfirm)
+    }
+
+    /**
+     * A KÉRDÉS, AMI MEGÁLLÍT.
+     *
+     * A darabszám benne van, mert az sokkal jobban megállítja az embert, mint
+     * egy általános „biztos vagy benne". És kimondjuk, hogy nem vonható
+     * vissza — vakon egy elsöpört mozdulat is elindíthatná.
+     */
+    private fun repeatHistoryWipeConfirm(flow: AppFlow.HistoryWipeConfirm) {
+        val mit = if (flow.calls) {
+            if (flow.count < 0) "a teljes hívásnaplót" else "mind a ${flow.count} hívást"
+        } else {
+            if (flow.count < 0) "az összes üzenetet" else "mind a ${flow.count} üzenetet"
+        }
+        tts.speak(
+            "Biztosan törlöd $mit? Ez NEM vonható vissza. " +
+                "Jobbra: törlés. Balra: mégse."
+        )
+    }
+
+    private fun performHistoryWipe(flow: AppFlow.HistoryWipeConfirm) {
+        val maradt = if (flow.calls) {
+            com.superdl.launcher.history.HistoryWipe.wipeCalls(this)
+        } else {
+            com.superdl.launcher.history.HistoryWipe.wipeMessages(this)
+        }
+        val mi = if (flow.calls) "hívásnapló" else "üzenetek"
+        when {
+            // A NÉMA KUDARC A LEGROSSZABB: a rendszer nem dob hibát, ha nem
+            // volt jogunk törölni — csak nulla sort töröl. Ezért utána
+            // megszámoljuk, és megmondjuk az igazat.
+            maradt == 0 -> {
+                feedbackSuccess()
+                exitFlow("Kész, a $mi kiürült.")
+            }
+            maradt < 0 -> {
+                feedbackError()
+                exitFlow("Nem tudom megállapítani, sikerült-e a törlés.", error = true)
+            }
+            else -> {
+                feedbackError()
+                exitFlow(
+                    "A törlés nem sikerült, $maradt tétel maradt. " +
+                        "Ehhez a rendszer külön engedélye kell.",
+                    error = true
+                )
+            }
+        }
+    }
+
     // ==================== SZÖVEGTÁR / SABLONOK ====================
     //
     // MIÉRT VAN EGYÁLTALÁN: egy e-mail címet, egy számlaszámot vagy egy adószámot
@@ -21479,6 +21622,18 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.actions[flow.index].label
                 tvPosition.text = "Műveletek  •  ${flow.index + 1} / ${flow.actions.size}"
                 tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
+            }
+            is AppFlow.HistoryLimitChoice -> {
+                tvItem.text = com.superdl.launcher.history.HistoryPrefs
+                    .label(flow.options[flow.index])
+                tvPosition.text = (if (flow.calls) "Hívásnapló" else "Üzenetek") +
+                    "  •  mennyit mutasson"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ beállítás  •  ⬅ mégse"
+            }
+            is AppFlow.HistoryWipeConfirm -> {
+                tvItem.text = if (flow.calls) "Teljes hívásnapló törlése" else "Összes üzenet törlése"
+                tvPosition.text = "${flow.count} tétel  •  NEM vonható vissza"
+                tvHint.text = "➡ törlés  •  ⬅ mégse"
             }
             AppFlow.HomeTrainConfirm -> {
                 tvItem.text = "Otthon betanítása"

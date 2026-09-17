@@ -5,7 +5,18 @@ import android.provider.CallLog
 
 object CallLogHelper {
 
-    fun getRecentCalls(context: Context, limit: Int = 20): List<CallLogEntry> {
+    /**
+     * A hívások, legfrissebbtől visszafelé.
+     *
+     * A DARABSZÁM A BEÁLLÍTÁSBÓL JÖN. Eddig fixen húsz volt, és nem lehetett
+     * visszamenni régebbre — a huszadik után a lista némán véget ért, anélkül
+     * hogy jelezte volna, hogy van még. A „Hívásnapló beállítások" pontban
+     * állítható.
+     */
+    fun getRecentCalls(
+        context: Context,
+        limit: Int = com.superdl.launcher.history.HistoryPrefs.callQueryLimit(context)
+    ): List<CallLogEntry> {
         val entries = mutableListOf<CallLogEntry>()
         context.contentResolver.query(
             CallLog.Calls.CONTENT_URI,

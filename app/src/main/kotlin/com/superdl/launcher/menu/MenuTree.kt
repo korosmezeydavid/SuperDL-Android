@@ -331,6 +331,10 @@ enum class MenuAction {
     MEDIA_BROWSE,              // Felvételeim — saját képek és videók hangcímkével
     CALLBACK_LIST,             // Visszahívandók (emlékeztetők a hívásnaplóból)
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
+    CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
+    CALL_LOG_WIPE,             // Teljes hívásnapló törlése
+    SMS_LIMIT,                 // Üzenetek: hány tételt mutasson
+    SMS_WIPE,                  // Összes üzenet törlése (bejövő és kimenő)
     FACE_CAMERA_QUALITY,       // Kamera minőség beállítás
     GPS_ROUTE_RECORD,          // GPS útvonal rögzítése
     GPS_ROUTE_STOP,            // GPS útvonal rögzítés / útmutatás leállítása
@@ -573,6 +577,16 @@ object MenuTree {
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),
             MenuItem("fav_delete", "Kedvenc törlése", MenuAction.FAVORITES_DELETE),
             MenuItem("contact_create", "Új névjegy létrehozása", MenuAction.CONTACT_CREATE),
+            // HÍVÁSNAPLÓ BEÁLLÍTÁSOK — mennyit mutasson, és a teljes törlés.
+            //
+            // A lista eddig fixen húsz hívásnál véget ért, és nem lehetett
+            // visszamenni régebbre. A törlésnek pedig egyáltalán nem volt
+            // helye a programban.
+            MenuItem("call_log_settings", "Hívásnapló beállítások", MenuAction.SUBMENU, listOf(
+                MenuItem("call_log_limit", "Mennyit mutasson", MenuAction.CALL_LOG_LIMIT),
+                MenuItem("call_log_wipe", "Teljes hívásnapló törlése", MenuAction.CALL_LOG_WIPE),
+                MenuItem("call_log_settings_back", "Vissza", MenuAction.SUBMENU)
+            )),
             MenuItem("contact_settings", "Névjegyzék beállítások", MenuAction.SUBMENU, listOf(
                 MenuItem("contact_ui_status", "Jelenlegi beállítások", MenuAction.CONTACT_UI_STATUS),
                 MenuItem("contact_ui_letter", "Betűindex ki és be", MenuAction.CONTACT_UI_LETTER_TOGGLE),
@@ -612,6 +626,8 @@ object MenuTree {
                 // között; nem az ébresztők közé keverve.
                 MenuItem("sms_pending", "Függő üzeneteim", MenuAction.PENDING_SMS_LIST),
                 MenuItem("sms_settings_sub", "SMS beállítások", MenuAction.SUBMENU, listOf(
+                    MenuItem("sms_limit", "Mennyit mutasson", MenuAction.SMS_LIMIT),
+                    MenuItem("sms_wipe", "Összes üzenet törlése", MenuAction.SMS_WIPE),
                     MenuItem("sms_default_setup", "Alapértelmezett üzenet app beállítása", MenuAction.SMS_DEFAULT_SETUP),
                     MenuItem("sms_default_status", "Üzenet app állapota", MenuAction.SMS_DEFAULT_STATUS),
                     MenuItem("sms_settings_back", "Vissza", MenuAction.SUBMENU)

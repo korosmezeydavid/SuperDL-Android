@@ -257,10 +257,14 @@ object SmsHelper {
         serviceCenter = serviceCenter
     )
 
+    /**
+     * A DARABSZÁM A BEÁLLÍTÁSBÓL JÖN. Eddig fixen húsz volt, és nem lehetett
+     * visszamenni régebbre. Az „SMS beállítások" alatt állítható.
+     */
     fun getRecentMessages(
         context: Context,
         folder: SmsFolder = SmsFolder.INBOX,
-        limit: Int = 20
+        limit: Int = com.superdl.launcher.history.HistoryPrefs.smsQueryLimit(context)
     ): List<SmsMessage> {
         if (!hasReadPermission(context)) {
             Log.w(TAG, "READ_SMS engedély hiányzik – üzenetek nem olvashatók.")

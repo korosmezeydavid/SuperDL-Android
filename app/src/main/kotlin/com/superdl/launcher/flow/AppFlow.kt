@@ -988,6 +988,29 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    /**
+     * MENNYIT MUTASSON — a hívásnapló, illetve az üzenetlista hossza.
+     *
+     * A `calls` mondja meg, melyikről van szó: igaz a hívásnaplónál.
+     */
+    data class HistoryLimitChoice(
+        val calls: Boolean,
+        val options: List<Int>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * A TELJES TÖRLÉS MÁSODIK KÉRDÉSE.
+     *
+     * MIÉRT KETTŐ: ez visszavonhatatlan, és vakon egy elsöpört mozdulat is
+     * elindíthatná. A második kérdés kimondja a DARABSZÁMOT is — egy szám
+     * sokkal jobban megállítja az embert, mint egy általános kérdés.
+     */
+    data class HistoryWipeConfirm(
+        val calls: Boolean,
+        val count: Int
+    ) : AppFlow()
+
     /** Egy emlékeztető művelet-menüje (hívás, új időpont, időzített SMS, törlés). */
     data class ReminderContextMenu(
         val kind: String,
