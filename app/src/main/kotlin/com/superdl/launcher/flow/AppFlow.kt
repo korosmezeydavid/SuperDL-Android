@@ -1025,21 +1025,15 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
-    /**
-     * KÉT ÁLLÁSÚ KAPCSOLÓ HELYI MENÜJE.
-     *
-     * Eddig egyetlen jobbra söprés azonnal átbillentette a kapcsolót. Aki nem
-     * látja a képernyőt, annak nem volt hol megállni: mire meghallotta, mi
-     * volt, már meg is változott. Itt a menü a MOSTANI ELLENTÉTÉN nyílik —
-     * elsőre azt hallod, mi FOG történni —, és csak a következő jobbra
-     * söprés lépteti életbe.
-     */
-    data class ToggleChoiceBrowse(
-        val item: com.superdl.launcher.menu.MenuItem,
-        val title: String,
-        val labels: List<String>,
-        val index: Int
-    ) : AppFlow()
+    // A KÉT ÁLLÁSÚ KAPCSOLÓK MENÜJE KIKERÜLT (2026-09-18).
+    //
+    // Egy napig itt volt egy ToggleChoiceBrowse képernyő: a kapcsolón a
+    // jobbra söprés menüt nyitott, és egy újabb jobbra hagyta jóvá. Alph
+    // kipróbálta és elvetette — egy zseblámpához két mozdulat sok.
+    //
+    // A kapcsolók azonnal átkapcsolnak, viszont BEMONDJÁK az állapotukat:
+    // a menüpontra lépve a jelenlegit, átkapcsolás után az újat. A
+    // nyilvántartás (settings/ToggleChoice.kt) ezért maradt meg.
 
     /** Fehérlista vagy feketelista böngészése. */
     data class PhoneListBrowse(

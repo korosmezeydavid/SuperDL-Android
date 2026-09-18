@@ -1,0 +1,39 @@
+1.73.0 - a telepito osszeomlott az ikon miatt; a kapcsolok visszakaptak az azonnali atkapcsolast
+
+1) A TELEPITO OSSZEOMLASA - EZ VOLT A SULYOS
+Egy tesztelo telefonjan a csomagtelepito halt meg, nem a SuperDL:
+  Process: com.google.android.packageinstaller
+  IllegalArgumentException: width and height must be > 0
+  at PackageUtil$AppSnippet.getBitmapFromDrawable(...)
+
+Ok: az alkalmazas ikonja egy MERET NELKULI shape drawable volt
+(res/drawable/ic_launcher.xml - egy sotet lekerekitett negyszog).
+Az ilyen alakzat intrinsic merete -1. A telepito az APK ikonjabol
+elonezeti kepet keszit, es Bitmap.createBitmap(-1, -1)-et hiv - ezert
+hal meg. A telepites igy el sem indul; adb-vel viszont megy, mert ott
+nincs elonezeti kep. Ez MINDEN tesztelot es minden Hercules-letoltot
+erintett volna.
+
+Javitas: igazi PNG ikonok mind az ot suruseghez (48-192), kerek
+valtozattal egyutt, a manifest @mipmap/ic_launcher +
+android:roundIcon. A regi shape drawable torolve. Bitmapnek mindig van
+valodi merete, tehat ez a hiba nem terhet vissza.
+Mellekhatas: az ikon eddig gyakorlatilag fekete volt - most sotetkek
+alapon borostyan hanghullamok.
+
+2) A KET ALLASU KAPCSOLOK VISSZAKAPTAK AZ AZONNALI ATKAPCSOLAST
+Az 1.72.0 helyi menut tett minden kapcsolora (jobbra = megnyitom, meg
+egy jobbra = jovahagyom). Alph kiprobalta es elvetette: egy
+zseblampahoz vagy WiFihez ket mozdulat sok.
+
+Helyette: a kapcsolo MEGMONDJA, hol all. A menupontra lepve elhangzik
+a jelenlegi allapot - mostantol mind a 31 kapcsolora, nem csak 13-ra -,
+atkapcsolas utan pedig az uj. Az otthon-figyeles modja ELES / PROBA
+neven szolal meg, nem "be" es "ki".
+
+A TOBB allasu beallitasok (hivasszuro modja, hangero, idokoz)
+tovabbra is valasztoval mennek: ott a korbeforgatas valodi kart
+okozott, mert minden koztes allas azonnal eletbe lepett.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

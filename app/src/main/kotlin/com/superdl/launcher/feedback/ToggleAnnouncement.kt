@@ -40,12 +40,37 @@ object ToggleAnnouncement {
         MenuAction.FLASHLIGHT to ToggleSpec("Zseblámpa") { FlashlightState.isOn }
     )
 
-    fun isToggle(action: MenuAction): Boolean = action in specs
+    /**
+     * A KAPCSOLÓ MEGMONDJA, HOL ÁLL — MIND A 31.
+     *
+     * Alph kérése (2026-09-18): a kapcsolók maradjanak azonnaliak, DE mondják
+     * be az állapotukat. Aki nem látja a képernyőt, annak ez az egyetlen módja
+     * megtudni, hogy amire rásöpör, az most be- vagy kikapcsol.
+     *
+     * A lista alapja a settings/ToggleChoice nyilvántartás (31 kapcsoló); az
+     * itteni `specs` csak azokat írja fölül, ahol más szöveg kell.
+     */
+    private fun stateOf(context: Context, action: MenuAction): Pair<String, Boolean>? {
+        specs[action]?.let { spec ->
+            return spec.label to runCatching { spec.isEnabled(context) }.getOrDefault(false)
+        }
+        val generic = com.superdl.launcher.settings.ToggleChoice.specFor(action) ?: return null
+        return generic.title to runCatching { generic.isOn(context) }.getOrDefault(false)
+    }
+
+    fun isToggle(action: MenuAction): Boolean =
+        action in specs || com.superdl.launcher.settings.ToggleChoice.specFor(action) != null
 
     fun speakFocused(context: Context, itemLabel: String, action: MenuAction): String {
-        val spec = specs[action] ?: return itemLabel
-        val state = runCatching { spec.isEnabled(context) }.getOrDefault(false)
-        return "$itemLabel. ${speakFocusedState(spec.label, state)}"
+        val (label, state) = stateOf(context, action) ?: return itemLabel
+        // AZ OTTHON-FIGYELÉS MÓDJA nem „be" és „ki", hanem ÉLES vagy PRÓBA.
+        // Egy „bekapcsolva" itt félrevezetne: az éles mód tényleg SMS-t küld.
+        val generic = com.superdl.launcher.settings.ToggleChoice.specFor(action)
+        if (generic != null && generic.onState != "bekapcsolva") {
+            val word = com.superdl.launcher.settings.ToggleChoice.stateWord(generic, state)
+            return "$itemLabel. $label jelenleg ${word.uppercase()}."
+        }
+        return "$itemLabel. ${speakFocusedState(label, state)}"
     }
 
     fun speakFocusedState(label: String, enabled: Boolean): String =
