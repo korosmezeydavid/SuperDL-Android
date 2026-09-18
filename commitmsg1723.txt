@@ -1,0 +1,16 @@
+1.72.3 - a muveletsor elakadasa bekerul a hibajelentesbe
+
+A muveletsor szandekosan megall, ha nem azt talalja a kepernyon, amit
+var - es ki is mondja, hol tart ("Megalltam a 3. lepesnel. Nem talalom
+ezt: ..."). Csakhogy ezt csak az hallja, aki eppen ott van. Mire
+hibajelentes keszul, a mondat elszallt, es a jelentesben nyoma sincs:
+se osszeomlas, se hiba - pontosan ugy, ahogy az Elena figyelonel.
+
+Mostantol a stopRoute elmenti, MELYIK muveletsor, HANYADIK lepesnel es
+MIERT allt meg, es a hibajelentesben megjelenik:
+  Muveletsor legutobbi elakadasa: <ido> — <nev>, <n>. lepes — <ok>
+
+Ez nem javitas, hanem az, ami nelkul a javitas talalgatas lenne.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

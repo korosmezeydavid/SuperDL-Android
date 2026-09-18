@@ -81,6 +81,12 @@ object BugReport {
         com.superdl.launcher.assistant.ElenaWakeStore.lastSelfStop(context)?.let { stop ->
             appendLine("  Elena figyelés önkikapcsolása: $stop")
         }
+        // A MŰVELETSOR IS MEGÁLLHAT MAGÁTÓL — és ki is mondja, hol. Csakhogy
+        // a mondat elszáll: mire jelentés készül, senki nem tudja megmondani,
+        // melyik lépésnél akadt el. Innentől a jelentés tudja.
+        com.superdl.launcher.macro.TaskRouteStore.lastStop(context)?.let { stop ->
+            appendLine("  Műveletsor legutóbbi elakadása: $stop")
+        }
         appendLine()
 
         val crash = crashLogTail(context)

@@ -1536,6 +1536,13 @@ class ScreenReaderService : AccessibilityService() {
     }
 
     fun stopRoute(reason: String) {
+        // A HIBAJELENTÉS LÁSSA, HOL AKADT EL. A kimondott mondat elszáll;
+        // mire jelentés készül, senki nem tudja megmondani, hol állt meg.
+        playingRoute?.let { r ->
+            runCatching {
+                com.superdl.launcher.macro.TaskRouteStore.noteStop(this, r.name, playIndex, reason)
+            }
+        }
         playingRoute = null
         routeAwaitingYes = false
         handler.removeCallbacks(routeRunner)

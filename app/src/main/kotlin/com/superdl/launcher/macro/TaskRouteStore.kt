@@ -16,9 +16,39 @@ object TaskRouteStore {
     private const val PREFS = "superdl_task_routes"
     private const val KEY_ROUTES = "routes_json"
     private const val KEY_RECORDING = "recording"
+    private const val KEY_LAST_STOP = "last_stop"
+    private const val KEY_LAST_STOP_AT = "last_stop_at"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    // ── HOL AKADT EL LEGUTÓBB ──────────────────────────────────────────────
+    //
+    // MIÉRT KELL (Alph, 2026-09-18): a műveletsor szándékosan megáll, ha nem
+    // azt találja a képernyőn, amit vár — és ki is mondja, hol tart. DE ezt
+    // csak az hallja, aki épp ott van. Mire hibajelentés készül, a mondat
+    // elszállt, és a jelentésben nyoma sincs: se összeomlás, se hiba.
+    //
+    // Ugyanaz a tanulság, mint az Elena figyelőnél: amit a program magától
+    // abbahagy, azt le is kell írnia.
+
+    fun noteStop(context: Context, routeName: String, stepIndex: Int, reason: String) {
+        prefs(context).edit()
+            .putString(KEY_LAST_STOP, "$routeName, ${stepIndex + 1}. lépés — $reason")
+            .putLong(KEY_LAST_STOP_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** A legutóbbi elakadás leírása, vagy null, ha még nem volt ilyen. */
+    fun lastStop(context: Context): String? {
+        val p = prefs(context)
+        val reason = p.getString(KEY_LAST_STOP, null)?.takeIf { it.isNotBlank() } ?: return null
+        val at = p.getLong(KEY_LAST_STOP_AT, 0L)
+        if (at <= 0L) return reason
+        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(at))
+        return "$stamp — $reason"
+    }
 
     // ── FELVÉTEL ───────────────────────────────────────────────────────────
 
