@@ -452,7 +452,29 @@ class TtsManager(
             runWhenReady { speak(text, role) }
             return
         }
+        // EGY FÜGGŐ MŰVELETET NEM EJTÜNK EL.
+        //
+        // EZ VOLT A BAJ (Alph, 2026-09-18): néhány művelet a beszéd VÉGÉHEZ
+        // van kötve — például a hangcímke felvétele. Előbb elhangzik, hogy
+        // „Mondd be, mi ez", és csak UTÁNA indul a mikrofon, hogy a program
+        // saját mondata ne kerüljön rá a címkére.
+        //
+        // Ez a sor viszont eldobta a függő műveletet, ha közben BÁRMI más
+        // megszólalt: egy értesítés bemondása, az óra, egy akkumulátor-
+        // figyelmeztetés, az őrjárat. Onnantól a felvétel SOHA nem indult el,
+        // és a program semmit nem mondott róla. A felhasználó annyit látott,
+        // hogy rásöpör a műveletre, és nem történik semmi — és azt sem
+        // tudhatta, mitől függ, hiszen attól függött, szólt-e közben más.
+        //
+        // Mostantól a mondata elmarad, de a MŰVELETE lefut. Ugyanaz az elv,
+        // amit a speakThen már követ.
+        val pending = onUtteranceDone
         onUtteranceDone = null
+        if (pending != null) {
+            doneWatchdog?.let { handler.removeCallbacks(it) }
+            doneWatchdog = null
+            handler.post(pending)
+        }
         val prepared = PronunciationDictionary.apply(appContext, orient(text))
         // MÁSODIK MOTOR: ha a felhasználó kért ilyet, a program saját
         // üzenetei azon szólnak. Ha nem sikerül, a szokásos úton megy tovább.

@@ -1,0 +1,30 @@
+1.72.2 - a beszedhez kotott muveletek nema elvesztese
+
+A HIBA
+Nehany muvelet a beszed VEGEHEZ van kotve. A hangcimke felvetelenel ez
+szandekos: eloszor elhangzik, hogy "Mondd be, mi ez", es csak UTANA
+indul a mikrofon, hogy a program sajat mondata ne keruljon ra a
+cimkere.
+
+A TtsManager.speak() viszont ELDOBTA ezt a fuggo muveletet: egyetlen
+sor (onUtteranceDone = null), es ha kozben barmi mas megszolalt - egy
+ertesites bemondasa, az ora, egy akkumulator-figyelmeztetes, az
+orjarat -, a visszahivas eltunt. Onnantol a felvetel SOHA nem indult
+el, es a program semmit nem mondott rola.
+
+A felhasznalo ezt latta: a Felveteleim muvelet-menujeben (harom sor:
+hangcimke felvetele, megosztas, vissza) rasopor a muveletre, es nem
+tortenik semmi. Es azt sem tudhatta, mitol fugg - hiszen attol
+fuggott, szolt-e kozben mas. Azert lett "mostanaban" gyakoribb, mert
+az 1.70-1.72 tobb bemondast hozott.
+
+JAVITAS
+A speak() mostantol nem dobja el a fuggo muveletet: a mondata elmarad,
+de a MUVELETE lefut. Ugyanaz az elv, amit a speakThen mar kovetett.
+A biztonsagi idokorlatot is elvesszuk, hogy ne suljon el ketszer.
+
+A stop() szandekosan tovabb is eldobja: ott a felhasznalo eppen
+felbeszakitott valamit, azt nem szabad utolag vegrehajtani.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
