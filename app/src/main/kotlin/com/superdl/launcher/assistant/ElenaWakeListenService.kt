@@ -131,6 +131,30 @@ class ElenaWakeListenService : Service() {
             onError = { errorCode ->
                 if (!isListenCycleActive(generation)) return@listenPromptWakeWord
 
+                // A CSEND NEM HIBA.
+                //
+                // EZ VOLT A BAJ (Alph, 2026-09-18): a figyelő másodpercenként
+                // újraindul, és ha közben senki nem szól, a felismerő
+                // „nem értettem" vagy „lejárt az idő" jelzést ad. Ez a
+                // NORMÁLIS eset — épp azt jelenti, hogy csend van.
+                //
+                // Ezt eddig hibának számoltuk. Nyolc csendes kör — vagyis
+                // körülbelül egy perc — után a program „tartós hibát"
+                // állapított meg, kikapcsolta magát, és be is mondta, hogy
+                // leállt. Vagyis a figyelés SOSEM működött tovább egy percnél,
+                // hacsak addig nem szóltál hozzá. Pontosan ezt látta a
+                // felhasználó: bekapcsolom, és nem működik.
+                //
+                // Mostantól a csend nullázza a hibaszámlálót, és a figyelő
+                // rögtön újra hallgat.
+                if (errorCode == SpeechRecognizer.ERROR_NO_MATCH ||
+                    errorCode == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                ) {
+                    consecutiveErrors = 0
+                    scheduleListen(LISTEN_CYCLE_MS)
+                    return@listenPromptWakeWord
+                }
+
                 // ISMÉTLŐDŐ HIBA ELLENI VÉDELEM.
                 //
                 // MIÉRT KELL: az ébresztőszó-figyelő FOLYAMATOSAN hallgat, és
@@ -149,6 +173,12 @@ class ElenaWakeListenService : Service() {
                         "ebresztoszo-figyeles LEALL: $consecutiveErrors egymas utani hiba"
                     )
                     ElenaWakeStore.setListenEnabled(this@ElenaWakeListenService, false)
+                    // A HIBAJELENTÉS LÁSSA, MIÉRT ÁLLT LE.
+                    ElenaWakeStore.noteSelfStop(
+                        this@ElenaWakeListenService,
+                        "a figyelés magától leállt $consecutiveErrors egymás utáni " +
+                            "felismerő-hiba után (utolsó hibakód: $errorCode)"
+                    )
                     com.superdl.launcher.patrol.PatrolAnnouncer.announce(
                         this@ElenaWakeListenService,
                         "Az Elena hívószó figyelése leállt, mert többször hibába futott. " +

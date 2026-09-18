@@ -1,0 +1,31 @@
+1.72.1 - az Elena figyelo egy perc utan kikapcsolta magat
+
+A HIBA
+Az ebresztoszo-figyelo masodpercenkent ujraindul. Ha kozben senki nem
+szol, a felismero "nem ertettem" vagy "lejart az ido" jelzest ad - ez
+a NORMALIS eset, eppen azt jelenti, hogy csend van.
+
+Ezt a program hibanak szamolta. Nyolc csendes kor - novekvo
+varakozassal korulbelul egy perc - utan "tartos hibat" allapitott meg,
+kikapcsolta magat, es be is mondta, hogy leallt. Vagyis a figyeles
+sosem mukodott tovabb egy percnel, hacsak addig nem szoltal hozza.
+Pontosan ezt latta a felhasznalo: bekapcsolom, es nem mukodik.
+
+JAVITAS
+- A csend (NO_MATCH, SPEECH_TIMEOUT) nem szamit hibanak: nullazza a
+  hibaszamlalot, es a figyelo rogton ujra hallgat. A hibaszamlalo tovabb
+  is vedi az akkumulatort, de csak IGAZI hibaknal (mikrofon, halozat,
+  foglalt felismero).
+- Az ebresztoszohoz mostantol a telefonban futo felismerot kerjuk
+  (EXTRA_PREFER_OFFLINE). Igy halozat nelkul is mukodik, es a suru
+  kereseket nem utasitja el a rendszer. A diktalas es az asszisztens
+  kerdes marad online, mert ott hosszu, szabad szoveg jon.
+
+MIERT NEM LATSZOTT A NAPLOBAN
+A figyelo csendben leallitotta magat: minden engedely megvolt,
+osszeomlas nem tortent, a naplo tiszta volt. Amit a program magatol
+tesz, azt le is kell irnia - mostantol a hibajelentesben szerepel az
+Elena figyeles allapota es a legutobbi onkikapcsolas oka.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

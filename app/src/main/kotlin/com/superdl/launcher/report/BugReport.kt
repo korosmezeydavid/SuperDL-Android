@@ -64,6 +64,23 @@ object BugReport {
         appendLine("  beszéd hangcsatornája: ${speechChannel(context)}")
         appendLine("  biztonságos mód: ${safeMode()}")
         appendLine("  elszigetelt háttérhibák: ${backgroundFailures(context)}")
+        // AMIT A PROGRAM MAGÁTÓL KIKAPCSOLT, AZ IS TARTOZIK A JELENTÉSBE.
+        //
+        // A 2026-09-18-i eset: az Elena figyelője csendben leállította magát,
+        // és a jelentésben ennek nyoma sem volt — minden engedély megvolt,
+        // összeomlás nem történt, a napló tiszta volt. A hiba EGY HETET is
+        // elvihetett volna így.
+        appendLine(
+            "  Elena figyelés: " +
+                if (com.superdl.launcher.assistant.ElenaWakeStore.isListenEnabled(context)) {
+                    "bekapcsolva"
+                } else {
+                    "kikapcsolva"
+                }
+        )
+        com.superdl.launcher.assistant.ElenaWakeStore.lastSelfStop(context)?.let { stop ->
+            appendLine("  Elena figyelés önkikapcsolása: $stop")
+        }
         appendLine()
 
         val crash = crashLogTail(context)

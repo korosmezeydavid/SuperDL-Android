@@ -160,7 +160,21 @@ class VoiceInput(context: Context) {
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, minimumMs)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+                // AZ ÉBRESZTŐSZÓ-FIGYELŐ HELYBEN HALLGAT, NEM A HÁLÓZATON.
+                //
+                // Ez a figyelés FOLYAMATOSAN fut, másodpercenként újraindul.
+                // Online felismerővel két baja lett volna: hálózat nélkül
+                // egyáltalán nem működik, hálózattal pedig a rendszer
+                // felismerője pár tucat kör után elutasítja a sűrű kéréseket.
+                // A felébresztő mondat rövid és előre ismert — ehhez a
+                // telefonban futó felismerő elég.
+                //
+                // A többi helyen (diktálás, asszisztens kérdés) marad az
+                // online felismerés, mert ott hosszú, szabad szöveg jön.
+                putExtra(
+                    RecognizerIntent.EXTRA_PREFER_OFFLINE,
+                    profile == ListenProfile.WAKE_WORD
+                )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, recognizerContext.packageName)

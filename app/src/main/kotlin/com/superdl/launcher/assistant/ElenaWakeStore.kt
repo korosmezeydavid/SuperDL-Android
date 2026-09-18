@@ -17,6 +17,8 @@ object ElenaWakeStore {
 
     private const val PREFS = "elena_wake_prefs"
     private const val KEY_LISTEN_ENABLED = "listen_enabled"
+    private const val KEY_LAST_STOP = "last_stop_reason"
+    private const val KEY_LAST_STOP_AT = "last_stop_at"
     private const val KEY_CUSTOM_PHRASES = "custom_phrases"
     private const val SCHEMA_VERSION_KEY = "schema_version"
     private const val CURRENT_SCHEMA = 1
@@ -33,6 +35,35 @@ object ElenaWakeStore {
             .edit()
             .putBoolean(KEY_LISTEN_ENABLED, enabled)
             .apply()
+    }
+
+    /**
+     * MIÉRT ÁLLT LE MAGÁTÓL A FIGYELÉS.
+     *
+     * A 2026-09-18-i hiba azért volt nehezen megfogható, mert a figyelő
+     * kikapcsolta magát, és a hibajelentésben ennek NYOMA SEM VOLT: minden
+     * engedély megvolt, összeomlás nem történt, a napló tiszta volt. Amit a
+     * program magától tesz, azt le is kell írnia, különben a jelentés nem
+     * jelentés.
+     */
+    fun noteSelfStop(context: Context, reason: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LAST_STOP, reason)
+            .putLong(KEY_LAST_STOP_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** A legutóbbi önkikapcsolás leírása, vagy null, ha még nem volt ilyen. */
+    fun lastSelfStop(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val reason = prefs.getString(KEY_LAST_STOP, null)?.takeIf { it.isNotBlank() }
+            ?: return null
+        val at = prefs.getLong(KEY_LAST_STOP_AT, 0L)
+        if (at <= 0L) return reason
+        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(at))
+        return "$stamp — $reason"
     }
 
     fun toggleListenEnabled(context: Context): Boolean {
