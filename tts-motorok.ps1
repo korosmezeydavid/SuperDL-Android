@@ -1,0 +1,5 @@
+$adb = "C:\Users\msn\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+"--- telepitett TTS motorok a telefonon ---"
+& $adb shell "pm list packages | grep -i -E 'tts|speech|rhvoice|profivox|espeak|vocalizer|acapela'"
+"--- alapertelmezett TTS motor ---"
+& $adb shell "settings get secure tts_default_synth"

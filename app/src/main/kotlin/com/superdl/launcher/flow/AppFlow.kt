@@ -1035,6 +1035,17 @@ sealed class AppFlow {
     // a menüpontra lépve a jelenlegit, átkapcsolás után az újat. A
     // nyilvántartás (settings/ToggleChoice.kt) ezért maradt meg.
 
+    /**
+     * A VARÁZSLÓ UTÁNI FELAJÁNLÁS: kipróbálod tanuló módban, vagy kezdjük?
+     *
+     * Egyszer, az első indítás legvégén jön elő. Nem kötelező — aki nemet
+     * mond, a menüből bármikor előveheti. A tanuló módok eddig is megvoltak,
+     * csak épp meg kellett találni őket.
+     */
+    data class FirstLessonChoice(
+        val index: Int
+    ) : AppFlow()
+
     /** Fehérlista vagy feketelista böngészése. */
     data class PhoneListBrowse(
         val white: Boolean,

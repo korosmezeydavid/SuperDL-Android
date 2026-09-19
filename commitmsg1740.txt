@@ -1,0 +1,34 @@
+1.74.0 - a varazslo vegen felajanlja a tanulo modot
+
+Alph es Tamas Balint otlete. A tanulo modok eddig is megvoltak - csak
+eppen a menu melyen. Aki most kapta elete elso androidos telefonjat, nem
+fogja atkutatni ertuk a keszuleket; azt sem tudja, hogy leteznek. Aki
+viszont mar belejott, annak egy kotelezo bemutato csak nyug.
+
+Ezert az elso inditas varazslojanak VEGEN, EGYSZER felajanljuk, es nem
+kotelezzuk ra senkit:
+
+  "Kesz a beallitas. Szeretned elobb kiprobalni a programot tanulo
+   modban, vagy vagjunk bele?"
+
+Negy sor, fel-le valogatas, jobbra inditas:
+  1. Tanulo mod: a funkciok kiprobalasa (TRAINING_PLAYGROUND)
+  2. Gesztus-orak Elena tanarnovel (SR_TRAIN_LESSONS)
+  3. A program hangjainak megismerese (SOUND_TRAINING)
+  4. Most nem, kezdjuk el a hasznalatot
+
+Minden sor elmondja, mit kap tole - nem csak a cimet.
+
+A balra sopres ugyanaz, mint a "most nem": nem lehet elrontani. Es
+mindket kilepesi uton kimondjuk, hogy a tanulo mod a Sugo menubol
+barmikor elovehető - hogy a "most nem" ne tunjon veglegesnek.
+
+MIERT A VARAZSLO UTAN, ES NEM ELOTTE: a tanulo modhoz mar mukodo program
+kell - beszed, gesztusok, nehany engedely. Elobb legyen mivel gyakorolni.
+
+Uj: setup/FirstLesson.kt, AppFlow.FirstLessonChoice.
+A valasztott pont a menu sajat utjan indul (handleAction), tehat pontosan
+az tortenik, mint amikor a felhasznalo a menupontot valasztja.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

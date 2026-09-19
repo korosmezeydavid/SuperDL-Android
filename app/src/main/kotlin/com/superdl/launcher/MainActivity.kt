@@ -1041,6 +1041,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, -1)
+            is AppFlow.FirstLessonChoice -> navigateFirstLesson(flow, -1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, -1)
             is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, -1)
             is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, -1)
@@ -1272,6 +1273,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, +1)
+            is AppFlow.FirstLessonChoice -> navigateFirstLesson(flow, +1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, +1)
             is AppFlow.PhoneListMenu -> navigatePhoneListMenu(flow, +1)
             is AppFlow.FilteredCallBrowse -> navigateFilteredCalls(flow, +1)
@@ -1534,6 +1536,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
             is AppFlow.HistoryWipeConfirm -> performHistoryWipe(flow)
             is AppFlow.ChoiceSettingBrowse -> onChoiceSettingActivate(flow)
+            is AppFlow.FirstLessonChoice -> onFirstLessonActivate(flow)
             is AppFlow.PhoneListBrowse -> enterPhoneListMenu(flow)
             is AppFlow.PhoneListMenu -> onPhoneListMenuActivate(flow)
             is AppFlow.FilteredCallBrowse -> enterFilteredCallMenu(flow)
@@ -2235,6 +2238,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
             is AppFlow.HistoryLimitChoice -> exitFlow("Marad, ami volt.")
             is AppFlow.ChoiceSettingBrowse -> exitFlow("Marad, ami volt.")
+            // A FELAJÁNLÁST NEM LEHET „ELRONTANI": a balra ugyanaz, mint a
+            // „most nem" — kezdjük a használatot, a tanuló mód megmarad.
+            is AppFlow.FirstLessonChoice ->
+                exitFlow(
+                    "Rendben, kezdjük. A tanuló módot a Súgó menüben " +
+                        "bármikor előveheted."
+                )
             // A LISTÁKNÁL a balra egy szintet lép vissza, nem ugrik ki.
             is AppFlow.PhoneListMenu -> returnToPhoneList(flow.white, flow.itemIndex)
             is AppFlow.PhoneListBrowse ->
@@ -6240,10 +6250,55 @@ class MainActivity : AppCompatActivity() {
             return
         }
         SetupPrefs.setWizardDone(this)
-        exitFlow(
+        startFirstLessonChoice()
+    }
+
+    // ==================== „KIPRÓBÁLOD, VAGY KEZDJÜK?" ====================
+    //
+    // A varázsló legvégén, EGYSZER. A tanuló módok eddig is megvoltak, csak
+    // a menü mélyén: aki most kapta élete első androidos telefonját, nem
+    // fogja átkutatni értük a készüléket — azt sem tudja, hogy léteznek.
+    // Aki viszont már belejött, annak egy kötelező bemutató csak nyűg.
+    //
+    // Ezért FELAJÁNLJUK, de nem kötelezzük. És kimondjuk azt is, hogy
+    // később bármikor elővehető — hogy a „most nem" ne tűnjön véglegesnek.
+
+    private fun startFirstLessonChoice() {
+        val options = com.superdl.launcher.setup.FirstLesson.ALL
+        activeFlow = AppFlow.FirstLessonChoice(0)
+        updateFlowDisplay()
+        feedbackSuccess()
+        tts.speak(
             "Kész, a beállítás megvan. Ha valamit későbbre hagytál, a Beállítások menü " +
-                "Beállítás varázsló pontjában bármikor pótolhatod."
+                "Beállítás varázsló pontjában bármikor pótolhatod. " +
+                "${com.superdl.launcher.setup.FirstLesson.QUESTION} " +
+                "${options[0].label}. ${options[0].detail}"
         )
+    }
+
+    private fun navigateFirstLesson(flow: AppFlow.FirstLessonChoice, delta: Int) {
+        val options = com.superdl.launcher.setup.FirstLesson.ALL
+        val next = (flow.index + delta + options.size) % options.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak("${options[next].label}. ${options[next].detail}")
+    }
+
+    private fun onFirstLessonActivate(flow: AppFlow.FirstLessonChoice) {
+        val choice = com.superdl.launcher.setup.FirstLesson.ALL[flow.index]
+        val action = choice.action
+        if (action == null) {
+            exitFlow(
+                "Rendben, kezdjük. A tanuló módot a Súgó menüben bármikor előveheted."
+            )
+            return
+        }
+        // A menü saját útján indítjuk, hogy pontosan az történjen, mint
+        // amikor a felhasználó a menüpontot választja — hibakezeléssel együtt.
+        tts.stop()
+        activeFlow = AppFlow.Menu
+        updateDisplay()
+        handleAction(MenuItem("first_lesson", choice.label, action))
     }
 
     private fun readSetupStatus() {
@@ -21949,6 +22004,12 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.labels[flow.index]
                 tvPosition.text = "${flow.setting.title}  •  ${flow.index + 1} / ${flow.labels.size}"
                 tvHint.text = "⬆⬇ válogatás  •  ➡ beállítás  •  ⬅ mégse"
+            }
+            is AppFlow.FirstLessonChoice -> {
+                val options = com.superdl.launcher.setup.FirstLesson.ALL
+                tvItem.text = options[flow.index].label
+                tvPosition.text = "Kipróbálod?  •  ${flow.index + 1} / ${options.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ kihagyás"
             }
             is AppFlow.PhoneListBrowse -> {
                 tvItem.text = flow.items[flow.index]
