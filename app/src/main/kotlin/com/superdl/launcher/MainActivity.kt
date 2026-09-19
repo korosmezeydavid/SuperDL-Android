@@ -6098,7 +6098,15 @@ class MainActivity : AppCompatActivity() {
             SetupRequirements.missing(this)
         }
         if (missing.isEmpty()) {
-            if (firstRun) SetupPrefs.setWizardDone(this)
+            if (firstRun) {
+                // AKINEK MÁR MINDEN MEGVAN, AZ IS KAPJA MEG A FELAJÁNLÁST.
+                // Újratelepítéskor vagy ha valaki előre megadta az
+                // engedélyeket, a varázslónak nincs dolga — de a tanuló mód
+                // felajánlása ugyanúgy jár neki.
+                SetupPrefs.setWizardDone(this)
+                startFirstLessonChoice()
+                return
+            }
             exitFlow("Minden engedély megvan. A SuperDL teljes egészében működik.")
             return
         }
@@ -6136,8 +6144,11 @@ class MainActivity : AppCompatActivity() {
     private fun startFirstRunSetupIfNeeded(): Boolean {
         if (SetupPrefs.isWizardDone(this)) return false
         if (SetupRequirements.pending(this).isEmpty()) {
+            // Nincs mit beállítani — de ez akkor is az ELSŐ indítás, tehát
+            // a tanuló mód felajánlása jár neki.
             SetupPrefs.setWizardDone(this)
-            return false
+            startFirstLessonChoice()
+            return true
         }
         startSetupWizard(firstRun = true)
         return true
