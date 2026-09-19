@@ -1,0 +1,8 @@
+$adb = "C:\Users\msn\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+"--- app sajat mappaja ---"
+& $adb shell "run-as com.superdl.launcher.debug ls -lt files 2>/dev/null"
+"--- kulso files ---"
+& $adb shell "ls -lt /sdcard/Android/data/com.superdl.launcher.debug/files 2>/dev/null"
+"--- kereses superdl-hiba ---"
+& $adb shell "find /sdcard -iname '*superdl-hiba*' 2>/dev/null"
+& $adb shell "find /sdcard -iname '*hiba*.txt' 2>/dev/null | head -20"

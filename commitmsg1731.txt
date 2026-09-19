@@ -1,0 +1,32 @@
+1.73.1 - a beszed nem halhat meg csendben
+
+Alph jelentese (1.73.0, Ulefone Armor 24): "a beszed az elobb teljesen
+elnemult, csak ujraindtassal oldottam meg a problemat".
+
+A HIBA
+A TtsManager.speak() ELDOBTA a beszedmotor valaszat. Ha a rendszer kozben
+megolte a motor folyamatat - memoriahiany, motorfrissites, energiatakarekos
+leallitas -, a tts.speak() ERROR-t adott vissza, es a program ezt meg sem
+nezte. Onnantol MINDEN mondat a semmibe ment: a program azt hitte, beszel,
+a felhasznalo nema telefont kapott. Egyetlen kiut az app ujraindtasa volt.
+
+Vakon ez a legrosszabb fajta hiba: nincs osszeomlas, nincs hibauzenet,
+egyszeruen megszunik a kapcsolat a keszulekkel.
+
+(A speakThen mar nezte a visszateresi erteket - csak a speak() nem.)
+
+JAVITAS
+- speak() megnezi a valaszt. Ket egymas utani visszautasitas utan a program
+  UJRAELESZTI a motort (shutdown + createEngine), es runWhenReady-vel
+  MEGISMETLI azt a mondatot, amit mondani akart.
+- Hurokvedelem: legfeljebb 30 masodpercenkent egy ujraelesztes.
+- A hibajelentes uj sora: "Beszed ujraelesztese: <ido> - ...", hogy ha
+  megis elonjon, legyen nyoma. Eddig a jelentesben SEMMI nem utalt ra:
+  nulla hattherhiba, ures osszeomlas-naplo, minden engedely megvan.
+
+Ez a napon belul a NEGYEDIK eset, ahol a program tudta, mi tortenik, es
+nem irta le: Elena figyelo onkikapcsolas, hangcimke nema elvesztese,
+muveletsor elakadasa, es most a nema beszed.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

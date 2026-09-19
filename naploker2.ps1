@@ -1,0 +1,5 @@
+$adb = "C:\Users\msn\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+"--- app Documents ---"
+& $adb shell "ls -lRt /sdcard/Android/data/com.superdl.launcher.debug/files/Documents"
+"--- mai frissen valtozott txt a sdcard-on ---"
+& $adb shell "find /sdcard -newermt '2026-09-19' -iname '*.txt' 2>/dev/null"

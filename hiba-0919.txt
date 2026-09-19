@@ -1,0 +1,143 @@
+SUPER DL — HIBAJELENTÉS
+========================================
+Ideje: 2026-09-19 09:35
+
+A FELHASZNÁLÓ LEÍRÁSA:
+a beszéd az előbb teljesen elném múlt csak újrentitással oldottam meg a problémát
+
+PROGRAM:
+  verzió: 1.73.0
+  változat: fejlesztői
+
+KÉSZÜLÉK:
+  gyártó: Ulefone
+  típus: Armor 24
+  Android: 13 (API 33)
+
+ÁLLAPOT A JELENTÉS PILLANATÁBAN:
+  kisegítő szolgáltatások: Super DL olvasó, PIN segéd
+  beszéd hangcsatornája: kisegítő
+  biztonságos mód: nem
+  elszigetelt háttérhibák: 0
+  Elena figyelés: kikapcsolva
+
+ÖSSZEOMLÁS-NAPLÓ: üres (nem volt összeomlás)
+
+
+BEÁLLÍTÁS VARÁZSLÓ — RÉSZLETES NAPLÓ
+========================================
+telepítés forrása: ismeretlen (kézi telepítés vagy adb)
+korlátozott beállítás: FEL VAN OLDVA
+  >>> A program áruházon kívülről jött, de a korlátozott tételek
+  >>> működnek. Ezt tehát NEM kell keresni, nem ez a baj.
+
+SZEREPKÖRÖK — ki birtokolja MOST:
+  alapértelmezett üzenet app: com.superdl.launcher.debug
+  alapértelmezett telefon app: com.superdl.launcher.debug
+  kezdőképernyő: com.superdl.launcher.debug
+  saját csomagnév: com.superdl.launcher.debug
+
+KÉT SUPERDL EGY TELEFONON: nem látszik (csak ez az egy példány van telepítve)
+
+SZEREPKÖR-KEZELŐ (Android 10 óta ez a mérvadó):
+  üzenet (SMS): elérhető, MIÉNK
+  telefon (DIALER): elérhető, MIÉNK
+  kezdőképernyő (HOME): elérhető, MIÉNK
+  asszisztens (ASSISTANT): elérhető, MIÉNK
+  hívásszűrő (CALL_SCREENING): elérhető, MIÉNK
+
+ÉRTESÍTÉS-HOZZÁFÉRÉS ENGEDÉLYEZETT SZOLGÁLTATÁSOK:
+  com.superdl.launcher.debug/com.superdl.launcher.notifications.SuperNotificationListener:com.google.android.projection.gearhead/com.google.android.gearhead.notifications.SharedNotificationListenerManager$ListenerService:com.google.android.gms/com.google.android.gms.auth.proximity.phonehub.PhoneHubNotificationListenerService:com.google.android.googlequicksearchbox/com.google.android.apps.gsa.notificationlistener.GsaNotificationListenerService:com.android.launcher3/com.android.launcher3.notification.NotificationListener
+KISEGÍTŐ SZOLGÁLTATÁSOK (engedélyezett):
+  com.superdl.launcher.debug/com.superdl.launcher.screenreader.ScreenReaderService:com.superdl.launcher.debug/com.superdl.launcher.lock.keyguard.KeyguardPinAccessibilityService
+  érintés-felfedezés: 0
+
+TÉTELEK — mind, a megadottak is:
+  jelmagyarázat: [megvan] [hiányzik] [kihagyva]
+  „szándék": megnyitható-e a rendszer képernyője ezen a telefonon
+
+- role_home — SuperDL legyen a kezdőképernyő
+    állapot: megvan   szint: ESSENTIAL   mód: ROLE
+    szándék: feloldható (android.settings.HOME_SETTINGS)
+- phone — Telefonálás
+    állapot: megvan   szint: ESSENTIAL   mód: RUNTIME
+    engedélyek: CALL_PHONE
+- contacts — Névjegyek
+    állapot: megvan   szint: ESSENTIAL   mód: RUNTIME
+    engedélyek: READ_CONTACTS, WRITE_CONTACTS
+- sms — Üzenetek
+    állapot: megvan   szint: ESSENTIAL   mód: RUNTIME
+    engedélyek: SEND_SMS, READ_SMS
+- microphone — Mikrofon
+    állapot: megvan   szint: ESSENTIAL   mód: RUNTIME
+    engedélyek: RECORD_AUDIO
+- notifications_post — Értesítések megjelenítése
+    állapot: megvan   szint: ESSENTIAL   mód: RUNTIME
+    engedélyek: POST_NOTIFICATIONS
+- role_sms — Alapértelmezett üzenet alkalmazás
+    állapot: megvan   szint: ESSENTIAL   mód: ROLE
+    szándék: nincs szándék (már megvan, ez rendben van)
+- exact_alarm — Pontos ébresztő
+    állapot: megvan   szint: ESSENTIAL   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.REQUEST_SCHEDULE_EXACT_ALARM)
+- battery_optimization — Korlátlan háttérfutás
+    állapot: megvan   szint: ESSENTIAL   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+- role_dialer — Alapértelmezett telefon alkalmazás
+    állapot: megvan   szint: ESSENTIAL   mód: ROLE
+    szándék: nincs szándék (már megvan, ez rendben van)
+- role_assistant — Alapértelmezett asszisztens
+    állapot: megvan   szint: IMPORTANT   mód: ROLE
+    szándék: feloldható (android.settings.VOICE_INPUT_SETTINGS)
+- location — Helymeghatározás
+    állapot: megvan   szint: IMPORTANT   mód: RUNTIME
+    engedélyek: ACCESS_FINE_LOCATION
+- camera — Kamera
+    állapot: megvan   szint: IMPORTANT   mód: RUNTIME
+    engedélyek: CAMERA
+- calendar — Naptár
+    állapot: megvan   szint: IMPORTANT   mód: RUNTIME
+    engedélyek: READ_CALENDAR, WRITE_CALENDAR
+- notification_listener — Értesítések olvasása
+    állapot: megvan   szint: IMPORTANT   mód: SYSTEM_SCREEN
+    próbálkozás: 1
+    szándék: feloldható (android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+- audio_media — Zene és hangfájlok
+    állapot: megvan   szint: IMPORTANT   mód: RUNTIME
+    engedélyek: READ_MEDIA_AUDIO
+- storage_all_files — Teljes fájlhozzáférés
+    állapot: megvan   szint: ESSENTIAL   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+- keyboard_enabled — Mátrix billentyűzet bekapcsolása
+    állapot: megvan   szint: IMPORTANT   mód: SYSTEM_SCREEN
+    próbálkozás: 1
+    szándék: feloldható (android.settings.INPUT_METHOD_SETTINGS)
+- keyboard_selected — Mátrix billentyűzet kiválasztása
+    állapot: megvan   szint: IMPORTANT   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.INPUT_METHOD_SETTINGS)
+- pin_helper — PIN segéd
+    állapot: megvan   szint: IMPORTANT   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.ACCESSIBILITY_SETTINGS)
+- screen_reader — Super DL képernyőolvasó
+    állapot: megvan   szint: IMPORTANT   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.ACCESSIBILITY_SETTINGS)
+- overlay — Képernyő fölé rajzolás
+    állapot: megvan   szint: OPTIONAL   mód: SYSTEM_SCREEN
+    szándék: feloldható (android.settings.action.MANAGE_OVERLAY_PERMISSION)
+- role_screening — Hívás szűrő
+    állapot: megvan   szint: OPTIONAL   mód: ROLE
+    próbálkozás: 2
+    szándék: nincs szándék (már megvan, ez rendben van)
+- call_log — Hívásnapló
+    állapot: megvan   szint: OPTIONAL   mód: RUNTIME
+    engedélyek: READ_CALL_LOG
+- bluetooth — Bluetooth
+    állapot: megvan   szint: OPTIONAL   mód: RUNTIME
+    engedélyek: BLUETOOTH_CONNECT
+
+BESZÉD ÉS DIRECT BOOT:
+  a készülék fel van oldva: igen
+  beszédmotorok a rendszerben: com.google.android.tts, com.github.zvonimir_stanecic.rhvoice.android, com.redzoc.ramees.tts.espeak, hu.bme.tmit.smartlab.profivox
+  beépített zárképernyő-hangok: 38 klip a programcsomagban
+
+RENDSZER: Ulefone Armor 24, Android 13 (API 33), build F2S68B7.GQU2.Ulefone.HB.FHD.NMULUVY8UCPTNU.20260407.V3.09

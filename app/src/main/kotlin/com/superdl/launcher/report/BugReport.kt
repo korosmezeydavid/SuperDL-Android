@@ -87,6 +87,12 @@ object BugReport {
         com.superdl.launcher.macro.TaskRouteStore.lastStop(context)?.let { stop ->
             appendLine("  Műveletsor legutóbbi elakadása: $stop")
         }
+        // A BESZÉD ÁLLAPOTA. A 2026-09-19-i eset: a beszéd teljesen elnémult,
+        // és a jelentésben ennek nyoma sem volt. Aki nem látja a képernyőt,
+        // annak a néma telefon a legsúlyosabb hiba — legalább látsszon.
+        com.superdl.launcher.tts.TtsManager.lastSpeechRecoveryInfo()?.let { info ->
+            appendLine("  Beszéd újraélesztése: $info")
+        }
         appendLine()
 
         val crash = crashLogTail(context)

@@ -483,12 +483,92 @@ class TtsManager(
         // NYELVFELISMERÉS: a szótár UTÁN, mert a szótár magyar szavakra
         // cserélhet rövidítéseket — és attól a szöveg magyarabb lesz.
         applyLanguageFor(prepared)
-        tts.speak(
+        val result = tts.speak(
             prepared,
             TextToSpeech.QUEUE_FLUSH,
             speakParams(),
             "SDL_${System.currentTimeMillis()}"
         )
+        noteSpeakResult(result, text, role)
+    }
+
+    // ── A BESZÉD NEM HALHAT MEG CSENDBEN ──────────────────────────────────
+    //
+    // EZ VOLT A BAJ (Alph, 2026-09-19): „a beszéd az előbb teljesen elnémult,
+    // csak újraindítással oldottam meg."
+    //
+    // A speak() eddig ELDOBTA a beszédmotor válaszát. Ha a rendszer közben
+    // megölte a motor folyamatát — memóriahiány, motorfrissítés, energia-
+    // takarékos leállítás —, a tts.speak() ERROR-t adott vissza, és a program
+    // ezt nem nézte meg. Onnantól MINDEN mondat a semmibe ment: a program azt
+    // hitte, beszél, a felhasználó pedig néma telefont kapott. Egyetlen kiút
+    // az alkalmazás újraindítása volt.
+    //
+    // Ez vakon a legrosszabb fajta hiba: a telefon nem omlik össze, nem
+    // hibázik, egyszerűen NINCS. Aki nem látja a képernyőt, annak ilyenkor
+    // megszűnik a kapcsolat a készülékkel.
+    //
+    // Mostantól a program megnézi a választ, és ha a motor nem fogadja el a
+    // mondatot, ÚJRAÉLESZTI magát, majd megismétli, amit mondani akart.
+
+    /** Hány mondatot utasított vissza egymás után a motor. */
+    private var speakFailures = 0
+
+    /** Mikor élesztettük újra utoljára a motort — a hurok ellen. */
+    private var lastRecoveryAt = 0L
+
+    companion object {
+        /**
+         * A HIBAJELENTÉSNEK: volt-e néma beszéd-leállás, és mikor.
+         *
+         * Azért statikus, mert a jelentést nem a beszélő példány írja — és
+         * épp az a lényeg, hogy a néma leállás NYOMOT HAGYJON.
+         */
+        @Volatile
+        private var lastSpeechRecovery: String? = null
+
+        fun lastSpeechRecoveryInfo(): String? = lastSpeechRecovery
+
+        internal fun noteRecovery(stamp: String) {
+            lastSpeechRecovery = stamp
+        }
+    }
+
+    private fun noteSpeakResult(result: Int, text: String, role: SpeechRole) {
+        if (result == TextToSpeech.SUCCESS) {
+            speakFailures = 0
+            return
+        }
+        speakFailures++
+        Log.w("TTS", "A motor visszautasitotta a mondatot ($result), $speakFailures. alkalommal")
+        if (speakFailures < 2) return
+
+        // NE PRÓBÁLKOZZUNK VÉGTELENÜL. Ha percenként újraélesztenénk a motort,
+        // azzal csak az akkumulátort ennénk meg — a felhasználó meg úgyis néma
+        // telefont kapna, csak melegebbet.
+        val now = System.currentTimeMillis()
+        if (now - lastRecoveryAt < 30_000L) return
+        lastRecoveryAt = now
+        speakFailures = 0
+
+        Log.w("TTS", "NEMA BESZED — a motor ujraelesztese")
+        noteRecovery(
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(now)) + " — a motor nem fogadta el a mondatot, újraélesztve"
+        )
+
+        fallbackTried = false
+        silentMode = false
+        initFailed = false
+        isReady = false
+        try {
+            tts.shutdown()
+        } catch (_: Exception) {
+        }
+        tts = createEngine(TtsEngineStore.getSelectedPackage(appContext))
+        // AMIT MONDANI AKART, AZT MONDJA IS KI. A felhasználó egy mondatot
+        // várt; ha csak a motor éledne újra, ő azt hinné, elrontotta valamit.
+        runWhenReady { speak(text, role) }
     }
 
     /**
