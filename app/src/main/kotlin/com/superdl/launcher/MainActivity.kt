@@ -923,6 +923,9 @@ class MainActivity : AppCompatActivity() {
                 Thread { ContactSyncHelper.syncIfNeeded(this) }.start()
             }
             syncElenaWakeListenService()
+            // Ha a rendszer megölte a programot, a sötét mód függönye eltűnt —
+            // a kikapcsoló értesítés viszont ottmaradhatott. Takarítunk.
+            com.superdl.launcher.screen.ScreenCurtainExit.cleanUpIfNotActive(this)
         }
         updateDisplay()
         val pendingCalendarAlarm = intent?.action == CalendarAlarmReceiver.ACTION_CALENDAR_ALARM
@@ -5402,7 +5405,18 @@ class MainActivity : AppCompatActivity() {
         }
         val nowOn = ScreenCurtain.toggle(this)
         if (nowOn) {
-            tts.speak("Sötét mód bekapcsolva. A képernyő fekete, de a telefon ugyanúgy kezelhető.")
+            // A KIUTAT MINDIG MONDJUK EL, AMIKOR BEKAPCSOLJUK.
+            //
+            // MIÉRT: aki nem látja a képernyőt, annak a sötét mód természetes.
+            // Aki viszont LÁTJA, annak ez egy fekete fal — és eddig csak
+            // ugyanabból a menüpontból lehetett kikapcsolni, amit épp nem
+            // talál meg rajta. Egy tesztelőnk emiatt nem merte bekapcsolni az
+            // elsődleges telefonján, és igaza volt.
+            tts.speak(
+                "Sötét mód bekapcsolva. A képernyő fekete, de a telefon ugyanúgy " +
+                    "kezelhető. Kikapcsolni ugyanitt tudod, vagy az értesítési sávban " +
+                    "a Sötét mód kikapcsolása gombbal. Újraindítás is leveszi."
+            )
         } else {
             tts.speak("Sötét mód kikapcsolva.")
         }

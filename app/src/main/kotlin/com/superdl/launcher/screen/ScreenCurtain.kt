@@ -81,6 +81,10 @@ object ScreenCurtain {
 
             wm.addView(view, params)
             curtainView = view
+            // A VÉSZKIJÁRAT AZONNAL FELKERÜL. Az értesítési sáv rendszerablak:
+            // a függöny FÖLÉ rajzolódik, tehát látó ember is le tudja húzni,
+            // és megtalálja rajta a kikapcsoló gombot.
+            ScreenCurtainExit.show(app)
             true
         } catch (e: Exception) {
             android.util.Log.w(TAG, "A sotet mod nem kapcsolhato be: ${e.message}")
@@ -99,6 +103,7 @@ object ScreenCurtain {
             android.util.Log.w(TAG, "A sotet mod kikapcsolasa hiba: ${e.message}")
         }
         curtainView = null
+        ScreenCurtainExit.hide(context)
     }
 
     /** Váltás: ha be van kapcsolva, kikapcsol; különben be. */

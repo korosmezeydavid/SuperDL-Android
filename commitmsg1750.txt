@@ -1,0 +1,35 @@
+1.75.0 - a sotet modnak vegre van veszkijarata
+
+Tamas Balint jelezte (2026-09-18): a sotet mod "teljesen hasznalhatatlanna
+teszi a telefont", es az elsodleges telefonjan nem meri elinditani, mert a
+regirol "kinszenvedes aran" sikerult levakarnia. Igaza volt: kikapcsolni
+eddig csak ugyanabbol a menupontbol lehetett, amit eppen nem lat.
+
+Vakon a sotet mod tokeletes - lato embernek fekete fal. Es az appot barki
+letoltheti.
+
+A MEGOLDAS: ERTESITES, NEM GOMBKOMBINACIO
+Kezenfekvo lett volna a ket hangerogomb - CSAKHOGY az a TalkBack sajat
+gyorsbillentyuje, es mi magunk kerjuk a felhasznalokat, hogy azt allitsak
+be elore (lasd "ha elakadsz"). Ket dolgot ugyanarra a mozdulatra tenni
+pont a menekulőutat rontana el.
+
+Az ertesitesi sav viszont RENDSZERABLAK: az Android a program fole
+rajzolt retegek FOLE teszi. Vagyis a fuggony alatt is lehuzhato, es
+latszik rajta a kikapcsolo gomb. Nem kell hozza uj engedely, nem utkozik
+semmilyen gesztussal, es a vak felhasznalot sem zavarja: neki egy nema,
+csendes ertesites.
+
+MEG:
+- Bekapcsolaskor a program KIMONDJA a kiutat: ugyanez a menupont, vagy az
+  ertesites gombja, vagy ujrainditas.
+- Indulaskor takaritunk: ha a rendszer megolte a programot, a fuggony
+  eltunt, de az ertesites ottmaradhatott. Kikapcsolo gomb olyasmihez, ami
+  nincs bekapcsolva, csak zavar.
+
+Uj: screen/ScreenCurtainExit.kt + ScreenCurtainOffReceiver, manifest.
+
+NEM TESZTELVE ELES KESZULEKEN - a telefon nem volt kozben csatlakoztatva.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -684,6 +684,17 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Sötét mód vészkijárata: a kikapcsoló gomb az értesítésen.
+             Látó embernek ez az egyetlen kiút, ha bekapcsolta és nem
+             találja meg a menüpontot a fekete képernyőn. -->
+        <receiver
+            android:name=".screen.ScreenCurtainOffReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.superdl.launcher.action.SOTET_MOD_KI" />
+            </intent-filter>
+        </receiver>
+
         <!-- GPS Kitekintő – térképi radar és célkövetés -->
         <service
             android:name=".gps.GpsRadarService"
