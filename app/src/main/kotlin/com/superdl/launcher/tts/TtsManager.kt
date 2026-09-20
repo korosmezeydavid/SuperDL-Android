@@ -118,12 +118,20 @@ class TtsManager(
                 }
             }
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
+                override fun onStart(utteranceId: String?) {
+                    noteEngineSignal()
+                }
 
-                override fun onDone(utteranceId: String?) = fireDone(utteranceId)
+                override fun onDone(utteranceId: String?) {
+                    noteEngineSignal()
+                    fireDone(utteranceId)
+                }
 
                 @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) = fireDone(utteranceId)
+                override fun onError(utteranceId: String?) {
+                    noteEngineSignal()
+                    fireDone(utteranceId)
+                }
 
                 /**
                  * MEGSZAKÍTOTT BESZÉD — ÉS EZ NEM ELHANYAGOLHATÓ.
@@ -136,8 +144,10 @@ class TtsManager(
                  * A beszéd tájékoztatás, nem feltétel. Egy félbeszakított
                  * mondat után a művelet ATTÓL MÉG elvégzendő.
                  */
-                override fun onStop(utteranceId: String?, interrupted: Boolean) =
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    noteEngineSignal()
                     fireDone(utteranceId)
+                }
             })
             pendingOnReady?.let { handler.post(it) }
             pendingOnReady = null
@@ -444,13 +454,34 @@ class TtsManager(
     }
 
     fun speak(text: String, role: SpeechRole = SpeechRole.CONTENT) {
-        if (initFailed) {
-            Log.w("TTS", "TTS nem elérhető, kihagyva: $text")
+        // A NÉMA MÓD NEM EGYIRÁNYÚ AJTÓ.
+        //
+        // Eddig innen csak egy naplósor vezetett kifelé: ha a motor egyszer
+        // nem indult el, a program élete végéig hallgatott. Márpedig a motor
+        // legtöbbször nem „elromlik", hanem ELENGEDI a kapcsolatot — egy
+        // másodperccel később ugyanaz a motor tökéletesen működik.
+        //
+        // Mostantól minden megszólalási kísérlet egyben egy újraélesztési
+        // lehetőség is. A várakozási idő megvédi az akkumulátort.
+        if (initFailed || silentMode) {
+            if (!tryRevive("a beszédmotor nem indult el", text, role)) {
+                Log.w("TTS", "TTS nem elérhető, kihagyva: $text")
+            }
             return
         }
         if (!isReady) {
             runWhenReady { speak(text, role) }
+            // HA A MOTOR SOHA NEM JELENTKEZIK BE, a mondat egy listába kerül,
+            // ami soha nem ürül ki — a program „beszél", a telefon néma.
+            armReadyWatchdog(text, role)
             return
+        }
+        // A MOTOR NÉMÁN IS MEGHALHAT: elfogadja a mondatot (SUCCESS), aztán
+        // se hang, se visszajelzés. Ilyenkor semmilyen hibakód nem árulkodik,
+        // egyedül a CSEND. Ha kértünk beszédet, és a motor azóta egyetlen
+        // jelet sem adott, újraélesztjük.
+        if (engineWentQuiet()) {
+            if (tryRevive("a motor elfogadta a mondatot, de nem szólalt meg", text, role)) return
         }
         // EGY FÜGGŐ MŰVELETET NEM EJTÜNK EL.
         //
@@ -483,6 +514,10 @@ class TtsManager(
         // NYELVFELISMERÉS: a szótár UTÁN, mert a szótár magyar szavakra
         // cserélhet rövidítéseket — és attól a szöveg magyarabb lesz.
         applyLanguageFor(prepared)
+        // A KÉRÉS IDEJE ELŐBB: a motor visszajelzése MÁSIK SZÁLON érkezik, és
+        // ha utólag írnánk be, egy gyors motor jelzése „korábbinak" látszana
+        // a kérésnél — a program pedig fölöslegesen élesztgetné magát.
+        lastSpeakRequestAt = System.currentTimeMillis()
         val result = tts.speak(
             prepared,
             TextToSpeech.QUEUE_FLUSH,
@@ -517,7 +552,36 @@ class TtsManager(
     /** Mikor élesztettük újra utoljára a motort — a hurok ellen. */
     private var lastRecoveryAt = 0L
 
+    /** Mikor kértünk utoljára beszédet, amit a motor el is fogadott. */
+    private var lastSpeakRequestAt = 0L
+
+    /** Mikor adott a motor utoljára BÁRMILYEN életjelet. */
+    private var lastEngineSignalAt = 0L
+
+    /**
+     * Hány újraélesztés következett egymás után úgy, hogy közben a motor
+     * egyszer sem szólalt meg. Ez állítja meg a végtelen kört.
+     */
+    private var reviveChain = 0
+
+    /** Összes újraélesztés ebben a futásban — a hibajelentésnek. */
+    private var reviveTotal = 0
+
+    private var readyWatchdog: Runnable? = null
+
     companion object {
+        /** Ennyit várunk két újraélesztés között. */
+        private const val REVIVE_COOLDOWN_MS = 20_000L
+
+        /** Ennyi csend után tekintjük némán megdöglöttnek a motort. */
+        private const val QUIET_DEATH_MS = 8_000L
+
+        /** Ennyi ideig várunk a motor bejelentkezésére. */
+        private const val READY_WAIT_MS = 5_000L
+
+        /** Ennyi eredménytelen újraélesztés után megállunk. */
+        private const val MAX_REVIVE_CHAIN = 3
+
         /**
          * A HIBAJELENTÉSNEK: volt-e néma beszéd-leállás, és mikor.
          *
@@ -534,41 +598,105 @@ class TtsManager(
         }
     }
 
-    private fun noteSpeakResult(result: Int, text: String, role: SpeechRole) {
-        if (result == TextToSpeech.SUCCESS) {
-            speakFailures = 0
-            return
-        }
-        speakFailures++
-        Log.w("TTS", "A motor visszautasitotta a mondatot ($result), $speakFailures. alkalommal")
-        if (speakFailures < 2) return
+    /** A motor életjelet adott: minden rendben, a lánc szakad. */
+    private fun noteEngineSignal() {
+        lastEngineSignalAt = System.currentTimeMillis()
+        reviveChain = 0
+        speakFailures = 0
+    }
 
+    /**
+     * NÉMÁN MEGHALT-E A MOTOR: kértünk beszédet, elfogadta, és azóta
+     * egyetlen jelet sem adott.
+     */
+    private fun engineWentQuiet(): Boolean {
+        if (lastSpeakRequestAt == 0L) return false
+        if (lastEngineSignalAt >= lastSpeakRequestAt) return false
+        return System.currentTimeMillis() - lastSpeakRequestAt > QUIET_DEATH_MS
+    }
+
+    /**
+     * A MOTOR ÚJRAÉLESZTÉSE — minden néma halál egyetlen kijárata.
+     *
+     * @return igaz, ha tényleg nekiláttunk (különben a hívó a régi úton megy)
+     */
+    private fun tryRevive(reason: String, text: String?, role: SpeechRole): Boolean {
+        val now = System.currentTimeMillis()
         // NE PRÓBÁLKOZZUNK VÉGTELENÜL. Ha percenként újraélesztenénk a motort,
         // azzal csak az akkumulátort ennénk meg — a felhasználó meg úgyis néma
         // telefont kapna, csak melegebbet.
-        val now = System.currentTimeMillis()
-        if (now - lastRecoveryAt < 30_000L) return
+        if (now - lastRecoveryAt < REVIVE_COOLDOWN_MS) return false
+        if (reviveChain >= MAX_REVIVE_CHAIN) {
+            Log.w("TTS", "Az ujraelesztes $reviveChain. alkalommal sem hozott hangot — megallunk")
+            return false
+        }
         lastRecoveryAt = now
+        reviveChain++
+        reviveTotal++
         speakFailures = 0
 
-        Log.w("TTS", "NEMA BESZED — a motor ujraelesztese")
+        // MÁSODIK PRÓBÁLKOZÁSRA MÁSIK MOTORT. Ha ugyanaz a motor kétszer sem
+        // szólal meg, nincs értelme harmadszor is őt kérni: ilyenkor a
+        // rendszer alapértelmezettje a legjobb esély.
+        val selected = TtsEngineStore.getSelectedPackage(appContext)
+        val target = if (reviveChain >= 2) findAlternativeEngine() ?: selected else selected
+
+        Log.w("TTS", "NEMA BESZED — ujraelesztes ($reason), motor: $target")
         noteRecovery(
             java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                .format(java.util.Date(now)) + " — a motor nem fogadta el a mondatot, újraélesztve"
+                .format(java.util.Date(now)) +
+                " — $reason, újraélesztve (összesen $reviveTotal alkalommal)"
         )
 
         fallbackTried = false
         silentMode = false
         initFailed = false
         isReady = false
+        lastSpeakRequestAt = 0L
         try {
             tts.shutdown()
         } catch (_: Exception) {
         }
-        tts = createEngine(TtsEngineStore.getSelectedPackage(appContext))
+        tts = createEngine(target)
         // AMIT MONDANI AKART, AZT MONDJA IS KI. A felhasználó egy mondatot
         // várt; ha csak a motor éledne újra, ő azt hinné, elrontotta valamit.
-        runWhenReady { speak(text, role) }
+        if (text != null) runWhenReady { speak(text, role) }
+        armReadyWatchdog(text, role)
+        return true
+    }
+
+    /**
+     * ŐRSZEM A BEJELENTKEZÉSRE.
+     *
+     * A `runWhenReady` listája csak akkor ürül ki, ha a motor jelentkezik.
+     * Ha soha nem jelentkezik, a mondatok szépen sorban ODABENT maradnak, és
+     * kívülről ez pontosan úgy néz ki, mint a néma telefon. Ez az őrszem
+     * gondoskodik róla, hogy a várakozásnak vége legyen.
+     */
+    private fun armReadyWatchdog(text: String?, role: SpeechRole) {
+        readyWatchdog?.let { handler.removeCallbacks(it) }
+        val watchdog = Runnable {
+            readyWatchdog = null
+            if (isReady && !silentMode) return@Runnable
+            // A felgyűlt mondatokat eldobjuk: fél perccel később felolvasni
+            // egy menüsort rosszabb, mint nem felolvasni.
+            readyCallbacks.clear()
+            tryRevive("a motor nem jelentkezett be", text, role)
+        }
+        readyWatchdog = watchdog
+        handler.postDelayed(watchdog, READY_WAIT_MS)
+    }
+
+    private fun noteSpeakResult(result: Int, text: String, role: SpeechRole) {
+        if (result == TextToSpeech.SUCCESS) {
+            speakFailures = 0
+            return
+        }
+        lastSpeakRequestAt = 0L
+        speakFailures++
+        Log.w("TTS", "A motor visszautasitotta a mondatot ($result), $speakFailures. alkalommal")
+        if (speakFailures < 2) return
+        tryRevive("a motor nem fogadta el a mondatot", text, role)
     }
 
     /**
@@ -597,13 +725,30 @@ class TtsManager(
     private var doneWatchdog: Runnable? = null
 
     fun speakThen(text: String, role: SpeechRole, onDone: () -> Unit) {
-        if (initFailed) {
+        if (initFailed || silentMode) {
             Log.w("TTS", "TTS nem elérhető, speakThen kihagyva")
+            // A MŰVELET LEFUT, a beszéd pedig közben próbál visszajönni.
+            // A mondatot NEM adjuk át az újraélesztésnek: ez a mondat egy
+            // művelethez tartozik, amit épp most végzünk el — később
+            // felmondani félrevezető volna.
+            tryRevive("a beszédmotor nem indult el", null, role)
             handler.post(onDone)
             return
         }
         if (!isReady) {
-            runWhenReady { speakThen(text, role, onDone) }
+            // A MŰVELET NEM VÁRHAT A MOTORRA A VILÁG VÉGÉIG. Ha a motor nem
+            // jelentkezik be, a beszéd elmarad, de a művelet lefut — pont
+            // úgy, ahogy a megszakított mondat után is.
+            val fired = java.util.concurrent.atomic.AtomicBoolean(false)
+            val once = { if (fired.compareAndSet(false, true)) onDone() }
+            runWhenReady { speakThen(text, role, once) }
+            handler.postDelayed({
+                if (!isReady) {
+                    Log.w("TTS", "A motor nem jelentkezett be — a muvelet igy is fut")
+                    once()
+                    tryRevive("a motor nem jelentkezett be", null, role)
+                }
+            }, READY_WAIT_MS)
             return
         }
         // Ha volt egy korábbi, még függő visszahívás, azt NEM ejtjük el:
@@ -617,9 +762,13 @@ class TtsManager(
         val id = "SDL_DONE_${System.currentTimeMillis()}"
         val prepared = PronunciationDictionary.apply(appContext, orient(text))
         applyLanguageFor(prepared)
+        lastSpeakRequestAt = System.currentTimeMillis()
         val result = tts.speak(prepared, TextToSpeech.QUEUE_FLUSH, speakParams(), id)
 
         if (result != TextToSpeech.SUCCESS) {
+            lastSpeakRequestAt = 0L
+            // A beszéd próbáljon visszajönni a következő mondatra.
+            tryRevive("a motor nem fogadta el a mondatot", null, role)
             // A MOTOR EL SEM INDULT. Ilyenkor SEMMILYEN visszajelzés nem jön —
             // se onDone, se onError, se onStop —, tehát a visszahívás örökre
             // ott ragadna. Frissen telepített telefonon ez valóságos eset:

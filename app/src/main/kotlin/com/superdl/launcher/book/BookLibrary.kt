@@ -96,11 +96,44 @@ object BookLibrary {
         }
     }
 
+    /**
+     * A PROGRAM SAJÁT MUNKAFÁJLJAI — EZEK NEM KÖNYVEK.
+     *
+     * EZ VOLT A BAJ (Alph, 2026-09-19): a hibajelentések a program saját
+     * Dokumentumok mappájába kerülnek, `.txt` kiterjesztéssel. A könyvtár
+     * viszont ugyanezt a mappát járja be, és minden `.txt` fájlt könyvnek
+     * vesz — így a felhasználó saját hibajelentései felolvasandó könyvként
+     * jelentek meg a könyvei között.
+     *
+     * Nem elírás volt, hanem egy hiányzó határvonal: a program a SAJÁT
+     * munkafájljait nem különböztette meg a felhasználó tartalmától. Ezt a
+     * határt itt húzzuk meg, egy helyen, hogy a később keletkező saját
+     * mappák is egyszerűen ide vehetők legyenek.
+     */
+    private val SAJAT_MAPPAK = setOf(
+        "hibajelentesek",   // beküldésre váró hibajelentések
+        "naplok",           // diagnosztikai naplók
+        "elena",            // Elena hangjai
+        "hangtemak"         // beszédtémák
+    )
+
+    private val SAJAT_FAJL_ELOTAGOK = listOf(
+        "superdl-hiba-",
+        "superdl-osszeomlas",
+        "superdl-naplo"
+    )
+
+    private fun sajatMunkafajl(file: File): Boolean {
+        val nev = file.name.lowercase()
+        return SAJAT_FAJL_ELOTAGOK.any { nev.startsWith(it) }
+    }
+
     private fun walkDir(dir: File, found: LinkedHashMap<String, BookEntry>) {
         dir.listFiles()?.forEach { file ->
             if (file.isDirectory) {
+                if (file.name.lowercase() in SAJAT_MAPPAK) return@forEach
                 walkDir(file, found)
-            } else if (BookTextExtractor.isSupported(file)) {
+            } else if (BookTextExtractor.isSupported(file) && !sajatMunkafajl(file)) {
                 addEntry(file, found)
             }
         }
@@ -144,6 +177,9 @@ object BookLibrary {
                 val path = uri.toString()
                 val ext = name.substringAfterLast('.', "").lowercase()
                 if (ext !in BookTextExtractor.SUPPORTED_EXTENSIONS) continue
+                // A program saját munkafájljai a médiatáron át sem
+                // kerülhetnek be a könyvek közé.
+                if (SAJAT_FAJL_ELOTAGOK.any { name.lowercase().startsWith(it) }) continue
                 val real = if (dataCol >= 0) cursor.getString(dataCol)?.takeIf { it.isNotBlank() } else null
                 // KETTŐZŐDÉS ELLEN: ha ugyanezt a fájlt a mappa-bejárás már
                 // megtalálta, NEM vesszük fel másodszor. Eddig minden ilyen

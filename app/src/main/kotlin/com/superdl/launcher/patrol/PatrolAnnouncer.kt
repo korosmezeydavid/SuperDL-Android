@@ -111,48 +111,118 @@ object PatrolAnnouncer {
         }
     }
 
+    /**
+     * EGY HÁTTÉRBEN ELMONDOTT MONDAT — ÉS A HOZZÁ TARTOZÓ TAKARÍTÁS.
+     *
+     * EZ VOLT A BAJ (Alph, 2026-09-19): a beszéd napközben teljesen elnémult,
+     * és csak újraindítás segített. Ez a metódus ÓRÁNKÉNT lefut (időbemondás),
+     * és három sebe volt:
+     *
+     *  1. NEM VOLT IDŐKORLÁTJA. Ha a motor nem jelzett vissza, a `speaking`
+     *     jelző örökre igaz maradt — onnantól az őrjárat MINDEN bemondása
+     *     némán a sorba került, és soha nem szólalt meg.
+     *  2. A MOTOR NEM MINDIG ZÁRULT BE. Ha a visszajelzés elmaradt, a
+     *     beszédmotorhoz kötött kapcsolat nyitva maradt — óránként eggyel
+     *     több árva kapcsolat.
+     *  3. A BEZÁRÁS A MOTOR SAJÁT SZÁLÁN történt, épp amikor az még dolgozott.
+     *     Ez az a mozdulat, amitől a beszédmotorok be szoktak ragadni — és
+     *     ilyenkor nemcsak ez a bemondás hallgat el, hanem a program egész
+     *     beszéde, mert ugyanazt a motort használja.
+     *
+     * Mostantól: MINDIG van időkorlát, a motor PONTOSAN EGYSZER zárul be, és
+     * a bezárás a főszálon, egy kis szünet után történik.
+     */
     private fun speak(context: Context, message: String, onDone: () -> Unit) {
-        var tts: TextToSpeech? = null
+        // TARTÓK, NEM EGYSZERŰ VÁLTOZÓK: a motor létrejötte és a motor első
+        // visszajelzése VERSENYEZHET egymással. A tartóból mindkét irány
+        // ugyanazt a példányt látja, akármelyik ér előbb ide.
+        val engineHolder = arrayOfNulls<TextToSpeech>(1)
+        val timeoutHolder = arrayOfNulls<Runnable>(1)
         val enginePackage = TtsEngineStore.getSelectedPackage(context)
+        val finished = AtomicBoolean(false)
+
+        val finish: (Boolean) -> Unit = { withBeep ->
+            if (finished.compareAndSet(false, true)) {
+                timeoutHolder[0]?.let { mainHandler.removeCallbacks(it) }
+                // A BEZÁRÁS A FŐSZÁLON, KIS SZÜNET UTÁN — hogy a motor
+                // befejezhesse, amit épp csinál.
+                mainHandler.postDelayed({
+                    val engine = engineHolder[0]
+                    engineHolder[0] = null
+                    try {
+                        engine?.stop()
+                        engine?.shutdown()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "TTS shutdown failed", e)
+                    }
+                }, 250L)
+                if (withBeep) playFallbackBeep()
+                mainHandler.post(onDone)
+            }
+        }
+
+        // IDŐKORLÁT: a hosszabb mondat több időt kap, de a végtelen soha.
+        val limit = 8_000L + message.length * 90L
+        val timeout = Runnable {
+            Log.w(TAG, "Announcement timed out — releasing")
+            finish(false)
+        }
+        timeoutHolder[0] = timeout
+        mainHandler.postDelayed(timeout, limit)
+
         val listener = TextToSpeech.OnInitListener { status ->
             if (status != TextToSpeech.SUCCESS) {
-                tts?.shutdown()
-                playFallbackBeep()
-                mainHandler.post(onDone)
+                finish(true)
                 return@OnInitListener
             }
-            val engine = tts ?: run {
-                mainHandler.post(onDone)
+            val engine = engineHolder[0] ?: run {
+                finish(false)
                 return@OnInitListener
             }
-            val lang = engine.setLanguage(Locale("hu", "HU"))
-            if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) {
-                engine.setLanguage(Locale.getDefault())
+            try {
+                val lang = engine.setLanguage(Locale("hu", "HU"))
+                if (lang == TextToSpeech.LANG_MISSING_DATA ||
+                    lang == TextToSpeech.LANG_NOT_SUPPORTED
+                ) {
+                    engine.setLanguage(Locale.getDefault())
+                }
+                engine.setSpeechRate(TtsSettingsStore.getSpeechRate(context))
+                engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId == "patrol_announce") finish(false)
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        if (utteranceId == "patrol_announce") finish(true)
+                    }
+
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                        if (utteranceId == "patrol_announce") finish(false)
+                    }
+                })
+                val result =
+                    engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "patrol_announce")
+                if (result != TextToSpeech.SUCCESS) {
+                    Log.w(TAG, "Engine refused the announcement ($result)")
+                    finish(true)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Announcement failed", e)
+                finish(true)
             }
-            engine.setSpeechRate(TtsSettingsStore.getSpeechRate(context))
-            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (utteranceId == "patrol_announce") {
-                        engine.shutdown()
-                        mainHandler.post(onDone)
-                    }
-                }
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) {
-                    if (utteranceId == "patrol_announce") {
-                        engine.shutdown()
-                        playFallbackBeep()
-                        mainHandler.post(onDone)
-                    }
-                }
-            })
-            engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, "patrol_announce")
         }
-        tts = if (enginePackage.isNullOrBlank()) {
-            TextToSpeech(context, listener)
-        } else {
-            TextToSpeech(context, listener, enginePackage)
+        engineHolder[0] = try {
+            if (enginePackage.isNullOrBlank()) {
+                TextToSpeech(context, listener)
+            } else {
+                TextToSpeech(context, listener, enginePackage)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "TTS creation failed", e)
+            finish(true)
+            null
         }
     }
 
