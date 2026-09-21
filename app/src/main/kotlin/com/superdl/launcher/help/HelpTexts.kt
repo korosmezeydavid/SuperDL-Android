@@ -380,17 +380,22 @@ object HelpTexts {
                 "pontosság, végül a címet. Ha innen indulnál valahová, a Gyalogos " +
                 "útvonal diktálással menüpontban bemondod a célt. Ha csak azt akarod " +
                 "tudni, mi van a közelben, a G P S Kitekintő almenü való rá; a " +
-                "buszhoz-villamoshoz a Közeli megállók felolvasása. " +
-                "A HOL VAGYOK? ELKÜLDÉS SMS-BEN ugyanígy megméri a helyzetedet, de a " +
-                "végén nem felolvassa, hanem megkérdezi, kinek küldje el. Az üzenetben " +
-                "ott lesz a cím, a koordináta, egy térkép-link és a mérés pontossága " +
-                "meg az ideje. EZ NEM S.O.S.: nincs benne vészjelzés, és nem indít " +
-                "hívást — akkor való, amikor csak meg akarod mondani valakinek, hol " +
-                "vagy. Ha nincs internet, a legutóbbi ismert helyedet ajánlja fel, és " +
-                "az üzenetben benne lesz, hogy az nem mostani.",
-            gestures = "A Hol vagyok? eredményénél jobbra söpréssel elmented a helyet " +
-                "egyéni helyként — a program megkérdezi a nevét —, balra söpréssel " +
-                "kilépsz, felfelé söpréssel újra hallod, lefelé söpréssel újramérsz. " +
+                "buszhoz-villamoshoz a Közeli megállók felolvasása.",
+            gestures = "A Hol vagyok? EREDMÉNYÉNÉL fel-le söpréssel válogatsz a " +
+                "műveletek közt, jobbra söpréssel indítod, balra söpréssel kilépsz. " +
+                "A műveletek: Mentés egyéni helyként — a program megkérdezi a nevét —, " +
+                "Helyzet megosztása üzenetben, Megosztás egyéb módon, A hely újra " +
+                "felolvasása, és Újramérés. " +
+                "A HELYZET MEGOSZTÁSA ÜZENETBEN a program saját SMS-küldésével megy: " +
+                "bemondod a címzettet, visszahallod, és elküldöd. Az üzenetben ott a " +
+                "cím, a koordináta, egy térkép-link, a pontosság és az időpont. " +
+                "EZ NEM S.O.S.: nincs benne vészjelzés, és nem indít hívást — akkor " +
+                "való, amikor csak meg akarod mondani valakinek, hol vagy. A MEGOSZTÁS " +
+                "EGYÉB MÓDON ugyanezt a szöveget adja át a telefon megosztás-ablakának, " +
+                "tehát bármelyik üzenetküldővel elküldheted; onnantól a rendszer ablaka " +
+                "jön, amit a Super DL nem tud vakbaráttá tenni. Internet nélkül a " +
+                "legutóbbi ismert helyed jön fel, ugyanezekkel a műveletekkel, és az " +
+                "üzenet akkor azzal kezdődik, hogy Legutóbb itt voltam. " +
                 "A megálló- és állomáslistákban fel-le söpréssel válogatsz, jobbra " +
                 "söpréssel megnyílnak a műveletek — részletes felolvasás, mentés a " +
                 "kedvencekbe, kedvenc törlése, keresési kör váltása, frissítés —, " +

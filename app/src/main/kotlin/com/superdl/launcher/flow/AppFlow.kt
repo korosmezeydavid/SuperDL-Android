@@ -1216,7 +1216,11 @@ sealed class AppFlow {
         val latitude: Double,
         val longitude: Double,
         val address: String,
-        val accuracyMeters: Int
+        val accuracyMeters: Int,
+        /** A fel-le söprés itt a műveletek közt válogat (mentés, megosztás…). */
+        val actionIndex: Int = 0,
+        /** Igaz, ha ez nem friss mérés, hanem a legutóbbi ismert hely. */
+        val stale: Boolean = false
     ) : AppFlow()
 
     data class GpsSaveRefining(

@@ -1125,7 +1125,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRadarGuiding -> speakGpsRadarTarget(flow)
             is AppFlow.GpsSavedPoiBrowse -> navigateGpsSavedPoiList(flow, -1)
             is AppFlow.SavedPoiContextMenu -> navigateSavedPoiContextMenu(flow, -1)
-            is AppFlow.NavWhereResult -> speakNavWhereResult(flow)
+            is AppFlow.NavWhereResult -> navigateNavWhereAction(flow, -1)
             AppFlow.GpsRouteRecordingActive -> speakGpsRouteStatus()
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, -1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
@@ -1360,7 +1360,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRadarGuiding -> startGpsSaveOwnLocation(returnGuiding = flow)
             is AppFlow.GpsSavedPoiBrowse -> navigateGpsSavedPoiList(flow, +1)
             is AppFlow.SavedPoiContextMenu -> navigateSavedPoiContextMenu(flow, +1)
-            is AppFlow.NavWhereResult -> beginNavWhereRefining()
+            is AppFlow.NavWhereResult -> navigateNavWhereAction(flow, +1)
             AppFlow.GpsRouteRecordingActive -> speakGpsRouteStatus()
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, +1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
@@ -1601,7 +1601,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsSavedPoiBrowse -> enterSavedPoiContextMenu(flow)
             is AppFlow.SavedPoiContextMenu -> onSavedPoiContextActivate(flow)
             is AppFlow.SavedPoiVoiceRecording -> stopAndSaveSavedPoiVoiceRecording(flow)
-            is AppFlow.NavWhereResult -> startNavWhereSave(flow)
+            is AppFlow.NavWhereResult -> onNavWhereActionActivate(flow)
             AppFlow.GpsRouteRecordingActive -> addGpsRouteWaypoint()
             is AppFlow.GpsRouteBrowse -> onGpsRouteListActivate(flow)
             is AppFlow.GpsRouteDeleteConfirm -> deleteGpsRoute(flow)
@@ -3327,7 +3327,6 @@ class MainActivity : AppCompatActivity() {
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
             MenuAction.NAV_WHERE -> startNavWhereFlow()
-            MenuAction.NAV_WHERE_SMS -> startNavWhereFlow(thenShare = true)
             MenuAction.NAV_WALK -> startNavWalkFlow()
             MenuAction.NAV_SEARCH -> startNavSearchFlow()
             MenuAction.GPS_RADAR -> startGpsRadarFlow()
@@ -15337,32 +15336,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startNavWhereFlow(thenShare: Boolean = false) {
+    private fun startNavWhereFlow() {
         if (!ensureLocationPermission()) return
         if (!ConnectivityHelper.isOnline(this)) {
             val stored = LastLocationStore.get(this)
             if (stored != null) {
-                // INTERNET NÉLKÜL IS ELKÜLDHETŐ. Az SMS-hez nem kell háló, és
-                // egy régebbi, de pontos helyzet többet ér a semminél — azt
-                // viszont KIMONDJUK az üzenetben is, hogy nem mostani.
-                if (thenShare) {
-                    shareLocationBySms(
-                        address = stored.address,
-                        latitude = stored.latitude,
-                        longitude = stored.longitude,
-                        accuracyMeters = stored.accuracyMeters,
-                        atMillis = stored.savedAtMillis,
-                        stale = true
-                    )
-                    return
-                }
-                tts.speak(stored.speakSummary())
+                // INTERNET NÉLKÜL IS MEGNYITJUK AZ EREDMÉNYT, nem csak
+                // bemondjuk. A megosztáshoz nem kell háló — SMS-t hálózat
+                // nélkül is lehet küldeni —, és így offline is ott van minden
+                // művelet. Az üzenetben viszont KIMONDJUK, hogy nem mostani.
+                activeFlow = AppFlow.NavWhereResult(
+                    latitude = stored.latitude,
+                    longitude = stored.longitude,
+                    address = stored.address,
+                    accuracyMeters = stored.accuracyMeters,
+                    stale = true
+                )
+                updateFlowDisplay()
+                tts.speak(
+                    "${stored.speakSummary()} " +
+                        "Söpörj fel-le a műveletekhez, jobbra az indításhoz."
+                )
                 return
             }
             tts.speak("Nincs internet, és nincs mentett utolsó hely.")
             return
         }
-        beginNavWhereRefining(thenShare)
+        beginNavWhereRefining()
     }
 
     /**
@@ -15376,45 +15376,74 @@ class MainActivity : AppCompatActivity() {
      * Így a címzettválasztás, a visszamondás és a küldés-ellenőrzés mind a
      * megszokott: nem épül mellé egy második, másképp viselkedő SMS-út.
      */
-    private fun shareLocationBySms(
-        address: String?,
-        latitude: Double,
-        longitude: Double,
-        accuracyMeters: Int,
-        atMillis: Long,
-        stale: Boolean = false
-    ) {
+    private fun buildLocationShareText(flow: AppFlow.NavWhereResult): String =
+        com.superdl.launcher.gps.LocationShareMessage.build(
+            address = flow.address,
+            latitude = flow.latitude,
+            longitude = flow.longitude,
+            accuracyMeters = flow.accuracyMeters,
+            atMillis = System.currentTimeMillis(),
+            stale = flow.stale
+        )
+
+    private fun shareLocationBySms(flow: AppFlow.NavWhereResult) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
             tts.speak("SMS küldés engedély szükséges.")
             return
         }
-        pendingSmsForwardBody = com.superdl.launcher.gps.LocationShareMessage.build(
-            address = address,
-            latitude = latitude,
-            longitude = longitude,
-            accuracyMeters = accuracyMeters,
-            atMillis = atMillis,
-            stale = stale
-        )
+        pendingSmsForwardBody = buildLocationShareText(flow)
         startSmsComposeFlow()
     }
 
-    private fun beginNavWhereRefining(thenShare: Boolean = false) {
+    /**
+     * MEGOSZTÁS EGYÉB MÓDON — a rendszer megosztás-ablakával.
+     *
+     * Ugyanaz a szöveg megy, csak más csatornán: üzenetküldő, e-mail, ami
+     * a telefonon fent van. Innentől a rendszer ablaka jön, azt a SuperDL
+     * nem tudja vakbaráttá tenni — ezért mondjuk ki, hogy mi következik.
+     */
+    private fun shareLocationOther(flow: AppFlow.NavWhereResult) {
+        try {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, buildLocationShareText(flow))
+            }
+            startActivity(Intent.createChooser(send, "Helyzet megosztása"))
+            tts.speak("Megosztás. Válaszd ki, melyik alkalmazással küldöd.")
+        } catch (_: Exception) {
+            feedbackError()
+            tts.speak("A megosztás nem indult el.")
+        }
+    }
+
+    private fun navigateNavWhereAction(flow: AppFlow.NavWhereResult, delta: Int) {
+        val actions = com.superdl.launcher.gps.NavWhereAction.ALL
+        val next = (flow.actionIndex + delta + actions.size) % actions.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(actions[next].label)
+    }
+
+    private fun onNavWhereActionActivate(flow: AppFlow.NavWhereResult) {
+        when (com.superdl.launcher.gps.NavWhereAction.ALL[flow.actionIndex]) {
+            com.superdl.launcher.gps.NavWhereAction.SAVE -> startNavWhereSave(flow)
+            com.superdl.launcher.gps.NavWhereAction.SHARE_SMS -> shareLocationBySms(flow)
+            com.superdl.launcher.gps.NavWhereAction.SHARE_OTHER -> shareLocationOther(flow)
+            com.superdl.launcher.gps.NavWhereAction.REPEAT -> speakNavWhereResult(flow)
+            com.superdl.launcher.gps.NavWhereAction.REMEASURE -> beginNavWhereRefining()
+            com.superdl.launcher.gps.NavWhereAction.BACK -> exitFlow("Hol vagyok bezárva.")
+        }
+    }
+
+    private fun beginNavWhereRefining() {
         voiceInput.cancel()
         cancelGpsRefining()
         cancelGnss()
         activeFlow = AppFlow.NavWhereLoading
         updateFlowDisplay()
-        tts.speak(
-            if (thenShare) {
-                "Helymeghatározás az elküldéshez. Állj egy helyben, a pontosság " +
-                    "javítása folyamatban."
-            } else {
-                "Helymeghatározás. Állj egy helyben, a pontosság javítása folyamatban."
-            }
-        )
+        tts.speak("Helymeghatározás. Állj egy helyben, a pontosság javítása folyamatban.")
         var lastAnnouncedAccuracy = -1
         var lastAnnouncedSatellites = -1
         gnssCancel = GnssStatusMonitor.start(this) { count ->
@@ -15473,20 +15502,6 @@ class MainActivity : AppCompatActivity() {
                             flow.address,
                             flow.accuracyMeters
                         )
-                        if (thenShare) {
-                            // A HELYZET MEGVAN — most a címzett jön, nem a
-                            // találati képernyő. A címet itt is kimondjuk,
-                            // hogy tudd, MIT fogsz elküldeni.
-                            tts.speak("Helyzet megvan: ${flow.address}.")
-                            shareLocationBySms(
-                                address = flow.address,
-                                latitude = flow.latitude,
-                                longitude = flow.longitude,
-                                accuracyMeters = flow.accuracyMeters,
-                                atMillis = System.currentTimeMillis()
-                            )
-                            return@postWhenAlive
-                        }
                         activeFlow = flow
                         updateFlowDisplay()
                         speakNavWhereResult(flow, includeHints = true)
@@ -15500,7 +15515,11 @@ class MainActivity : AppCompatActivity() {
         val hint = GpsAccuracyRefiner.accuracyHint(flow.accuracyMeters)
         val base = "Jelenlegi helyed: ${flow.address}. $hint"
         if (includeHints) {
-            tts.speak("$base Jobbra söprés: mentés egyéni helyként. Balra: vissza.")
+            tts.speak(
+                "$base Söpörj fel-le a műveletekhez — mentés, megosztás " +
+                    "üzenetben, megosztás egyéb módon, újramérés —, jobbra az " +
+                    "indításhoz, balra a kilépéshez."
+            )
         } else {
             tts.speak(base)
         }
@@ -21688,9 +21707,11 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = "Állj egy helyben  •  ⬅ megszakítás"
             }
             is AppFlow.NavWhereResult -> {
-                tvItem.text = flow.address
-                tvPosition.text = "Hol vagyok?  •  ±${flow.accuracyMeters} m"
-                tvHint.text = "⬆⬇ ismétlés  •  ➡ mentés  •  ⬅ vissza"
+                val actions = com.superdl.launcher.gps.NavWhereAction.ALL
+                val action = actions[flow.actionIndex.coerceIn(0, actions.lastIndex)]
+                tvItem.text = action.label
+                tvPosition.text = "${flow.address}  •  ±${flow.accuracyMeters} m"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ vissza"
             }
             is AppFlow.GpsSaveRefining -> {
                 tvItem.text = "Saját hely mentése"
