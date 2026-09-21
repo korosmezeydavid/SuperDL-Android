@@ -24,7 +24,15 @@ data class ScheduledSms(
     val labels: List<String>,
     val message: String,
     val triggerAt: Long,
-    val outcome: String? = null
+    val outcome: String? = null,
+    /**
+     * Milyen gyakran. Alph kérése (2026-09-21): napi, heti, havi ismétlés.
+     * Egy ismétlődő üzenet SOHA nem lesz „lejárt" — küldés után egyszerűen
+     * a következő alkalomra áll át.
+     */
+    val repeat: SmsRepeat = SmsRepeat.NONE,
+    /** Ismétlődőnél: mi lett a LEGUTÓBBI küldéssel. */
+    val lastOutcome: String? = null
 ) {
     val isPending: Boolean get() = outcome == null
 
@@ -49,6 +57,14 @@ data class ScheduledSms(
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(triggerAt))
         if (!isPending) {
             return "$time, ${whoText()}. $outcome"
+        }
+        // ISMÉTLŐDŐNÉL A GYAKORISÁG AZ ELSŐ. Egy listában a „naponta" többet
+        // mond, mint az időpont: abból derül ki, hogy ez egy állandó dolog.
+        if (repeat != SmsRepeat.NONE) {
+            val nap = SimpleDateFormat("MMMM d.", Locale("hu")).format(Date(triggerAt))
+            val volt = lastOutcome?.let { " Legutóbb: $it" } ?: ""
+            return "${repeat.speak}, $time. ${whoText()}. Következő: $nap.$volt " +
+                message.take(60)
         }
         val left = triggerAt - System.currentTimeMillis()
         val whenText = when {
@@ -109,7 +125,9 @@ object ScheduledSmsStore {
                     labels = labels,
                     message = o.optString("message"),
                     triggerAt = o.optLong("triggerAt"),
-                    outcome = if (o.isNull("outcome")) null else o.optString("outcome").ifBlank { null }
+                    outcome = if (o.isNull("outcome")) null else o.optString("outcome").ifBlank { null },
+                    repeat = SmsRepeat.fromName(o.optString("repeat", "NONE")),
+                    lastOutcome = o.optString("lastOutcome").ifBlank { null }
                 )
             )
         }
@@ -124,7 +142,8 @@ object ScheduledSmsStore {
         context: Context,
         recipients: List<Recipient>,
         message: String,
-        triggerAt: Long
+        triggerAt: Long,
+        repeat: SmsRepeat = SmsRepeat.NONE
     ): ScheduledSms? {
         val all = getAll(context).toMutableList()
         if (all.count { it.isPending } >= MAX_ITEMS) return null
@@ -134,11 +153,29 @@ object ScheduledSmsStore {
             phones = recipients.map { it.phone },
             labels = recipients.map { it.label },
             message = message,
-            triggerAt = triggerAt
+            triggerAt = triggerAt,
+            repeat = repeat
         )
         all.add(entry)
         save(context, all)
         return entry
+    }
+
+    /**
+     * EGY ISMÉTLŐDŐ ÜZENET TOVÁBBLÉPÉSE.
+     *
+     * Nem „lejárt" lesz, hanem a következő alkalomra áll. A legutóbbi
+     * küldés sorsát megjegyezzük, hogy a listában látszódjon — egy
+     * ismétlődő üzenetnél pont az a kérdés, hogy a legutóbbi elment-e.
+     */
+    fun advance(context: Context, id: Int, nextAt: Long, lastOutcome: String): ScheduledSms? {
+        val all = getAll(context).toMutableList()
+        val index = all.indexOfFirst { it.id == id }
+        if (index < 0) return null
+        val updated = all[index].copy(triggerAt = nextAt, lastOutcome = lastOutcome)
+        all[index] = updated
+        save(context, all)
+        return updated
     }
 
     fun get(context: Context, id: Int): ScheduledSms? = getAll(context).firstOrNull { it.id == id }
@@ -170,6 +207,8 @@ object ScheduledSmsStore {
                 put("message", e.message)
                 put("triggerAt", e.triggerAt)
                 put("outcome", e.outcome)
+                put("repeat", e.repeat.name)
+                put("lastOutcome", e.lastOutcome)
             })
         }
         JsonPrefsHelper.saveJsonArray(context, PREFS, KEY, KEY_SCHEMA, SCHEMA_VERSION, array)

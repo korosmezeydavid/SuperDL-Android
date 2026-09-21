@@ -142,6 +142,31 @@ class ScheduledSmsReceiver : BroadcastReceiver() {
         } else {
             "Részben ment el: nem kapta meg ${report.failedTo.joinToString(", ")}."
         }
+        // ISMÉTLŐDŐ ÜZENET: nem lejár, hanem továbblép.
+        //
+        // MIÉRT AZ EREDETI IDŐPONTBÓL SZÁMOLUNK, ÉS NEM A MOSTANIBÓL: ha az
+        // ébresztő késett (alvó telefon, takarékos mód), a mostanihoz adott
+        // egy nap minden alkalommal arrébb csúsztatná az időpontot. Két hét
+        // alatt a reggel hétkor induló üzenet délutánra vándorolna.
+        if (entry.repeat != SmsRepeat.NONE) {
+            val next = entry.repeat.nextAfter(entry.triggerAt)
+            if (next != null) {
+                val updated = ScheduledSmsStore.advance(context, id, next, outcome)
+                if (updated != null) {
+                    ScheduledSmsScheduler.schedule(context, updated)
+                    if (report.failedTo.isNotEmpty()) {
+                        PatrolAnnouncer.announce(
+                            context.applicationContext,
+                            "Figyelem: az ismétlődő üzenet nem ment el neki: " +
+                                "${report.failedTo.joinToString(", ")}.",
+                            critical = true
+                        )
+                    }
+                    return
+                }
+            }
+        }
+
         ScheduledSmsStore.markDone(context, id, outcome)
         SmsOutcomeStore.note(
             context,

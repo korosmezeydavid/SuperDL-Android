@@ -60,7 +60,10 @@ sealed class AppFlow {
     data class SmsMultiConfirm(
         val recipients: List<Recipient>,
         val message: String,
-        val triggerAt: Long? = null
+        val triggerAt: Long? = null,
+        /** Napi, heti vagy havi ismétlés — Alph kérése (2026-09-21). */
+        val repeat: com.superdl.launcher.sms.SmsRepeat =
+            com.superdl.launcher.sms.SmsRepeat.NONE
     ) : AppFlow()
 
     /** Az időzített üzenetek listája. Jobbra: törlés. */

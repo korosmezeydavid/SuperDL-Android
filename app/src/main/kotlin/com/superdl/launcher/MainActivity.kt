@@ -1031,9 +1031,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiLetterBrowse -> navigateSmsMultiLetter(flow, -1)
             is AppFlow.SmsMultiNameBrowse -> navigateSmsMultiName(flow, -1)
             is AppFlow.SmsMultiConfirm ->
-                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt)
+                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt, flow.repeat)
             is AppFlow.SmsScheduleAwaitTime ->
-                tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
+                tts.speak(
+                    "Mikor menjen el? Például: két óra múlva, délután ötkor, " +
+                        "minden nap reggel hétkor, vagy december 24-én hatkor."
+                )
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, -1)
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, -1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, -1)
@@ -1264,9 +1267,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiLetterBrowse -> navigateSmsMultiLetter(flow, +1)
             is AppFlow.SmsMultiNameBrowse -> navigateSmsMultiName(flow, +1)
             is AppFlow.SmsMultiConfirm ->
-                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt)
+                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt, flow.repeat)
             is AppFlow.SmsScheduleAwaitTime ->
-                tts.speak("Mikor menjen el? Például: két óra múlva, vagy délután ötkor.")
+                tts.speak(
+                    "Mikor menjen el? Például: két óra múlva, délután ötkor, " +
+                        "minden nap reggel hétkor, vagy december 24-én hatkor."
+                )
             is AppFlow.SmsScheduleList -> navigateSmsScheduleList(flow, +1)
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, +1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, +1)
@@ -3954,14 +3960,26 @@ class MainActivity : AppCompatActivity() {
 
     // ── IDŐZÍTÉS (MK-V, M3) ─────────────────────────────────────────────────
 
+    /**
+     * MIKOR ÉS MILYEN GYAKRAN — EGYETLEN MONDATBÓL.
+     *
+     * Alph kérése (2026-09-21): az időzített üzenet ismétlődhessen napi,
+     * heti vagy havi gyakorisággal, és ne csak órára-percre, hanem TELJES
+     * DÁTUMRA is be lehessen állítani.
+     *
+     * MIÉRT NINCS HOZZÁ KÜLÖN KÉRDÉS: aki azt mondja, hogy „minden nap
+     * reggel hétkor", egyetlen mondatban megmondta mindkettőt. Egy külön
+     * kérdés csak egy újabb söprés lenne, amit vakon kell megtalálni.
+     */
     private fun listenForSmsScheduleTime(recipients: List<Recipient>, message: String) {
         voiceInput.listen(
             prompt = "Mikor menjen el? Mondhatod így: másfél óra múlva, " +
-                "vagy így: délután ötkor.",
+                "délután ötkor, minden nap reggel hétkor, " +
+                "vagy így: december 24-én délután hatkor.",
             speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
             onResult = { spoken ->
-                val at = com.superdl.launcher.sms.ScheduledSmsTime.parse(spoken)
-                if (at == null) {
+                val plan = com.superdl.launcher.sms.ScheduledSmsTime.parseSchedule(spoken)
+                if (plan == null) {
                     // NEM TIPPELÜNK. Egy félreértett időpont csendben rossz
                     // órában küldene el egy üzenetet.
                     feedbackError()
@@ -3969,9 +3987,11 @@ class MainActivity : AppCompatActivity() {
                     listenForSmsScheduleTime(recipients, message)
                     return@listen
                 }
-                activeFlow = AppFlow.SmsMultiConfirm(recipients, message, at)
+                activeFlow = AppFlow.SmsMultiConfirm(
+                    recipients, message, plan.triggerAt, plan.repeat
+                )
                 updateFlowDisplay()
-                repeatSmsMultiConfirm(recipients, message, at)
+                repeatSmsMultiConfirm(recipients, message, plan.triggerAt, plan.repeat)
             },
             onError = { exitFlow("Időzítés megszakítva.") }
         )
@@ -3980,7 +4000,9 @@ class MainActivity : AppCompatActivity() {
     private fun repeatSmsMultiConfirm(
         recipients: List<Recipient>,
         message: String,
-        triggerAt: Long?
+        triggerAt: Long?,
+        repeat: com.superdl.launcher.sms.SmsRepeat =
+            com.superdl.launcher.sms.SmsRepeat.NONE
     ) {
         val names = recipients.joinToString(", ") { it.label }
         if (triggerAt == null) {
@@ -3989,9 +4011,20 @@ class MainActivity : AppCompatActivity() {
                     "Söpörj jobbra az elküldéshez, balra a mégsehez. Ismétlés: söprés fel."
             )
         } else {
-            val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(triggerAt)
+            val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakPlan(
+                com.superdl.launcher.sms.ScheduledSmsTime.Plan(
+                    triggerAt,
+                    repeat,
+                    dateGiven = false
+                )
+            )
+            val fej = if (repeat == com.superdl.launcher.sms.SmsRepeat.NONE) {
+                "Időzített üzenet."
+            } else {
+                "Ismétlődő üzenet."
+            }
             tts.speak(
-                "Időzített üzenet. Címzett: $names. Üzenet: $message. Elküldés ekkor: " +
+                "$fej Címzett: $names. Üzenet: $message. Elküldés ekkor: " +
                     "$whenText. Beállítsam? Söpörj jobbra, balra a mégsehez. " +
                     "Ismétlés: söprés fel."
             )
@@ -4002,7 +4035,7 @@ class MainActivity : AppCompatActivity() {
     private fun saveScheduledSms(flow: AppFlow.SmsMultiConfirm) {
         val at = flow.triggerAt ?: return
         val entry = com.superdl.launcher.sms.ScheduledSmsStore.add(
-            this, flow.recipients, flow.message, at
+            this, flow.recipients, flow.message, at, flow.repeat
         )
         if (entry == null) {
             exitFlow(
@@ -4026,9 +4059,16 @@ class MainActivity : AppCompatActivity() {
         } else {
             ""
         }
-        val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(at)
+        val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakPlan(
+            com.superdl.launcher.sms.ScheduledSmsTime.Plan(at, flow.repeat, dateGiven = false)
+        )
+        val fej = if (flow.repeat == com.superdl.launcher.sms.SmsRepeat.NONE) {
+            "Időzített üzenet beállítva"
+        } else {
+            "Ismétlődő üzenet beállítva"
+        }
         exitFlow(
-            "Időzített üzenet beállítva: $whenText. Bármikor törölheted az " +
+            "$fej: $whenText. Bármikor törölheted az " +
                 "Időzített üzeneteim pontban.$figyelmeztetes",
             success = true
         )
