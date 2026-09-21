@@ -5043,7 +5043,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun enterContactContextMenu(items: List<ContactBookItem>, contactIndex: Int) {
         val entry = items.getOrNull(contactIndex) as? ContactBookItem.Entry ?: return
-        val actions = ContactContextAction.browseActions
+        val actions = ContactContextAction.forContact(entry.contact.phone.isNotBlank())
         activeFlow = AppFlow.ContactContextMenu(items, contactIndex, actions, 0)
         updateFlowDisplay()
         tts.speak(
@@ -5065,6 +5065,11 @@ class MainActivity : AppCompatActivity() {
         when (flow.actions[flow.actionIndex]) {
             ContactContextAction.CALL -> placeCall(contact.phone, contact.name)
             ContactContextAction.SEND_SMS -> startSmsToPhone(contact.phone, contact.name)
+            ContactContextAction.REMIND_LATER -> startReminderFlow(
+                com.superdl.launcher.reminder.LaterReminder.KIND_CALL,
+                contact.phone,
+                contact.name
+            )
             ContactContextAction.RINGTONE -> openContactRingtonePicker(contact)
             ContactContextAction.EDIT -> startContactEditFlow(contact)
             ContactContextAction.DELETE -> enterContactDeleteConfirm(contact, flow.items, flow.contactIndex)
@@ -18918,8 +18923,9 @@ class MainActivity : AppCompatActivity() {
         if (items.isEmpty()) {
             tts.speak(
                 if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
-                    "Nincs visszahívandó. A hívásnaplóban a jobbra söprés műveleteiből " +
-                        "kérhetsz emlékeztetőt."
+                    "Nincs visszahívandó. Felvenni két helyen tudsz: a hívásnaplóban " +
+                        "vagy a névjegyeknél, jobbra söpörve, az Emlékeztetés később " +
+                        "ponttal. A névjegyhez nem kell, hogy előtte hívás legyen."
                 } else {
                     "Nincs függő üzenet."
                 }

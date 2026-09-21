@@ -892,9 +892,15 @@ object HelpTexts {
                 "beírsz, és FIGYELJ: ott a balra söprés visszatörlés, nem kilépés; a " +
                 "lista végén van a Kész. A névjegyzékben fel-le söpréssel lépkedsz, " +
                 "jobbra söpréssel nyílnak a névjegy műveletei — Hívás indítása, SMS " +
-                "küldés, Egyéni csengőhang, Névjegy szerkesztése, Névjegy törlése. " +
+                "küldés, Emlékeztetés később, Egyéni csengőhang, Névjegy " +
+                "szerkesztése, Névjegy törlése. " +
+                "AZ EMLÉKEZTETÉS KÉSŐBB arra való, amikor tudod, hogy fel kell hívnod " +
+                "valakit, de most nem akarod zavarni: felteszi a Visszahívandók " +
+                "listájára, és a megadott időben szól. Nem kell hozzá, hogy előtte " +
+                "hívás legyen — a névjegyből is felvehető. " +
                 "A hívásnaplóban a jobbra söprés műveleteket ad: hívás, SMS, szám " +
-                "másolása, mentés névjegyként, kedvencekhez adás, szám letiltása. " +
+                "másolása, emlékeztetés később, mentés névjegyként, kedvencekhez " +
+                "adás, fehérlistára, szám letiltása. " +
                 "A KEDVENC HÍVÁSA a leggyorsabb út: fel-le söpréssel megkeresed, és a " +
                 "jobbra söprés azonnal tárcsáz — itt szándékosan nincs visszakérdezés, " +
                 "mert a kedvenc épp az, akit gondolkodás nélkül akarsz hívni.",
