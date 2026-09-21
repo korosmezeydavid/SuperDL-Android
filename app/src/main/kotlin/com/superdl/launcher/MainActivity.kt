@@ -2558,6 +2558,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.HOME_WATCH_TIME -> startHomeWatchTimeFlow()
             MenuAction.HOME_WATCH_MODE_TOGGLE -> toggleHomeWatchMode()
             MenuAction.HOME_WATCH_COUNTDOWN_TOGGLE -> toggleHomeWatchCountdown()
+            MenuAction.HOME_WATCH_GREETING_TOGGLE -> toggleHomeWatchGreeting()
             MenuAction.HOME_WATCH_SLOT_1 -> toggleHomeWatchSlot(1)
             MenuAction.HOME_WATCH_SLOT_2 -> toggleHomeWatchSlot(2)
             MenuAction.HOME_WATCH_SLOT_3 -> toggleHomeWatchSlot(3)
@@ -19952,6 +19953,27 @@ class MainActivity : AppCompatActivity() {
             } else {
                 "Visszaszámlálás kikapcsolva. FIGYELEM: mostantól az üzenet azonnal megy, " +
                     "leállítási lehetőség nélkül."
+            }
+        )
+    }
+
+    /**
+     * A KEDVES MONDAT HAZAÉRKEZÉSKOR. Alph kérésére került be: a jó
+     * kimenetel volt az egyetlen, amiről semmi visszajelzés nem jött.
+     * Kikapcsolható, mert éjjel tíz után egy szó is sok tud lenni.
+     */
+    private fun toggleHomeWatchGreeting() {
+        val settings = com.superdl.launcher.home.HomeWatchSettings
+        val on = !settings.isGreetingEnabled(this)
+        settings.setGreetingEnabled(this, on)
+        feedbackSuccess()
+        tts.speak(
+            if (on) {
+                "Köszönés bekapcsolva. Ha az ellenőrzés otthon talál, mondok egy " +
+                    "kedves mondatot. Például: " +
+                    com.superdl.launcher.home.HomeGreeting.text()
+            } else {
+                "Köszönés kikapcsolva. Ha otthon vagy, nem szólok semmit."
             }
         )
     }

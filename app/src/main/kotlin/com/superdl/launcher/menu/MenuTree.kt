@@ -37,6 +37,7 @@ enum class MenuAction {
     HOME_WATCH_TIME,               // Mikor ellenőrizzen
     HOME_WATCH_MODE_TOGGLE,        // Éles vagy próba
     HOME_WATCH_COUNTDOWN_TOGGLE,   // Visszaszámlálás a riasztás előtt
+    HOME_WATCH_GREETING_TOGGLE,    // Kedves mondat, ha otthon talál
     HOME_WATCH_SLOT_1,             // Melyik S.O.S. szám kapjon értesítést
     HOME_WATCH_SLOT_2,
     HOME_WATCH_SLOT_3,
@@ -1150,6 +1151,7 @@ object MenuTree {
                     MenuItem("home_time", "Ellenőrzés időpontja", MenuAction.HOME_WATCH_TIME),
                     MenuItem("home_mode", "Éles és próba mód váltása", MenuAction.HOME_WATCH_MODE_TOGGLE),
                     MenuItem("home_countdown", "Visszaszámlálás ki és be", MenuAction.HOME_WATCH_COUNTDOWN_TOGGLE),
+                    MenuItem("home_greeting", "Köszönés, ha otthon vagy", MenuAction.HOME_WATCH_GREETING_TOGGLE),
                     MenuItem("home_slot_1", "Értesítés az 1. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_1),
                     MenuItem("home_slot_2", "Értesítés a 2. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_2),
                     MenuItem("home_slot_3", "Értesítés a 3. S.O.S. számra", MenuAction.HOME_WATCH_SLOT_3),

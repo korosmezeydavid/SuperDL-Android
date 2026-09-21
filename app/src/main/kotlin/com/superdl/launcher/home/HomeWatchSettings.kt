@@ -34,6 +34,7 @@ object HomeWatchSettings {
     private const val KEY_LAST_AT = "otthon_figyeles_utolso_ido"
     private const val KEY_FOLLOWUP = "otthon_figyeles_kovetes"
     private const val KEY_FOLLOWUP_SENT = "otthon_figyeles_kovetes_db"
+    private const val KEY_GREETING = "otthon_figyeles_koszones"
 
     private const val DEFAULT_HOUR = 22
     private const val DEFAULT_MINUTE = 0
@@ -119,6 +120,24 @@ object HomeWatchSettings {
         prefs(context).edit().putInt(KEY_FOLLOWUP_SENT, 0).apply()
     }
 
+    // ── Köszönés hazaérkezéskor ──────────────────────────────────────────
+
+    /**
+     * Ha az ellenőrzés otthon talál, mondjon egy rövid kedves mondatot.
+     *
+     * KORÁBBAN EZ NÉMA VOLT, szándékosan. Alph kérésére változott meg
+     * (2026-09-21): a jó kimenetel az egyetlen eset, amiről eddig semmi
+     * visszajelzés nem jött, így nem lehetett tudni, lefutott-e a
+     * figyelés egyáltalán. Alapból BE van kapcsolva, de kikapcsolható —
+     * aki éjjel tizenegykor már alszik, annak egy szó is sok.
+     */
+    fun isGreetingEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GREETING, true)
+
+    fun setGreetingEnabled(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean(KEY_GREETING, value).apply()
+    }
+
     // ── Címzettek ────────────────────────────────────────────────────────
 
     /** Az S.O.S. számok közül melyikek kapnak értesítést. Alapból csak az első. */
@@ -193,6 +212,13 @@ object HomeWatchSettings {
                 "Ha negyedóra múlva sem vagy otthon, friss helyzettel üzen még egyszer. "
             } else {
                 "Frissítő üzenetet nem küld. "
+            }
+        )
+        sb.append(
+            if (isGreetingEnabled(context)) {
+                "Ha otthon talál, köszön egy kedves mondattal. "
+            } else {
+                "Ha otthon talál, nem szól semmit. "
             }
         )
         sb.append(HomeSignatureStore.get(context).speakSummary())

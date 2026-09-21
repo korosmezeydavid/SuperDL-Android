@@ -150,8 +150,11 @@ class HomeWatchService : Service() {
 
         when (check.verdict) {
             HomeVerdict.HOME -> {
-                // SZÁNDÉKOSAN NÉMA. Aki hazaért, ne kapjon bemondást arról,
-                // hogy hazaért. Ez a leggyakoribb eset, és a legjobb kimenetel.
+                // EGY RÖVID KEDVES MONDAT. Ez régen néma volt, szándékosan.
+                // Alph kérésére változott (2026-09-21): a jó kimenetel volt
+                // az egyetlen, amiről semmi visszajelzés nem jött, így nem
+                // lehetett tudni, egyáltalán lefutott-e a figyelés. A mondat
+                // rövid, napszakhoz igazodik, és kikapcsolható.
                 //
                 // FRISSÍTÉSKOR EZ KÜLÖN FONTOS: közben hazaérhetett. Ilyenkor
                 // a függő frissítéseket le kell mondani, különben negyedóra
@@ -163,6 +166,15 @@ class HomeWatchService : Service() {
                 )
                 if (manual) {
                     announce("Próba: otthon vagy. ${check.reason}. Ilyenkor nem küldenék semmit.")
+                } else if (HomeWatchSettings.isGreetingEnabled(this)) {
+                    // CSAK AZ ELSŐ ELLENŐRZÉSKOR. Ha közben ért haza, és a
+                    // frissítés találja otthon, az inkább megkönnyebbülés,
+                    // mint jó estét — de akkor sem hallgatunk, mert az
+                    // előbb már ment róla egy riasztás.
+                    announce(
+                        if (followUp) "Látom, hazaértél. ${HomeGreeting.text()}"
+                        else HomeGreeting.text()
+                    )
                 }
             }
 

@@ -76,6 +76,10 @@ object ToggleChoice {
             "Otthon figyelés visszaszámlálás",
             { com.superdl.launcher.home.HomeWatchSettings.isCountdownEnabled(it) }
         ),
+        MenuAction.HOME_WATCH_GREETING_TOGGLE to Spec(
+            "Köszönés hazaérkezéskor",
+            { com.superdl.launcher.home.HomeWatchSettings.isGreetingEnabled(it) }
+        ),
 
         // ── S.O.S. ──────────────────────────────────────────────────────
         MenuAction.SOS_COUNTDOWN_TOGGLE to Spec(
