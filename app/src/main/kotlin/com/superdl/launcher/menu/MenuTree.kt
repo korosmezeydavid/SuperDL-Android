@@ -279,6 +279,14 @@ enum class MenuAction {
     DICTAPHONE_RAW_TOGGLE, // Profi diktafon: teljesen nyers felvétel ki/be
     DICTAPHONE_CAPABILITIES, // Profi diktafon: mit tud a készülék mikrofonja
     DICTAPHONE_LIBRARY,  // Mentett felvételek
+    // KÉPERNYŐFELVÉTEL — kép, a telefon hangja és a felhasználó hangja
+    SCREEN_RECORD_START,          // Felvétel indítása
+    SCREEN_RECORD_STOP,           // Felvétel leállítása
+    SCREEN_RECORD_STATUS,         // Épp felvesz-e, mióta, mi kerül rá
+    SCREEN_RECORD_MIC_TOGGLE,     // A saját hangom rákerüljön-e
+    SCREEN_RECORD_DEVICE_TOGGLE,  // A telefon hangja rákerüljön-e
+    SCREEN_RECORD_LIBRARY,        // Mentett képernyőfelvételek
+    SCREEN_RECORD_SHARE_LAST,     // A legutóbbi felvétel elküldése
     FAVORITES_ADD,       // Kedvenc hozzáadása
     FAVORITES_CALL,      // Kedvenc hívása
     FAVORITES_DELETE,    // Kedvenc törlése
@@ -1000,6 +1008,19 @@ object MenuTree {
                     MenuItem("dict_library", "Mentett felvételek", MenuAction.DICTAPHONE_LIBRARY),
                     MenuItem("dict_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)
                 )),
+                // KÉPERNYŐFELVÉTEL. Alph kérésére (2026-09-21): egy vak
+                // felhasználónak a videó a leghasználhatóbb hibajelentés —
+                // rajta a képernyő, a program beszéde ÉS a saját szavai.
+                MenuItem("screen_record", "Képernyőfelvétel", MenuAction.SUBMENU, listOf(
+                    MenuItem("srec_start", "Felvétel indítása", MenuAction.SCREEN_RECORD_START),
+                    MenuItem("srec_stop", "Felvétel leállítása", MenuAction.SCREEN_RECORD_STOP),
+                    MenuItem("srec_status", "Állapot", MenuAction.SCREEN_RECORD_STATUS),
+                    MenuItem("srec_mic", "A saját hangom rákerüljön", MenuAction.SCREEN_RECORD_MIC_TOGGLE),
+                    MenuItem("srec_dev", "A telefon hangja rákerüljön", MenuAction.SCREEN_RECORD_DEVICE_TOGGLE),
+                    MenuItem("srec_library", "Mentett felvételek", MenuAction.SCREEN_RECORD_LIBRARY),
+                    MenuItem("srec_share", "Legutóbbi felvétel elküldése", MenuAction.SCREEN_RECORD_SHARE_LAST),
+                    MenuItem("srec_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)
+                )),
                 MenuItem("pharmacy_guardian", "Patika Őrangyal", MenuAction.SUBMENU, listOf(
                     MenuItem("med_read", "Aktuális emlékeztetők felolvasása", MenuAction.MEDICATION_READ),
                     MenuItem("med_add", "Új gyógyszer rögzítése", MenuAction.MEDICATION_ADD),
@@ -1298,6 +1319,10 @@ object MenuTree {
             MenuItem("help_index", "Súgó — minden alkalmazás", MenuAction.HELP_INDEX),
             MenuItem("sound_training", "Program hangjainak megismerése", MenuAction.SOUND_TRAINING),
             MenuItem("bug_report", "Hibajelentés küldése", MenuAction.BUG_REPORT),
+            // UGYANAZ A PONT, MINT AZ ESZKÖZÖKNÉL. Alph szavaival: „nem baj,
+            // több helyről elérhető egy menüpont". Aki hibát jelent, itt
+            // gondol rá először, hogy videót is küldhetne.
+            MenuItem("bug_video", "Képernyőfelvétel a hibáról", MenuAction.SCREEN_RECORD_START),
             MenuItem("hidden_gestures", "Rejtett mozdulatok", MenuAction.HIDDEN_GESTURES_HELP),
             MenuItem("training_playground", "Tanuló mód, funkciók bemutatása", MenuAction.TRAINING_PLAYGROUND),
             MenuItem("about_app", "Az alkalmazásról", MenuAction.ABOUT_APP),

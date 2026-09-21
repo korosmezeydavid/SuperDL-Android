@@ -160,6 +160,12 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!--
+      Képernyőfelvétel. A tükrözéshez a rendszer SAJÁT párbeszéde kell
+      (ezt semmilyen engedély nem váltja ki); ez az engedély csak ahhoz
+      kell, hogy a felvételt tartó szolgáltatás egyáltalán elindulhasson.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <permission
         android:name="${applicationId}.permission.SET_SOS"
@@ -671,6 +677,20 @@
             android:name=".dictaphone.DictaphoneService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Képernyőfelvétel – kép, a telefon hangja és a felhasználó hangja -->
+        <service
+            android:name=".screenrecord.ScreenRecordService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|microphone" />
+
+        <!-- A rendszer engedélykérő párbeszédét átvevő, láthatatlan ablak -->
+        <activity
+            android:name=".screenrecord.ScreenRecordPermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- Hallás erősítő – valós idejű mikrofon → fülhallgató -->
         <service

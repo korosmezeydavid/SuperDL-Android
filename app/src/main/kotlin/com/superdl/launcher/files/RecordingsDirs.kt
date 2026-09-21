@@ -53,6 +53,20 @@ object RecordingsDirs {
         legacy = File(context.getExternalFilesDir(null), "ProfiDiktafon")
     )
 
+    /**
+     * Képernyőfelvételek: /Movies/SuperDL
+     *
+     * MIÉRT A MOZGÓKÉP-MAPPA ÉS NEM A "Recordings": egy mp4-et a lejátszók,
+     * a galéria és a számítógép is ott keres. Ezt a videót Alph tovább
+     * fogja küldeni valakinek — legyen ott, ahol bárki megtalálja.
+     */
+    fun screen(context: Context): File = resolve(
+        context = context,
+        root = Environment.DIRECTORY_MOVIES,
+        subFolder = "SuperDL",
+        legacy = File(context.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "kepernyo")
+    )
+
     /** A régi (saját mappás) helyek — a portál ezeket is nézze, amíg van bennük valami. */
     fun legacyRadio(context: Context): File =
         File(context.getExternalFilesDir(null), "radio_recordings")
@@ -67,8 +81,13 @@ object RecordingsDirs {
         return if (rel.isBlank()) "fő tárhely" else rel.replace('/', ' ') + " mappa"
     }
 
-    private fun resolve(context: Context, subFolder: String, legacy: File): File {
-        val public = File(File(Environment.getExternalStorageDirectory(), ROOT), subFolder)
+    private fun resolve(
+        context: Context,
+        subFolder: String,
+        legacy: File,
+        root: String = ROOT
+    ): File {
+        val public = File(File(Environment.getExternalStorageDirectory(), root), subFolder)
         val usable = try {
             (public.exists() || public.mkdirs()) && public.canWrite()
         } catch (e: Exception) {

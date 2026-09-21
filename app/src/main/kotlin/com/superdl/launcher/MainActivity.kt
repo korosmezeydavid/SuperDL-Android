@@ -3552,6 +3552,13 @@ class MainActivity : AppCompatActivity() {
             MenuAction.KEYGUARD_PIN_ASSIST_SETUP -> setupKeyguardPinAssist()
             MenuAction.KEYGUARD_PIN_ASSIST_STATUS -> tts.speak(KeyguardPinSettings.speakStatus(this))
             MenuAction.DICTAPHONE_RECORD -> startDictaphoneRecordingFlow()
+            MenuAction.SCREEN_RECORD_START -> startScreenRecording()
+            MenuAction.SCREEN_RECORD_STOP -> stopScreenRecording()
+            MenuAction.SCREEN_RECORD_STATUS -> speakScreenRecordStatus()
+            MenuAction.SCREEN_RECORD_MIC_TOGGLE -> toggleScreenRecordMic()
+            MenuAction.SCREEN_RECORD_DEVICE_TOGGLE -> toggleScreenRecordDeviceAudio()
+            MenuAction.SCREEN_RECORD_LIBRARY -> speakScreenRecordLibrary()
+            MenuAction.SCREEN_RECORD_SHARE_LAST -> shareLastScreenRecording()
             MenuAction.DICTAPHONE_SETTINGS -> startDictaphoneSettingsFlow()
             MenuAction.DICTAPHONE_RAW_TOGGLE -> {
                 val next = DictaphoneSettingsStore.toggleRawCapture(this)
@@ -14889,6 +14896,180 @@ class MainActivity : AppCompatActivity() {
             ?: "útvonal"
         GpsRouteStore.stopGuidance(this)
         exitFlow("Útvonal útmutatás leállítva: $routeName.")
+    }
+
+    // ==================== KÉPERNYŐFELVÉTEL ====================
+    //
+    // MIÉRT VAN (Alph, 2026-09-21): vak felhasználóként egy hibát szavakkal
+    // leírni nehéz. Egy videó, amin a képernyő, a program beszéde ÉS a
+    // felhasználó saját kommentárja is rajta van, mindennél többet ér.
+
+    private fun startScreenRecording() {
+        if (com.superdl.launcher.screenrecord.ScreenRecordStore.isRecording) {
+            tts.speak(
+                "Már megy a felvétel, " +
+                    com.superdl.launcher.screenrecord.ScreenRecordStore.speakElapsed() +
+                    " óta. A leállításhoz a felvétel leállítása pontot válaszd."
+            )
+            return
+        }
+        // A MIKROFON ENGEDÉLYE ELŐBB. Ha itt derül ki, hogy nincs meg, a
+        // rendszer párbeszéde már nyitva lenne, és két kérdés torlódna.
+        val kellMikrofon = com.superdl.launcher.screenrecord.ScreenRecordStore.isMicEnabled(this)
+        if (kellMikrofon && !ensureMicPermission()) return
+
+        // A TELEFON SAJÁT HANGJÁRÓL: a rendszer csak a média besorolású
+        // hangot adja oda. Ha a beszéd a kisegítő csatornán szól, a program
+        // beszéde CSAK a hangszórón át, a mikrofonnal kerül a felvételre.
+        // Ezt jobb előre tudni, mint utólag a néma videón.
+        val kisegitoCsatorna =
+            com.superdl.launcher.tts.TtsSettingsStore.getSpeechChannel(this) ==
+                com.superdl.launcher.tts.TtsSettingsStore.CHANNEL_ACCESSIBILITY
+        val figyelmeztetes =
+            if (kisegitoCsatorna &&
+                com.superdl.launcher.screenrecord.ScreenRecordStore.isDeviceAudioEnabled(this)
+            ) {
+                " Egy dolgot tudj: a beszéd most a kisegítő csatornán szól, amit a rendszer " +
+                    "nem ad oda felvételre. A program beszéde így csak a hangszórón át, " +
+                    "a mikrofonnal kerül a videóra."
+            } else {
+                ""
+            }
+
+        feedbackSuccess()
+        tts.speakThen(
+            "Képernyőfelvétel indítása. Most a telefon saját kérdése jön, amit nekem nem " +
+                "szabad megnyomnom. Keresd az Indítás most gombot, és hagyd jóvá." +
+                figyelmeztetes
+        ) {
+            com.superdl.launcher.screenrecord.ScreenRecordPermissionActivity.start(this)
+        }
+    }
+
+    private fun stopScreenRecording() {
+        if (!com.superdl.launcher.screenrecord.ScreenRecordStore.isRecording) {
+            tts.speak("Most nem megy képernyőfelvétel.")
+            return
+        }
+        val hossz = com.superdl.launcher.screenrecord.ScreenRecordStore.speakElapsed()
+        com.superdl.launcher.screenrecord.ScreenRecordService.stop(this)
+        feedbackSuccess()
+        // A LEZÁRÁS NEM AZONNALI: a fájl összefűzése tart egy pillanatig.
+        // Addig ne hazudjunk kész felvételt.
+        mainHandler.postDelayed({
+            val fajl = com.superdl.launcher.screenrecord.ScreenRecordService.lastResultFile
+            val hiba = com.superdl.launcher.screenrecord.ScreenRecordService.lastError
+            if (fajl != null) {
+                val mb = fajl.length() / (1024.0 * 1024.0)
+                tts.speak(
+                    "Felvétel kész, $hossz hosszú, " +
+                        String.format(java.util.Locale("hu"), "%.1f", mb) +
+                        " megabájt. Itt van: " +
+                        com.superdl.launcher.screenrecord.ScreenRecordLibrary.speakLocation(this) +
+                        ". Az elküldéshez a legutóbbi felvétel elküldése pontot válaszd."
+                )
+            } else {
+                tts.speak(hiba ?: "A felvétel nem sikerült.")
+            }
+        }, 2_500L)
+    }
+
+    private fun speakScreenRecordStatus() {
+        val store = com.superdl.launcher.screenrecord.ScreenRecordStore
+        val sb = StringBuilder()
+        if (store.isRecording) {
+            sb.append("Felvétel megy, ${store.speakElapsed()} óta. ")
+            sb.append(if (store.micWasActive) "A saját hangod rajta van. " else "A saját hangod nincs rajta. ")
+            sb.append(
+                if (store.deviceAudioWasActive) "A telefon hangja rajta van. "
+                else "A telefon hangját nem sikerült rögzíteni. "
+            )
+        } else {
+            sb.append("Most nem megy felvétel. ")
+            sb.append(store.speakSettings(this))
+        }
+        val db = com.superdl.launcher.screenrecord.ScreenRecordLibrary.list(this).size
+        sb.append(if (db == 0) "Még nincs mentett felvételed." else "$db mentett felvételed van.")
+        tts.speak(sb.toString())
+    }
+
+    private fun toggleScreenRecordMic() {
+        val store = com.superdl.launcher.screenrecord.ScreenRecordStore
+        val on = !store.isMicEnabled(this)
+        store.setMicEnabled(this, on)
+        feedbackSuccess()
+        tts.speak(
+            if (on) "A saját hangod mostantól rákerül a felvételre."
+            else "A saját hangod mostantól nem kerül rá. FIGYELEM: így nem tudsz " +
+                "magyarázni a videó közben."
+        )
+    }
+
+    private fun toggleScreenRecordDeviceAudio() {
+        val store = com.superdl.launcher.screenrecord.ScreenRecordStore
+        val on = !store.isDeviceAudioEnabled(this)
+        store.setDeviceAudioEnabled(this, on)
+        feedbackSuccess()
+        tts.speak(
+            if (on) "A telefon hangja mostantól rákerül a felvételre."
+            else "A telefon hangja mostantól nem kerül rá."
+        )
+    }
+
+    private fun speakScreenRecordLibrary() {
+        val lista = com.superdl.launcher.screenrecord.ScreenRecordLibrary.list(this)
+        if (lista.isEmpty()) {
+            tts.speak(
+                "Még nincs képernyőfelvételed. Ha készítesz egyet, ide kerül: " +
+                    com.superdl.launcher.screenrecord.ScreenRecordLibrary.speakLocation(this) + "."
+            )
+            return
+        }
+        val sb = StringBuilder("${lista.size} képernyőfelvételed van. ")
+        lista.take(10).forEachIndexed { i, e ->
+            sb.append("${i + 1}. ${e.speakLabel()}. ")
+        }
+        if (lista.size > 10) sb.append("A többit a fájlkezelőben találod. ")
+        sb.append("Mind itt van: ")
+        sb.append(com.superdl.launcher.screenrecord.ScreenRecordLibrary.speakLocation(this))
+        sb.append(".")
+        tts.speak(sb.toString())
+    }
+
+    private fun shareLastScreenRecording() {
+        val elso = com.superdl.launcher.screenrecord.ScreenRecordLibrary.list(this).firstOrNull()
+        if (elso == null) {
+            tts.speak("Még nincs képernyőfelvételed, amit elküldhetnék.")
+            return
+        }
+        val uri = try {
+            androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", elso.file
+            )
+        } catch (_: Exception) {
+            null
+        }
+        if (uri == null) {
+            tts.speak("A felvételt nem sikerült megosztásra előkészíteni.")
+            return
+        }
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "video/mp4"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            putExtra(android.content.Intent.EXTRA_SUBJECT, "Super DL képernyőfelvétel")
+            putExtra(
+                android.content.Intent.EXTRA_TEXT,
+                "Super DL képernyőfelvétel: ${elso.speakLabel()}"
+            )
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(android.content.Intent.createChooser(intent, "Felvétel elküldése"))
+            feedbackSuccess()
+            tts.speak("Válaszd ki, mivel küldöd el.")
+        } catch (_: Exception) {
+            tts.speak("Nincs olyan alkalmazás, ami el tudná küldeni.")
+        }
     }
 
     // ==================== PROFI DIKTAFON ====================
