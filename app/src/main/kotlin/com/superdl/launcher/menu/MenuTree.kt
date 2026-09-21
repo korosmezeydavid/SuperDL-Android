@@ -330,6 +330,7 @@ enum class MenuAction {
     FACE_CAMERA_VIDEO,         // Videó felvétele (videó módban a jobbra indít és leállít)
     MEDIA_BROWSE,              // Felvételeim — saját képek és videók hangcímkével
     CALLBACK_LIST,             // Visszahívandók (emlékeztetők a hívásnaplóból)
+    CALLBACK_ADD,              // Visszahívandó KÉZI felvétele (névjegyből vagy bemondva)
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
     CALL_LOG_WIPE,             // Teljes hívásnapló törlése
@@ -577,6 +578,10 @@ object MenuTree {
             // Szándékosan NEM az ébresztők között: a visszahívás nem ébresztő,
             // és aki visszahívandót keres, a hívásoknál fogja keresni.
             MenuItem("callback_list", "Visszahívandók", MenuAction.CALLBACK_LIST),
+            // KÉZI FELVÉTEL — Alph kérése. A visszahívandó nem mindig a
+            // hívásnaplóból indul: „tudom, hogy fel kell hívnom, de most kora
+            // reggel van". Ilyenkor nincs hívás, amire rásöpörhetnél.
+            MenuItem("callback_add", "Visszahívandó felvétele", MenuAction.CALLBACK_ADD),
             MenuItem("call_dial", "Szám tárcsázása", MenuAction.DIAL),
             MenuItem("fav_add", "Kedvenc hozzáadása", MenuAction.FAVORITES_ADD),
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),

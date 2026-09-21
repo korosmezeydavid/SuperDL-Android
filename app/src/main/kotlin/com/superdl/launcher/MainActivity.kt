@@ -1039,6 +1039,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, -1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, -1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, -1)
+            is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, -1)
             is AppFlow.ReminderList -> navigateReminderList(flow, -1)
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, -1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
@@ -1271,6 +1272,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, +1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, +1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, +1)
+            is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, +1)
             is AppFlow.ReminderList -> navigateReminderList(flow, +1)
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, +1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
@@ -1534,6 +1536,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MediaBrowse -> enterMediaContextMenu(flow)
             is AppFlow.MediaContextMenu -> onMediaContextActivate(flow)
             is AppFlow.ReminderDelayChoice -> onReminderDelayActivate(flow)
+            is AppFlow.ReminderAddSource -> onReminderAddSourceActivate(flow)
             is AppFlow.ReminderList -> enterReminderContext(flow)
             is AppFlow.ReminderContextMenu -> onReminderContextActivate(flow)
             is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
@@ -2239,6 +2242,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> returnToReminderList(flow.kind, flow.itemIndex)
             is AppFlow.ReminderList -> exitFlow("Lista bezárva.")
             is AppFlow.ReminderDelayChoice -> exitFlow("Emlékeztető elvetve.")
+            is AppFlow.ReminderAddSource -> exitFlow("Felvétel megszakítva.")
             is AppFlow.HistoryLimitChoice -> exitFlow("Marad, ami volt.")
             is AppFlow.ChoiceSettingBrowse -> exitFlow("Marad, ami volt.")
             // A FELAJÁNLÁST NEM LEHET „ELRONTANI": a balra ugyanaz, mint a
@@ -3581,6 +3585,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.MEDIA_BROWSE -> startMediaBrowseFlow()
             MenuAction.CALLBACK_LIST ->
                 startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_CALL)
+            MenuAction.CALLBACK_ADD -> startReminderAddSource()
             MenuAction.PENDING_SMS_LIST ->
                 startReminderListFlow(com.superdl.launcher.reminder.LaterReminder.KIND_SMS)
             MenuAction.CALL_LOG_LIMIT -> startHistoryLimitFlow(calls = true)
@@ -18920,16 +18925,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             com.superdl.launcher.reminder.LaterReminderStore.messages(this)
         }
-        if (items.isEmpty()) {
-            tts.speak(
-                if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
-                    "Nincs visszahívandó. Felvenni két helyen tudsz: a hívásnaplóban " +
-                        "vagy a névjegyeknél, jobbra söpörve, az Emlékeztetés később " +
-                        "ponttal. A névjegyhez nem kell, hogy előtte hívás legyen."
-                } else {
-                    "Nincs függő üzenet."
-                }
-            )
+        if (items.isEmpty() &&
+            kind != com.superdl.launcher.reminder.LaterReminder.KIND_CALL
+        ) {
+            tts.speak("Nincs függő üzenet.")
             return
         }
         activeFlow = AppFlow.ReminderList(kind, items, 0)
@@ -18939,14 +18938,114 @@ class MainActivity : AppCompatActivity() {
         } else {
             "Függő üzenetek"
         }
+        // ÜRES LISTÁNÁL SEM ZÁRUNK BE. Marad egyetlen sor — az „Új felvétele" —,
+        // mert az üres lista pont az a pillanat, amikor fel akarsz venni
+        // valamit. Eddig ilyenkor a program kidobott a menübe.
+        if (items.isEmpty()) {
+            tts.speak(
+                "$cim: nincs egy sem. Jobbra söpörve felvehetsz egyet, " +
+                    "névjegyből vagy bemondott telefonszámmal."
+            )
+            return
+        }
         tts.speak("$cim: ${items.size}. ${speakReminderEntry(items[0])}")
     }
 
-    private fun navigateReminderList(flow: AppFlow.ReminderList, delta: Int) {
-        val next = (flow.index + delta + flow.items.size) % flow.items.size
+    /**
+     * AZ „ÚJ FELVÉTELE" SOR A LISTA VÉGÉN — csak a visszahívandóknál.
+     *
+     * Alph ötlete: aki visszahívandót akar felvenni, a Visszahívandókhoz
+     * megy, mert ott jár az esze. Ezért a lista utolsó sora maga a felvétel:
+     * fel-le söpréssel ugyanúgy eléred, mint bármelyik tételt, és nem kell
+     * hozzá kilépni sehová.
+     *
+     * A függő ÜZENETEKNÉL nincs ilyen: egy üzenet mindig egy MEGLÉVŐ
+     * üzenethez tartozik, azt nem lehet a semmiből felvenni.
+     */
+    private fun reminderAddSlots(kind: String): Int =
+        if (kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) 1 else 0
+
+    // ── KÉZI FELVÉTEL: honnan jöjjön a szám ──────────────────────────────
+
+    private fun startReminderAddSource() {
+        val options = com.superdl.launcher.reminder.ReminderSource.ALL
+        activeFlow = AppFlow.ReminderAddSource(0)
+        updateFlowDisplay()
+        tts.speak(
+            "${com.superdl.launcher.reminder.ReminderSource.INTRO} ${options[0].label}"
+        )
+    }
+
+    private fun navigateReminderAddSource(flow: AppFlow.ReminderAddSource, delta: Int) {
+        val options = com.superdl.launcher.reminder.ReminderSource.ALL
+        val next = (flow.index + delta + options.size) % options.size
         activeFlow = flow.copy(index = next)
         updateFlowDisplay()
-        tts.speak(speakReminderEntry(flow.items[next]))
+        tts.speak(options[next].label)
+    }
+
+    private fun onReminderAddSourceActivate(flow: AppFlow.ReminderAddSource) {
+        when (com.superdl.launcher.reminder.ReminderSource.ALL[flow.index]) {
+            // NEM ÉPÍTÜNK MÁSIK NÉVJEGYZÉKET. A meglévőt nyitjuk meg — ott a
+            // betűindex és minden megszokott mozdulat —, és a névjegy
+            // műveletei közül az „Emlékeztetés később" zárja a kört.
+            // A magyarázat a megnyitás ELŐTT hangzik el, különben a
+            // névjegyzék saját bemondása félbevágná.
+            com.superdl.launcher.reminder.ReminderSource.CONTACT ->
+                tts.speakThen(
+                    "Névjegyzék. Keresd meg, akit vissza akarsz hívni, söpörj " +
+                        "jobbra, és válaszd az Emlékeztetés később pontot."
+                ) { startContactBookFlow() }
+
+            com.superdl.launcher.reminder.ReminderSource.DICTATE ->
+                listenForReminderNumber()
+
+            com.superdl.launcher.reminder.ReminderSource.BACK ->
+                exitFlow("Rendben.")
+        }
+    }
+
+    /**
+     * BEMONDOTT TELEFONSZÁM a visszahívandóhoz.
+     *
+     * Ha a szám mégis szerepel a névjegyek között, a NEVET írjuk a listára —
+     * az mond valamit, a tizenegy számjegy nem.
+     */
+    private fun listenForReminderNumber() {
+        voiceInput.listen(
+            prompt = "Mondd a telefonszámot, számjegyenként.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val number = NumberPadHelper.parseSpokenPhone(spoken)
+                if (number.isBlank()) {
+                    // NEM TIPPELÜNK. Egy félreértett szám rosszabb a semminél:
+                    // a visszahívás idegenhez menne.
+                    feedbackError()
+                    tts.speak("Ezt nem értettem telefonszámnak. Mondd újra, számjegyenként.")
+                    listenForReminderNumber()
+                    return@listen
+                }
+                val name = ContactHelper.findNameByPhone(this, number).orEmpty()
+                startReminderFlow(
+                    com.superdl.launcher.reminder.LaterReminder.KIND_CALL,
+                    number,
+                    name
+                )
+            },
+            onError = { exitFlow("Felvétel megszakítva.") }
+        )
+    }
+
+    private fun navigateReminderList(flow: AppFlow.ReminderList, delta: Int) {
+        val total = flow.items.size + reminderAddSlots(flow.kind)
+        val next = (flow.index + delta + total) % total
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        val entry = flow.items.getOrNull(next)
+        tts.speak(
+            if (entry != null) speakReminderEntry(entry)
+            else "Új visszahívandó felvétele"
+        )
     }
 
     /** A lejártakat külön jelezzük — azok a sürgősek. */
@@ -18954,7 +19053,11 @@ class MainActivity : AppCompatActivity() {
         if (entry.isOverdue()) "Lejárt: ${entry.speakPreview()}" else entry.speakPreview()
 
     private fun enterReminderContext(flow: AppFlow.ReminderList) {
-        val entry = flow.items[flow.index]
+        // A lista végén álló „Új felvétele" sor nem tétel: az felvételt indít.
+        val entry = flow.items.getOrNull(flow.index) ?: run {
+            startReminderAddSource()
+            return
+        }
         val actions = com.superdl.launcher.reminder.ReminderAction.forEntry(entry)
         activeFlow = AppFlow.ReminderContextMenu(flow.kind, flow.items, flow.index, actions, 0)
         updateFlowDisplay()
@@ -18974,14 +19077,21 @@ class MainActivity : AppCompatActivity() {
         } else {
             com.superdl.launcher.reminder.LaterReminderStore.messages(this)
         }
-        if (items.isEmpty()) {
+        if (items.isEmpty() &&
+            kind != com.superdl.launcher.reminder.LaterReminder.KIND_CALL
+        ) {
             exitFlow("A lista kiürült.")
             return
         }
-        val index = itemIndex.coerceIn(0, items.lastIndex)
+        val total = items.size + reminderAddSlots(kind)
+        val index = itemIndex.coerceIn(0, total - 1)
         activeFlow = AppFlow.ReminderList(kind, items, index)
         updateFlowDisplay()
-        tts.speak(speakReminderEntry(items[index]))
+        val entry = items.getOrNull(index)
+        tts.speak(
+            if (entry != null) speakReminderEntry(entry)
+            else "A lista kiürült. Új visszahívandó felvétele."
+        )
     }
 
     private fun onReminderContextActivate(flow: AppFlow.ReminderContextMenu) {
@@ -22000,17 +22110,28 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Mikor szóljak?  •  ${flow.index + 1} / ${flow.options.size}"
                 tvHint.text = "⬆⬇ válogatás  •  ➡ kiválasztás  •  ⬅ mégse"
             }
+            is AppFlow.ReminderAddSource -> {
+                val options = com.superdl.launcher.reminder.ReminderSource.ALL
+                tvItem.text = options[flow.index].label
+                tvPosition.text =
+                    "Visszahívandó felvétele  •  ${flow.index + 1} / ${options.size}"
+                tvHint.text = "⬆⬇ válogatás  •  ➡ indítás  •  ⬅ mégse"
+            }
             is AppFlow.ReminderList -> {
-                val entry = flow.items[flow.index]
-                tvItem.text = entry.who()
+                val total = flow.items.size + reminderAddSlots(flow.kind)
+                val entry = flow.items.getOrNull(flow.index)
+                tvItem.text = entry?.who() ?: "Új visszahívandó felvétele"
                 tvPosition.text = buildString {
                     append(if (flow.kind == com.superdl.launcher.reminder.LaterReminder.KIND_CALL) {
                         "Visszahívandók"
                     } else {
                         "Függő üzenetek"
                     })
-                    append("  •  ${flow.index + 1} / ${flow.items.size}  •  ")
-                    append(entry.speakDue())
+                    append("  •  ${flow.index + 1} / $total")
+                    if (entry != null) {
+                        append("  •  ")
+                        append(entry.speakDue())
+                    }
                 }
                 tvHint.text = "⬆⬇ válogatás  •  ➡ műveletek  •  ⬅ vissza"
             }

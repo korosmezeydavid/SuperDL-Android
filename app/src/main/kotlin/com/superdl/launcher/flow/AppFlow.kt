@@ -109,6 +109,12 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    /**
+     * VISSZAHÍVANDÓ KÉZI FELVÉTELE: honnan jöjjön a szám.
+     * Névjegyek közül, vagy bemondva.
+     */
+    data class ReminderAddSource(val index: Int) : AppFlow()
+
     data class ContactLetterBrowse(
         val groups: List<com.superdl.launcher.contacts.ContactLetterIndex.LetterGroup>,
         val index: Int
