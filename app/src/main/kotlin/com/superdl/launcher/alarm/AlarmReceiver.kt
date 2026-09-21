@@ -146,6 +146,11 @@ class BootReceiver : BroadcastReceiver() {
                 step("kesobbi-emlekeztetok") {
                     com.superdl.launcher.reminder.LaterReminderScheduler.scheduleAll(context)
                 }
+                // A hely alapú fókusz negyedórás figyelése is elvész.
+                // Ha ez elmarad, a munkahelyi fókusz némán soha nem kapcsol be.
+                step("hely-fokusz") {
+                    com.superdl.launcher.callfilter.PlaceFocusWatcher.sync(context)
+                }
                 step("akku-orseg") {
                     com.superdl.launcher.battery.BatteryPatrolManager.start(context)
                 }

@@ -343,6 +343,13 @@ enum class MenuAction {
     CALLBACK_LIST,             // Visszahívandók (emlékeztetők a hívásnaplóból)
     CALLBACK_ADD,              // Visszahívandó KÉZI felvétele (névjegyből vagy bemondva)
     CALL_OUTCOME_TOGGLE,       // Sikertelen hívás után kérdezzen-e
+    // HELY ALAPÚ FÓKUSZ — a telefon abból tudja, mikor szűrjön, hogy hol vagy
+    PLACE_FOCUS_ADD,           // Fókusz felvétele a mostani helyemre
+    PLACE_FOCUS_STATUS,        // Állapot felolvasása
+    PLACE_FOCUS_LIST,          // Ki és be kapcsolás
+    PLACE_FOCUS_DELETE,        // Törlés
+    PLACE_FOCUS_PROBE,         // Próba és éles mód váltása
+    PLACE_FOCUS_CHECK,         // Ellenőrzés most
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
     CALL_LOG_WIPE,             // Teljes hívásnapló törlése
@@ -1214,6 +1221,29 @@ object MenuTree {
                     MenuItem("focus_sunday", "Vasárnapi pihenő bekapcsolása", MenuAction.FOCUS_ADD_SUNDAY),
                     MenuItem("focus_custom", "Egyéni fókusz létrehozása", MenuAction.FOCUS_ADD_CUSTOM),
                     MenuItem("focus_back", "Vissza", MenuAction.SUBMENU)
+                )),
+                // HELY ALAPÚ FÓKUSZ — Alph kérése (2026-09-21).
+                //
+                // MIÉRT KÜLÖN AZ IDŐZÍTETTTŐL: az időzített azt feltételezi,
+                // hogy a napod óraműre jár. A hely nem hazudik: aki
+                // szabadnapot vesz ki, annál nem kapcsol be a munkahelyi
+                // fókusz, mert nincs ott.
+                MenuItem("place_focus", "Hely alapú fókusz", MenuAction.SUBMENU, listOf(
+                    MenuItem(
+                        "place_focus_add",
+                        "Fókusz felvétele a mostani helyemre",
+                        MenuAction.PLACE_FOCUS_ADD
+                    ),
+                    MenuItem("place_focus_status", "Állapot", MenuAction.PLACE_FOCUS_STATUS),
+                    MenuItem("place_focus_list", "Ki és be kapcsolás", MenuAction.PLACE_FOCUS_LIST),
+                    MenuItem(
+                        "place_focus_probe",
+                        "Próba és éles mód váltása",
+                        MenuAction.PLACE_FOCUS_PROBE
+                    ),
+                    MenuItem("place_focus_check", "Ellenőrzés most", MenuAction.PLACE_FOCUS_CHECK),
+                    MenuItem("place_focus_delete", "Fókusz törlése", MenuAction.PLACE_FOCUS_DELETE),
+                    MenuItem("place_focus_back", "Vissza", MenuAction.SUBMENU)
                 )),
                 MenuItem("dialer_default_setup", "Alapértelmezett telefon beállítása", MenuAction.DIALER_DEFAULT_SETUP),
                 MenuItem("dialer_default_status", "Telefon alkalmazás állapota", MenuAction.DIALER_DEFAULT_STATUS),

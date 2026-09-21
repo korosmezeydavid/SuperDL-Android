@@ -678,6 +678,11 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Hely alapú fókusz – negyedórás ellenőrzés, hol vagy -->
+        <receiver
+            android:name=".callfilter.PlaceFocusReceiver"
+            android:exported="false" />
+
         <!-- Képernyőfelvétel – kép, a telefon hangja és a felhasználó hangja -->
         <service
             android:name=".screenrecord.ScreenRecordService"

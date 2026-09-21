@@ -1041,6 +1041,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, -1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, -1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, -1)
+            is AppFlow.PlaceFocusModePick -> navigatePlaceFocusMode(flow, -1)
+            is AppFlow.PlaceFocusList -> navigatePlaceFocusList(flow, -1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, -1)
             is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, -1)
             is AppFlow.ReminderList -> navigateReminderList(flow, -1)
@@ -1277,6 +1279,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TextBankBrowse -> navigateTextBank(flow, +1)
             is AppFlow.MediaBrowse -> navigateMediaBrowse(flow, +1)
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, +1)
+            is AppFlow.PlaceFocusModePick -> navigatePlaceFocusMode(flow, +1)
+            is AppFlow.PlaceFocusList -> navigatePlaceFocusList(flow, +1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, +1)
             is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, +1)
             is AppFlow.ReminderList -> navigateReminderList(flow, +1)
@@ -1677,6 +1681,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BookEnginePick -> confirmBookEngine(flow)
             is AppFlow.RoleEnginePick -> confirmRoleEngine(flow)
             is AppFlow.BugReportSend -> confirmBugReport(flow)
+            is AppFlow.PlaceFocusModePick -> savePlaceFocus(flow)
+            is AppFlow.PlaceFocusList -> onPlaceFocusActivate(flow)
             is AppFlow.MissedCallOffer -> {
                 // A felvételi lánc maga állítja be a következő képernyőt.
                 startReminderFlow(
@@ -2210,6 +2216,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BookEnginePick -> exitFlow("Hangválasztás megszakítva.")
             is AppFlow.RoleEnginePick -> exitFlow("Hangválasztás megszakítva.")
             is AppFlow.BugReportSend -> cancelBugReport()
+            is AppFlow.PlaceFocusModePick -> exitFlow("Hely alapú fókusz felvétele megszakítva.")
+            is AppFlow.PlaceFocusList -> exitFlow("Hely alapú fókuszok bezárva.")
             is AppFlow.MissedCallOffer -> exitFlow("Rendben, nem teszem be.")
             is AppFlow.CallBackDeleteOffer -> exitFlow("Rendben, marad a visszahívandók között.")
             is AppFlow.SafeModeConfirm -> exitFlow("Marad a normál működés.")
@@ -3574,6 +3582,13 @@ class MainActivity : AppCompatActivity() {
             MenuAction.KEYGUARD_PIN_ASSIST_STATUS -> tts.speak(KeyguardPinSettings.speakStatus(this))
             MenuAction.DICTAPHONE_RECORD -> startDictaphoneRecordingFlow()
             MenuAction.CALL_OUTCOME_TOGGLE -> toggleCallOutcomeAsk()
+            MenuAction.PLACE_FOCUS_ADD -> startPlaceFocusAdd()
+            MenuAction.PLACE_FOCUS_STATUS ->
+                tts.speak(com.superdl.launcher.callfilter.PlaceFocusStore.speakStatus(this))
+            MenuAction.PLACE_FOCUS_LIST -> startPlaceFocusList(deleteMode = false)
+            MenuAction.PLACE_FOCUS_DELETE -> startPlaceFocusList(deleteMode = true)
+            MenuAction.PLACE_FOCUS_PROBE -> togglePlaceFocusProbe()
+            MenuAction.PLACE_FOCUS_CHECK -> checkPlaceFocusNow()
             MenuAction.SCREEN_RECORD_START -> startScreenRecording()
             MenuAction.SCREEN_RECORD_STOP -> stopScreenRecording()
             MenuAction.SCREEN_RECORD_STATUS -> speakScreenRecordStatus()
@@ -14954,6 +14969,164 @@ class MainActivity : AppCompatActivity() {
         exitFlow("Útvonal útmutatás leállítva: $routeName.")
     }
 
+    // ==================== HELY ALAPÚ FÓKUSZ ====================
+    //
+    // Alph kérése (2026-09-21): „hely alapú fókuszok! munkahelyi gps és
+    // minden érzékelésekor például beáll egy a felhasználó által létrehozott
+    // munkahelyi fókuszra próbamóddal ahogy az otthon vagy funkció is".
+    //
+    // MIÉRT A MOSTANI HELYZETBŐL VESSZÜK A HELYET: egy vak felhasználótól
+    // nem várható el, hogy koordinátát diktáljon. Aki fókuszt akar a
+    // munkahelyére, az a munkahelyén áll, amikor beállítja.
+
+    private fun startPlaceFocusAdd() {
+        if (!com.superdl.launcher.gps.GpsLocationHelper.hasPermission(this)) {
+            tts.speak("Ehhez a helyzet engedélye kell. Add meg a beállítás varázslóban.")
+            return
+        }
+        val location = com.superdl.launcher.gps.GpsLocationHelper.getLastLocation(this)
+        if (location == null) {
+            tts.speak(
+                "Most nincs helyzetem. Menj ki a szabadba, vagy nyisd meg a " +
+                    "Közlekedés, Hol vagyok pontot, és utána próbáld újra."
+            )
+            return
+        }
+        listenForPlaceFocusName(location.latitude, location.longitude)
+    }
+
+    private fun listenForPlaceFocusName(lat: Double, lon: Double) {
+        voiceInput.listen(
+            prompt = "Hogy hívjuk ezt a helyet? Például: munkahely.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken ->
+                val name = spoken.trim().take(40)
+                if (name.isBlank()) {
+                    feedbackError()
+                    tts.speak("Nem értettem a nevet. Mondd újra.")
+                    listenForPlaceFocusName(lat, lon)
+                    return@listen
+                }
+                val modes = com.superdl.launcher.callfilter.CallFilterMode.entries.toList()
+                activeFlow = AppFlow.PlaceFocusModePick(name, lat, lon, modes, 0)
+                updateFlowDisplay()
+                tts.speak(
+                    "$name. Mi legyen a szűrés, amikor itt vagy? ${modes[0].menuLabel}. " +
+                        "Fel-le söpréssel válassz, jobbra söpréssel mentem."
+                )
+            },
+            onError = { exitFlow("Hely alapú fókusz felvétele megszakítva.") }
+        )
+    }
+
+    private fun navigatePlaceFocusMode(flow: AppFlow.PlaceFocusModePick, delta: Int) {
+        val next = (flow.index + delta + flow.modes.size) % flow.modes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.modes[next].speakLabel)
+    }
+
+    private fun savePlaceFocus(flow: AppFlow.PlaceFocusModePick) {
+        val focus = com.superdl.launcher.callfilter.PlaceFocus(
+            id = "hely_" + System.currentTimeMillis(),
+            name = flow.name,
+            lat = flow.lat,
+            lon = flow.lon,
+            radiusMeters = com.superdl.launcher.callfilter.PlaceFocusStore.DEFAULT_RADIUS,
+            mode = flow.modes[flow.index]
+        )
+        val ok = com.superdl.launcher.callfilter.PlaceFocusStore.add(this, focus)
+        if (!ok) {
+            exitFlow("Túl sok hely alapú fókuszod van. Törölj egyet.", error = true)
+            return
+        }
+        com.superdl.launcher.callfilter.PlaceFocusWatcher.sync(this)
+        val proba = com.superdl.launcher.callfilter.PlaceFocusStore.isProbe(this)
+        exitFlow(
+            "${flow.name} felvéve, ${focus.radiusMeters} méteres körben, " +
+                "${focus.mode.menuLabel}. " +
+                if (proba) {
+                    "PRÓBA módban van: bemondja, mit tenne, de nem szűr. Ha megbízol " +
+                        "benne, a Próba és éles mód pontban válthatsz élesre."
+                } else {
+                    "ÉLES módban van: tényleg szűrni fog."
+                },
+            success = true
+        )
+    }
+
+    private fun startPlaceFocusList(deleteMode: Boolean) {
+        val items = com.superdl.launcher.callfilter.PlaceFocusStore.all(this)
+        if (items.isEmpty()) {
+            tts.speak(
+                "Nincs hely alapú fókuszod. A Fókusz felvétele a mostani helyemre " +
+                    "ponttal tudsz létrehozni egyet ott, ahol épp vagy."
+            )
+            return
+        }
+        activeFlow = AppFlow.PlaceFocusList(items, 0, deleteMode)
+        updateFlowDisplay()
+        val mit = if (deleteMode) "jobbra söpréssel törlöd" else "jobbra söpréssel ki- és bekapcsolod"
+        tts.speak("${items.size} hely alapú fókusz. ${items[0].speakSummary()}. Fel-le böngészés, $mit.")
+    }
+
+    private fun navigatePlaceFocusList(flow: AppFlow.PlaceFocusList, delta: Int) {
+        if (flow.items.isEmpty()) return
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.items[next].speakSummary())
+    }
+
+    private fun onPlaceFocusActivate(flow: AppFlow.PlaceFocusList) {
+        val item = flow.items.getOrNull(flow.index) ?: return
+        val store = com.superdl.launcher.callfilter.PlaceFocusStore
+        if (flow.deleteMode) {
+            store.remove(this, item.id)
+            com.superdl.launcher.callfilter.PlaceFocusWatcher.sync(this)
+            feedbackSuccess()
+            val remaining = store.all(this)
+            if (remaining.isEmpty()) {
+                exitFlow("${item.name} törölve. Nincs több hely alapú fókuszod.")
+                return
+            }
+            val index = flow.index.coerceAtMost(remaining.size - 1)
+            activeFlow = flow.copy(items = remaining, index = index)
+            updateFlowDisplay()
+            tts.speak("${item.name} törölve. ${remaining[index].speakSummary()}")
+            return
+        }
+        val on = store.toggle(this, item.id)
+        com.superdl.launcher.callfilter.PlaceFocusWatcher.sync(this)
+        feedbackSuccess()
+        val updated = store.all(this)
+        activeFlow = flow.copy(items = updated)
+        updateFlowDisplay()
+        tts.speak(if (on) "${item.name} bekapcsolva." else "${item.name} kikapcsolva.")
+    }
+
+    private fun togglePlaceFocusProbe() {
+        val store = com.superdl.launcher.callfilter.PlaceFocusStore
+        val proba = !store.isProbe(this)
+        store.setProbe(this, proba)
+        feedbackSuccess()
+        tts.speak(
+            if (proba) {
+                "Próba mód bekapcsolva. A hely alapú fókusz csak bemondja, mit tenne, " +
+                    "de nem szűr semmit."
+            } else {
+                "ÉLES mód. FIGYELEM: mostantól a telefon MAGÁTÓL fog hívásokat szűrni, " +
+                    "amikor odaérsz. A fehérlistásokat ez sem érinti."
+            }
+        )
+    }
+
+    private fun checkPlaceFocusNow() {
+        tts.speak("Megnézem, hol vagy.")
+        val text = com.superdl.launcher.callfilter.PlaceFocusWatcher.check(this, manual = true)
+        tts.speakAdd(text ?: "Nem történt változás.")
+    }
+
     /**
      * KÉRDEZZEN-E, HA NEM VETTÉK FEL. Alph kérése, alapból be van
      * kapcsolva. Aki naponta húszszor telefonál, kikapcsolhatja.
@@ -22168,6 +22341,22 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = "Biztonságos mód bekapcsolása"
                 tvPosition.text = "Csak az alapfunkciók indulnak el"
                 tvHint.text = "➡ bekapcsolás  •  ⬅ mégse"
+            }
+            is AppFlow.PlaceFocusModePick -> {
+                tvItem.text = flow.modes[flow.index].menuLabel
+                tvPosition.text = "${flow.name} — mi legyen itt?  •  " +
+                    "${flow.index + 1} / ${flow.modes.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ mentés  •  ⬅ mégse"
+            }
+            is AppFlow.PlaceFocusList -> {
+                tvItem.text = flow.items.getOrNull(flow.index)?.name ?: "—"
+                tvPosition.text = "Hely alapú fókuszok  •  " +
+                    "${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = if (flow.deleteMode) {
+                    "➡ törlés  •  ⬅ vissza"
+                } else {
+                    "➡ ki és be  •  ⬅ vissza"
+                }
             }
             is AppFlow.MissedCallOffer -> {
                 tvItem.text = flow.name.ifBlank { flow.number }

@@ -325,6 +325,30 @@ sealed class AppFlow {
     object SafeModeConfirm : AppFlow()
 
     /**
+     * HELY ALAPÚ FÓKUSZ — MILYEN SZŰRÉS LEGYEN ITT.
+     *
+     * A hely már megvan (ott állsz), a nevet bemondtad; már csak az kell,
+     * mi történjen, ha ideérsz.
+     */
+    data class PlaceFocusModePick(
+        val name: String,
+        val lat: Double,
+        val lon: Double,
+        val modes: List<com.superdl.launcher.callfilter.CallFilterMode>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * A hely alapú fókuszok listája.
+     * @param deleteMode igaz: a jobbra söprés TÖRÖL; hamis: ki- és bekapcsol
+     */
+    data class PlaceFocusList(
+        val items: List<com.superdl.launcher.callfilter.PlaceFocus>,
+        val index: Int,
+        val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    /**
      * NEM SIKERÜLT A HÍVÁS — BETEGYEM A VISSZAHÍVANDÓK KÖZÉ?
      *
      * Alph kérése: „ha valakit hívsz, érzékelje hogy a kimenő hívás

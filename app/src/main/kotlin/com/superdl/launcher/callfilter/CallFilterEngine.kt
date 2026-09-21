@@ -42,10 +42,17 @@ object CallFilterEngine {
             return CallFilterStore.isHiddenBlocked(context)
         }
 
-        // IDŐZÍTETT FÓKUSZ: ha épp érvényben van egy szabály (pl. este tíztől
-        // reggel hatig), az FELÜLÍRJA a kézzel beállított módot. Így nem kell
-        // esténként bekapcsolgatni, reggel meg kikapcsolni.
-        val mode = FocusScheduleStore.activeMode(context) ?: CallFilterStore.getMode(context)
+        // IDŐZÍTETT ÉS HELY ALAPÚ FÓKUSZ: ha épp érvényben van egy szabály
+        // (pl. este tíztől reggel hatig, vagy „a munkahelyen vagy"), az
+        // FELÜLÍRJA a kézzel beállított módot.
+        //
+        // HA MINDKETTŐ ÉRVÉNYBEN VAN, A SZIGORÚBB NYER: aki két szabályt is
+        // beállított ugyanarra az időre, nyilván azt akarta, hogy akkor
+        // tényleg ne zavarják.
+        val mode = strictest(
+            PlaceFocusStore.activeMode(context),
+            FocusScheduleStore.activeMode(context)
+        ) ?: CallFilterStore.getMode(context)
 
         return when (mode) {
             CallFilterMode.TOTAL_DND -> true
@@ -71,13 +78,27 @@ object CallFilterEngine {
             return "feketelista"
         }
         if (isPrivateOrHidden(normalized, handlePresentation)) return "rejtett"
-        val mode = FocusScheduleStore.activeMode(context) ?: CallFilterStore.getMode(context)
+        val mode = strictest(
+            PlaceFocusStore.activeMode(context),
+            FocusScheduleStore.activeMode(context)
+        ) ?: CallFilterStore.getMode(context)
         return when (mode) {
             CallFilterMode.TOTAL_DND -> "nezavarj"
             CallFilterMode.PRIORITY_ONLY -> "reszleges"
             CallFilterMode.CONTACTS_ONLY -> "ismeretlen"
             CallFilterMode.ACCEPT_ALL -> "egyeb"
         }
+    }
+
+    /**
+     * A szigorúbbik a kettő közül. A felsorolásban a legszigorúbb van elöl,
+     * ezért a kisebb sorszám nyer.
+     */
+    private fun strictest(a: CallFilterMode?, b: CallFilterMode?): CallFilterMode? = when {
+        a == null -> b
+        b == null -> a
+        a.ordinal <= b.ordinal -> a
+        else -> b
     }
 
     fun isPrivateOrHidden(phoneNumber: String, handlePresentation: Int): Boolean {
