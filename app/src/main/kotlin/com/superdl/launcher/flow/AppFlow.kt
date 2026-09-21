@@ -322,6 +322,30 @@ sealed class AppFlow {
     object SafeModeConfirm : AppFlow()
 
     /**
+     * NEM SIKERÜLT A HÍVÁS — BETEGYEM A VISSZAHÍVANDÓK KÖZÉ?
+     *
+     * Alph kérése: „ha valakit hívsz, érzékelje hogy a kimenő hívás
+     * sikertelen volt, és ajánlja fel az emlékeztető beállítást".
+     * Jobbra = kérem, balra = nem kell.
+     */
+    data class MissedCallOffer(
+        val number: String,
+        val name: String
+    ) : AppFlow()
+
+    /**
+     * VISSZAHÍVOTT — TÖRÖLJEM AZ EMLÉKEZTETŐT?
+     *
+     * Alph kérése: „ha időközben az adott kontakt visszahív, rákérdezzen
+     * hogy törölje-e a beállított visszahívási emlékeztetőt".
+     * Jobbra = törlöm, balra = maradjon.
+     */
+    data class CallBackDeleteOffer(
+        val reminderId: Int,
+        val name: String
+    ) : AppFlow()
+
+    /**
      * Beszédmotor választása a PROGRAM SAJÁT ÜZENETEIHEZ (név, csomagnév).
      * Az első elem mindig a "nincs külön motor" lehetőség.
      */

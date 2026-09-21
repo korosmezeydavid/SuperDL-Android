@@ -81,6 +81,12 @@ object ToggleChoice {
             { com.superdl.launcher.home.HomeWatchSettings.isGreetingEnabled(it) }
         ),
 
+        // ── Hívások ─────────────────────────────────────────────────────
+        MenuAction.CALL_OUTCOME_TOGGLE to Spec(
+            "Kérdés sikertelen hívás után",
+            { com.superdl.launcher.call.CallOutcomeWatcher.isEnabled(it) }
+        ),
+
         // ── S.O.S. ──────────────────────────────────────────────────────
         MenuAction.SOS_COUNTDOWN_TOGGLE to Spec(
             "S.O.S. visszaszámlálás",

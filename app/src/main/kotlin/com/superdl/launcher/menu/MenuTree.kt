@@ -342,6 +342,7 @@ enum class MenuAction {
     MEDIA_BROWSE,              // Felvételeim — saját képek és videók hangcímkével
     CALLBACK_LIST,             // Visszahívandók (emlékeztetők a hívásnaplóból)
     CALLBACK_ADD,              // Visszahívandó KÉZI felvétele (névjegyből vagy bemondva)
+    CALL_OUTCOME_TOGGLE,       // Sikertelen hívás után kérdezzen-e
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
     CALL_LOG_WIPE,             // Teljes hívásnapló törlése
@@ -593,6 +594,13 @@ object MenuTree {
             // hívásnaplóból indul: „tudom, hogy fel kell hívnom, de most kora
             // reggel van". Ilyenkor nincs hívás, amire rásöpörhetnél.
             MenuItem("callback_add", "Visszahívandó felvétele", MenuAction.CALLBACK_ADD),
+            // SIKERTELEN HÍVÁS UTÁNI KÉRDÉS — Alph kérése. Kikapcsolható:
+            // aki naponta húszszor telefonál, annak ez húsz kérdés lenne.
+            MenuItem(
+                "call_outcome",
+                "Kérdezzen, ha nem vették fel",
+                MenuAction.CALL_OUTCOME_TOGGLE
+            ),
             MenuItem("call_dial", "Szám tárcsázása", MenuAction.DIAL),
             MenuItem("fav_add", "Kedvenc hozzáadása", MenuAction.FAVORITES_ADD),
             MenuItem("fav_call", "Kedvenc hívása", MenuAction.FAVORITES_CALL),

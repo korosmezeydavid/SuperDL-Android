@@ -1671,6 +1671,19 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BookEnginePick -> confirmBookEngine(flow)
             is AppFlow.RoleEnginePick -> confirmRoleEngine(flow)
             is AppFlow.BugReportSend -> confirmBugReport(flow)
+            is AppFlow.MissedCallOffer -> {
+                // A felvételi lánc maga állítja be a következő képernyőt.
+                startReminderFlow(
+                    com.superdl.launcher.reminder.LaterReminder.KIND_CALL,
+                    flow.number,
+                    flow.name
+                )
+            }
+            is AppFlow.CallBackDeleteOffer -> {
+                com.superdl.launcher.reminder.LaterReminderStore.remove(this, flow.reminderId)
+                com.superdl.launcher.reminder.LaterReminderScheduler.cancel(this, flow.reminderId)
+                exitFlow("Rendben, ${flow.name} lekerült a visszahívandókról.")
+            }
             is AppFlow.SafeModeConfirm -> {
                 com.superdl.launcher.crash.StartupGuard.setSafeMode(this, true)
                 exitFlow(
@@ -2191,6 +2204,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BookEnginePick -> exitFlow("Hangválasztás megszakítva.")
             is AppFlow.RoleEnginePick -> exitFlow("Hangválasztás megszakítva.")
             is AppFlow.BugReportSend -> cancelBugReport()
+            is AppFlow.MissedCallOffer -> exitFlow("Rendben, nem teszem be.")
+            is AppFlow.CallBackDeleteOffer -> exitFlow("Rendben, marad a visszahívandók között.")
             is AppFlow.SafeModeConfirm -> exitFlow("Marad a normál működés.")
             is AppFlow.AlarmSkipClearConfirm -> exitFlow("A kihagyások megmaradnak.")
             is AppFlow.StepsLive -> stopStepsLive()
@@ -3552,6 +3567,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.KEYGUARD_PIN_ASSIST_SETUP -> setupKeyguardPinAssist()
             MenuAction.KEYGUARD_PIN_ASSIST_STATUS -> tts.speak(KeyguardPinSettings.speakStatus(this))
             MenuAction.DICTAPHONE_RECORD -> startDictaphoneRecordingFlow()
+            MenuAction.CALL_OUTCOME_TOGGLE -> toggleCallOutcomeAsk()
             MenuAction.SCREEN_RECORD_START -> startScreenRecording()
             MenuAction.SCREEN_RECORD_STOP -> stopScreenRecording()
             MenuAction.SCREEN_RECORD_STATUS -> speakScreenRecordStatus()
@@ -14898,6 +14914,27 @@ class MainActivity : AppCompatActivity() {
         exitFlow("Útvonal útmutatás leállítva: $routeName.")
     }
 
+    /**
+     * KÉRDEZZEN-E, HA NEM VETTÉK FEL. Alph kérése, alapból be van
+     * kapcsolva. Aki naponta húszszor telefonál, kikapcsolhatja.
+     */
+    private fun toggleCallOutcomeAsk() {
+        val watcher = com.superdl.launcher.call.CallOutcomeWatcher
+        val on = !watcher.isEnabled(this)
+        watcher.setEnabled(this, on)
+        if (on) watcher.noteSeen(this, System.currentTimeMillis())
+        feedbackSuccess()
+        tts.speak(
+            if (on) {
+                "Bekapcsolva. Ha egy hívás nem jön össze, megkérdezem, betegyem-e a " +
+                    "visszahívandók közé. Ha valaki visszahív, akire emlékeztető van, " +
+                    "megkérdezem, törölhetem-e."
+            } else {
+                "Kikapcsolva. Hívás után nem kérdezek semmit."
+            }
+        )
+    }
+
     // ==================== KÉPERNYŐFELVÉTEL ====================
     //
     // MIÉRT VAN (Alph, 2026-09-21): vak felhasználóként egy hibát szavakkal
@@ -22092,6 +22129,16 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Csak az alapfunkciók indulnak el"
                 tvHint.text = "➡ bekapcsolás  •  ⬅ mégse"
             }
+            is AppFlow.MissedCallOffer -> {
+                tvItem.text = flow.name.ifBlank { flow.number }
+                tvPosition.text = "Nem sikerült a hívás"
+                tvHint.text = "➡ visszahívandók közé  •  ⬅ nem kell"
+            }
+            is AppFlow.CallBackDeleteOffer -> {
+                tvItem.text = flow.name
+                tvPosition.text = "Visszahívott — töröljem az emlékeztetőt?"
+                tvHint.text = "➡ törlés  •  ⬅ maradjon"
+            }
             is AppFlow.RoleEnginePick -> {
                 tvItem.text = flow.engines[flow.index].first
                 tvPosition.text = "Program hangja  •  ${flow.index + 1} / ${flow.engines.size}"
@@ -23256,7 +23303,55 @@ class MainActivity : AppCompatActivity() {
             }
             checkPendingGpsArrivalPrompt()
             checkFirstRunSetup()
+            checkCallOutcomes()
         }
+    }
+
+    /**
+     * MI LETT A HÍVÁSSAL, AMÍG NEM VOLTUNK ITT.
+     *
+     * Alph két kérése (2026-09-21): ha a kimenő hívás nem jött össze,
+     * ajánljuk fel a visszahívandók közé; ha valaki visszahívott, akire
+     * emlékeztető van, kérdezzük meg, törölhető-e.
+     *
+     * MIÉRT KÉSLELTETVE: a hívásnaplóba a tétel nem azonnal kerül be. Aki
+     * rögtön a hívás után a programba lép, annál a napló még üres —
+     * másfél-két másodperc kell neki.
+     *
+     * CSAK A FŐMENÜBŐL: ha épp bármi más folyik, nem szólunk közbe.
+     */
+    private fun checkCallOutcomes() {
+        if (activeFlow !is AppFlow.Menu) return
+        if (!com.superdl.launcher.call.CallOutcomeWatcher.isEnabled(this)) return
+        mainHandler.postDelayed({
+            if (activeFlow !is AppFlow.Menu) return@postDelayed
+            val outcome = try {
+                com.superdl.launcher.call.CallOutcomeWatcher.scan(this)
+            } catch (_: Throwable) {
+                return@postDelayed
+            }
+            // A JÓ HÍR MEGY ELŐL: ha visszahívott, azt kérdezzük meg először.
+            val back = outcome.calledBack
+            if (back != null) {
+                activeFlow = AppFlow.CallBackDeleteOffer(back.reminderId, back.who())
+                updateFlowDisplay()
+                feedbackSuccess()
+                tts.speak(
+                    "${back.who()} visszahívott. Törölhetem a visszahívandók közül? " +
+                        "Jobbra söpörve törlöm, balra söpörve marad."
+                )
+                return@postDelayed
+            }
+            val failed = outcome.failed
+            if (failed != null) {
+                activeFlow = AppFlow.MissedCallOffer(failed.number, failed.name)
+                updateFlowDisplay()
+                tts.speak(
+                    "Úgy látom, ${failed.who()} nem vette fel. Betegyem a visszahívandók " +
+                        "közé? Jobbra söpörve beteszem, balra söpörve nem."
+                )
+            }
+        }, 2_000L)
     }
 
     /**
