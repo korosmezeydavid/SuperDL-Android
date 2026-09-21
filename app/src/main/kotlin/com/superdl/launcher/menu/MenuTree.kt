@@ -154,6 +154,7 @@ enum class MenuAction {
     TRAIN_STATION_SEARCH, // Állomás keresése felolvasással
     TRAIN_FAVORITES,     // Kedvenc állomások indulási időkkel
     NAV_WHERE,      // Hol vagyok?
+    NAV_WHERE_SMS,  // Hol vagyok? — elküldve SMS-ben (NEM S.O.S.)
     NAV_WALK,       // Gyalogos útvonal diktálással
     NAV_SEARCH,     // Cím vagy hely keresése
     GPS_RADAR,      // GPS Kitekintő – közeli POI radar
@@ -859,6 +860,12 @@ object MenuTree {
 
         MenuItem("community", "Közlekedés", MenuAction.SUBMENU, listOf(
             MenuItem("nav_where", "Hol vagyok?", MenuAction.NAV_WHERE),
+            // A HELYZET ELKÜLDÉSE — és szándékosan NEM S.O.S.
+            //
+            // Alph: „lehet olyan helyzet, amikor el akarom küldeni, hogy
+            // pontosan hol vagyok, de ezért nem akarok egy S.O.S. hívást
+            // indítani, mert nem olyan személynek akarom küldeni."
+            MenuItem("nav_where_sms", "Hol vagyok? Elküldés SMS-ben", MenuAction.NAV_WHERE_SMS),
             MenuItem("nav_walk", "Gyalogos útvonal diktálással", MenuAction.NAV_WALK),
             MenuItem("nav_search", "Cím vagy hely keresése", MenuAction.NAV_SEARCH),
             MenuItem("gps_radar", "G P S Kitekintő", MenuAction.SUBMENU, listOf(

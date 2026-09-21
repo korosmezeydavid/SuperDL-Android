@@ -380,7 +380,14 @@ object HelpTexts {
                 "pontosság, végül a címet. Ha innen indulnál valahová, a Gyalogos " +
                 "útvonal diktálással menüpontban bemondod a célt. Ha csak azt akarod " +
                 "tudni, mi van a közelben, a G P S Kitekintő almenü való rá; a " +
-                "buszhoz-villamoshoz a Közeli megállók felolvasása.",
+                "buszhoz-villamoshoz a Közeli megállók felolvasása. " +
+                "A HOL VAGYOK? ELKÜLDÉS SMS-BEN ugyanígy megméri a helyzetedet, de a " +
+                "végén nem felolvassa, hanem megkérdezi, kinek küldje el. Az üzenetben " +
+                "ott lesz a cím, a koordináta, egy térkép-link és a mérés pontossága " +
+                "meg az ideje. EZ NEM S.O.S.: nincs benne vészjelzés, és nem indít " +
+                "hívást — akkor való, amikor csak meg akarod mondani valakinek, hol " +
+                "vagy. Ha nincs internet, a legutóbbi ismert helyedet ajánlja fel, és " +
+                "az üzenetben benne lesz, hogy az nem mostani.",
             gestures = "A Hol vagyok? eredményénél jobbra söpréssel elmented a helyet " +
                 "egyéni helyként — a program megkérdezi a nevét —, balra söpréssel " +
                 "kilépsz, felfelé söpréssel újra hallod, lefelé söpréssel újramérsz. " +

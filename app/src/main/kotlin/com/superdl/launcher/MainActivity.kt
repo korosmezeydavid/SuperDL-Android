@@ -3327,6 +3327,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
             MenuAction.NAV_WHERE -> startNavWhereFlow()
+            MenuAction.NAV_WHERE_SMS -> startNavWhereFlow(thenShare = true)
             MenuAction.NAV_WALK -> startNavWalkFlow()
             MenuAction.NAV_SEARCH -> startNavSearchFlow()
             MenuAction.GPS_RADAR -> startGpsRadarFlow()
@@ -15336,27 +15337,84 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startNavWhereFlow() {
+    private fun startNavWhereFlow(thenShare: Boolean = false) {
         if (!ensureLocationPermission()) return
         if (!ConnectivityHelper.isOnline(this)) {
             val stored = LastLocationStore.get(this)
             if (stored != null) {
+                // INTERNET NÉLKÜL IS ELKÜLDHETŐ. Az SMS-hez nem kell háló, és
+                // egy régebbi, de pontos helyzet többet ér a semminél — azt
+                // viszont KIMONDJUK az üzenetben is, hogy nem mostani.
+                if (thenShare) {
+                    shareLocationBySms(
+                        address = stored.address,
+                        latitude = stored.latitude,
+                        longitude = stored.longitude,
+                        accuracyMeters = stored.accuracyMeters,
+                        atMillis = stored.savedAtMillis,
+                        stale = true
+                    )
+                    return
+                }
                 tts.speak(stored.speakSummary())
                 return
             }
             tts.speak("Nincs internet, és nincs mentett utolsó hely.")
             return
         }
-        beginNavWhereRefining()
+        beginNavWhereRefining(thenShare)
     }
 
-    private fun beginNavWhereRefining() {
+    /**
+     * A HELYZET ELKÜLDÉSE SMS-BEN — és szándékosan NEM S.O.S.
+     *
+     * Alph: „el akarom küldeni, hogy pontosan hol vagyok, de ezért nem akarok
+     * egy S.O.S. hívást indítani, mert nem olyan személynek akarom küldeni."
+     *
+     * A szöveget előre összerakjuk, és a MEGLÉVŐ SMS-gépezetnek adjuk át —
+     * ugyanazon a `pendingSmsForwardBody`-n, amit a továbbküldés használ.
+     * Így a címzettválasztás, a visszamondás és a küldés-ellenőrzés mind a
+     * megszokott: nem épül mellé egy második, másképp viselkedő SMS-út.
+     */
+    private fun shareLocationBySms(
+        address: String?,
+        latitude: Double,
+        longitude: Double,
+        accuracyMeters: Int,
+        atMillis: Long,
+        stale: Boolean = false
+    ) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("SMS küldés engedély szükséges.")
+            return
+        }
+        pendingSmsForwardBody = com.superdl.launcher.gps.LocationShareMessage.build(
+            address = address,
+            latitude = latitude,
+            longitude = longitude,
+            accuracyMeters = accuracyMeters,
+            atMillis = atMillis,
+            stale = stale
+        )
+        startSmsComposeFlow()
+    }
+
+    private fun beginNavWhereRefining(thenShare: Boolean = false) {
         voiceInput.cancel()
         cancelGpsRefining()
         cancelGnss()
         activeFlow = AppFlow.NavWhereLoading
         updateFlowDisplay()
-        tts.speak("Helymeghatározás. Állj egy helyben, a pontosság javítása folyamatban.")
+        tts.speak(
+            if (thenShare) {
+                "Helymeghatározás az elküldéshez. Állj egy helyben, a pontosság " +
+                    "javítása folyamatban."
+            } else {
+                "Helymeghatározás. Állj egy helyben, a pontosság javítása folyamatban."
+            }
+        )
         var lastAnnouncedAccuracy = -1
         var lastAnnouncedSatellites = -1
         gnssCancel = GnssStatusMonitor.start(this) { count ->
@@ -15415,6 +15473,20 @@ class MainActivity : AppCompatActivity() {
                             flow.address,
                             flow.accuracyMeters
                         )
+                        if (thenShare) {
+                            // A HELYZET MEGVAN — most a címzett jön, nem a
+                            // találati képernyő. A címet itt is kimondjuk,
+                            // hogy tudd, MIT fogsz elküldeni.
+                            tts.speak("Helyzet megvan: ${flow.address}.")
+                            shareLocationBySms(
+                                address = flow.address,
+                                latitude = flow.latitude,
+                                longitude = flow.longitude,
+                                accuracyMeters = flow.accuracyMeters,
+                                atMillis = System.currentTimeMillis()
+                            )
+                            return@postWhenAlive
+                        }
                         activeFlow = flow
                         updateFlowDisplay()
                         speakNavWhereResult(flow, includeHints = true)
