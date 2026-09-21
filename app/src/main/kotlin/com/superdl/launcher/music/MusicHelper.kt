@@ -109,6 +109,73 @@ object MusicHelper {
     }
 
     /**
+     * FRISSEN HOZZÁADOTT ZENÉK — a legutóbb a telefonra került számok.
+     *
+     * ALPH KÉRÉSE (2026-09-21): „az utolsó 20-30 dalt mutassa, amit
+     * feltöltöttél bármilyen módon."
+     *
+     * MIÉRT KELL EZ: a zenelista ábécé szerint áll, ami egy nyolcszáz számos
+     * gyűjteménynél azt jelenti, hogy a tegnap átmásolt öt dal ott van
+     * eldugva valahol a huszadik és a hatszázadik között. Márpedig amit most
+     * tettél fel, azt akarod most meghallgatni.
+     *
+     * MIÉRT MINDEGY, HOGYAN KERÜLT ODA: a rendszer médiatára a dátumot attól
+     * függetlenül jegyzi, hogy kábelen, letöltéssel, Bluetooth-szal vagy a
+     * SuperDL fájlátvitelével érkezett. Egy „frissen hozzáadott" lista, ami
+     * csak az egyik utat ismeri, félrevezető volna.
+     *
+     * A hangoskönyvek itt is kimaradnak, ugyanazzal a szűréssel.
+     */
+    fun getRecentTracks(context: Context, limit: Int = 30): List<MusicTrack> {
+        val bookFolders = bookFolderPrefixes(context)
+        val musicRoot = try {
+            @Suppress("DEPRECATION")
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                ?.absolutePath?.lowercase()?.trimEnd('/')?.plus("/").orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
+        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DATE_ADDED
+        )
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0" +
+            " AND ${MediaStore.Audio.Media.DURATION} > 30000"
+        val sort = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+        val ki = mutableListOf<MusicTrack>()
+        queryTracks(context, collection, projection, selection, sort)?.use { cursor ->
+            val idIdx = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
+            val titleIdx = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE)
+            val artistIdx = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
+            val durationIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
+            val dataIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+            while (cursor.moveToNext() && ki.size < limit) {
+                val title = cursor.getString(titleIdx)?.trim().orEmpty()
+                if (title.isBlank()) continue
+                val path =
+                    if (dataIdx >= 0) cursor.getString(dataIdx)?.lowercase().orEmpty() else ""
+                if (isBookMaterial(path, bookFolders, musicRoot)) continue
+                val id = cursor.getLong(idIdx)
+                ki.add(
+                    MusicTrack(
+                        id = id,
+                        title = title,
+                        artist = cursor.getString(artistIdx)?.trim().orEmpty(),
+                        durationMs = cursor.getLong(durationIdx),
+                        contentUri = Uri.withAppendedPath(collection, id.toString())
+                    )
+                )
+            }
+        }
+        return ki
+    }
+
+    /**
      * A lekérdezés úgy, hogy egy ismeretlen oszlop se tudja NÉMÁN kiüríteni a
      * zenelistát: ha a szűkített feltétel valamiért nem megy, jön a régi,
      * egyszerű feltétel — inkább legyen több a listában, mint semmi.

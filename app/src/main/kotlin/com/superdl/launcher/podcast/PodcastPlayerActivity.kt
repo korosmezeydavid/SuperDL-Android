@@ -19,7 +19,7 @@ import com.superdl.launcher.music.MusicPlayerPrefs
 import com.superdl.launcher.tts.TtsManager
 
 /**
- * Podcast-lejátszó, a zenelejátszóval azonos fa-menĂĽs elven:
+ * Podcast-lejátszó, a zenelejátszóval azonos fa-menüs elven:
  * fel/le a vezérlők között, jobbra aktivál, balra kilép (és leáll).
  *
  * Podcast-specifikus extrák:
@@ -59,7 +59,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
         )
     }
 
-    /** FĂĽlhallgató kihúzásakor a podcast elhallgat, nem ĂĽvölt a hangszóróból. */
+    /** Fülhallgató kihúzásakor a podcast elhallgat, nem üvölt a hangszóróból. */
     private val headphoneGuard by lazy {
         com.superdl.launcher.media.HeadphoneUnplugGuard(this) {
             runOnUiThread {
@@ -75,7 +75,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * HĂŤVĂS ALATT a podcast elhallgat, utána magától folytatja.
+     * HÍVÁS ALATT a podcast elhallgat, utána magától folytatja.
      */
     private val callGuard by lazy {
         com.superdl.launcher.call.CallPauseGuard(
@@ -96,7 +96,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private enum class ControlItem(val label: String) {
-        PLAY_PAUSE("SzĂĽnet vagy folytatás"),
+        PLAY_PAUSE("Szünet vagy folytatás"),
         SEEK_FORWARD("Előre tekerés"),
         SEEK_BACKWARD("Vissza tekerés"),
         POSITION("Hol tartok"),
@@ -183,7 +183,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
                     tts.speak("Lejátszás. Söpörj fel-le a vezérlőkhöz.")
                 }
                 setOnCompletionListener {
-                    // Végigért: töröljĂĽk a pozíciót, hogy legközelebb elölről induljon.
+                    // Végigért: töröljük a pozíciót, hogy legközelebb elölről induljon.
                     PodcastStore.setPosition(this@PodcastPlayerActivity, ep.positionKey(), 0)
                     stopAndFinish("Az adás véget ért.")
                 }
@@ -202,7 +202,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
     private fun navigateMenu(delta: Int) {
         menuIndex = (menuIndex + delta + menuItems.size) % menuItems.size
         val item = menuItems[menuIndex]
-        tvHint.text = "${item.label}  â€˘  jobbra: kiválaszt  â€˘  balra: kilépés"
+        tvHint.text = "${item.label}  •  jobbra: kiválaszt  •  balra: kilépés"
         tts.speak(item.label)
     }
 
@@ -236,7 +236,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
             paused = true
             savePosition()
             tvStatus.text = getString(R.string.player_paused)
-            tts.speak("SzĂĽnet.")
+            tts.speak("Szünet.")
         }
     }
 

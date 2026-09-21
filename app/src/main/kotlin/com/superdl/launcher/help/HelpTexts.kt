@@ -107,13 +107,22 @@ object HelpTexts {
                 "söpréssel válogatsz, jobbra söpréssel elindul a lejátszás. Ha felhőben " +
                 "tartod a zenét, előbb a Felhős zenemappa kiválasztása menüpontban add " +
                 "meg a mappát, utána a Zenék a felhőben menüpont listázza. Az Utoljára " +
-                "játszott folytatása menüpont ott folytatja, ahol abbahagytad.",
+                "játszott folytatása menüpont ott folytatja, ahol abbahagytad. " +
+                "A FRISSEN HOZZÁADOTT ZENÉK a legutóbb a telefonra került harminc " +
+                "számot mutatja, a legújabbal elöl — mindegy, hogy kábelen, letöltéssel " +
+                "vagy fájlátvitellel került oda. A KEDVENC ZENÉK azokat, amiket " +
+                "lejátszás közben megjelöltél.",
             gestures = "Lejátszás közben a képernyő egy vezérlő-lista. Fel-le söpréssel " +
                 "lépkedsz a vezérlők között, jobbra söpréssel kiválasztod, balra " +
                 "söpréssel leállítod és kilépsz. A vezérlők sorban: szünet vagy " +
                 "folytatás; következő szám; előző szám; előre tekerés; vissza tekerés; " +
-                "hol tartok; zeneszám törlése és a következő lejátszása; lejátszás " +
-                "leállítása. A törlés kétlépcsős: az első jobbra söprés csak megkérdezi, " +
+                "hol tartok; kedvenc; zeneszám törlése és a következő lejátszása; " +
+                "lejátszás leállítása. " +
+                "A KEDVENC pont megmondja, hogy a most szóló szám kedvenc-e már: ha " +
+                "nem, jobbra söpréssel felveszed, ha igen, ugyanazzal leveszed. Amit " +
+                "felvettél, a Zene menü Kedvenc zenék pontjában találod. Amit " +
+                "kitörölsz, az a kedvencek közül is lekerül. " +
+                "A törlés kétlépcsős: az első jobbra söprés csak megkérdezi, " +
                 "a második töröl. A tekerés egységét és a lejátszási módot — sorban, " +
                 "egy szám ismétlése, mind ismétlése, véletlen — a Zene beállítások " +
                 "menüpontban állítod. A Bluetooth fülhallgató gombjai is működnek: " +

@@ -20,13 +20,13 @@ import com.superdl.launcher.tts.TtsManager
 import java.io.File
 
 /**
- * Vak-barát HANGOSKĂ–NYV-lejátszó (a zenelejátszó mintájára). Egy mappányi
+ * Vak-barát HANGOSKÖNYV-lejátszó (a zenelejátszó mintájára). Egy mappányi
  * hangfájl a sávjaival egy hangoskönyv; a program megjegyzi, hol tartottál
  * (mappánként, ezredmásodpercre), és onnan folytatja. A könyvjelzők a közös
- * tárba kerĂĽlnek, így a PC-vel szinkronizálhatók: a PC-n letett hang-könyvjelzőt
+ * tárba kerülnek, így a PC-vel szinkronizálhatók: a PC-n letett hang-könyvjelzőt
  * itt egy mozdulattal folytathatod.
  *
- * Fel/le: menĂĽ. Jobbra: kiválaszt. Balra: kilépés (a hely elmentve).
+ * Fel/le: menü. Jobbra: kiválaszt. Balra: kilépés (a hely elmentve).
  * Hangerőgomb = tekerés.
  */
 class AudiobookPlayerActivity : AppCompatActivity() {
@@ -41,7 +41,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var paused = false
 
-    /** FĂĽlhallgató kihúzásakor a hangoskönyv elhallgat, nem szól a hangszóróból. */
+    /** Fülhallgató kihúzásakor a hangoskönyv elhallgat, nem szól a hangszóróból. */
     private val headphoneGuard by lazy {
         com.superdl.launcher.media.HeadphoneUnplugGuard(this) {
             runOnUiThread { if (!paused) togglePause() }
@@ -63,7 +63,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     private var mediaSession: android.media.session.MediaSession? = null
 
     private enum class ControlItem(val label: String) {
-        PLAY_PAUSE("SzĂĽnet vagy folytatás"),
+        PLAY_PAUSE("Szünet vagy folytatás"),
         NEXT("Következő sáv"),
         PREVIOUS("Előző sáv"),
         SEEK_FORWARD("Előre tekerés 15 másodperc"),
@@ -126,7 +126,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
         playCurrent(announce = true)
     }
 
-    /** A sáv ESZKĂ–ZFüGGETLEN azonosítója: mappánál a könyv gyökerétől számított
+    /** A sáv ESZKÖZFüGGETLEN azonosítója: mappánál a könyv gyökerétől számított
      * relatív út (kötet-almappával), fájlnál a fájlnév. */
     private fun trackIdOf(f: File): String {
         val root = File(bookPath)
@@ -157,7 +157,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
         menuIndex = (menuIndex + delta + menuItems.size) % menuItems.size
         val item = menuItems[menuIndex]
         findViewById<TextView>(R.id.tvPlayerHint).text =
-            "${item.label}  â€˘  jobbra: kiválaszt  â€˘  balra: kilépés"
+            "${item.label}  •  jobbra: kiválaszt  •  balra: kilépés"
         tts.speak(item.label)
     }
 
@@ -184,7 +184,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
             tts.speak("Most nem tudom lejátszani, mert más használja a hangot. Próbáld újra.")
             return
         }
-        // A fĂĽlhallgató kihúzását is figyeljĂĽk innentől.
+        // A fülhallgató kihúzását is figyeljük innentől.
         headphoneGuard.register()
         try {
             mediaPlayer = MediaPlayer().apply {
@@ -230,7 +230,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
 
     private fun skipTrack(delta: Int, auto: Boolean = false) {
         if (delta < 0) {
-            // ha 3 mp-nél beljebb vagyunk, a sáv elejére; kĂĽlönben előző sáv
+            // ha 3 mp-nél beljebb vagyunk, a sáv elejére; különben előző sáv
             val p = mediaPlayer
             if (!auto && p != null && p.currentPosition > 3000) {
                 p.seekTo(0)
@@ -260,7 +260,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
             pausedByFocusLoss = false
             tvStatus.text = getString(R.string.player_paused)
             saveResume()
-            tts.speak("SzĂĽnet.")
+            tts.speak("Szünet.")
         }
         updateSessionState()
     }
@@ -285,14 +285,14 @@ class AudiobookPlayerActivity : AppCompatActivity() {
         val player = mediaPlayer
         val ms = player?.currentPosition ?: pendingSeekMs
         val track = trackIdOf(currentTrack())
-        val preview = "${currentIndex + 1}. sáv â€˘ ${formatClock(ms)}"
+        val preview = "${currentIndex + 1}. sáv • ${formatClock(ms)}"
         val bm = BookStore.addAudioBookmark(this, bookPath, bookTitle, track, ms, preview)
         saveResume()
         if (bm != null) {
-            tts.speak("Könyvjelző elmentve: $preview. Az Ătjáróban "
+            tts.speak("Könyvjelző elmentve: $preview. Az Átjáróban "
                 + "szinkronizálhatod a PC-vel.")
         } else {
-            tts.speak("Nem sikerĂĽlt könyvjelzőt tenni (túl sok van már).")
+            tts.speak("Nem sikerült könyvjelzőt tenni (túl sok van már).")
         }
     }
 

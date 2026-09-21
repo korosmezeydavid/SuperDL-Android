@@ -22,16 +22,16 @@ import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 
 /**
- * Vak-barát zenelejátszó, fa-struktúrás menĂĽvel.
+ * Vak-barát zenelejátszó, fa-struktúrás menüvel.
  *
- * A lejátszás automatikusan indul. A képernyőn egy menĂĽ van, a vezérlők
- * egymás alatt – fel/le lépkedsz köztĂĽk, jobbra aktiválod a kijelöltet,
+ * A lejátszás automatikusan indul. A képernyőn egy menü van, a vezérlők
+ * egymás alatt – fel/le lépkedsz köztük, jobbra aktiválod a kijelöltet,
  * balra kilépsz (és leáll a zene).
  *
- * MenĂĽpontok: SzĂĽnet/Folytatás, Következő szám, Előző szám, Előre tekerés,
+ * Menüpontok: Szünet/Folytatás, Következő szám, Előző szám, Előre tekerés,
  * Vissza tekerés, Hol tartok, Lejátszás leállítása.
  *
- * A tekerés egysége és a lejátszási mód a Zene beállítások menĂĽben állítható.
+ * A tekerés egysége és a lejátszási mód a Zene beállítások menüben állítható.
  */
 class MusicPlayerActivity : AppCompatActivity() {
 
@@ -46,8 +46,8 @@ class MusicPlayerActivity : AppCompatActivity() {
     private var paused = false
 
     /**
-     * FĂĽlhallgató kihúzásakor a zene elhallgat, nem ĂĽvölt a hangszóróból.
-     * A hangfókusz ezt NEM fedi le: kihúzáskor nem veszítĂĽnk fókuszt, a hang
+     * Fülhallgató kihúzásakor a zene elhallgat, nem üvölt a hangszóróból.
+     * A hangfókusz ezt NEM fedi le: kihúzáskor nem veszítünk fókuszt, a hang
      * egyszerűen átvált a hangszóróra.
      */
     private val headphoneGuard by lazy {
@@ -67,12 +67,12 @@ class MusicPlayerActivity : AppCompatActivity() {
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: android.media.AudioFocusRequest? = null
 
-    // ==================== MediaSession (Bluetooth fĂĽles gombjai) ====================
+    // ==================== MediaSession (Bluetooth füles gombjai) ====================
     /**
      * A MediaSession az a szabványos csatorna, amin a rendszer továbbítja a
-     * Bluetooth fĂĽlhallgató és a vezetékes headset gombnyomásait.
+     * Bluetooth fülhallgató és a vezetékes headset gombnyomásait.
      *
-     * FONTOS: a NATĂŤV android.media.session.MediaSession-t használjuk, nem a
+     * FONTOS: a NATÍV android.media.session.MediaSession-t használjuk, nem a
      * régi support-könyvtárbelit (MediaSessionCompat) – az utóbbi egy olyan
      * ArrayMap-et keres, ami ebben a projektben nincs benne, és összeomlik.
      */
@@ -119,7 +119,7 @@ class MusicPlayerActivity : AppCompatActivity() {
         }
     }
 
-    /** A rendszer és a fĂĽles felé jelezzĂĽk, hogy épp játszunk-e. */
+    /** A rendszer és a füles felé jelezzük, hogy épp játszunk-e. */
     private fun updateSessionState() {
         val session = mediaSession ?: return
         try {
@@ -147,7 +147,7 @@ class MusicPlayerActivity : AppCompatActivity() {
                 .build()
             session.setPlaybackState(playbackState)
 
-            // A szám adatai: ez jelenik meg a fĂĽles kijelzőjén / az autórádión.
+            // A szám adatai: ez jelenik meg a füles kijelzőjén / az autórádión.
             val track = playlist.getOrNull(currentIndex) ?: return
             val duration = try {
                 mediaPlayer?.duration?.toLong() ?: 0L
@@ -179,7 +179,7 @@ class MusicPlayerActivity : AppCompatActivity() {
 
     /**
      * Az Android akkor szól, ha más veszi el a hangot: bejövő hívás, navigáció,
-     * másik zenelejátszó. EnélkĂĽl a zenénk hívás közben is szólna.
+     * másik zenelejátszó. Enélkül a zenénk hívás közben is szólna.
      */
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
@@ -194,7 +194,7 @@ class MusicPlayerActivity : AppCompatActivity() {
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                // Ătmeneti (hívás, navigációs bemondás): szĂĽnet, és utána folytatjuk.
+                // Átmeneti (hívás, navigációs bemondás): szünet, és utána folytatjuk.
                 if (mediaPlayer?.isPlaying == true) {
                     mediaPlayer?.pause()
                     paused = true
@@ -254,14 +254,26 @@ class MusicPlayerActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    // A lejátszó-ablak vezérlő-menĂĽje.
+    // A lejátszó-ablak vezérlő-menüje.
     private enum class ControlItem(val label: String) {
-        PLAY_PAUSE("SzĂĽnet vagy folytatás"),
+        PLAY_PAUSE("Szünet vagy folytatás"),
         NEXT("Következő szám"),
         PREVIOUS("Előző szám"),
         SEEK_FORWARD("Előre tekerés"),
         SEEK_BACKWARD("Vissza tekerés"),
         POSITION("Hol tartok"),
+
+        /**
+         * KEDVENCNEK JELÖLÉS — Alph kérése (2026-09-21).
+         *
+         * Itt a helye, és nem a listában: amikor rájössz, hogy ez a szám
+         * tetszik, épp HALLGATOD. Ha ehhez ki kellene lépni a lejátszóból,
+         * soha senki nem jelölne meg semmit.
+         *
+         * A felirata nem állandó: attól függ, hogy a most szóló szám
+         * kedvenc-e már. Lásd `favoriteLabel()`.
+         */
+        FAVORITE("Kedvenc"),
         // Ugyanaz a szám kétszer-háromszor a listában: innen egy mozdulattal
         // kidobható. Kétlépcsős: az első jobbra söprés csak megkérdezi.
         DELETE_AND_NEXT("Zeneszám törlése és a következő szám lejátszása"),
@@ -290,7 +302,7 @@ class MusicPlayerActivity : AppCompatActivity() {
         tts = TtsManager(this)
         sounds = SoundFeedback(this)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        // A Bluetooth fĂĽles gombjainak fogadása (lejátszás, következő, előző, stop).
+        // A Bluetooth füles gombjainak fogadása (lejátszás, következő, előző, stop).
         setupMediaSession()
         seekStepSec = MusicPlayerPrefs.getSeekStep(this)
         playMode = MusicPlayerPrefs.getPlayMode(this)
@@ -330,17 +342,53 @@ class MusicPlayerActivity : AppCompatActivity() {
     }
 
     private fun navigateMenu(delta: Int) {
-        // Ha elléptél a törlésről, a megerősítés elévĂĽl — nem lehet véletlenĂĽl törölni.
+        // Ha elléptél a törlésről, a megerősítés elévül — nem lehet véletlenül törölni.
         pendingDelete = false
         menuIndex = (menuIndex + delta + menuItems.size) % menuItems.size
         val item = menuItems[menuIndex]
         updateHint(item)
-        tts.speak(item.label)
+        tts.speak(cimke(item))
+    }
+
+    /**
+     * A KEDVENC PONT ÁLLAPOTOT IS MOND.
+     *
+     * Egy ki-be kapcsolónál vakon a legfontosabb kérdés, hogy MOST hogy áll.
+     * „Kedvenc" önmagában nem árulja el, hogy felvenni vagy levenni fogod.
+     */
+    private fun cimke(item: ControlItem): String =
+        if (item == ControlItem.FAVORITE) favoriteLabel() else item.label
+
+    private fun favoriteLabel(): String = try {
+        if (MusicFavoritesStore.isFavorite(this, currentTrack())) {
+            "Kedvenc. Jobbra söpréssel leveszed."
+        } else {
+            "Kedvencnek jelölés."
+        }
+    } catch (_: Throwable) {
+        "Kedvencnek jelölés."
+    }
+
+    private fun toggleFavorite() {
+        val track = currentTrack()
+        val lett = try {
+            MusicFavoritesStore.toggle(this, track)
+        } catch (_: Throwable) {
+            tts.speak("A kedvenc nem menthető.")
+            return
+        }
+        // EZ NEM AUTOMATIKUS BEMONDÁS: a felhasználó kérte a műveletet, tehát
+        // némított beszéd-visszajelzésnél is hallania kell, mi történt.
+        tts.speak(
+            if (lett) "Kedvenc lett: ${track.title}."
+            else "Lekerült a kedvencek közül: ${track.title}."
+        )
+        updateHint(ControlItem.FAVORITE)
     }
 
     private fun updateHint(item: ControlItem) {
         findViewById<TextView>(R.id.tvPlayerHint).text =
-            "${item.label}  â€˘  jobbra: kiválaszt  â€˘  balra: kilépés"
+            "${cimke(item)}  •  jobbra: kiválaszt  •  balra: kilépés"
     }
 
     private fun activateMenuItem() {
@@ -351,6 +399,7 @@ class MusicPlayerActivity : AppCompatActivity() {
             ControlItem.SEEK_FORWARD -> seekBy(seekStepSec)
             ControlItem.SEEK_BACKWARD -> seekBy(-seekStepSec)
             ControlItem.POSITION -> announcePosition()
+            ControlItem.FAVORITE -> toggleFavorite()
             ControlItem.DELETE_AND_NEXT -> deleteCurrentAndNext()
             ControlItem.STOP -> stopAndFinish("Lejátszás leállítva.")
         }
@@ -359,11 +408,11 @@ class MusicPlayerActivity : AppCompatActivity() {
     /**
      * Csak akkor mond ki valamit, ha a beszéd-visszajelzés BE van kapcsolva a
      * Zene beállításokban. Az AUTOMATIKUS (maguktól induló) bemondásokra való:
-     * szám címe váltáskor, szĂĽnet/folytatás, "szám elejéről".
+     * szám címe váltáskor, szünet/folytatás, "szám elejéről".
      *
      * NEM ezt használjuk a vezérlők bemondásához (amikor a felhasználó lépked),
      * a kért pozíció-információhoz és a HIBAüZENETEKHEZ — azoknak némítva is
-     * szólniuk kell, kĂĽlönben a lejátszó vakon kezelhetetlen lenne.
+     * szólniuk kell, különben a lejátszó vakon kezelhetetlen lenne.
      */
     private fun speakIfEnabled(text: String) {
         if (MusicPlayerPrefs.isSpeechEnabled(this)) tts.speak(text)
@@ -377,12 +426,12 @@ class MusicPlayerActivity : AppCompatActivity() {
         tvTitle.text = track.title
         tvPosition.text = track.artist.ifBlank { "Zenelejátszás" }
         tvStatus.text = getString(R.string.player_loading)
-        // Audio focus kérése: enélkĂĽl a zene hívás közben is szólna.
+        // Audio focus kérése: enélkül a zene hívás közben is szólna.
         if (!requestAudioFocus()) {
             tts.speak("Most nem tudom lejátszani, mert más használja a hangot. Próbáld újra.")
             return
         }
-        // A fĂĽlhallgató kihúzását is figyeljĂĽk innentől.
+        // A fülhallgató kihúzását is figyeljük innentől.
         headphoneGuard.register()
         try {
             mediaPlayer = MediaPlayer().apply {
@@ -397,9 +446,9 @@ class MusicPlayerActivity : AppCompatActivity() {
                         }
                     } catch (_: Exception) {
                     }
-                    // FOLYTATĂS: ha erre a számra van mentett pozíció (hosszú
+                    // FOLYTATÁS: ha erre a számra van mentett pozíció (hosszú
                     // hanganyag, amit korábban félbehagytál), oda ugrunk és
-                    // felajánljuk a folytatást. A mentést fogyasztás után töröljĂĽk,
+                    // felajánljuk a folytatást. A mentést fogyasztás után töröljük,
                     // hogy legközelebb ne ugorjon oda újra magától.
                     val resumeMs = MusicPlayerPrefs.getSavedPosition(
                         this@MusicPlayerActivity, track.id
@@ -410,7 +459,7 @@ class MusicPlayerActivity : AppCompatActivity() {
                     }
                     start()
                     paused = false
-                    // Az új szám adatai a fĂĽles / autórádió kijelzőjére.
+                    // Az új szám adatai a füles / autórádió kijelzőjére.
                     updateSessionState()
                     val modePart = if (announceMode) " ${playModeSpeak()}." else ""
                     val pos = "${currentIndex + 1} / ${playlist.size}."
@@ -464,7 +513,7 @@ class MusicPlayerActivity : AppCompatActivity() {
     }
 
     private fun skipToPrevious() {
-        // Ha 3 másodpercnél beljebb vagyunk, a szám elejére ugrunk, kĂĽlönben előző szám.
+        // Ha 3 másodpercnél beljebb vagyunk, a szám elejére ugrunk, különben előző szám.
         val player = mediaPlayer
         if (player != null && player.currentPosition > 3000) {
             player.seekTo(0)
@@ -480,7 +529,7 @@ class MusicPlayerActivity : AppCompatActivity() {
         if (paused) {
             player.start()
             paused = false
-            // A felhasználó indította: ha korábban hívás miatt állt le, azt töröljĂĽk.
+            // A felhasználó indította: ha korábban hívás miatt állt le, azt töröljük.
             pausedByFocusLoss = false
             tvStatus.text = getString(R.string.player_playing)
             speakIfEnabled("Folytatás.")
@@ -489,9 +538,9 @@ class MusicPlayerActivity : AppCompatActivity() {
             paused = true
             pausedByFocusLoss = false
             tvStatus.text = getString(R.string.player_paused)
-            speakIfEnabled("SzĂĽnet.")
+            speakIfEnabled("Szünet.")
         }
-        // A fĂĽles / autórádió is tudjon róla, hogy most játszunk-e.
+        // A füles / autórádió is tudjon róla, hogy most játszunk-e.
         updateSessionState()
     }
 
@@ -593,6 +642,14 @@ class MusicPlayerActivity : AppCompatActivity() {
             return
         }
 
+        // AMIT TÖRÖLTÉL, AZ A KEDVENCEK KÖZÜL IS KERÜLJÖN LE. Különben a
+        // kedvenc listában maradna egy szám, ami már nincs meg, és a
+        // lejátszó csak annyit mondana rá, hogy nem játszható le.
+        try {
+            MusicFavoritesStore.remove(this, track)
+        } catch (_: Throwable) {
+        }
+
         sounds.play(SoundType.ACTION_OK)
 
         val remaining = playlist.toMutableList()
@@ -641,11 +698,11 @@ class MusicPlayerActivity : AppCompatActivity() {
     }
 
     private fun stopAndFinish(message: String) {
-        // A pozíció mentése MĂ‰G a lejátszó eldobása ELĹTT — hogy egy hosszú
+        // A pozíció mentése MÉG a lejátszó eldobása ELŐTT — hogy egy hosszú
         // hanganyag (film, hangoskönyv) folytatható legyen a következő indításkor.
         saveCurrentPosition()
         releasePlayer()
-        // A fĂĽles-vezérlés csak a tényleges kilépéskor záruljon, ne számváltáskor.
+        // A füles-vezérlés csak a tényleges kilépéskor záruljon, ne számváltáskor.
         releaseMediaSession()
         // FONTOS: a finish() NEM várhatja meg a TTS végét (speakThen), mert akkor
         // a képernyő csak a mondat elhangzása után záródna. Ha a felhasználó
@@ -678,7 +735,7 @@ class MusicPlayerActivity : AppCompatActivity() {
             release()
         }
         mediaPlayer = null
-        // Az audio focus elengedése: enélkĂĽl más appok hangja is akadozna.
+        // Az audio focus elengedése: enélkül más appok hangja is akadozna.
         abandonAudioFocus()
         pausedByFocusLoss = false
     }

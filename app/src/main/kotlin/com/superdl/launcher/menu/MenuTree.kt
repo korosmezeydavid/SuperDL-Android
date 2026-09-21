@@ -106,6 +106,8 @@ enum class MenuAction {
     MUSIC_CLOUD,    // Zenék a felhőben (választott mappából, almappákkal)
     MUSIC_CLOUD_FOLDER, // A felhős zenemappa kiválasztása vagy cseréje
     MUSIC_RESUME_LAST,  // Zene: az utoljára hallgatott szám folytatása a mentett pozíciótól
+    MUSIC_RECENT,       // Zene: frissen hozzáadott számok (bárhonnan kerültek a telefonra)
+    MUSIC_FAVORITES,    // Zene: kedvencnek jelölt számok
     USB_FILE_TRANSFER, // USB fájlátvitel be/ki (a rendszer USB-képernyőjén)
     FILE_MANAGER,      // Fájlkezelő
     WIFI_PORTAL,       // WiFi fájlportál be/ki (feltöltés gépről böngészővel)
@@ -738,6 +740,14 @@ object MenuTree {
             // ZENE: minden zenéhez tartozó pont EGY helyen, ne szétszórva.
             MenuItem("music_group", "Zene", MenuAction.SUBMENU, listOf(
                 MenuItem("music_resume", "Utoljára játszott folytatása", MenuAction.MUSIC_RESUME_LAST),
+                // FRISSEN HOZZÁADOTT és KEDVENCEK — Alph kérése.
+                //
+                // A teljes zenelista ábécé szerint áll. Nyolcszáz számnál ez
+                // azt jelenti, hogy a tegnap felmásolt öt dal eldugva lapul
+                // valahol középen. Ez a két pont a két leggyakoribb kérdésre
+                // felel: „mi az új?" és „hol vannak a kedvenceim?"
+                MenuItem("music_recent", "Frissen hozzáadott zenék", MenuAction.MUSIC_RECENT),
+                MenuItem("music_favorites", "Kedvenc zenék", MenuAction.MUSIC_FAVORITES),
                 MenuItem("music", "Zene a telefonon", MenuAction.MUSIC),
                 MenuItem("music_cloud", "Zenék a felhőben", MenuAction.MUSIC_CLOUD),
                 MenuItem("music_cloud_folder", "Felhős zenemappa kiválasztása", MenuAction.MUSIC_CLOUD_FOLDER),
@@ -823,13 +833,19 @@ object MenuTree {
         )),
 
         MenuItem("books", "Könyvek", MenuAction.SUBMENU, listOf(
+            // AZ OLVASÁS FOLYTATÁSA LEGELÖL.
+            //
+            // Alph: „lent van a pitvarban, holott az ember belép, és rögtön
+            // azt pöccintené, hogy folytatás — ne kelljen karistolni a
+            // kijelzőt." Igaza van: aki könyvet olvas, ezt akarja
+            // leggyakrabban, és eddig hat söprés volt odáig.
+            MenuItem("book_resume", "Olvasás folytatása", MenuAction.BOOK_RESUME),
             MenuItem("book_library", "Könyvtár", MenuAction.BOOK_LIBRARY),
             MenuItem("book_search", "Könyv keresése felolvasással", MenuAction.BOOK_SEARCH),
             MenuItem("book_recent", "Nem rég olvasott könyvek", MenuAction.BOOK_RECENT),
             MenuItem("book_bookmarks", "Könyvjelzők", MenuAction.BOOK_BOOKMARKS),
             MenuItem("book_bookmark_delete", "Könyvjelző törlése", MenuAction.BOOK_BOOKMARK_DELETE),
             MenuItem("book_delete", "Könyv törlése", MenuAction.BOOK_DELETE),
-            MenuItem("book_resume", "Olvasás folytatása", MenuAction.BOOK_RESUME),
             MenuItem("book_folder_set", "Könyvmappa beállítása", MenuAction.BOOK_FOLDER_SET),
             MenuItem("book_folder_read", "Könyvmappa felolvasása", MenuAction.BOOK_FOLDER_READ),
             MenuItem("book_folder_clear", "Könyvmappa törlése", MenuAction.BOOK_FOLDER_CLEAR),

@@ -3285,6 +3285,8 @@ class MainActivity : AppCompatActivity() {
                 openCloudMusicFolderPicker()
             }
             MenuAction.MUSIC_RESUME_LAST -> resumeLastMusic()
+            MenuAction.MUSIC_RECENT -> startRecentMusicFlow()
+            MenuAction.MUSIC_FAVORITES -> startFavoriteMusicFlow()
             MenuAction.USB_FILE_TRANSFER -> openUsbFileTransfer()
             MenuAction.FILE_MANAGER -> openFileManager()
             MenuAction.WIFI_PORTAL -> toggleWifiPortal()
@@ -10765,6 +10767,47 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.MusicBrowse(tracks, 0)
         updateFlowDisplay()
         tts.speak("${tracks.size} zeneszám. Söpörj fel-le választás, jobbra lejátszás, balra vissza.")
+        tts.speakAdd(tracks.first().speakPreview())
+    }
+
+    /**
+     * FRISSEN HOZZÁADOTT ZENÉK — amit legutóbb tettél a telefonra.
+     * Mindegy, hogyan került oda: a rendszer médiatára a dátumot kábeles
+     * másolásnál, letöltésnél és fájlátvitelnél is feljegyzi.
+     */
+    private fun startRecentMusicFlow() {
+        val tracks = MusicHelper.getRecentTracks(this, 30)
+        if (tracks.isEmpty()) {
+            tts.speak("Nem találtam zenét a telefonon.")
+            return
+        }
+        activeFlow = AppFlow.MusicBrowse(tracks, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Frissen hozzáadott zenék: ${tracks.size}, a legújabb elöl. " +
+                "Söpörj fel-le választás, jobbra lejátszás, balra vissza."
+        )
+        tts.speakAdd(tracks.first().speakPreview())
+    }
+
+    /** KEDVENC ZENÉK — amiket a lejátszóban megjelöltél. */
+    private fun startFavoriteMusicFlow() {
+        val tracks = com.superdl.launcher.music.MusicFavoritesStore.tracks(this)
+        if (tracks.isEmpty()) {
+            // MEGMONDJUK, HOL LEHET KEDVENCET CSINÁLNI. Egy üres lista, ami
+            // nem árulja el, hogyan telik meg, zsákutca.
+            tts.speak(
+                "Még nincs kedvenc zenéd. Lejátszás közben a vezérlők között " +
+                    "ott a Kedvenc pont — azzal veheted fel, amit épp hallgatsz."
+            )
+            return
+        }
+        activeFlow = AppFlow.MusicBrowse(tracks, 0)
+        updateFlowDisplay()
+        tts.speak(
+            "Kedvenc zenék: ${tracks.size}. " +
+                "Söpörj fel-le választás, jobbra lejátszás, balra vissza."
+        )
         tts.speakAdd(tracks.first().speakPreview())
     }
 
