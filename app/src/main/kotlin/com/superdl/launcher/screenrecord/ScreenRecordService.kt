@@ -50,6 +50,10 @@ class ScreenRecordService : Service() {
         var lastError: String? = null
             private set
 
+        /** Igaz, ha a hangra hiába vártunk, és kép-only lett a felvétel. */
+        var lastAudioGaveUp: Boolean = false
+            private set
+
         fun startIntent(context: Context, resultCode: Int, data: Intent): Intent =
             Intent(context, ScreenRecordService::class.java).apply {
                 action = ACTION_START
@@ -142,12 +146,31 @@ class ScreenRecordService : Service() {
             withDeviceAudio = ScreenRecordStore.isDeviceAudioEnabled(this)
         )
         if (!p.start(mp)) {
-            fail("A felvételt nem sikerült elindítani.")
+            // A LÉPÉSNAPLÓT IS KIMONDJUK. Enélkül a „nem sikerült" pont
+            // annyit ér, mint a csend.
+            fail(
+                "Eddig jutott: ${p.lastStep}. ${p.lastError ?: ""}".trim(),
+                p.lastError
+            )
             return
         }
         pipeline = p
         ScreenRecordStore.noteStarted(file, p.micActive, p.deviceAudioActive)
         updateNotification()
+
+        // AZ INDULÁST KI KELL MONDANI.
+        //
+        // Az első éles próbánál ez hiányzott, és emiatt nem lehetett
+        // megkülönböztetni azt, hogy „elindult" attól, hogy „elindult volna".
+        // A felhasználó a rendszer párbeszéde után nem kapott SEMMILYEN
+        // visszajelzést, és csak a leállításnál derült ki, hogy nem ment.
+        val mibol = when {
+            p.micActive && p.deviceAudioActive -> "A hangod és a telefon hangja is rákerül."
+            p.micActive -> "Csak a te hangod kerül rá, a telefon hangját nem kaptam meg."
+            p.deviceAudioActive -> "Csak a telefon hangja kerül rá, a mikrofont nem kaptam meg."
+            else -> "FIGYELEM: hang nélkül veszek fel, egyik hangforrást sem kaptam meg."
+        }
+        speak("Felvétel elindult. $mibol")
     }
 
     private fun finishRecording() {
@@ -162,7 +185,8 @@ class ScreenRecordService : Service() {
         if (p != null) {
             val ok = p.stop()
             lastResultFile = if (ok) file else null
-            if (!ok) lastError = "A felvétel üres maradt."
+            if (!ok) lastError = p.speakDiagnosis()
+            lastAudioGaveUp = p.audioGaveUp
             if (ok && file != null) {
                 // Hogy a galéria és a számítógép is azonnal lássa.
                 try {
@@ -177,13 +201,34 @@ class ScreenRecordService : Service() {
         stopSelf()
     }
 
-    private fun fail(message: String) {
-        lastError = message
+    /**
+     * A KUDARC NEM LEHET NÉMA.
+     *
+     * Ez a program kimondott szabálya, és az első éles próbánál pont ezt
+     * szegtem meg: a felvétel elbukott az indításnál, a program nem szólt
+     * semmit, és a felhasználó azt hitte, fut. A leállításnál kapott csak egy
+     * „most nem megy felvétel" mondatot — abból nem derül ki semmi.
+     *
+     * Mostantól a hiba MEGNEVEZI magát, és a program KIMONDJA, akkor is, ha
+     * közben már nem a SuperDL van előtérben.
+     */
+    private fun fail(message: String, details: String? = null) {
+        lastError = if (details.isNullOrBlank()) message else "$message ($details)"
         ScreenRecordStore.noteStopped()
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
+        speak("A képernyőfelvétel nem indult el. $message")
         stopForegroundCompat()
         stopSelf()
+    }
+
+    private fun speak(text: String) {
+        try {
+            com.superdl.launcher.patrol.PatrolAnnouncer.announce(
+                applicationContext, text, critical = true
+            )
+        } catch (_: Throwable) {
+        }
     }
 
     private fun stopForegroundCompat() {

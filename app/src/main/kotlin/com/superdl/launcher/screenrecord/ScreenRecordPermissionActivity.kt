@@ -58,11 +58,35 @@ class ScreenRecordPermissionActivity : Activity() {
             val intent = ScreenRecordService.startIntent(this, resultCode, data)
             try {
                 startForegroundService(intent)
-            } catch (_: Exception) {
-                try { startService(intent) } catch (_: Exception) {}
+            } catch (e: Exception) {
+                try {
+                    startService(intent)
+                } catch (e2: Exception) {
+                    say("A felvételt tartó szolgáltatás nem indult el.")
+                }
             }
+        } else {
+            // A VISSZAUTASÍTÁST IS KI KELL MONDANI.
+            //
+            // Eddig ez NÉMÁN végződött: ha a felhasználó nem találta meg a
+            // rendszer párbeszédében a jóváhagyó gombot, vagy elsöpörte,
+            // semmi nem történt — és ő abban a hiszemben maradt, hogy fut a
+            // felvétel. Vakon ez a leggyakoribb kimenet, nem a kivétel.
+            say(
+                "A telefon nem adta meg a képernyőt. A rendszer kérdésénél az " +
+                    "Indítás most gombot kell jóváhagyni."
+            )
         }
         finish()
         overridePendingTransition(0, 0)
+    }
+
+    private fun say(text: String) {
+        try {
+            com.superdl.launcher.patrol.PatrolAnnouncer.announce(
+                applicationContext, text, critical = true
+            )
+        } catch (_: Throwable) {
+        }
     }
 }

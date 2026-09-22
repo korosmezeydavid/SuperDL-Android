@@ -15198,7 +15198,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopScreenRecording() {
         if (!com.superdl.launcher.screenrecord.ScreenRecordStore.isRecording) {
-            tts.speak("Most nem megy képernyőfelvétel.")
+            // AZ ELŐZŐ KUDARC OKÁT IS ELMONDJUK.
+            //
+            // Eddig itt csak annyi hangzott el, hogy „most nem megy
+            // felvétel" — pedig a program tudta, MIÉRT nem megy. Alph első
+            // próbája pont ezen bukott el: elindította, a felvétel csendben
+            // elhasalt, és a leállításnál egy semmitmondó mondatot kapott.
+            val hiba = com.superdl.launcher.screenrecord.ScreenRecordService.lastError
+            tts.speak(
+                if (hiba.isNullOrBlank()) {
+                    "Most nem megy képernyőfelvétel."
+                } else {
+                    "Most nem megy képernyőfelvétel. A legutóbbi próbálkozás " +
+                        "így végződött: $hiba"
+                }
+            )
             return
         }
         val hossz = com.superdl.launcher.screenrecord.ScreenRecordStore.speakElapsed()
@@ -15210,16 +15224,25 @@ class MainActivity : AppCompatActivity() {
             val fajl = com.superdl.launcher.screenrecord.ScreenRecordService.lastResultFile
             val hiba = com.superdl.launcher.screenrecord.ScreenRecordService.lastError
             if (fajl != null) {
+                val nemaSav =
+                    if (com.superdl.launcher.screenrecord.ScreenRecordService.lastAudioGaveUp) {
+                        " FIGYELEM: hang nélkül készült, mert egyik hangforrást sem kaptam meg."
+                    } else {
+                        ""
+                    }
                 val mb = fajl.length() / (1024.0 * 1024.0)
                 tts.speak(
                     "Felvétel kész, $hossz hosszú, " +
                         String.format(java.util.Locale("hu"), "%.1f", mb) +
-                        " megabájt. Itt van: " +
+                        " megabájt.$nemaSav Itt van: " +
                         com.superdl.launcher.screenrecord.ScreenRecordLibrary.speakLocation(this) +
                         ". Az elküldéshez a legutóbbi felvétel elküldése pontot válaszd."
                 )
             } else {
-                tts.speak(hiba ?: "A felvétel nem sikerült.")
+                feedbackError()
+                tts.speak(
+                    "A felvétel nem sikerült. " + (hiba ?: "Nem tudom, hol akadt el.")
+                )
             }
         }, 2_500L)
     }

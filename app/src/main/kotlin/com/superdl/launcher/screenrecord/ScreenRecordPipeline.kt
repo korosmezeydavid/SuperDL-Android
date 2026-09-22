@@ -66,6 +66,9 @@ class ScreenRecordPipeline(
 
         private const val SAMPLE_RATE = 44_100
         private const val AUDIO_BITRATE = 96_000
+
+        /** Ennyit várunk a hangra, mielőtt kép-only felvételre váltunk. */
+        private const val AUDIO_WAIT_MS = 3_000L
     }
 
     private var videoCodec: MediaCodec? = null
@@ -100,6 +103,49 @@ class ScreenRecordPipeline(
     var deviceAudioActive = false
         private set
 
+    /**
+     * HOL TART A LÁNC — EZ A LEGFONTOSABB MEZŐ AZ EGÉSZ OSZTÁLYBAN.
+     *
+     * Az első éles próba (Alph, 2026-09-22) így végződött: „olyan, mintha
+     * elindulna, de a leállításnál azt mondja, nem is ment a felvétel."
+     * A program TUDTA, hol hasalt el, és nem mondta meg. Ez a projekt
+     * visszatérő bűne, és pont ezért kell egy lépésnapló: a hiba mostantól
+     * MEGNEVEZI magát, nem kell találgatni.
+     */
+    @Volatile
+    var lastStep: String = "még el sem indult"
+        private set
+
+    @Volatile
+    var lastError: String? = null
+        private set
+
+    /** Érkezett-e egyáltalán kép, illetve hang a kódolóból. */
+    @Volatile
+    var videoSamples = 0
+        private set
+
+    @Volatile
+    var audioSamples = 0
+        private set
+
+    /** Igaz, ha a hangra hiába vártunk, és kép-only felvétel lett belőle. */
+    @Volatile
+    var audioGaveUp = false
+        private set
+
+    private fun step(name: String) {
+        lastStep = name
+        Log.i(TAG, "lepes: $name")
+    }
+
+    /** Ember számára kimondható összefoglaló arról, mi történt. */
+    fun speakDiagnosis(): String {
+        val hiba = lastError?.let { " A hiba: $it." } ?: ""
+        return "A felvétel eddig jutott: $lastStep.$hiba " +
+            "Kép: $videoSamples darab, hang: $audioSamples darab."
+    }
+
     // ── INDÍTÁS ──────────────────────────────────────────────────────────
 
     @SuppressLint("MissingPermission")
@@ -108,6 +154,7 @@ class ScreenRecordPipeline(
         projection = mediaProjection
 
         try {
+            step("méretek")
             measureScreen()
 
             // 1. A KÉP KÓDOLÓJA. A virtuális kijelző közvetlenül erre a
@@ -122,6 +169,7 @@ class ScreenRecordPipeline(
                 setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_SEC)
             }
+            step("kép kódolója")
             val vc = MediaCodec.createEncoderByType(VIDEO_MIME)
             vc.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             val surface = vc.createInputSurface()
@@ -129,6 +177,7 @@ class ScreenRecordPipeline(
             videoCodec = vc
 
             // 2. A HANG. Csak akkor építjük fel, ha van mit rögzíteni.
+            step("hangforrások")
             micActive = withMic && openMic()
             deviceAudioActive = withDeviceAudio && openDeviceAudio(mediaProjection)
             val anyAudio = micActive || deviceAudioActive
@@ -142,6 +191,7 @@ class ScreenRecordPipeline(
                     )
                     setInteger(MediaFormat.KEY_BIT_RATE, AUDIO_BITRATE)
                 }
+                step("hang kódolója")
                 val ac = MediaCodec.createEncoderByType(AUDIO_MIME)
                 ac.configure(audioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 ac.start()
@@ -149,7 +199,17 @@ class ScreenRecordPipeline(
             }
 
             // 3. A DOBOZ, AMIBE A KETTŐ KERÜL.
+            //
+            // ITT BUKHAT EL A LEGKÖNNYEBBEN: a /Movies/SuperDL mappába írni
+            // teljes fájlhozzáférés kell. Ha az nincs meg, a MediaMuxer
+            // kivétellel indul, és eddig ez NÉMÁN történt meg.
+            step("összefűző fájl")
             outputFile.parentFile?.mkdirs()
+            if (outputFile.parentFile?.exists() != true) {
+                throw java.io.IOException(
+                    "a mappa nem hozható létre: ${outputFile.parentFile?.absolutePath}"
+                )
+            }
             muxer = MediaMuxer(
                 outputFile.absolutePath,
                 MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
@@ -157,6 +217,7 @@ class ScreenRecordPipeline(
 
             // 4. A VIRTUÁLIS KIJELZŐ. Ez tükrözi a valódi képernyőt a
             //    kódoló felületére.
+            step("virtuális kijelző")
             virtualDisplay = mediaProjection.createVirtualDisplay(
                 "SuperDL-kepernyo",
                 width,
@@ -168,6 +229,7 @@ class ScreenRecordPipeline(
                 null
             )
 
+            step("szálak indítása")
             running.set(true)
             videoThread = Thread({ drainVideo() }, "SDL-kep").also { it.start() }
             if (anyAudio) {
@@ -175,9 +237,13 @@ class ScreenRecordPipeline(
                 try { playbackRecord?.startRecording() } catch (_: Exception) {}
                 audioThread = Thread({ pumpAudio() }, "SDL-hang").also { it.start() }
             }
+            step("fut")
             return true
         } catch (t: Throwable) {
-            Log.e(TAG, "inditas hiba", t)
+            // A HIBÁT MEGNEVEZZÜK. Enélkül a hívó csak annyit tud, hogy „nem
+            // sikerült" — és a felhasználó pont annyit tud, mint mi.
+            lastError = "${t.javaClass.simpleName}: ${t.message ?: "nincs részlet"}"
+            Log.e(TAG, "inditas hiba a(z) '$lastStep' lepesnel", t)
             releaseAll()
             return false
         }
@@ -198,6 +264,13 @@ class ScreenRecordPipeline(
         if (!ok) {
             // EGY NULLA BÁJTOS MP4 ROSSZABB, MINT A SEMMI: a felhasználó
             // azt hinné, megvan a felvétel.
+            if (lastError == null) {
+                lastError = if (videoSamples == 0) {
+                    "egyetlen képkocka sem érkezett a kódolóból"
+                } else {
+                    "a fájl üresen zárult be"
+                }
+            }
             try { outputFile.delete() } catch (_: Exception) {}
         }
         return ok
@@ -235,6 +308,7 @@ class ScreenRecordPipeline(
     private fun drainVideo() {
         val codec = videoCodec ?: return
         val info = MediaCodec.BufferInfo()
+        var videoTrackAt = 0L
         try {
             while (running.get()) {
                 val index = codec.dequeueOutputBuffer(info, 10_000L)
@@ -242,11 +316,36 @@ class ScreenRecordPipeline(
                     synchronized(muxerLock) {
                         if (videoTrack < 0) {
                             videoTrack = muxer?.addTrack(codec.outputFormat) ?: -1
+                            videoTrackAt = System.currentTimeMillis()
                             maybeStartMuxer()
                         }
                     }
                 } else if (index >= 0) {
                     writeSample(codec, index, info, video = true)
+                }
+
+                // A HANGRA NEM VÁRUNK ÖRÖKKÉ.
+                //
+                // AZ ELSŐ ÉLES PRÓBA EZEN BUKOTT EL: az összefűzés csak akkor
+                // indul, ha MINDEN várt sáv megvan. Ha a hang valamiért néma
+                // marad (a mikrofont más alkalmazás fogja, a rendszer nem adja
+                // oda a telefon hangját), a kép SEM íródik ki — és a végén egy
+                // üres fájl marad, amit a leállítás töröl. A felhasználó
+                // ilyenkor azt hallja, hogy „nem is ment a felvétel".
+                //
+                // Egy HANG NÉLKÜLI videó rosszabb a teljesnél, de
+                // NAGYSÁGRENDDEL jobb a semminél.
+                if (!muxerStarted && expectedTracks == 2 && videoTrack >= 0 &&
+                    videoTrackAt > 0 && System.currentTimeMillis() - videoTrackAt > AUDIO_WAIT_MS
+                ) {
+                    synchronized(muxerLock) {
+                        if (!muxerStarted && audioTrack < 0) {
+                            Log.w(TAG, "a hang nem indult el, kep-only felvetel lesz")
+                            audioGaveUp = true
+                            expectedTracks = 1
+                            maybeStartMuxer()
+                        }
+                    }
                 }
             }
             // A maradék képkockák is kerüljenek ki.
@@ -354,7 +453,10 @@ class ScreenRecordPipeline(
         return when {
             index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                 synchronized(muxerLock) {
-                    if (audioTrack < 0) {
+                    // HA AZ ÖSSZEFŰZÉS MÁR ELINDULT, ÚJ SÁVOT FELVENNI TILOS —
+                    // a MediaMuxer kivétellel válaszol, és az megölné a
+                    // felvételt. Ilyenkor a hang elkésett: kép-only marad.
+                    if (audioTrack < 0 && !muxerStarted) {
                         audioTrack = muxer?.addTrack(codec.outputFormat) ?: -1
                         maybeStartMuxer()
                     }
@@ -388,6 +490,7 @@ class ScreenRecordPipeline(
                             buffer.position(info.offset)
                             buffer.limit(info.offset + info.size)
                             muxer?.writeSampleData(track, buffer, info)
+                            if (video) videoSamples++ else audioSamples++
                         }
                     }
                 }
