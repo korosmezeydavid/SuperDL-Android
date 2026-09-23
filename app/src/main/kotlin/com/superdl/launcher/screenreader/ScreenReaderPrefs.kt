@@ -153,6 +153,50 @@ object ScreenReaderPrefs {
         if (on) clearEmergency(context)
     }
 
+    // ── A KÉT KAPCSOLÓ PROBLÉMÁJA ───────────────────────────────────────────
+    //
+    // A HIBA, AMIT EZ JAVÍT (Kiss István levele, 2026-09):
+    // „nem tudom beállítani rendesen a képernyőolvasót".
+    //
+    // Két kapcsoló van, és EZ SEHOL NEM DERÜLT KI:
+    //  1. a rendszer kisegítő szolgáltatás kapcsolója,
+    //  2. ez a belső főkapcsoló — ami ALAPBÓL KI volt kapcsolva.
+    //
+    // A beállítás-varázsló csak az ELSŐT nézte, tehát kimondta, hogy „megvan",
+    // miközben az olvasó néma maradt. A felhasználó jól csinált mindent, és a
+    // program hazudott neki. Ez a program ötödik visszatérő bűne: tudta, hogy
+    // baj van, és nem mondta meg.
+    //
+    // A JAVÍTÁS: aki bekapcsolja a rendszerben a szolgáltatást, annak a belső
+    // kapcsoló MAGÁTÓL bekapcsol — de csak EGYSZER, és csak akkor, ha a
+    // felhasználó soha nem állította kézzel. Aki kézzel kikapcsolta,
+    // annak a döntését tiszteletben tartjuk: nem kapcsoljuk vissza a háta
+    // mögött újraindításkor.
+    private const val KEY_TOUCHED = "fokapcsolo_kezzel_allitva"
+
+    /** A menü kapcsolója ezt hívja: ettől lesz a döntés „kézi". */
+    fun setEnabledByUser(context: Context, on: Boolean) {
+        writeBoth(context) { it.putBoolean(KEY_TOUCHED, true) }
+        setEnabled(context, on)
+    }
+
+    /**
+     * A szolgáltatás indulásakor egyszer bekapcsolja a főkapcsolót.
+     * Igazzal tér vissza, ha most tényleg bekapcsolt valamit.
+     */
+    fun autoEnableOnFirstService(context: Context): Boolean {
+        return try {
+            val p = prefs(context)
+            if (p.getBoolean(KEY_TOUCHED, false)) return false
+            if (p.getBoolean(KEY_ENABLED, false)) return false
+            if (isEmergencyDisabled(context)) return false
+            setEnabled(context, true)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // ── Vészleállítás (a "biztonsági retesz") ───────────────────────────────
 
     fun isEmergencyDisabled(context: Context): Boolean =

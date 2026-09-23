@@ -3,10 +3,15 @@ SUPERDL — TELJES FUNKCIONÁLIS ÖSSZEGZŐ
 Ez a dokumentum arra készült, hogy egy MÁSIK MESTERSÉGES INTELLIGENCIA pontosan
 megértse, mit tud a SuperDL Android alkalmazás. Tömör leltár, nem marketing.
 
-Verzió: 1.66.0 | Csomag: com.superdl.launcher | Android 8.0+ (minSdk 26, target 34)
-Nyelv: Kotlin | 589 forrásfájl, ~108 400 sor, 84 csomag
-Menü: 502 belépő | Felület: 100% magyar
-Utolsó frissítés: 2026-09-13
+Verzió: 1.85.0 | Csomag: com.superdl.launcher | Android 8.0+ (minSdk 26, target 34)
+Nyelv: Kotlin | 623 forrásfájl, ~116 800 sor (üres sorok nélkül), 103 csomag
+Menü: 549 bejegyzés, 414 menüművelet | Felület: 100% magyar
+Utolsó frissítés: 2026-09-23
+
+KIADÁSI ÁLLAPOT:
+  A legutóbbi NYILVÁNOSAN kiadott verzió az 1.85.0 (2026-09-23). Ebben benne
+  van az 1.70.0 óta összegyűlt tizenhat változat is. Ami ennél újabb a
+  `master` ágon, az még nincs kiadva.
 ================================================================================
 
 
@@ -24,6 +29,14 @@ TERJESZTÉS: az alkalmazás NEM a Play Áruházból jön, hanem saját GitHub-ki
 Ennek oka a MANAGE_EXTERNAL_STORAGE és néhány más, a Play-en korlátozott
 engedély, ami nélkül a fájlkezelő és több funkció használhatatlan lenne.
 Ezt pótolja a beépített FRISSÍTÉS-FIGYELŐ (3.19).
+
+EBBŐL KÖVETKEZIK EGY VISSZATÉRŐ TELEPÍTÉSI CSAPDA: Android 13 óta a rendszer az
+áruházon kívülről telepített programnál NÉMÁN letiltja a kisegítő
+szolgáltatásokat (képernyőolvasó, PIN segéd), az értesítés-olvasást és a
+fölérajzolást. A kapcsoló látszik, meg is nyomható, és nem történik semmi.
+Feloldás: Beállítások > Alkalmazások > Super DL > három pont >
+„Korlátozott beállítások engedélyezése". A beállítás varázsló ezt fel is
+ismeri és kimondja.
 
 
 2. KEZELÉSI MODELL
@@ -47,6 +60,12 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - BETŰINDEX: hosszú névlistákban előbb a kezdőbetűk (magyar rendezés,
     ékezet-összevonás Á->A), azon belül a nevek.
   - MEGERŐSÍTŐ KÉPERNYŐ: jobbra igen, balra mégse, fel-le a kérdés ismétlése.
+  - KI-BE KAPCSOLÓK: egyetlen jobbra söprés kapcsol, és a program BEMONDJA az új
+    állapotot. (Egy ideig helyi menüt kaptak — 1.72.0 —, de visszavontuk: egy
+    kapcsolónak nincs közbenső állapota, ott a menü csak plusz munka. Ami
+    megmaradt belőle: a 31 kapcsoló nyilvántartása, amiből a program az
+    állapotot bemondja.) KIVÉTEL a hívásszűrő MÓDJA, ahol a régi körbeforgatás
+    minden közbenső állást életbe léptetett — ott választó képernyő van.
 
 
 3. FUNKCIÓK TERÜLETENKÉNT (TELJES LELTÁR)
@@ -54,25 +73,53 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
 
 3.1 TELEFON ÉS HÍVÁSOK
   - Hívásnapló felolvasása; hívás névjegyből diktálással; számtárcsázás
+  - HÍVÁSNAPLÓ HOSSZA állítható (20/40/60/100/200/mind) és TELJESEN TÖRÖLHETŐ
+    (1.70.0). A törléshez WRITE_CALL_LOG kell — enélkül a rendszer nem dob
+    hibát, csak nulla sort töröl, és a felhasználó azt hiszi, megtörtént.
   - Névjegyzék böngészése betűindexszel, keresés, szinkronizálás, létrehozás
   - Névjegyek mentése és visszatöltése fájlból
   - Hívásképernyő: hangosítás, némítás, billentyűzet, hívás vége
   - Bejövő hívás fogadása/elutasítása gesztussal
-  - HÍVÁS SZŰRŐ MÓD: letiltott és rejtett számok elutasítása, állapot-lekérdezés
+  - HÍVÁS SZŰRŐ (1.71.0-ben kibővítve): négy mód (Teljes Ne Zavarj, Részleges,
+    Laza, Mindent Fogad) választó képernyőn; a REJTETT SZÁMOK külön kapcsolón,
+    a módtól függetlenül; FEHÉRLISTA és FEKETELISTA; a kiszűrt hívások listája
+    az OKKAL együtt (feketelista / rejtett / nezavarj / reszleges / ismeretlen).
+    A FEHÉRLISTA MINDIG ERŐSEBB minden szűrésnél és fókusznál.
   - Névjegyenkénti csengőhang
   - Kedvencek: hozzáadás, hívás, törlés
   - Alapértelmezett telefon-alkalmazás beállítása és állapot-ellenőrzés
+  - VISSZAHÍVANDÓK és a sikertelen hívás kezelése — részletek a 4.5 pontban
   - S.O.S. VÉSZJELZÉS — teljes lánc, részletek a 4.1 pontban
 
 3.2 ÜZENETEK ÉS E-MAIL
   SMS:
    - bejövő és kimenő üzenetek felolvasása; üzenet diktálása és küldése
+   - ÜZENETEK LISTA-HOSSZA állítható, és az összes üzenet (bejövő és kimenő)
+     egyben törölhető (1.70.0)
    - ÜZENET TÖBB CÍMZETTNEK (1.65.0): betűindexes kijelölő, egyszeri diktálás,
      és CÍMZETTENKÉNTI visszajelzés ("3 címzettnek elment. Nem ment el neki: Kati.")
-   - IDŐZÍTETT ÜZENET (1.65.0): relatív ("másfél óra múlva") és abszolút
-     ("délután ötkor") időmegadás; újraindítás után is elmegy; sikeres küldéskor
-     NÉMA, sikertelenkor szól. Külön menüpont a törléshez ("Időzített üzeneteim"),
-     hátralévő idővel. Legfeljebb 20 tétel.
+   - IDŐZÍTETT ÜZENET (1.65.0, kibővítve 1.83.0): egyetlen bemondott mondatból
+     derül ki az időpont ÉS a gyakoriság. Amit ért:
+        „két óra múlva"                  -> egyszeri, relatív
+        „délután ötkor"                  -> egyszeri, abszolút
+        „minden nap reggel hétkor"       -> NAPI ismétlés, 07:00
+        „hetente nyolckor"               -> HETI ismétlés
+        „havonta délben"                 -> HAVI ismétlés
+        „december 24-én délután hatkor"  -> teljes dátum, év nélkül
+        „2027 január 1 éjfélkor"         -> teljes dátum, évvel
+     A dátumot KIVESSZÜK a szövegből, mielőtt az órát keresnénk benne —
+     enélkül a „december 24-én hatkor" huszonnégy órát jelentene.
+     Az ismétlődő üzenet az EREDETI időpontból számolja a következőt, nem a
+     mostaniból: ha az ébresztő késett, különben minden alkalommal arrébb
+     csúszna. Havi ismétlésnél a nap megmarad (31-e februárban a hónap utolsó
+     napja, nem 28-a minden további hónapban).
+     Újraindítás után is elmegy; sikeres küldéskor NÉMA, sikertelenkor szól.
+     Külön menüpont a törléshez („Időzített üzeneteim"), hátralévő idővel.
+     Legfeljebb 20 tétel.
+   - FÜGGŐ ÜZENETEIM: egy beérkezett üzenethez emlékeztető kérhető későbbre
+     (lásd 4.5)
+   - SZÖVEGTÁR SABLONOK: előre elmentett szövegek, amik egy mozdulattal
+     kiküldhetők vagy beilleszthetők
    - "UTOLSÓ ÜZENET SORSA" (1.64.0): a küldés PILLANATÁBAN még nem tudható, hogy
      elment-e; a hálózat válasza másodpercekkel, a kézbesítési visszajelzés
      percekkel később jön. Ezért külön lekérdezhető.
@@ -107,11 +154,22 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   Jegyzetek: lista, új jegyzet diktálással, törlés
   IDŐZÍTETT FÓKUSZ: idősávos csendrendek — "éjszakai nyugalom", "vasárnapi
    pihenő", egyéni fókusz létrehozása; "mi van most érvényben" lekérdezés
+  HELY ALAPÚ FÓKUSZ (1.84.0): nem az óra, hanem a HELY kapcsolja — részletek
+   a 4.7 pontban
 
 3.4 ZENE ÉS MÉDIA
   - Zenelejátszó: telefonon lévő fájlok, hangszínprofilok (EQ), lejátszási módok
     (sorban, egy szám ismétlése, teljes lista ismétlése, véletlen), tekerés-egység
   - POZÍCIÓ-MENTÉS: "Utoljára játszott folytatása" a mentett időponttól
+  - FRISSEN HOZZÁADOTT DALOK (1.79.0): a legutóbb a telefonra került 30 szám,
+    bármilyen úton is kerültek oda
+  - KEDVENC ZENÉK (1.79.0): a lejátszó vezérlőpaneljén — ott, ahol a tekerés,
+    lejátszás, leállítás és törlés van — egy plusz gomb a KEDVENCNEK JELÖLÉSRE,
+    és külön menüpont a kedvencek lejátszására. A kedvencek listája a
+    médiatárhoz igazodik: ha egy fájl azonosítója megváltozik (újraindexelés),
+    cím és előadó alapján megkeresi és frissíti magát.
+  - A ZENE ÉS A HANGOSKÖNYV SZÉT VAN VÁLASZTVA: a hangoskönyv-mappák nem
+    keverednek a zenék közé
   - ZENÉK A FELHŐBŐL: a médiatár MELLETT egy választott mappából is játszik,
     almappákkal; a mappa a rendszer fájlválasztójából jön, ahol a Google Drive,
     OneDrive, Dropbox és a helyi tárhely is megjelenik
@@ -127,12 +185,19 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
     böngésző-lista (nem indít rögtön), .pls/.m3u/.m3u8 playlist-feloldás,
     saját állomás vagy lista A VÁGÓLAPRÓL, valós idejű felvétel fájlba,
     IDŐZÍTETT FELVÉTEL (hozzáadás + saját lista), elalvás-időzítő
+  - FELVÉTELEIM (médiacímkék): a saját képek és videók HANGCÍMKÉT kaphatnak —
+    a felhasználó bemondja, mi van a képen, és a program ezt jegyzi meg
   - Média-lejátszás vezérlése fülhallgatóról / autórádióról (MediaSession)
 
 3.5 KÖNYVEK
   Beépített olvasó: könyvtár, keresés felolvasással, nemrég olvasottak,
   könyvjelzők (létrehozás, törlés), folytatás az utolsó pontról, egyéni
   könyvmappák, olvasási sebesség csúszkával
+  - AZ "OLVASÁS FOLYTATÁSA" A LISTA TETEJÉN van (1.79.0): aki belép, rögtön
+    azt akarja pöccinteni, ne kelljen a lista aljáig söpörnie
+  - A PROGRAM SAJÁT FÁJLJAI NEM KÖNYVEK (1.76.0): a hibajelentések, naplók és
+    az Elena-hangok mappája kimarad a könyv-keresésből. Korábban minden .txt
+    könyvnek számított, és a hibanaplók megjelentek a könyvespolcon.
   - HANGOSKÖNYV-LEJÁTSZÓ: egy hangfájlokat tartalmazó MAPPA egy hangoskönyv
     (a sávok természetes sorrendben); a hangoskönyvek a rendes könyv-listában
     jelennek meg. Vak-first vezérlés: szünet/folytatás, következő/előző sáv,
@@ -152,6 +217,11 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
 
 3.7 KÖZLEKEDÉS ÉS NAVIGÁCIÓ
   - "Hol vagyok?" helymeghatározás, utcanév-felolvasás
+  - A "HOL VAGYOK?" EREDMÉNYE MEGOSZTHATÓ (1.78.1): a válasz után felkínált
+    műveletek között ott van a „helyzet megosztása" (SMS-ben) és a
+    „megosztás egyéb módon" (bármelyik üzenetküldő alkalmazásba).
+    SZÁNDÉKOSAN NEM S.O.S.: a szöveg más hangvételű, nem vészjelzés, mert van,
+    akinek meg akarod mondani, hol vagy, anélkül hogy riasztanád.
   - Cím vagy hely keresése; gyalogos útvonaltervezés diktálással
   - Tömegközlekedés: útvonaltervezés, közeli megállók indulási időkkel,
     megálló keresése, KEDVENC MEGÁLLÓK indulási időkkel
@@ -175,7 +245,7 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
     koppanások üteme mértani, nem lineáris, így a közeledés hallható
   - "FELIRAT KERESÉSE": utcatábla, ajtószám és társai, ugyanazzal a rávezetéssel
   - Kamera és szelfi, kamera-minőség, fotó és videó
-  - PÉNZFELISMERŐ (magyar forint) — részletek a 4.2 pontban
+  - PÉNZFELISMERŐ (magyar forint) — részletek a 4.4 pontban
   - KÁRTYA-RENDSZEREZŐ: új kártya hozzáadása, felismerés, mentett kártyák, törlés
 
 3.9 MINDENNAPI ESZKÖZÖK
@@ -185,10 +255,13 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - Bevásárlólista: több lista, tétel + opcionális ár, kipipálás, összesítés
   - Profi Diktafon: felvétel, minőség/formátum, TELJESEN NYERS felvétel,
     "mit tud a mikrofonom" mérés, mentett felvételek
+  - KÉPERNYŐFELVÉTEL (1.81.0) — részletek a 4.6 pontban
   - Patika Őrangyal: gyógyszer-emlékeztetők, gyógyszerkereső, emlékeztető törlése
   - LÉPÉSSZÁMLÁLÓ: mai összesítő, élő mérés és sebesség, napi cél, testmagasság
     és testsúly (a beépített lépésérzékelőről)
-  - MŰVELETSOROK: több lépésből álló, elmentett műveletsorok egy paranccsal
+  - MŰVELETSOROK: több lépésből álló, elmentett műveletsorok egy paranccsal.
+    Ha egy műveletsor ELAKAD, az bekerül a hibajelentésbe: melyik műveletsor,
+    hányadik lépésnél, miért (1.72.3).
   - Fájlkezelő (teljes fájlhozzáféréssel: mozgatás, törlés, létrehozás)
 
 3.10 FÁJLÁTVITEL ÉS MEGOSZTÁS
@@ -221,6 +294,10 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   folyamatos beszélgetés mód (parancs után tovább hallgat); alapértelmezett
   asszisztensnek beállítható; Bluetooth-gombra indítható; állapot-lekérdezés.
   A menü funkcióinak jelentős része hanggal is indítható.
+  1.72.1 JAVÍTÁS: a figyelő korábban egy perc után magától leállt, mert a
+  CSENDET HIBÁNAK vette. A csend nem hiba — a felismerő helyben fut, és a
+  figyelő hálózat nélkül is életben marad. Ha TARTÓSAN elromlik (elveszett
+  mikrofon-engedély, más alkalmazás elvette), azt KIMONDJA, nem csendben áll le.
 
 3.13 BESZÉDTÉMÁK (saját hangkészletek)
   A program eseményeihez (jó reggelt, jó éjszakát, töltő be/ki, merülés,
@@ -242,12 +319,18 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - "Teljes őrség ki-be" főkapcsoló
   Az Őrség bemondója (PatrolAnnouncer) az a csatorna, amin a program akkor is
   meg tud szólalni, ha épp NEM a SuperDL van előtérben — ezt használja az
-  időzített SMS kudarca és az otthon-figyelés is.
+  időzített SMS kudarca, az otthon-figyelés és a hely alapú fókusz is.
+  1.76.0 JAVÍTÁS, AMI AZ EGÉSZ PROGRAM BESZÉDÉT ÉRINTETTE: az óránkénti
+  időbemondás minden alkalommal ÚJ beszédmotor-kapcsolatot nyitott, és azt a
+  motor saját szálából, határidő nélkül zárta be. Ettől árva kapcsolatok
+  maradtak, és a program a nap folyamán VÉGLEG elnémulhatott. Azóta a bemondó
+  határidővel dolgozik, és a beszédkezelő magától újraéleszti magát (lásd 5.).
 
 3.15 SAJÁT KÉPERNYŐOLVASÓ (a külső alkalmazásokhoz)
   A SuperDL saját képernyőolvasót tartalmaz, ami a KÜLSŐ alkalmazásokat teszi
   kezelhetővé ugyanazzal a négy gesztussal. Csak külső appban aktív, a SuperDL
-  saját felületén és zárolt telefonon kikapcsol.
+  saját felületén (amikor a SuperDL a kezdőképernyő) és zárolt telefonon
+  kikapcsol.
   - NAVIGÁCIÓS MÓDOK (két ujjal váltva): minden elem, címsorok, hivatkozások,
     gombok, beviteli mezők, szöveg — így egy weboldalon "csak a gombokon"
     lehet végigmenni
@@ -275,6 +358,21 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - Billentyűzet megjelenésekor SZÜNETEL, hogy ne vegye el az érintéseket
   - TANULÁS: "Gesztusok tanulása", "Órák Elena tanárnővel", VIZSGA
 
+  KÉT TUDOTT GYENGE PONT — EZEKET EGY SEGÍTŐ AI-NAK ISMERNIE KELL:
+   1. KÉT KAPCSOLÓ VAN, ÉS A VARÁZSLÓ CSAK AZ EGYIKET NÉZI.
+      Az olvasó akkor szólal meg, ha (a) az Android Beállítások > Kisegítő
+      lehetőségek alatt a „Super DL olvasó" szolgáltatás be van kapcsolva, ÉS
+      (b) a SuperDL-en belül a Képernyőolvasó kapcsoló is be van kapcsolva —
+      ez utóbbi ALAPBÓL KI VAN KAPCSOLVA. A beállítás varázsló jelenleg csak
+      az (a) pontot ellenőrzi, ezért „megvan"-t mond, miközben az olvasó néma.
+      Ez a felhasználói levelek leggyakoribb panasza. Javításra vár.
+   2. SAMSUNG: a képernyőolvasó Samsung készüléken nem kezel idegen
+      alkalmazást. Kétszer jelezték, nincs tesztkészülékünk. A legrégebbi
+      nyitott tétel.
+  TOVÁBBI VÁRT VISELKEDÉS, AMI NEM HIBA: a SuperDL saját menüjében az olvasó
+  SZÁNDÉKOSAN néma, mert ott a launcher a saját hangján beszél. Aki ott
+  próbálja ki, sosem fogja hallani.
+
 3.16 BILLENTYŰZETEK
   MÁTRIX BILLENTYŰZET (saját beviteli mód):
    Egyujjas, telefonszám-elrendezésű billentyűzet. Ahová leteszed az ujjad, ODA
@@ -298,6 +396,10 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   A képernyő teljes elfüggönyözése fekete réteggel. Az érintések ÁTMENNEK
   rajta, tehát a telefon alatta ugyanúgy kezelhető. Magánszféra + akkumulátor.
   A főmenü első pontja, és az asszisztensnek is mondható.
+  VÉSZKIJÁRAT (1.75.0): amíg a sötét mód áll, az értesítési sávban ott van egy
+  gomb, amivel egy koppanással megszüntethető. Kellett, mert aki bekapcsolta és
+  utána nem találta a menüpontot, fekete képernyővel maradt. (Hangerőgombos
+  kijárat NEM lett belőle: az a TalkBack saját gyorsbillentyűje.)
 
 3.18 INFORMÁCIÓ ÉS HÍREK
   - Napi üdvözlés, NAPI ÖSSZEFOGLALÓ (idő, időjárás, naptár, ébresztők egyben)
@@ -317,10 +419,17 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - Elérhető modulok / letöltött modulok menüpont
   - FRISSÍTÉS-FIGYELŐ: naponta kétszer megnézi, van-e újabb verzió, és szól.
     Ez pótolja azt, amit a Play automatikus frissítése adna.
+  - A TELEPÍTŐ MAGA IS JAVÍTVA (1.73.0): a letöltött APK-ra RÁKOPPINTVA is fel
+    lehet telepíteni. Korábban a telepítő összeomlott (az ikon miatt), és az
+    alkalmazás csak kábelen keresztül volt feltehető — ezt senki nem mondta el,
+    mert mindenki azt hitte, magával a fájllal van baj.
 
 3.20 HOZZÁFÉRHETŐSÉG, TANULÁS, TESTRESZABÁS
   - BEÁLLÍTÁS VARÁZSLÓ: végigvezet a szükséges engedélyeken és szerepkörökön;
-    "beállítás állapota" lekérdezhető; a varázslóból HIBAJELENTÉS küldhető
+    "beállítás állapota" lekérdezhető; a varázslóból HIBAJELENTÉS küldhető.
+    Felismeri a „korlátozott beállítás" csapdáját (lásd 1.), és nem ragad be
+    egy lépésen: aki sokáig küzd eggyel, azt továbbengedi.
+    A VÉGÉN FELAJÁNLJA A TANULÓ MÓDOT (1.74.0) — választhatóan, nem kötelezően.
   - Tanuló mód (funkciók bemutatása), Diagnosztika, Rejtett mozdulatok
   - SÚGÓ MINDENHEZ: almenüre bontott súgó + "Súgó - minden alkalmazás" index
   - A program hangjainak megismerése
@@ -341,8 +450,10 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - Kedvenc alkalmazások gyorsindítása; "Minden alkalmazás" lista
   - Biztonsági mentés / visszaállítás
   - HIBAJELENTÉS KÜLDÉSE: a jelentés tartalmazza a részletes naplót, a készülék
-    adatait, az engedély- és szerepkör-állapotot, és az utolsó YouTube-próbát.
-    Jelszót, üzenet-szöveget, névjegyet és pontos GPS-t NEM tartalmaz.
+    adatait, az engedély- és szerepkör-állapotot, az utolsó YouTube-próbát, az
+    elakadt műveletsort és a beszéd-újraélesztés nyomát. Jelszót,
+    üzenet-szöveget, névjegyet és pontos GPS-t NEM tartalmaz.
+    A jelentés CSATOLMÁNYKÉNT megy, mert a levéltörzsben elcsonkult.
 
 
 4. KIEMELT RENDSZEREK — RÉSZLETES MŰKÖDÉS
@@ -397,6 +508,12 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
       két különböző súlyú helyzet nem mosható össze. Az üzenet megmondja
       magáról, hogy automatikus.
   Alapból EGY címzett (az 1. S.O.S. szám); a többi külön kapcsolható.
+  KÖSZÖNÉS, HA OTTHON TALÁL (1.80.0): a jó kimenetel korábban SZÁNDÉKOSAN néma
+    volt. Ez megváltozott, mert ez volt az egyetlen eset, amiről semmi
+    visszajelzés nem jött — így nem lehetett tudni, lefutott-e a figyelés
+    egyáltalán. Most egy rövid, napszakhoz igazított mondat hangzik el
+    („Örülök, hogy otthon vagy. Jó pihenést!" — este; „Hazaértél. Aludj jól!" —
+    késő este), több változatban, hogy ne legyen egyhangú. Kikapcsolható.
 
 4.3 RENDSZER PIN SEGÉD (kisegítő szolgáltatás)
   A rendszer zárolási képernyőjén függőleges, felolvasott számbillentyűzetet ad,
@@ -406,6 +523,9 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   és az alkalmazás indulása nem nyúl titkosított tárolóhoz. A zárképernyő-hangok
   beépítettek, mert ilyenkor a rendszer beszédmotorja még nem él — ezek külön
   kipróbálhatók a menüből.
+  NYITOTT PANASZ: több felhasználó jelezte, hogy a PIN beírása után a
+  megerősítés nem történik meg, vagy a beírás túl gyorsaságot igényel. Ez a
+  Xiaomi/Redmi készülékeken visszatérő; még nincs lezárva.
 
 4.4 PÉNZFELISMERŐ (magyar forint)
   CÉL: a címlet megállapítása, ZÉRÓ hibatűréssel (a téves címlet súlyos hiba).
@@ -435,19 +555,129 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
     perceptuális hash), munkamenetenként bővítve, max 40 minta/címlet.
   TUDOTT KORLÁT: csak magyar forint; új sorozat esetén új szín-referencia kell.
 
+4.5 VISSZAHÍVANDÓK ÉS FÜGGŐ ÜZENETEK (1.77.x, 1.82.0)
+  MIÉRT VAN: van, amikor a telefon rosszkor csörög. Nem vagy olyan helyzetben,
+  hogy visszahívd — de tíz perc múlva már elfelejtetted.
+  MIÉRT NEM AZ ÉBRESZTŐK KÖZÖTT LAKIK: a visszahívás nem ébresztő. A hívásoknál
+  van egy „Visszahívandók", az üzeneteknél egy „Függő üzeneteim". Aki
+  visszahívandót keres, ott fogja keresni, nem a reggeli ébresztők között.
+  FELVÉTEL HÁROM ÚTON:
+    1. a hívásnaplóból egy tételre rásöpörve
+    2. a NÉVJEGYBŐL („Emlékeztetés később — visszahívandókhoz")
+    3. KÉZZEL, a Visszahívandók listán belül vagy a „Visszahívandó felvétele"
+       menüpontból — névjegyből választva vagy a számot bemondva.
+       Ez Alph kérése volt: „tudom, hogy fel kell hívnom, de most kora reggel
+       van" — ilyenkor nincs hívás, amire rásöpörhetnél.
+  IDŐPONT: 10 perc, 1 óra, holnap reggel, vagy EGYÉNI IDŐPONT bemondva
+  (ugyanaz az értelmező szolgál ki, mint az időzített SMS-t).
+  EGY SZÁMRA CSAK EGY EMLÉKEZTETŐ lehet; a második felülírja az időpontot,
+  nem keletkezik két bemondás ugyanarról az emberről. Legfeljebb 50 tétel.
+  MAGÁTÓL TAKARÍT: akit közben VISSZAHÍVTÁL, az lekerül a listáról (a
+  hívásnaplóból látszik). Egy lista, amit kézzel kell takarítani, két hét alatt
+  használhatatlan.
+  SIKERTELEN HÍVÁS UTÁNI KÉRDÉS (1.82.0):
+    - ha egy kimenő hívás nem jött össze (a hívásnaplóban nulla másodperc), a
+      program a főmenübe visszatérve megkérdezi, betegye-e a visszahívandók közé
+    - ha az illető időközben VISSZAHÍV, megkérdezi, törölje-e az emlékeztetőt
+    MIÉRT A HÍVÁSNAPLÓBÓL, ÉS NEM A HÍVÁS KÖZBEN: a hívás közbeni figyelés csak
+    akkor működik, ha a SuperDL az alapértelmezett telefon alkalmazás. A napló
+    mindig ott van, akárhonnan indult a hívás.
+    Csak FRISS hívásról kérdez (negyedóra), csak a főmenüből, két másodperc
+    késleltetéssel (a naplóba nem azonnal kerül be a tétel), és ugyanarról a
+    hívásról csak egyszer. Kikapcsolható.
+
+4.6 KÉPERNYŐFELVÉTEL (1.81.0)
+  MIÉRT VAN: vak felhasználóként egy hibát szavakkal leírni nehéz, sokszor
+  lehetetlen. Egy videó, amin a KÉPERNYŐ, a PROGRAM BESZÉDE és a FELHASZNÁLÓ
+  SAJÁT KOMMENTÁRJA is rajta van, nagyságrenddel többet ér bármilyen
+  hibajelentésnél.
+  MIÉRT KELLETT KÉZZEL MEGÉPÍTENI: a rendszer beépített felvevője EGYETLEN
+  hangforrást tud. Vagy a mikrofont, vagy semmit. Ezért a lánc így áll össze:
+    kép   -> kódoló felület -> virtuális kijelző rajzol rá
+    hang  -> a mikrofon ÉS a telefon kimenete összekeverve -> kódoló
+    a kettő -> egyetlen mp4
+  Felbontás: a hosszabbik oldal legfeljebb 1280 képpont (egy diagnosztikai
+  videónál a fájlméret többet számít). Hang: 44,1 kHz, mono, AAC.
+  ELŐTÉRBEN FUTÓ SZOLGÁLTATÁS tartja, különben a program elhagyásakor leállna —
+  vagyis pont akkor, amikor a hiba megtörténik.
+  HOVÁ KERÜL: a Movies mappa SuperDL almappájába, `kepernyo-dátum-idő.mp4`
+  néven. Oda a telefon lejátszója, a galéria és a számítógép is belát — ez
+  szándékos, a videó azért készül, hogy továbbküldjék. A menüben ott a
+  „Legutóbbi felvétel elküldése".
+  AZ EGYETLEN KORLÁT, AMIT A PROGRAM INDÍTÁSKOR BE IS MOND: a rendszer csak a
+  „média" besorolású hangot engedi rögzíteni. Ha a beszéd a KISEGÍTŐ csatornán
+  szól (ez a beszéd beállításainál választható), a rendszer nem adja oda — a
+  program beszéde ilyenkor csak a hangszórón át, a mikrofonnal kerül a videóra.
+  AMIT NEM LEHET MEGKERÜLNI: a tükrözéshez a rendszer SAJÁT párbeszéde kell,
+  azt programból jóváhagyni nem lehet. A program előre elmondja, mi jön és mit
+  kell keresni („Indítás most" gomb).
+  Elérhető két helyről: Eszközök > Mindennapi eszközök > Képernyőfelvétel, és a
+  Névjegyben a hibajelentés mellett.
+  MÉG NINCS: saját listaképernyő a felvételeknek (lejátszás, törlés söpréssel).
+  Most a lista felolvasása és a legutóbbi elküldése van meg.
+
+4.7 HELY ALAPÚ FÓKUSZ (1.84.0)
+  MIÉRT NEM ELÉG AZ IDŐZÍTETT FÓKUSZ: az időzített azt feltételezi, hogy a nap
+  óraműre jár. „Hétköznap nyolctól négyig ne zavarjanak" csak addig jó, amíg
+  tényleg ott vagy. Aki szabadnapot vesz ki, azt a saját telefonja némítja le a
+  semmiért; aki bent marad tovább, azt négykor újra hívogatják. A hely nem
+  hazudik.
+  FELVÉTEL: a felhasználó ott áll a helyszínen, bemondja a nevét („munkahely"),
+  fel-le söpréssel kiválasztja, milyen szűrés legyen ott, jobbra söpréssel
+  menti. A koordináta a MOSTANI helyzetből jön — egy vak felhasználótól nem
+  várható el, hogy koordinátát diktáljon. Sugár: 120 méter, plusz a mérés
+  pontatlansága (a nagyvonalúság itt a helyes: egy bekapcsolt fókusz
+  visszavonható, egy elmulasztott észrevétlen).
+  FIGYELÉS: negyedóránként, az UTOLSÓ ISMERT helyzetből. Nem indít külön
+  GPS-mérést; ha nincs friss helyzet (20 percnél régebbi), kihagyja azt a kört.
+  A folyamatos GPS-figyelés napok alatt lemeríti az akkumulátort, és egy vak
+  felhasználónál a lemerült telefon nem kényelmetlenség, hanem baj.
+  PRÓBA MÓD, AHOGY AZ OTTHON-FIGYELÉSNÉL: ez a második funkció, ami MAGÁTÓL
+  avatkozik be — itt hívásokat utasít el. Próbában mindent végigcsinál és
+  BEMONDJA, mit tenne, de nem szűr. Az élesre váltás külön, tudatos lépés.
+  Csak a VÁLTOZÁST mondja be (megérkeztél / elhagytad), különben negyedóránként
+  megszólalna.
+  ÖSSZJÁTÉK: ha az időzített ÉS a hely alapú fókusz is érvényben van, a
+  SZIGORÚBB nyer. A fehérlista mindkettőnél erősebb marad.
+  Legfeljebb 10 hely. Menü: Beállítások > Biztonság > Hely alapú fókusz.
+
+4.8 A BESZÉD ÚJRAÉLESZTÉSE (1.76.0) — MIÉRT NÉMULT EL A PROGRAM
+  A leggyakoribb és leghosszabb ideig élő hiba a program történetében: a
+  SuperDL napközben VÉGLEG elnémult, és csak újraindítás segített.
+  KÉT OKA VOLT, MINDKETTŐ VALÓDI:
+   1. Az óránkénti időbemondó minden alkalommal ÚJ beszédmotor-kapcsolatot
+      nyitott, és azt a MOTOR SAJÁT SZÁLÁBÓL, határidő nélkül zárta be.
+      Árva kapcsolatok maradtak, és a „beszél éppen" jelző örökre bent ragadt.
+   2. A beszédkezelőben a „nem sikerült elindulni" állapot EGYIRÁNYÚ ajtó volt:
+      ha egyszer bebillent, a program soha többé nem próbálkozott.
+  AMI MOST VAN:
+   - a beszédkezelő figyeli, hogy a motor egyáltalán ad-e életjelet; ha a
+     kérés után nyolc másodpercig néma, ÚJRAÉLESZTI magát
+   - az újraélesztések között húsz másodperc szünet, és legfeljebb három
+     egymás utáni kísérlet — nehogy a javítás maga váljon végtelen ciklussá
+   - a bemondó határidővel és beeső-hanggal dolgozik: ha nem sikerül
+     megszólalni, legalább egy hangjelzés megy
+   - a hibajelentés megőrzi, HÁNYSZOR és MIÉRT próbálkozott a program
+  EBBŐL SZÜLETETT A PROJEKT ÖTÖDIK TANULSÁGA (lásd 5.): a program tudta, mi
+  történt, és nem írta le.
+
 
 5. ARCHITEKTÚRA — AMIT EGY FEJLESZTŐ AI-NAK TUDNIA KELL
 --------------------------------------------------------------------------------
-  - MainActivity.kt ~21 600 sor: minden folyamat-logika itt van. Nem szép, de
+  - MainActivity.kt ~23 700 sor: minden folyamat-logika itt van. Nem szép, de
     ez a valóság, és a módosításnál ezzel kell számolni.
   - AppFlow (sealed class): MINDEN képernyő egy állapot. Egy új képernyő
     felvétele ÖT helyen igényel bejegyzést: a négy söprés-tábla (fel, le,
     jobbra, balra) és a kijelző-blokk.
+    KIVÉTEL: egy egyszerű MEGERŐSÍTŐ képernyőnek (jobbra igen, balra nem)
+    elég HÁROM hely — a jobbra, a balra és a kijelző.
     CSAPDA: a `when` ágait a vesszős FELSOROLÁS UTÁN kell beszúrni, nem közé —
     különben az előtte álló vessző beszívja az új ágat, és az egész lista arra
     az ágra fut. Ez élesben már megtörtént.
-  - MenuTree.kt: a menüfa + a MenuAction enum; a végrehajtás a MainActivity
-    dispatch-blokkjában.
+    MÁSIK CSAPDA: az `activeFlow` NEM nullázható (nem nullozható típus). Ahol
+    „nincs képernyő" kell, ott a főmenü állapota az érvényes.
+  - MenuTree.kt: a menüfa + a MenuAction enum (414 művelet, 549 menübejegyzés);
+    a végrehajtás a MainActivity dispatch-blokkjában.
   - Háttérmunka: MINDEN hálózati vagy hosszú művelet ELŐTÉR-SZOLGÁLTATÁS.
     A gyártói takarékosság (különösen MIUI/Xiaomi) a háttérfolyamatokat némán
     megöli — ez a program legtöbbet visszatérő hibaforrása.
@@ -455,14 +685,26 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
     A BootReceiver minden lépése KÜLÖN védőhálóban fut (`step("név") { }`), és
     `Throwable`-t fog, nem `Exception`-t. Ok: egy névjegy-engedély hiánya
     korábban meg tudta ölni az egész indulást, és ezzel elmaradt a másnapi
-    ébresztő is.
+    ébresztő is. A lépések között van: ébresztők, időzítők, időzített SMS,
+    otthon-figyelés, visszahívandók, hely alapú fókusz, akku-őrség,
+    névjegy-szinkron.
   - Tárolás: JSON a SharedPreferences-ben, séma-verzióval
     (JsonPrefsHelper.readJsonArray / readJsonObject). A "superdl" nevű
     prefs-fájl egészét menti a biztonsági mentés.
+    ÚJ MEZŐ HOZZÁADÁSAKOR NE EMELJ SÉMA-VERZIÓT, ha nem muszáj: a JSON tolerálja
+    a hiányzó mezőt (`optString(..., alapérték)`), a verzióemelés viszont
+    adatvesztéssel járhat.
+  - Felvételek helye: a diktafon és a rádió a /Recordings alá, a
+    képernyőfelvétel a /Movies/SuperDL alá ír. Mindkettő NYILVÁNOS mappa —
+    az Android 11 óta a program saját mappájába (Android/data/...) SEMMILYEN
+    fájlkezelő nem lát be, sem a gyári, sem a számítógép USB-n.
   - Kiadás: build -> publish -> finalcheck -> kiadas szkriptek (tools/).
     ELLENŐRZÉSI ELV: a szövegeket a LEFORDÍTOTT, minified kiadási APK DEX-eiben
     kell megkeresni, nem a forrásban — mert egyes hibák csak a release buildben
     jelennek meg.
+  - FEJLESZTŐI KÖRNYEZET: a PowerShell és a szerkesztő között az ÉKEZETEK
+    elromlanak. Ezért minden hosszabb parancs .ps1 fájlba megy és `-File`-lal
+    indul, és a keresett szövegdarab csak ÉKEZET NÉLKÜLI részlet lehet.
 
   ISMÉTLŐDŐ HIBAMINTÁK, amiket a projekt saját naplója nevez meg:
    1. "A JÓ SZOLGÁLTATÁS, AMIT SENKI NEM HÍV": a kód megvan, emberi nyelvre is
@@ -474,20 +716,50 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
    3. NÉMA KUDARC: ha egy háttérművelet elbukik, azt KI KELL MONDANI. Egy
       csendben elbukott védőháló rosszabb, mint a semmi — mert a felhasználó
       abban a hiszemben él, hogy van neki.
+   4. A VÉDŐHÁLÓ ÖLTE MEG A PROGRAMOT: a képernyőolvasó hibaszámlálója az első
+      feloldás előtt titkosított tárolóhoz nyúlt, és a kivétel megölte az EGÉSZ
+      folyamatot — vele a PIN segédet is. Feloldás előtt eszköz-védett tároló
+      kell, és a hibaszámláló ilyenkor nem számol.
+   5. A PROGRAM TUDTA, MI TÖRTÉNT, ÉS NEM ÍRTA LE. Elena figyelő
+      önkikapcsolás, elveszett beszéd-művelet, elakadt műveletsor, néma
+      beszédmotor — minden alkalommal ugyanez. Amióta a hibajelentés a
+      PRÓBÁLKOZÁS NYOMÁT is tartalmazza, a vizsgálatok napokról órákra
+      rövidültek.
+   6. UGYANAZT A GYÓGYSZERT KÉT KÜLÖNBÖZŐ BETEGSÉGRE. Az 1.72.0-ban minden
+      ki-be kapcsoló helyi menüt kapott, mert a hívásszűrőnél a körbeforgatás
+      valódi kárt okozott. De egy ki-be kapcsolónak nincs közbenső állapota —
+      ott a menü csak plusz munka. Visszavonva.
 
 
 6. FEJLESZTÉS ALATT / TERVEZETT
 --------------------------------------------------------------------------------
+  KÓDOLÁSRA VÁR (a terv kész):
+  - NFC CÍMKÉZŐ ÉS OLVASÓ: tárgyak, gyógyszerek, ruhák megjelölése NFC-címkével
+  - KÁRTYÁS FIZETÉS VISSZAJELZÉSE: az értesítésekből, NEM banki SMS-ből
+  - BESZÉLŐ ÓRA MODUL: 24 óra-mondat Elena (Leda) hangján, modulként a
+    katalógusba. A gyártás a napi kulcs-keret miatt több napba telik; jelenleg
+    24-ből 12 mondat kész.
   - Otthon-figyelés PORTÁL-FELÜLETE: a címzettlisták és az időpont a WiFi
     portálról is szerkeszthető lesz; az otthon koordinátái szándékosan NEM
     kerülnek rá (nem HTTPS), és küldést sem lehet majd onnan indítani
   - Bankjegy-tanító kamera-felület (a tár és a felismerő kész)
-  - Az időzített üzenet ISMÉTLŐDÉSE ("minden hétfőn 7-kor") — az egyéni napok
-    képernyője már kész hozzá
+  - A képernyőfelvételek saját listaképernyője (lejátszás, törlés söpréssel)
+  - A hely alapú fókusz sugarának állíthatósága (most fix 120 méter)
   - További katalógus-motorok: szójáték, rádiócsomag, útmutató, receptek
   - Meta okosszemüveg: a kamerás felismerők a szemüveg kamerájával —
     technikailag megvalósítható, még nem kezdődött el
   - Egyedi YOLO tárgyfelismerő betanítás (első cél: ajtók)
+
+  AMI KÉSZ LETT AZ ELŐZŐ TERVBŐL:
+  - az időzített üzenet ISMÉTLŐDÉSE („minden hétfőn 7-kor") — 1.83.0
+
+  JAVÍTÁSRA VÁRÓ, ISMERT HIBÁK:
+  - A képernyőolvasó KÉT kapcsolója, és a varázsló csak az egyiket nézi (3.15)
+  - A képernyőolvasó Samsungon nem kezel idegen alkalmazást (3.15)
+  - PIN segéd Xiaomi/Redmi készülékeken: a megerősítés elmaradhat (4.3)
+  - Hangerő-normalizálás beszédtéma-csomagolásnál
+  - Adatvédelmi tájékoztató: hiányzik egy mondat a YouTube-nyom
+    videóazonosítójáról és egy az otthon-ujjlenyomatról
 
 
 7. ELVEK, AMIK A KÓDBAN IS ÉRVÉNYESÜLNEK
@@ -495,15 +767,24 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
   - INGYENESSÉG: az alkalmazás soha, semmiért nem kér pénzt (adomány elfogadható)
   - ADATVÉDELEM: a felismerők helyben futnak, a képek nem mennek felhőbe;
     a naplók nem tartalmaznak jelszót, üzenet-szöveget, névjegyet, pontos GPS-t;
-    az otthon-ujjlenyomat (wifi, cella, helyzet) csak a telefonon van, sehova
-    nem megy el
-  - INKÁBB HALLGAT, MINT TÉVED (különösen a pénzfelismerőnél és az
-    otthon-figyelésnél)
+    az otthon-ujjlenyomat (wifi, cella, helyzet) és a hely alapú fókuszok
+    koordinátái csak a telefonon vannak, sehova nem mennek el
+  - INKÁBB HALLGAT, MINT TÉVED (különösen a pénzfelismerőnél, az
+    otthon-figyelésnél és a hely alapú fókusznál)
   - AMIT A PROGRAM A HÁTA MÖGÖTT CSINÁL, ARRÓL A FELHASZNÁLÓNAK TUDNIA KELL,
     HOGY MEGTÖRTÉNT-E
+  - AMI MAGÁTÓL CSELEKSZIK, AZ PRÓBA MÓDBAN INDUL. Az első hamis riasztás után
+    senki nem kapcsolja vissza — ezért az otthon-figyelés és a hely alapú
+    fókusz is némán próbálkozik, amíg a felhasználó élesre nem váltja.
   - OFFLINE ÉLETKÉPESSÉG: sok funkció internet nélkül is működik
   - A hibaüzenet SOHA nem némítható el, még "néma módban" sem
   - NINCS ÚJ MOZDULAT OTT, AHOL A RÉGI IS JÓ: a leállítás mindenhol a balra
     söprés, a megerősítés mindenhol a jobbra
+  - EGY FUNKCIÓ TÖBB HELYRŐL IS ELÉRHETŐ LEHET. Alph szavaival: „nem baj, több
+    helyről elérhető egy menüpont." A képernyőfelvétel és a visszahívandó
+    felvétele is két-három úton indítható.
+  - MINDEN FELESLEGES KÉRDÉS EGY SÖPRÉS, AMIT VAKON KELL MEGTALÁLNI. Ezért az
+    időzített SMS gyakorisága nem külön képernyő, hanem ugyanabból a bemondott
+    mondatból derül ki, mint az időpont.
 
 ================================================================================

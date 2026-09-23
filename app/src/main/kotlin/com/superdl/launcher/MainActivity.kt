@@ -3148,7 +3148,8 @@ class MainActivity : AppCompatActivity() {
             MenuAction.SCREEN_CURTAIN_TOGGLE -> toggleScreenCurtain()
             MenuAction.SCREEN_READER_TOGGLE -> {
                 val next = !ScreenReaderPrefs.isEnabled(this)
-                ScreenReaderPrefs.setEnabled(this, next)
+                // KÉZI DÖNTÉS: ettől kezdve a program nem kapcsolgat magától.
+                ScreenReaderPrefs.setEnabledByUser(this, next)
                 if (next) {
                     tts.speak(
                         "Képernyőolvasó bekapcsolva. Csak külső alkalmazásokban működik: " +

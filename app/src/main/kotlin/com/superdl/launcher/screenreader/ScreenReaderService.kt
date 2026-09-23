@@ -195,6 +195,16 @@ class ScreenReaderService : AccessibilityService() {
 
     /** A tárolót és a beszédmotort igénylő indulás — csak feloldás után. */
     private fun initAfterUnlock() {
+        // A MÁSODIK KAPCSOLÓ: ha a felhasználó a rendszerben bekapcsolta ezt a
+        // szolgáltatást, akkor az olvasót AKARJA. A belső főkapcsoló eddig
+        // alapból kikapcsolva maradt, és az olvasó néma volt — miközben a
+        // varázsló azt mondta, minden megvan. Itt kapcsoljuk be, egyszer.
+        if (ScreenReaderPrefs.autoEnableOnFirstService(this)) {
+            android.util.Log.i(
+                ScreenReaderPrefs.TAG,
+                "A fokapcsolo magatol bekapcsolt, mert a rendszerben engedelyeztek."
+            )
+        }
         tts = try {
             TtsManager(this)
         } catch (e: Exception) {
