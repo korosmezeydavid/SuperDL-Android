@@ -3497,8 +3497,26 @@ class ScreenReaderService : AccessibilityService() {
      * párbeszéd igen/nem gombja és a műveletsor visszajátszása is — így ami
      * kézzel megy, az a rögzített műveletsorban is menni fog.
      */
-    private fun pressNode(node: AccessibilityNodeInfo): Boolean =
-        ScreenReaderNavigator.activate(node) || tapAtNode(node)
+    private fun pressNode(node: AccessibilityNodeInfo): Boolean {
+        // A NAPLÓ MEGMONDJA, MELYIK ÚT MENT. A TikTok Live lapfülénél (2026-09-25)
+        // nem derült ki, miért nem történt semmit — mert csendben siker lett.
+        if (ScreenReaderNavigator.activate(node)) {
+            android.util.Log.i(ScreenReaderPrefs.TAG, "megnyomas: rendes keres (megnyomhato elem)")
+            return true
+        }
+        if (tapAtNode(node)) return true
+        if (ScreenReaderNavigator.offersClick(node)) {
+            val ok = try {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } catch (_: Exception) {
+                false
+            }
+            android.util.Log.i(ScreenReaderPrefs.TAG, "megnyomas: felkinalt keres -> $ok")
+            return ok
+        }
+        android.util.Log.i(ScreenReaderPrefs.TAG, "megnyomas: egyik ut sem ment")
+        return false
+    }
 
     /**
      * HOSSZÚ NYOMÁS ugyanígy: ha a rendes kérés nem megy, az ujjat a
@@ -3536,18 +3554,36 @@ class ScreenReaderService : AccessibilityService() {
             // Amit a felhasználó nem lát, arra nem koppintunk: egy lapozó
             // takart oldala vagy egy becsukott fiók eleme a fában ott van, de
             // a helyén egy MÁSIK gomb áll — azt nyomnánk meg helyette.
-            if (!node.isVisibleToUser) return false
+            if (!node.isVisibleToUser) {
+                android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: az elem nem lathato")
+                return false
+            }
             node.getBoundsInScreen(r)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: elem hiba ${e.message}")
             return false
         }
+        android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: elem helye $r")
         // CSAK A LÁTHATÓ RÉSZ KÖZEPÉRE. A TikTok alsó lapfülei (Közlés,
         // Alkotás, Live) egy vízszintes sávban ülnek, és a szélső félig
         // kilóg a képernyőről. A teljes elem közepe ilyenkor a képernyőn
         // KÍVÜL esne, és a koppintás a semmibe menne. Ezért előbb levágjuk
         // az elemet a képernyő méretére, és annak a közepét érintjük.
-        val dm = resources.displayMetrics
-        if (!r.intersect(0, 0, dm.widthPixels, dm.heightPixels)) return false
+        // A TELJES kijelző mérete — a navigációs sávval együtt. A sima
+        // displayMetrics a sáv nélküli magasságot adhatja, és akkor az alsó
+        // lapfülek „kilógnának" belőle.
+        val real = android.graphics.Point()
+        try {
+            @Suppress("DEPRECATION")
+            (getSystemService(WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getRealSize(real)
+        } catch (_: Exception) {
+        }
+        val w = if (real.x > 0) real.x else resources.displayMetrics.widthPixels
+        val h = if (real.y > 0) real.y else resources.displayMetrics.heightPixels
+        if (!r.intersect(0, 0, w, h)) {
+            android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: kivul esik ($w x $h)")
+            return false
+        }
         // Láthatatlan vagy képernyőn kívüli elemre nem koppintunk vakon.
         if (r.width() <= 0 || r.height() <= 0) return false
         val x = r.exactCenterX()
@@ -3559,7 +3595,17 @@ class ScreenReaderService : AccessibilityService() {
                     android.accessibilityservice.GestureDescription.StrokeDescription(path, 0L, holdMs)
                 )
                 .build()
-            val ment = dispatchGesture(gesture, null, null)
+            // A rendszer VISSZASZÓL, hogy a koppintás tényleg lement-e, vagy
+            // valami (pl. egy másik érintés) megszakította. Ezt is naplózzuk.
+            val visszajelzes = object : GestureResultCallback() {
+                override fun onCompleted(d: android.accessibilityservice.GestureDescription?) {
+                    android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: LEMENT")
+                }
+                override fun onCancelled(d: android.accessibilityservice.GestureDescription?) {
+                    android.util.Log.i(ScreenReaderPrefs.TAG, "tartalek koppintas: MEGSZAKADT")
+                }
+            }
+            val ment = dispatchGesture(gesture, visszajelzes, null)
             android.util.Log.i(
                 ScreenReaderPrefs.TAG,
                 "tartalek koppintas ($x, $y): ${if (ment) "elkuldve" else "elutasitva"}"

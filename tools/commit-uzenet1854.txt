@@ -1,0 +1,19 @@
+1.85.4 - A "felkinalt" megnyomas nem nyeli el a valodi koppintast
+
+A HIBA (Alph, 2026-09-25, TikTok, Live lapful): mar nem mondta, hogy
+"nem nyomhato meg", de nem is valtott at.
+
+A felulet-kep szerint a LIVE felirat es mind a hat szuloje
+megnyomhatatlan. A naploban nem volt tartalek koppintas - vagyis az
+olvaso sikert hitt: az 1.85.2 ota az is "rendes" megnyomast kapott,
+ami csak felkinalja a megnyomast. A TikTok igent mondott, es nem
+csinalt semmit.
+
+A javitas: rendes megnyomas csak a valoban megnyomhatonak jelolt
+elemnek; utana a valodi koppintas; a felkinalt megnyomas csak a vegso
+tartalek. A teljes kijelzo meretevel vagunk (a navigacios savval
+egyutt), es a naplo megmondja, melyik ut ment, hol volt az elem, es
+hogy a koppintas tenyleg lement-e.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -425,14 +425,15 @@ object ScreenReaderNavigator {
         var current: AccessibilityNodeInfo? = node
         var depth = 0
         while (current != null && depth < 6) {
-            // Van, aki nem jelöli magát megnyomhatónak, de a megnyomás-műveletet
-            // felkínálja — azt is elfogadjuk.
-            val kinal = try {
-                current.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK }
-            } catch (_: Exception) {
-                false
-            }
-            if ((current.isClickable || kinal) && current.isEnabled) {
+            // CSAK A VALÓBAN MEGNYOMHATÓNAK JELÖLT ELEMET NYOMJUK MEG ÍGY.
+            //
+            // JAVÍTVA (Alph, 2026-09-25, TikTok Live lapfül): az 1.85.2-ben az
+            // is ide került, ami csak „felkínálja" a megnyomást. A TikTok
+            // ilyenkor igent mondott a kérésre — és nem csinált semmit. Az
+            // olvasó sikert hitt, ezért a valódi koppintás el sem indult.
+            // Az ilyen elemet most a valódi koppintás kezeli (lásd
+            // offersClick és a szolgáltatás pressNode-ja).
+            if (current.isClickable && current.isEnabled) {
                 return try {
                     current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 } catch (_: Exception) {
@@ -443,6 +444,17 @@ object ScreenReaderNavigator {
             depth++
         }
         return false
+    }
+
+    /**
+     * Az elem MAGA felkínálja-e a megnyomást, akkor is, ha nem jelöli magát
+     * megnyomhatónak. Ez csak a VÉGSŐ tartalék: ha a valódi koppintás nem
+     * küldhető el, legalább megpróbáljuk.
+     */
+    fun offersClick(node: AccessibilityNodeInfo): Boolean = try {
+        node.isEnabled && node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK }
+    } catch (_: Exception) {
+        false
     }
 
     /**
