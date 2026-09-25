@@ -768,9 +768,8 @@ object HelpTexts {
             title = "Vásárlás súgó",
             purpose = "Itt van a bevásárlólistád és az akciós újságok. A kettő össze " +
                 "is ér: az akciós termékek egy mozdulattal a listádra kerülnek.",
-            start = "A Bevásárlólista a megszokott listáid. Az Akciós újságok a Penny " +
-                "és az Aldi heti ajánlatait mutatják, és ott kereshetsz is minden " +
-                "boltban egyszerre.",
+            start = "A Bevásárlólista a megszokott listáid. Az Akciós újságok nyolc bolt " +
+                "ajánlatait mutatják, és ott kereshetsz is minden boltban egyszerre.",
             gestures = "Fel-le söpréssel választasz, jobbra söpréssel lépsz be, balra " +
                 "söpréssel jössz vissza.",
             trouble = "Ha nem találod a bevásárlólistát: nem tűnt el, csak egy szinttel " +
@@ -781,19 +780,24 @@ object HelpTexts {
             purpose = "A boltok heti akciós ajánlatai — név, ár, kártyás ár, kiszerelés, " +
                 "egységár, meddig érvényes. A telefon maga nézi meg a bolt oldalát, " +
                 "ahogy te is megnéznéd.",
-            start = "Válaszd a Pennyt vagy az Aldit. Először letölti a heti ajánlatot — " +
-                "ez fél percig is eltarthat —, utána hat órán át azonnal megnyílik, és " +
-                "net nélkül is böngészhető. A Keresés minden boltban pontban bemondod, " +
-                "mit keresel, például: csirkemell — és a találatokat a legolcsóbbal " +
-                "kezdve hallod, a bolt nevével.",
+            start = "Nyolc bolt van: Lidl, Spar és Interspar, Tesco, Penny, Aldi, Auchan, " +
+                "Rossmann, és a dm kiárusítása. Először letölti az ajánlatot — ez fél " +
+                "percig is eltarthat —, utána egy darabig azonnal megnyílik, és net nélkül " +
+                "is böngészhető. A Lidl és a Tesco újságja nagy fájl, ezért azokat csak " +
+                "wifin tölti le. A dm-nél nincs heti akció, csak kiárusítás, amíg a " +
+                "készlet tart. A lista elején a Keresés minden boltban: bemondod, mit " +
+                "keresel, például: csirkemell — és a találatokat a legolcsóbbal kezdve " +
+                "hallod, a bolt nevével.",
             gestures = "A kategóriák közt fel-le söpréssel választasz; az első sor az " +
                 "összes termék, legolcsóbb elöl. Jobbra söpréssel nyílik a kategória. " +
                 "A terméken jobbra söpréssel jönnek a műveletek: Felvétel a " +
                 "bevásárlólistára, Részletek, Vissza. Balra söpréssel jössz vissza.",
             trouble = "Ha azt mondja, a bolt oldala nem válaszol, próbáld később — ha " +
                 "van korábban letöltött ajánlat, addig azt mutatja, és ezt meg is " +
-                "mondja. Az Aldinál az újság szövegéből dolgozunk, ezért ott az ár " +
-                "néha az egységárból van kiszámolva — a bolt saját adatából. A " +
+                "mondja. Az újságos boltoknál (Aldi, Lidl, Spar, Tesco, Auchan) az újság " +
+                "szövegéből dolgozunk: csak azt a terméket mondjuk be, amelynek az árát " +
+                "biztosan ki tudtuk olvasni, ezért néhány termék hiányozhat — inkább " +
+                "hiányozzon, mint hogy rossz árat halljál. A " +
                 "felvett tétel a legutóbb megnyitott bevásárlólistádra kerül; ha még " +
                 "nincs listád, Akciós bevásárlás néven létrehozza."
         ),

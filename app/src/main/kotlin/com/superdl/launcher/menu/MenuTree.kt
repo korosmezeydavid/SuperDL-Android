@@ -424,6 +424,12 @@ enum class MenuAction {
     OFFERS_PENNY,              // Akciós újság: Penny
     OFFERS_ALDI,               // Akciós újság: Aldi
     OFFERS_SEARCH,             // Akciós újság: keresés minden boltban
+    OFFERS_LIDL,               // Akciós újság: Lidl
+    OFFERS_SPAR,               // Akciós újság: Spar és Interspar
+    OFFERS_TESCO,              // Akciós újság: Tesco
+    OFFERS_AUCHAN,             // Akciós újság: Auchan
+    OFFERS_ROSSMANN,           // Akciós újság: Rossmann
+    OFFERS_DM,                 // dm kiárusítás
 }
 
 data class MenuItem(
@@ -1024,9 +1030,17 @@ object MenuTree {
                         MenuItem("shopping_back", "Vissza a vásárláshoz", MenuAction.SUBMENU)
                     )),
                     MenuItem("offers", "Akciós újságok", MenuAction.SUBMENU, listOf(
+                        // A keresés ELÖL: aki egy termék legolcsóbb árát keresi,
+                        // annak nem kell végighallgatnia nyolc boltot.
+                        MenuItem("offers_search", "Keresés minden boltban", MenuAction.OFFERS_SEARCH),
+                        MenuItem("offers_lidl", "Lidl", MenuAction.OFFERS_LIDL),
+                        MenuItem("offers_spar", "Spar és Interspar", MenuAction.OFFERS_SPAR),
+                        MenuItem("offers_tesco", "Tesco", MenuAction.OFFERS_TESCO),
                         MenuItem("offers_penny", "Penny", MenuAction.OFFERS_PENNY),
                         MenuItem("offers_aldi", "Aldi", MenuAction.OFFERS_ALDI),
-                        MenuItem("offers_search", "Keresés minden boltban", MenuAction.OFFERS_SEARCH),
+                        MenuItem("offers_auchan", "Auchan", MenuAction.OFFERS_AUCHAN),
+                        MenuItem("offers_rossmann", "Rossmann", MenuAction.OFFERS_ROSSMANN),
+                        MenuItem("offers_dm", "dm kiárusítás", MenuAction.OFFERS_DM),
                         MenuItem("offers_back", "Vissza a vásárláshoz", MenuAction.SUBMENU)
                     )),
                     MenuItem("shopping_group_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)

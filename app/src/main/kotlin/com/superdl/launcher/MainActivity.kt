@@ -3389,6 +3389,12 @@ class MainActivity : AppCompatActivity() {
             MenuAction.OFFERS_PENNY -> openOffersStore("penny")
             MenuAction.OFFERS_ALDI -> openOffersStore("aldi")
             MenuAction.OFFERS_SEARCH -> listenForOffersSearch()
+            MenuAction.OFFERS_LIDL -> openOffersStore("lidl")
+            MenuAction.OFFERS_SPAR -> openOffersStore("spar")
+            MenuAction.OFFERS_TESCO -> openOffersStore("tesco")
+            MenuAction.OFFERS_AUCHAN -> openOffersStore("auchan")
+            MenuAction.OFFERS_ROSSMANN -> openOffersStore("rossmann")
+            MenuAction.OFFERS_DM -> openOffersStore("dm")
             MenuAction.EMAIL_IMAP_READ -> startEmailInboxFlow()
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
@@ -12971,52 +12977,68 @@ class MainActivity : AppCompatActivity() {
     private fun openOffersStore(storeId: String) {
         val name = com.superdl.launcher.offers.OfferStore.storeName(storeId)
         val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, storeId)
-        if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time)) {
+        if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time, storeId)) {
             enterOffersCategories(storeId, cached, 0)
             return
         }
+        val heavy = com.superdl.launcher.offers.OfferStore.store(storeId)?.heavy == true
         val token = ++offersToken
         activeFlow = AppFlow.OffersLoading("$name akciói", token)
         updateFlowDisplay()
         tts.speak(
-            if (cached.isEmpty()) "Letöltöm ${withArticle(name)} heti ajánlatait. Ez fél percig is eltarthat."
-            else "Frissítem ${withArticle(name)} ajánlatait."
+            when {
+                cached.isNotEmpty() -> "Frissítem ${withArticle(name)} akcióit."
+                heavy -> "Letöltöm ${withArticle(name)} újságját. Nagy fájl, egy-két percig is eltarthat."
+                else -> "Letöltöm ${withArticle(name)} akcióit. Ez fél percig is eltarthat."
+            }
         )
+        startOffersTicker(token)
         Thread {
-            // NEM NÉMA VÁRAKOZÁS: ha soká tart, időnként szólunk, hogy dolgozunk.
-            var lastSpoken = System.currentTimeMillis()
+            var failure: Exception? = null
             val result = try {
-                com.superdl.launcher.offers.OfferStore.download(this, storeId) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastSpoken > 10_000L) {
-                        lastSpoken = now
-                        runOnUiThread {
-                            val f = activeFlow
-                            if (f is AppFlow.OffersLoading && f.token == token) tts.speak("Még töltöm.")
-                        }
-                    }
-                }
+                com.superdl.launcher.offers.OfferStore.download(this, storeId)
             } catch (e: Exception) {
-                android.util.Log.w("SDL_OFFERS", "$storeId letoltes hiba: ${e.message}")
+                android.util.Log.w("SDL_OFFERS", "$storeId letoltes hiba: ${e.javaClass.simpleName}: ${e.message}")
+                failure = e
                 null
             }
             runOnUiThread {
                 val flow = activeFlow
                 if (flow !is AppFlow.OffersLoading || flow.token != token) return@runOnUiThread
+                val Name = withArticle(name).replaceFirstChar { it.uppercase() }
+                // MIÉRT NEM JÖTT: mobilnet (a nagy PDF-et óvatosságból nem
+                // töltjük le), vagy a bolt oldala nem válaszol. Kimondjuk,
+                // melyik — a kettőre mást kell tenni.
+                val why = if (failure is com.superdl.launcher.offers.OfferStore.NeedsWifi)
+                    "$Name újságja nagy fájl, ezért csak wifin töltöm le — most mobilneten vagy."
+                else "$Name oldala most nem válaszol."
                 when {
                     !result.isNullOrEmpty() -> enterOffersCategories(storeId, result, 0)
                     cached.isNotEmpty() -> enterOffersCategories(
                         storeId, cached, 0,
-                        intro = "${withArticle(name).replaceFirstChar { it.uppercase() }} oldala most nem " +
-                            "válaszol. A korábban letöltött ajánlatot mutatom."
+                        intro = "$why A korábban letöltött ajánlatot mutatom."
                     )
-                    else -> exitFlow(
-                        "${withArticle(name).replaceFirstChar { it.uppercase() }} oldala most nem válaszol, " +
-                            "és korábbi ajánlat sincs elmentve. Próbáld később."
-                    )
+                    failure == null -> exitFlow("$Name oldalán most nem találtam akciós terméket.")
+                    else -> exitFlow("$why Korábbi ajánlat sincs elmentve. Próbáld később.")
                 }
             }
         }.start()
+    }
+
+    /**
+     * NEM NÉMA VÁRAKOZÁS. Amíg a letöltés tart (egy nagy PDF-újság egy-két
+     * percig is), tizenkét másodpercenként szólunk, hogy dolgozunk. Magától
+     * elhallgat, amint a letöltés véget ér, vagy kiléptél.
+     */
+    private fun startOffersTicker(token: Long) {
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                val f = activeFlow
+                if (f !is AppFlow.OffersLoading || f.token != token) return
+                tts.speak("Még töltöm.")
+                mainHandler.postDelayed(this, 12_000L)
+            }
+        }, 12_000L)
     }
 
     private fun enterOffersCategories(
@@ -13163,30 +13185,49 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.OffersLoading("Keresés: $query", token)
         updateFlowDisplay()
         tts.speak("Keresem: $query.")
+        startOffersTicker(token)
         Thread {
-            val all = mutableListOf<com.superdl.launcher.offers.OfferItem>()
-            val failed = mutableListOf<String>()
-            for (s in com.superdl.launcher.offers.OfferStore.STORES) {
-                val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, s.id)
-                all += if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time)) {
-                    cached
-                } else {
-                    try {
-                        com.superdl.launcher.offers.OfferStore.download(this, s.id).ifEmpty { cached }
-                    } catch (_: Exception) {
-                        if (cached.isEmpty()) failed += s.name
-                        cached
+            // A BOLTOKAT EGYSZERRE kérdezzük (párhuzamosan): nyolc boltot egymás
+            // után végigvárni perceket jelentene. A nagy PDF-újságot (Lidl,
+            // Tesco) egy kereséshez nem töltjük le — ha korábban megnyitottad,
+            // azt használjuk; ha nem, kimondjuk, hogy abban nem kerestünk.
+            val stores = com.superdl.launcher.offers.OfferStore.STORES
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+            val skipped = java.util.Collections.synchronizedList(mutableListOf<String>())
+            val failed = java.util.Collections.synchronizedList(mutableListOf<String>())
+            val futures = stores.map { s ->
+                pool.submit<List<com.superdl.launcher.offers.OfferItem>> {
+                    val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, s.id)
+                    when {
+                        cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time, s.id) -> cached
+                        s.heavy -> {
+                            if (cached.isEmpty()) skipped += s.name
+                            cached
+                        }
+                        else -> try {
+                            com.superdl.launcher.offers.OfferStore.download(this, s.id).ifEmpty { cached }
+                        } catch (_: Exception) {
+                            if (cached.isEmpty()) failed += s.name
+                            cached
+                        }
                     }
                 }
             }
+            val all = futures.flatMap { f ->
+                try { f.get() } catch (_: Exception) { emptyList() }
+            }
+            pool.shutdown()
             val hits = com.superdl.launcher.offers.OfferStore.cheapestFirst(
                 all.filter { com.superdl.launcher.offers.OfferText.matches(it, query) }
             )
             runOnUiThread {
                 val flow = activeFlow
                 if (flow !is AppFlow.OffersLoading || flow.token != token) return@runOnUiThread
-                val note = if (failed.isEmpty()) null
-                else "${failed.joinToString(" és ")} most nem válaszol, nélküle kerestem."
+                val parts = mutableListOf<String>()
+                if (failed.isNotEmpty()) parts += "${failed.joinToString(" és ")} most nem válaszol."
+                if (skipped.isNotEmpty()) parts += "${skipped.joinToString(" és ")} újságját még nem töltötted le, " +
+                    "abban nem kerestem — nyisd meg egyszer a boltot a listából."
+                val note = parts.takeIf { it.isNotEmpty() }?.joinToString(" ")
                 if (hits.isEmpty()) {
                     exitFlow((note?.let { "$it " } ?: "") + "Nincs akciós találat erre: $query.")
                     return@runOnUiThread
