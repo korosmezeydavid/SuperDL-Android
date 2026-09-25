@@ -124,6 +124,9 @@ dependencies {
     // org.json kell, mert az Android-féle a gépen csak üres héj.
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20231013'
+    // A Lidl- és Tesco-újság (PDF) próbájához: az asztali PDFBox ugyanaz a
+    // 2.0.27-es kód, amiből az alkalmazás pdfbox-android csomagja készült.
+    testImplementation 'org.apache.pdfbox:pdfbox:2.0.27'
 
     // Titkosított tárolás érzékeny adatokhoz (pl. e-mail jelszó):
     // a kulcsot az eszköz hardveres kulcstárolója (Keystore) védi.
