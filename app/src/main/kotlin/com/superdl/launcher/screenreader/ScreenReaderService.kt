@@ -3375,6 +3375,10 @@ class ScreenReaderService : AccessibilityService() {
             // KAPCSOLÓNÁL azonnal jelezzük az ÚJ állapotot — eddig ehhez
             // le kellett söpörni és visszalépni.
             announceStateAfterActivate(node)
+        } else if (tapAtNode(node)) {
+            // A megnyomás-kérés nem ért célba, de a valódi koppintás elment.
+            // Lásd tapAtNode: így működnek a TikTok kamera gombjai is.
+            sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
         } else {
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
             tts?.speak("Ez az elem nem nyomható meg.")
@@ -3388,6 +3392,62 @@ class ScreenReaderService : AccessibilityService() {
         } else {
             clearNodes()
             lastLabel = null
+        }
+    }
+
+    /**
+     * VALÓDI KOPPINTÁS AZ ELEM KÖZEPÉRE — a végső tartalék.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-25, TikTok kamera): a látható
+     * gombokra — hang hozzáadása, kameraváltás, vaku, időzítő, 15 mp, FOTÓ,
+     * a felvétel gombja, Közlés, Alkotás — az olvasó azt mondta: „nem
+     * nyomható meg". Pedig megnyomhatók: egy látó ujja megnyomja őket.
+     *
+     * Az ok: ezek az alkalmazások a gombjaikat NEM jelölik megnyomhatónak az
+     * akadálymentesítési fán, hanem saját maguk figyelik az ujjat. A
+     * megnyomás-kérés ezért sehova nem ér célba. A TalkBack ilyenkor VALÓDI
+     * koppintást küld az elem közepére — mi eddig nem, és feladtuk.
+     *
+     * Mostantól ugyanezt tesszük. Ehhez a szolgáltatásnak kell a
+     * canPerformGestures jog (screen_reader_service.xml). A kiküldött
+     * koppintást az érintés-felfedezés nem fogja el: egyenesen az
+     * alkalmazáshoz megy, mintha ujj érte volna.
+     */
+    private fun tapAtNode(node: AccessibilityNodeInfo): Boolean {
+        val r = android.graphics.Rect()
+        try {
+            node.refresh()
+            node.getBoundsInScreen(r)
+        } catch (_: Exception) {
+            return false
+        }
+        // CSAK A LÁTHATÓ RÉSZ KÖZEPÉRE. A TikTok alsó lapfülei (Közlés,
+        // Alkotás, Live) egy vízszintes sávban ülnek, és a szélső félig
+        // kilóg a képernyőről. A teljes elem közepe ilyenkor a képernyőn
+        // KÍVÜL esne, és a koppintás a semmibe menne. Ezért előbb levágjuk
+        // az elemet a képernyő méretére, és annak a közepét érintjük.
+        val dm = resources.displayMetrics
+        if (!r.intersect(0, 0, dm.widthPixels, dm.heightPixels)) return false
+        // Láthatatlan vagy képernyőn kívüli elemre nem koppintunk vakon.
+        if (r.width() <= 0 || r.height() <= 0) return false
+        val x = r.exactCenterX()
+        val y = r.exactCenterY()
+        return try {
+            val path = android.graphics.Path().apply { moveTo(x, y) }
+            val gesture = android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(
+                    android.accessibilityservice.GestureDescription.StrokeDescription(path, 0L, 60L)
+                )
+                .build()
+            val ment = dispatchGesture(gesture, null, null)
+            android.util.Log.i(
+                ScreenReaderPrefs.TAG,
+                "tartalek koppintas ($x, $y): ${if (ment) "elkuldve" else "elutasitva"}"
+            )
+            ment
+        } catch (e: Exception) {
+            android.util.Log.w(ScreenReaderPrefs.TAG, "tartalek koppintas hiba: ${e.message}")
+            false
         }
     }
 

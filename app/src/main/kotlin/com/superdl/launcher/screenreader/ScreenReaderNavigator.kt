@@ -346,7 +346,14 @@ object ScreenReaderNavigator {
         var current: AccessibilityNodeInfo? = node
         var depth = 0
         while (current != null && depth < 6) {
-            if (current.isClickable && current.isEnabled) {
+            // Van, aki nem jelöli magát megnyomhatónak, de a megnyomás-műveletet
+            // felkínálja — azt is elfogadjuk.
+            val kinal = try {
+                current.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK }
+            } catch (_: Exception) {
+                false
+            }
+            if ((current.isClickable || kinal) && current.isEnabled) {
                 return try {
                     current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 } catch (_: Exception) {

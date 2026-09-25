@@ -14,6 +14,7 @@
     android:accessibilityFeedbackType="feedbackSpoken"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagRequestMultiFingerGestures|flagRequestFilterKeyEvents"
     android:canRequestTouchExplorationMode="true"
+    android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
     android:settingsActivity="com.superdl.launcher.MainActivity" />

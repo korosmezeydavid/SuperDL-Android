@@ -1,0 +1,22 @@
+1.85.1 - A kepernyoolvaso ott is nyom, ahol az alkalmazas nem jeloli a gombot
+
+A HIBA (Alph, 2026-09-25, TikTok kamera): a lathato gombokra - hang
+hozzaadasa, kameravaltas, vaku, idozito, 15 mp, FOTO, a felvetel gombja,
+es az also lapfulek (Kozles, Alkotas, Live) - az olvaso azt mondta:
+"nem nyomhato meg". Pedig egy lato ujja megnyomja oket.
+
+AZ OK: ezek az alkalmazasok a gombjaikat nem jelolik megnyomhatonak az
+akadalymentesitesi fan, hanem sajat maguk figyelik az ujjat. A
+megnyomas-keres sehova nem ert celba. A TalkBack ilyenkor valodi
+koppintast kuld az elem kozepere - mi eddig nem, es feladtuk.
+
+A JAVITAS:
+- a szolgaltatas megkapja a mozdulat-kuldes jogat (canPerformGestures),
+- ha a megnyomas-keres nem megy, valodi koppintas az elem kozepere,
+- a kepernyorol kiloge elemnel (a szelso Live lapful) csak a lathato
+  resz kozepere, kulonben a koppintas a semmibe menne,
+- az is megnyomhatonak szamit, ami nem jeloli magat annak, de a
+  megnyomas-muveletet felkinalja.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu
