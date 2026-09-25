@@ -307,7 +307,48 @@ class ScreenReaderService : AccessibilityService() {
                 // felhasználó ilyenkor egy pillantással látja.
                 announceNotification(event)
             }
+            AccessibilityEvent.TYPE_ANNOUNCEMENT -> {
+                // AZ ALKALMAZÁS SZÓL NEKÜNK.
+                //
+                // Az alkalmazások így mondják el azt, ami nem látszik egy
+                // elemen: „Üzenet elküldve", „Másolva", „Felvétel indul". A
+                // TalkBack ezt mindig felolvassa. Mi eddig fel sem iratkoztunk
+                // rá — vagyis ezek a mondatok egyszerűen elvesztek, és a
+                // felhasználó nem tudta, sikerült-e, amit csinált.
+                announceFromApp(event)
+            }
         }
+    }
+
+    private var lastAppAnnouncement: String? = null
+    private var lastAppAnnouncementAt = 0L
+
+    /** Az alkalmazás saját bejelentésének felolvasása (a mondat végén). */
+    private fun announceFromApp(event: AccessibilityEvent) {
+        if (!touchModeActive || lockSuspended || TrainingState.isActive) return
+        try {
+            val text = event.text.joinToString(" ").trim()
+            if (text.isBlank()) return
+            // Ugyanaz a mondat két másodpercen belül: nem ismételjük.
+            val now = System.currentTimeMillis()
+            if (text == lastAppAnnouncement && now - lastAppAnnouncementAt < 2_000L) return
+            lastAppAnnouncement = text
+            lastAppAnnouncementAt = now
+            tts?.speakAdd(text)
+        } catch (e: Exception) {
+            android.util.Log.w(ScreenReaderPrefs.TAG, "bejelentes hiba: ${e.message}")
+        }
+    }
+
+    /**
+     * Felugró rövid üzenet (Toast) felolvasása — az értesítés-kapcsolótól
+     * függetlenül, és az alkalmazás neve nélkül: ez válasz, nem értesítés.
+     */
+    private fun announceToast(event: AccessibilityEvent) {
+        val pkg = event.packageName?.toString().orEmpty()
+        // A SuperDL a saját üzeneteit amúgy is kimondja.
+        if (pkg.startsWith(packageName.removeSuffix(".debug"))) return
+        announceFromApp(event)
     }
 
     /** Az utoljára bemondott értesítés — hogy ne ismételjük magunkat. */
@@ -322,6 +363,16 @@ class ScreenReaderService : AccessibilityService() {
      * SuperDL amúgy is bemondja), és a hosszú szövegeket rövidítjük.
      */
     private fun announceNotification(event: AccessibilityEvent) {
+        // A FELUGRÓ RÖVID ÜZENET (Toast) NEM ÉRTESÍTÉS, csak ugyanazon az
+        // úton érkezik. „Elmentve", „Nincs internetkapcsolat", „Másolva a
+        // vágólapra" — ez az alkalmazás válasza arra, amit épp csináltál.
+        // Eddig az értesítés-bemondás kapcsolója ezt is elnémította, és
+        // a neve elé odaírtuk az alkalmazásét, mintha értesítés lenne.
+        val isToast = event.parcelableData !is android.app.Notification
+        if (isToast) {
+            announceToast(event)
+            return
+        }
         if (!ScreenReaderPrefs.isAnnounceNotifications(this)) return
         if (!touchModeActive || lockSuspended || TrainingState.isActive) return
         // HÍVÁS KÖZBEN NEM SZÓLUNK BELE. Telefonálás alatt egy bemondott
@@ -1077,7 +1128,7 @@ class ScreenReaderService : AccessibilityService() {
             tts?.speak("Nincs kiválasztott elem.")
             return
         }
-        val ok = ScreenReaderNavigator.longPress(node)
+        val ok = longPressNode(node)
         if (ok) {
             recordStep(com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK, node)
             sounds?.play(ScreenReaderSounds.Sound.LONG_PRESS)
@@ -1692,9 +1743,9 @@ class ScreenReaderService : AccessibilityService() {
 
         say(step.speak())
         val ok = if (step.action == com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK) {
-            ScreenReaderNavigator.longPress(best)
+            longPressNode(best)
         } else {
-            ScreenReaderNavigator.activate(best)
+            pressNode(best)
         }
         if (!ok) {
             stopRoute(
@@ -1755,9 +1806,9 @@ class ScreenReaderService : AccessibilityService() {
                         val ok = if (step.action ==
                             com.superdl.launcher.macro.TaskStep.Action.LONG_CLICK
                         ) {
-                            ScreenReaderNavigator.longPress(target)
+                            longPressNode(target)
                         } else {
-                            ScreenReaderNavigator.activate(target)
+                            pressNode(target)
                         }
                         if (ok) advance() else stopRoute("Nem sikerült megnyomni.")
                     } else {
@@ -1965,7 +2016,7 @@ class ScreenReaderService : AccessibilityService() {
      */
     private fun rejectDialogIfPresent(): Boolean {
         val buttons = currentDialogButtons() ?: return false
-        val ok = ScreenReaderNavigator.activate(buttons.second)
+        val ok = pressNode(buttons.second)
         if (ok) {
             sounds?.play(ScreenReaderSounds.Sound.BACK)
             say("Nem. ${ScreenReaderNavigator.labelOf(buttons.second).orEmpty()}")
@@ -1981,7 +2032,7 @@ class ScreenReaderService : AccessibilityService() {
      */
     private fun confirmDialogIfPresent(): Boolean {
         val buttons = currentDialogButtons() ?: return false
-        val ok = ScreenReaderNavigator.activate(buttons.first)
+        val ok = pressNode(buttons.first)
         if (ok) {
             sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
             say("Igen. ${ScreenReaderNavigator.labelOf(buttons.first).orEmpty()}")
@@ -2766,11 +2817,7 @@ class ScreenReaderService : AccessibilityService() {
         val anchor = FocusAnchor.of(filtered.getOrNull(index), index)
 
         clearNodes()
-        val root = try {
-            rootInActiveWindow
-        } catch (_: Exception) {
-            null
-        }
+        val root = activeRootOrFallback()
         nodes = ScreenReaderNavigator.collectNodes(root)
         nodesStale = false
         changeMonitor.onRebuilt()
@@ -2783,6 +2830,33 @@ class ScreenReaderService : AccessibilityService() {
             return
         }
         index = index.coerceIn(0, (filtered.size - 1).coerceAtLeast(0))
+    }
+
+    /**
+     * AZ AKTÍV ABLAK GYÖKERE — és ha a rendszer épp nem adja meg, a legfelső
+     * alkalmazás-ablaké.
+     *
+     * A rendszer néha üres kézzel tér vissza: képernyőváltás közepén, egyes
+     * gyártók (Xiaomi, Samsung) saját felületein, vagy olyan felugró ablaknál,
+     * ami nem veszi át a fókuszt. Ilyenkor eddig azt hallottad: „Nincs
+     * felolvasható elem" — pedig a képernyő tele volt. Most ilyenkor a
+     * legfelül lévő alkalmazás-ablakot olvassuk: azt, amit látsz.
+     */
+    private fun activeRootOrFallback(): AccessibilityNodeInfo? {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        if (root != null) return root
+        return try {
+            windows
+                .filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
+                .maxByOrNull { it.layer }
+                ?.root
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** A módra szűrt lista előállítása a teljes elemlistából. */
@@ -3212,6 +3286,7 @@ class ScreenReaderService : AccessibilityService() {
         )
         sounds?.playPercent(positionRatio())
         val current = filtered[index]
+        markSystemFocus(current)
         lastLabel = ScreenReaderNavigator.labelOf(current)
         prepareSegments(current, fromEnd = delta < 0)
         // KAPCSOLÓ ÁLLAPOTA HANGGAL: ha az elem be- vagy kikapcsolható,
@@ -3368,17 +3443,15 @@ class ScreenReaderService : AccessibilityService() {
         // állapotot látnánk, és nem tudnánk, mit AKART a felhasználó.
         val wantedState = if (node.isCheckable) !node.isChecked else null
 
-        val ok = ScreenReaderNavigator.activate(node)
+        // pressNode: ha a rendes kérés nem ér célba, valódi koppintás
+        // (lásd tapAtNode — így működnek a TikTok kamera gombjai is).
+        val ok = pressNode(node)
         if (ok) {
             recordStep(com.superdl.launcher.macro.TaskStep.Action.CLICK, node, wantedState)
             sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
             // KAPCSOLÓNÁL azonnal jelezzük az ÚJ állapotot — eddig ehhez
             // le kellett söpörni és visszalépni.
             announceStateAfterActivate(node)
-        } else if (tapAtNode(node)) {
-            // A megnyomás-kérés nem ért célba, de a valódi koppintás elment.
-            // Lásd tapAtNode: így működnek a TikTok kamera gombjai is.
-            sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
         } else {
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
             tts?.speak("Ez az elem nem nyomható meg.")
@@ -3394,6 +3467,49 @@ class ScreenReaderService : AccessibilityService() {
             lastLabel = null
         }
     }
+
+    /**
+     * A RENDSZER IS TUDJA, HOL ÁLLUNK.
+     *
+     * Eddig csak MI tudtuk, melyik elemen áll a felhasználó — a telefon nem.
+     * Ennek három csendes következménye volt:
+     *
+     * 1. A TalkBackből hozott egyujjas DUPLA KOPPINTÁS (amit szándékosan
+     *    szabadon hagytunk) nem azt nyomta meg, amin álltál: a rendszer nem
+     *    tudta, mi az. Most tudja, tehát a megszokott mozdulat is működik.
+     * 2. A félig kilógó listaelemet a lista nem görgette be a képernyőre.
+     *    A rendszer-fókuszra a listák maguktól begörgetik az elemet.
+     * 3. Némely lejátszó csak akkor mutatja a vezérlőit, ha fókusz van rajta.
+     *
+     * Ez ugyanaz, amit minden képernyőolvasó csinál. Ha nem sikerül, csendben
+     * továbbmegyünk — a saját léptetésünk ettől független.
+     */
+    private fun markSystemFocus(node: AccessibilityNodeInfo) {
+        try {
+            node.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * MEGNYOMÁS, MINDEN ÚTON EGYFORMÁN: előbb a rendes kérés, és ha az nem
+     * ér célba, valódi koppintás. Ezt használja a sima megnyomás, a
+     * párbeszéd igen/nem gombja és a műveletsor visszajátszása is — így ami
+     * kézzel megy, az a rögzített műveletsorban is menni fog.
+     */
+    private fun pressNode(node: AccessibilityNodeInfo): Boolean =
+        ScreenReaderNavigator.activate(node) || tapAtNode(node)
+
+    /**
+     * HOSSZÚ NYOMÁS ugyanígy: ha a rendes kérés nem megy, az ujjat a
+     * rendszer hosszú-nyomás idejénél kicsit tovább tartjuk az elemen.
+     */
+    private fun longPressNode(node: AccessibilityNodeInfo): Boolean =
+        ScreenReaderNavigator.longPress(node) ||
+            tapAtNode(
+                node,
+                android.view.ViewConfiguration.getLongPressTimeout().toLong() + 300L
+            )
 
     /**
      * VALÓDI KOPPINTÁS AZ ELEM KÖZEPÉRE — a végső tartalék.
@@ -3413,10 +3529,14 @@ class ScreenReaderService : AccessibilityService() {
      * koppintást az érintés-felfedezés nem fogja el: egyenesen az
      * alkalmazáshoz megy, mintha ujj érte volna.
      */
-    private fun tapAtNode(node: AccessibilityNodeInfo): Boolean {
+    private fun tapAtNode(node: AccessibilityNodeInfo, holdMs: Long = 60L): Boolean {
         val r = android.graphics.Rect()
         try {
             node.refresh()
+            // Amit a felhasználó nem lát, arra nem koppintunk: egy lapozó
+            // takart oldala vagy egy becsukott fiók eleme a fában ott van, de
+            // a helyén egy MÁSIK gomb áll — azt nyomnánk meg helyette.
+            if (!node.isVisibleToUser) return false
             node.getBoundsInScreen(r)
         } catch (_: Exception) {
             return false
@@ -3436,7 +3556,7 @@ class ScreenReaderService : AccessibilityService() {
             val path = android.graphics.Path().apply { moveTo(x, y) }
             val gesture = android.accessibilityservice.GestureDescription.Builder()
                 .addStroke(
-                    android.accessibilityservice.GestureDescription.StrokeDescription(path, 0L, 60L)
+                    android.accessibilityservice.GestureDescription.StrokeDescription(path, 0L, holdMs)
                 )
                 .build()
             val ment = dispatchGesture(gesture, null, null)

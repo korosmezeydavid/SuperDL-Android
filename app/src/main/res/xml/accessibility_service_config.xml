@@ -5,6 +5,7 @@
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
+    android:isAccessibilityTool="true"
     android:description="@string/keyguard_pin_accessibility_description"
     android:notificationTimeout="50"
     android:settingsActivity="com.superdl.launcher.MainActivity"

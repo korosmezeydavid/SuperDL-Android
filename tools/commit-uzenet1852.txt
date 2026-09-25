@@ -1,0 +1,22 @@
+1.85.2 - Kepernyoolvaso: hat csendes finomitas, amit a TalkBack mar tud
+
+1. Az alkalmazas bejelentesei (announceForAccessibility): "Elkuldve",
+   "Masolva". Eddig fel sem iratkoztunk rajuk - elvesztek.
+2. A felugro rovid uzenet (Toast) mar nem ertesites: az ertesites-
+   kapcsolo nem nemitja el, es nem kerul ele az alkalmazas neve.
+3. isAccessibilityTool mindket szolgaltatasnal. Android 14 ota az
+   alkalmazasok elrejthetik az erzekeny elemeiket (bank, jelszo) minden
+   olyan szolgaltatas elol, ami nem vallja magat kisegito eszkoznek.
+4. A rendszer-fokusz oda kerul, ahol allunk: a TalkBackbol hozott dupla
+   koppintas azt nyomja meg, a lista begorgeti a kilogo elemet.
+5. Valodi koppintas / hosszu nyomas tartalek MINDEN megnyomas-uton:
+   parbeszed igen/nem, muveletsor-visszajatszas, hosszu nyomas. A
+   koppintas csak lathato elemre megy.
+6. Leiras: az alkalmazas sajat allapot-szava (Android 11+), szerep-
+   szava, cimsor, lapful, jelszomezo, kibontva/osszecsukva, a mezo
+   hibauzenete, es az urlapmezo masik elemen ulo felirata.
+7. Ha a rendszer nem adja meg az aktiv ablakot, a legfelso alkalmazas-
+   ablakot olvassuk - "Nincs felolvashato elem" helyett.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

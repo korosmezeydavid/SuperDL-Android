@@ -207,6 +207,17 @@ object ScreenReaderNavigator {
     fun labelOf(node: AccessibilityNodeInfo): String? {
         node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
         node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        // A FELIRATA EGY MÁSIK ELEMEN ÜL. Űrlapokon (bank, regisztráció,
+        // bejelentkezés) az üres mező fölött álló szöveg a mező neve — „E-mail
+        // cím", „Jelszó". Látó ember összeolvassa a kettőt; az alkalmazás ezt
+        // meg is mondja nekünk, csak eddig nem kérdeztük meg.
+        try {
+            node.labeledBy?.let { lb ->
+                (lb.text ?: lb.contentDescription)?.toString()?.trim()
+                    ?.takeIf { it.isNotBlank() }?.let { return it }
+            }
+        } catch (_: Exception) {
+        }
         node.hintText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
         try {
             node.tooltipText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
@@ -297,20 +308,88 @@ object ScreenReaderNavigator {
         val kind = typeOf(node)
         if (kind != null && kind != label) parts += kind
 
-        // Állapot
-        if (node.isCheckable) parts += if (node.isChecked) "bekapcsolva" else "kikapcsolva"
+        // Állapot.
+        //
+        // AZ ALKALMAZÁS SAJÁT ÁLLAPOT-SZAVA AZ ELSŐ. Android 11 óta egy elem
+        // maga mondhatja meg, milyen állapotban van: „Kedvelve", „3 csillag",
+        // „Lejátszás", „50 százalék". Ez pontosabb, mint a mi általános
+        // „bekapcsolva / kikapcsolva" szavunk — ezért ha van, azt mondjuk.
+        val state = stateOf(node)
+        if (state != null) {
+            if (state != label) parts += state
+        } else if (node.isCheckable) {
+            parts += if (node.isChecked) "bekapcsolva" else "kikapcsolva"
+        }
+        // LENYÍLÓ RÉSZ: tudni kell, hogy van-e mögötte még valami.
+        expandStateOf(node)?.let { parts += it }
+        if (isHeading(node)) parts += "címsor"
         if (!node.isEnabled) parts += "letiltva"
         if (node.isSelected) parts += "kiválasztva"
+        // HIBAÜZENET a mezőn: „Érvénytelen e-mail cím". Látó ember pirosan
+        // látja a mező alatt; nekünk ki kell mondani, különben nem derül
+        // ki, miért nem megy tovább az űrlap.
+        try {
+            node.error?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { parts += "hiba: $it" }
+        } catch (_: Exception) {
+        }
 
         return parts.joinToString(", ")
+    }
+
+    /** Az elem saját állapot-szava (Android 11+), ha van. */
+    private fun stateOf(node: AccessibilityNodeInfo): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            node.stateDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        } else null
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Kibontható / összecsukható elem állapota — a felkínált műveletekből. */
+    private fun expandStateOf(node: AccessibilityNodeInfo): String? = try {
+        val ids = node.actionList.map { it.id }
+        when {
+            AccessibilityNodeInfo.ACTION_EXPAND in ids -> "összecsukva"
+            AccessibilityNodeInfo.ACTION_COLLAPSE in ids -> "kibontva"
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun isHeading(node: AccessibilityNodeInfo): Boolean = try {
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P && node.isHeading
+    } catch (_: Exception) {
+        false
+    }
+
+    /**
+     * Az alkalmazás saját szerep-szava („Lap", „Hivatkozás", „Legördülő
+     * lista"). A modern (Compose) alkalmazások és a Chrome így mondják meg,
+     * mi az elem — a saját nyelvükön, tehát gyakran magyarul.
+     */
+    private fun roleOf(node: AccessibilityNodeInfo): String? = try {
+        node.extras?.getCharSequence("AccessibilityNodeInfo.roleDescription")
+            ?.toString()?.trim()?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
     }
 
     /** Az elem típusa emberi nyelven, vagy null, ha nem árulkodó. */
     private fun typeOf(node: AccessibilityNodeInfo): String? {
         val cls = node.className?.toString().orEmpty()
+        // Ha az alkalmazás maga megmondja, mi az elem, az a legpontosabb.
+        roleOf(node)?.let { return it }
         return when {
+            // Jelszó: a tartalmát a rendszer pontokra cseréli, de tudni kell,
+            // hogy MIÉRT nem halljuk, amit beírtunk.
+            node.isPassword -> "jelszómező"
             node.isEditable -> "szövegmező"
             node.isCheckable -> "kapcsoló"
+            // LAPFÜL (a TikTok Közlés / Alkotás / Live sávja is ilyen). A
+            // „kiválasztva" szó mellé így értelmet kap: ez az aktív lap.
+            cls.endsWith(".Tab") || cls.contains("TabView", true) ||
+                cls.contains("TabWidget", true) -> "lapfül"
             cls.contains("Button", true) -> "gomb"
             cls.contains("CheckBox", true) -> "jelölőnégyzet"
             cls.contains("RadioButton", true) -> "választógomb"
