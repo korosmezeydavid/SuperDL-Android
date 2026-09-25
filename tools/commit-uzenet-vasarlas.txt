@@ -1,0 +1,24 @@
+Vasarlas menu: bevasarlolista + akcios ujsagok (Penny, Aldi)
+
+NEM PUBLIKALT AG (vasarlas) - Alph meglepetese, a Windows akcios-ujsag
+modullal egyutt jelenik meg. Ne pusholjuk, amig Alph nem mondja.
+
+- Eszkozok > Mindennapi > Vasarlas: Bevasarlolista (valtozatlan) es
+  Akcios ujsagok (Penny, Aldi, Kereses minden boltban). A Vasarlas ott
+  all, ahol eddig a Bevasarlolista; a "shopping" azonosito marad.
+- offers/: a Windows penny.py es aldi.py (Publitas-resz) atirata.
+  Az aldi.hu weboldal 403-at ad bongeszo-ujjlenyomat nelkul (2026-09-25,
+  telefonhoz hasonlo klienssel merve), ezert telefonon az ujsag
+  szovegretege az ut.
+- Gyorsitotar 6 orara; ures eredmeny nem irja felul a jot; ha a bolt
+  nem valaszol, a korabbit mutatja es ezt ki is mondja.
+- Felvetel a bevasarlolistara "Termek (Bolt)" neven, a legjobb arral -
+  a Windows-oldallal egyezoen.
+- Egyezes-proba (OffersParityTest): ugyanazokon a lementett oldalakon
+  a Kotlin-atirat pontosan annyit talal, mint a Windows-modul:
+  Penny 304/304 (mind arral), Aldi 103/103 (101 arral), az elso ot
+  termek neve es ara azonos. A lementett oldalak nem kerulnek a
+  taroloba (.gitignore); nelkuluk a proba kimarad.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

@@ -763,6 +763,41 @@ object HelpTexts {
                 "kell."
         ),
 
+        // ── VÁSÁRLÁS ÉS AKCIÓS ÚJSÁGOK ──────────────────────────────────────
+        "shopping_group" to topic(
+            title = "Vásárlás súgó",
+            purpose = "Itt van a bevásárlólistád és az akciós újságok. A kettő össze " +
+                "is ér: az akciós termékek egy mozdulattal a listádra kerülnek.",
+            start = "A Bevásárlólista a megszokott listáid. Az Akciós újságok a Penny " +
+                "és az Aldi heti ajánlatait mutatják, és ott kereshetsz is minden " +
+                "boltban egyszerre.",
+            gestures = "Fel-le söpréssel választasz, jobbra söpréssel lépsz be, balra " +
+                "söpréssel jössz vissza.",
+            trouble = "Ha nem találod a bevásárlólistát: nem tűnt el, csak egy szinttel " +
+                "lejjebb költözött, ide, a Vásárlás alá."
+        ),
+        "offers" to topic(
+            title = "Akciós újságok súgó",
+            purpose = "A boltok heti akciós ajánlatai — név, ár, kártyás ár, kiszerelés, " +
+                "egységár, meddig érvényes. A telefon maga nézi meg a bolt oldalát, " +
+                "ahogy te is megnéznéd.",
+            start = "Válaszd a Pennyt vagy az Aldit. Először letölti a heti ajánlatot — " +
+                "ez fél percig is eltarthat —, utána hat órán át azonnal megnyílik, és " +
+                "net nélkül is böngészhető. A Keresés minden boltban pontban bemondod, " +
+                "mit keresel, például: csirkemell — és a találatokat a legolcsóbbal " +
+                "kezdve hallod, a bolt nevével.",
+            gestures = "A kategóriák közt fel-le söpréssel választasz; az első sor az " +
+                "összes termék, legolcsóbb elöl. Jobbra söpréssel nyílik a kategória. " +
+                "A terméken jobbra söpréssel jönnek a műveletek: Felvétel a " +
+                "bevásárlólistára, Részletek, Vissza. Balra söpréssel jössz vissza.",
+            trouble = "Ha azt mondja, a bolt oldala nem válaszol, próbáld később — ha " +
+                "van korábban letöltött ajánlat, addig azt mutatja, és ezt meg is " +
+                "mondja. Az Aldinál az újság szövegéből dolgozunk, ezért ott az ár " +
+                "néha az egységárból van kiszámolva — a bolt saját adatából. A " +
+                "felvett tétel a legutóbb megnyitott bevásárlólistádra kerül; ha még " +
+                "nincs listád, Akciós bevásárlás néven létrehozza."
+        ),
+
         // ── PROFI DIKTAFON ──────────────────────────────────────────────────
         "dictaphone" to topic(
             title = "Profi Diktafon súgó",

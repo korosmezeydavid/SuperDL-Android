@@ -47,3 +47,6 @@ yolo11s.pt
 # --- Rendszer ---
 .DS_Store
 Thumbs.db
+
+# Az akcios ujsag probajanak lementett bolti oldalai - NEM kerulnek a taroloba
+app/src/test/resources/akcio_minta/

@@ -1181,6 +1181,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingListContextMenu -> navigateShoppingListContextMenu(flow, -1)
             is AppFlow.ShoppingDeleteItemConfirm -> repeatShoppingDeleteItemConfirm(flow.item)
             is AppFlow.ShoppingDeleteListConfirm -> repeatShoppingDeleteListConfirm(flow.listName)
+            is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, -1)
+            is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, -1)
+            is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, -1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, -1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
@@ -1424,6 +1428,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingListContextMenu -> navigateShoppingListContextMenu(flow, +1)
             is AppFlow.ShoppingDeleteItemConfirm -> repeatShoppingDeleteItemConfirm(flow.item)
             is AppFlow.ShoppingDeleteListConfirm -> repeatShoppingDeleteListConfirm(flow.listName)
+            is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, +1)
+            is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, +1)
+            is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, +1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, +1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
@@ -1761,6 +1769,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingListContextMenu -> onShoppingListContextActivate(flow)
             is AppFlow.ShoppingDeleteItemConfirm -> deleteShoppingItem(flow)
             is AppFlow.ShoppingDeleteListConfirm -> deleteShoppingList(flow)
+            is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersCategoryPick -> onOffersCategoryActivate(flow)
+            is AppFlow.OffersBrowse -> enterOffersItemMenu(flow)
+            is AppFlow.OffersItemMenu -> onOffersItemMenuActivate(flow)
             is AppFlow.EmailSmtpPickAccount -> onEmailSmtpPickAccountActivate(flow)
             is AppFlow.YoutubeBrowse -> enterYoutubePlayConfirm(flow.videos, flow.index)
             is AppFlow.YoutubePlayConfirm -> playYoutubeVideo(flow.video)
@@ -2151,6 +2163,24 @@ class MainActivity : AppCompatActivity() {
             }
             AppFlow.ShoppingListAwaitName,
             AppFlow.ShoppingListAwaitItem -> exitFlow("Bevásárlólista megszakítva.")
+            is AppFlow.OffersLoading -> {
+                // A letöltés a háttérben befejeződik és elmentődik — legközelebb
+                // azonnal megnyílik. A token miatt most nem ránt vissza.
+                offersToken++
+                exitFlow("Rendben, kiléptem. A letöltés a háttérben befejeződik.")
+            }
+            is AppFlow.OffersCategoryPick -> exitFlow("Akciós újság bezárva.")
+            is AppFlow.OffersBrowse -> {
+                val back = flow.back
+                if (back == null) exitFlow("Akciós újság bezárva.")
+                else {
+                    activeFlow = back
+                    updateFlowDisplay()
+                    tts.speak(speakOffersCategory(back))
+                }
+            }
+            is AppFlow.OffersItemMenu -> returnToOffersBrowse(flow.browse)
+            AppFlow.OffersAwaitSearch -> exitFlow("Keresés megszakítva.")
             is AppFlow.ShoppingListAwaitMore -> finishShoppingListCreation(flow.listName)
             is AppFlow.ShoppingEditItemAwaitName -> returnToShoppingBrowse(flow.listName, flow.items, flow.index)
             is AppFlow.ShoppingRenameListAwaitName -> {
@@ -3356,6 +3386,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.NEWS_READ -> startNewsReadFlow()
             MenuAction.SHOPPING_LIST -> startShoppingListFlow()
             MenuAction.SHOPPING_NEW_LIST -> listenForShoppingListName()
+            MenuAction.OFFERS_PENNY -> openOffersStore("penny")
+            MenuAction.OFFERS_ALDI -> openOffersStore("aldi")
+            MenuAction.OFFERS_SEARCH -> listenForOffersSearch()
             MenuAction.EMAIL_IMAP_READ -> startEmailInboxFlow()
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
@@ -12909,6 +12942,257 @@ class MainActivity : AppCompatActivity() {
             onSpeak = { summary -> postWhenAlive { tts.speak(summary) } },
             onError = { message -> postWhenAlive { tts.speak(message) } }
         )
+    }
+
+    // ==================== AKCIÓS ÚJSÁGOK ====================
+    //
+    // A Windows akciós-újság moduljának mobil párja (Alph, 2026-09-25). A
+    // bolt oldalát a telefon SAJÁT MAGA nézi meg — mint amikor felolvassa —,
+    // semmit nem teszünk közzé. A gyűjtők: offers/PennyOffers.kt,
+    // offers/AldiOffers.kt; a gyorsítótár: offers/OfferStore.kt.
+
+    private val OFFER_ACTIONS = listOf("Felvétel a bevásárlólistára", "Részletek", "Vissza a listához")
+
+    /** Minden letöltés új számot kap; ha közben kiléptél, a régi eredmény nem ránt vissza. */
+    private var offersToken = 0L
+
+    /** Ha nincs még bevásárlólista, ez lesz a neve — a Windows-oldallal egyezően. */
+    private val OFFER_DEFAULT_LIST = "Akciós bevásárlás"
+
+    private fun withArticle(word: String): String {
+        val first = word.firstOrNull()?.lowercaseChar() ?: return word
+        return if (first in "aáeéiíoóöőuúüű") "az $word" else "a $word"
+    }
+
+    private fun openOffersStore(storeId: String) {
+        val name = com.superdl.launcher.offers.OfferStore.storeName(storeId)
+        val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, storeId)
+        if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time)) {
+            enterOffersCategories(storeId, cached, 0)
+            return
+        }
+        val token = ++offersToken
+        activeFlow = AppFlow.OffersLoading("$name akciói", token)
+        updateFlowDisplay()
+        tts.speak(
+            if (cached.isEmpty()) "Letöltöm ${withArticle(name)} heti ajánlatait. Ez fél percig is eltarthat."
+            else "Frissítem ${withArticle(name)} ajánlatait."
+        )
+        Thread {
+            // NEM NÉMA VÁRAKOZÁS: ha soká tart, időnként szólunk, hogy dolgozunk.
+            var lastSpoken = System.currentTimeMillis()
+            val result = try {
+                com.superdl.launcher.offers.OfferStore.download(this, storeId) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastSpoken > 10_000L) {
+                        lastSpoken = now
+                        runOnUiThread {
+                            val f = activeFlow
+                            if (f is AppFlow.OffersLoading && f.token == token) tts.speak("Még töltöm.")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("SDL_OFFERS", "$storeId letoltes hiba: ${e.message}")
+                null
+            }
+            runOnUiThread {
+                val flow = activeFlow
+                if (flow !is AppFlow.OffersLoading || flow.token != token) return@runOnUiThread
+                when {
+                    !result.isNullOrEmpty() -> enterOffersCategories(storeId, result, 0)
+                    cached.isNotEmpty() -> enterOffersCategories(
+                        storeId, cached, 0,
+                        intro = "${withArticle(name).replaceFirstChar { it.uppercase() }} oldala most nem " +
+                            "válaszol. A korábban letöltött ajánlatot mutatom."
+                    )
+                    else -> exitFlow(
+                        "${withArticle(name).replaceFirstChar { it.uppercase() }} oldala most nem válaszol, " +
+                            "és korábbi ajánlat sincs elmentve. Próbáld később."
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun enterOffersCategories(
+        storeId: String,
+        items: List<com.superdl.launcher.offers.OfferItem>,
+        index: Int,
+        intro: String? = null
+    ) {
+        val cats = listOf("Összes termék, legolcsóbb elöl" to items.size) +
+            com.superdl.launcher.offers.OfferStore.categories(items)
+        val flow = AppFlow.OffersCategoryPick(storeId, items, cats, index.coerceIn(0, cats.lastIndex))
+        activeFlow = flow
+        updateFlowDisplay()
+        val name = com.superdl.launcher.offers.OfferStore.storeName(storeId)
+        tts.speak(
+            (intro?.let { "$it " } ?: "") +
+                "$name: ${items.size} akciós termék, ${cats.size - 1} kategóriában."
+        )
+        tts.speakAdd(speakOffersCategory(flow))
+    }
+
+    private fun speakOffersCategory(flow: AppFlow.OffersCategoryPick): String {
+        val (name, count) = flow.categories[flow.index]
+        return "$name, $count termék"
+    }
+
+    private fun navigateOffersCategory(flow: AppFlow.OffersCategoryPick, delta: Int) {
+        val n = flow.categories.size
+        val next = flow.copy(index = (flow.index + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(speakOffersCategory(next))
+    }
+
+    private fun onOffersCategoryActivate(flow: AppFlow.OffersCategoryPick) {
+        val (name, _) = flow.categories[flow.index]
+        val list = if (flow.index == 0) {
+            com.superdl.launcher.offers.OfferStore.cheapestFirst(flow.items)
+        } else {
+            flow.items.filter { it.category.ifBlank { "Egyéb" } == name }
+        }
+        if (list.isEmpty()) {
+            tts.speak("Ebben a kategóriában nincs termék.")
+            return
+        }
+        enterOffersBrowse(name, list, 0, withStore = false, back = flow)
+    }
+
+    private fun enterOffersBrowse(
+        title: String,
+        items: List<com.superdl.launcher.offers.OfferItem>,
+        index: Int,
+        withStore: Boolean,
+        back: AppFlow.OffersCategoryPick?,
+        intro: String? = null
+    ) {
+        val flow = AppFlow.OffersBrowse(title, items, index.coerceIn(0, items.lastIndex), withStore, back)
+        activeFlow = flow
+        updateFlowDisplay()
+        tts.speak((intro?.let { "$it " } ?: "") + "$title. ${items.size} termék.")
+        tts.speakAdd(items[flow.index].speakLine(withStore))
+    }
+
+    private fun navigateOffersBrowse(flow: AppFlow.OffersBrowse, delta: Int) {
+        val n = flow.items.size
+        val next = flow.copy(index = (flow.index + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(next.items[next.index].speakLine(next.withStore))
+    }
+
+    private fun returnToOffersBrowse(browse: AppFlow.OffersBrowse, say: String? = null) {
+        activeFlow = browse
+        updateFlowDisplay()
+        tts.speak(say ?: browse.items[browse.index].speakLine(browse.withStore))
+    }
+
+    private fun enterOffersItemMenu(flow: AppFlow.OffersBrowse) {
+        activeFlow = AppFlow.OffersItemMenu(flow, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${OFFER_ACTIONS[0]}.")
+    }
+
+    private fun navigateOffersItemMenu(flow: AppFlow.OffersItemMenu, delta: Int) {
+        val n = OFFER_ACTIONS.size
+        val next = flow.copy(actionIndex = (flow.actionIndex + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(OFFER_ACTIONS[next.actionIndex])
+    }
+
+    private fun onOffersItemMenuActivate(flow: AppFlow.OffersItemMenu) {
+        val item = flow.browse.items[flow.browse.index]
+        when (flow.actionIndex) {
+            0 -> returnToOffersBrowse(flow.browse, addOfferToShoppingList(item))
+            1 -> returnToOffersBrowse(flow.browse, item.details())
+            else -> returnToOffersBrowse(flow.browse)
+        }
+    }
+
+    /**
+     * FELVÉTEL A BEVÁSÁRLÓLISTÁRA. A tétel neve „Termék (Bolt)" — pontosan
+     * úgy, ahogy a Windows írja —, így a két oldal ugyanazt a tételt
+     * ugyanannak látja. Az ár a legjobb ár (kártyával, ha az olcsóbb).
+     */
+    private fun addOfferToShoppingList(item: com.superdl.launcher.offers.OfferItem): String {
+        val names = ShoppingListStore.getListNames(this)
+        val listName = ShoppingListStore.getActiveListName(this)?.takeIf { it in names }
+            ?: names.firstOrNull()
+            ?: OFFER_DEFAULT_LIST.also { ShoppingListStore.createList(this, it) }
+        val itemName = "${item.name} (${item.store})"
+        if (ShoppingListStore.getItems(this, listName).any { it.name.equals(itemName, ignoreCase = true) }) {
+            return "Ez már rajta van ${withArticle(listName)} listán."
+        }
+        val added = ShoppingListStore.addItem(this, listName, itemName, item.bestPrice())
+        return if (added != null) "Felvettem ${withArticle(listName)} listára: ${item.name}."
+        else "Nem sikerült felvenni a listára."
+    }
+
+    private fun listenForOffersSearch() {
+        ensureMicAndRun {
+            activeFlow = AppFlow.OffersAwaitSearch
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mit keresel? Mondd a termék nevét.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken -> runOffersSearch(spoken.trim()) },
+                onError = { exitFlow("Keresés megszakítva.") }
+            )
+        }
+    }
+
+    /**
+     * KERESÉS MINDEN BOLTBAN. A friss mentett adatot használja; ahol nincs
+     * vagy elavult, ott letölti. Ami nem válaszol, azt kimondjuk — nem
+     * hallgatjuk el, hogy hiányos a találati lista.
+     */
+    private fun runOffersSearch(query: String) {
+        if (query.isBlank()) {
+            exitFlow("Nem hallottam, mit keresel.")
+            return
+        }
+        val token = ++offersToken
+        activeFlow = AppFlow.OffersLoading("Keresés: $query", token)
+        updateFlowDisplay()
+        tts.speak("Keresem: $query.")
+        Thread {
+            val all = mutableListOf<com.superdl.launcher.offers.OfferItem>()
+            val failed = mutableListOf<String>()
+            for (s in com.superdl.launcher.offers.OfferStore.STORES) {
+                val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, s.id)
+                all += if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time)) {
+                    cached
+                } else {
+                    try {
+                        com.superdl.launcher.offers.OfferStore.download(this, s.id).ifEmpty { cached }
+                    } catch (_: Exception) {
+                        if (cached.isEmpty()) failed += s.name
+                        cached
+                    }
+                }
+            }
+            val hits = com.superdl.launcher.offers.OfferStore.cheapestFirst(
+                all.filter { com.superdl.launcher.offers.OfferText.matches(it, query) }
+            )
+            runOnUiThread {
+                val flow = activeFlow
+                if (flow !is AppFlow.OffersLoading || flow.token != token) return@runOnUiThread
+                val note = if (failed.isEmpty()) null
+                else "${failed.joinToString(" és ")} most nem válaszol, nélküle kerestem."
+                if (hits.isEmpty()) {
+                    exitFlow((note?.let { "$it " } ?: "") + "Nincs akciós találat erre: $query.")
+                    return@runOnUiThread
+                }
+                enterOffersBrowse(
+                    "Keresés: $query, legolcsóbb elöl", hits, 0,
+                    withStore = true, back = null, intro = note
+                )
+            }
+        }.start()
     }
 
     // ==================== BEVÁSÁRLÓLISTA ====================
@@ -23021,6 +23305,34 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = "Következő tétel"
                 tvPosition.text = flow.listName
                 tvHint.text = "Diktálás vagy mondd: kész  •  ⬅ lista kész"
+            }
+            is AppFlow.OffersLoading -> {
+                tvItem.text = flow.title
+                tvPosition.text = "Letöltés…"
+                tvHint.text = "⬅ mégse"
+            }
+            is AppFlow.OffersCategoryPick -> {
+                val (name, count) = flow.categories[flow.index]
+                tvItem.text = name
+                tvPosition.text = "${com.superdl.launcher.offers.OfferStore.storeName(flow.storeId)}  •  " +
+                    "${flow.index + 1} / ${flow.categories.size}  •  $count termék"
+                tvHint.text = "⬆⬇ választás  •  ➡ megnyitás  •  ⬅ kilépés"
+            }
+            is AppFlow.OffersBrowse -> {
+                val item = flow.items[flow.index]
+                tvItem.text = item.bestPrice()?.let { "${item.name} — $it Ft" } ?: item.name
+                tvPosition.text = "${flow.title}  •  ${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ műveletek  •  ⬅ vissza"
+            }
+            is AppFlow.OffersItemMenu -> {
+                tvItem.text = OFFER_ACTIONS[flow.actionIndex]
+                tvPosition.text = flow.browse.items[flow.browse.index].name
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza"
+            }
+            AppFlow.OffersAwaitSearch -> {
+                tvItem.text = "Keresés az akciók közt"
+                tvPosition.text = "Diktálás"
+                tvHint.text = "Mondd, mit keresel  •  ⬅ mégse"
             }
             is AppFlow.EmailSmtpPickAccount -> {
                 tvItem.text = flow.accounts[flow.index]

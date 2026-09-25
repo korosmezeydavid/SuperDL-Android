@@ -421,6 +421,9 @@ enum class MenuAction {
     GAME_SLOT,                 // Félkarú rabló – nyerőgép
     GAME_MILLE_BORNES,         // Mille Bornes – ezer mérföld
     CHAT_OPEN,                 // Csevejcenter – valós idejű csevegő (Ably-szoba)
+    OFFERS_PENNY,              // Akciós újság: Penny
+    OFFERS_ALDI,               // Akciós újság: Aldi
+    OFFERS_SEARCH,             // Akciós újság: keresés minden boltban
 }
 
 data class MenuItem(
@@ -1010,10 +1013,23 @@ object MenuTree {
             MenuItem("tools_daily", "Mindennapi", MenuAction.SUBMENU, listOf(
                 MenuItem("hearing_aid", "Hallás erősítő", MenuAction.HEARING_AID),
                 MenuItem("calculator", "Számológép", MenuAction.CALCULATOR),
-                MenuItem("shopping", "Bevásárlólista", MenuAction.SUBMENU, listOf(
-                    MenuItem("shopping_open", "Listáim megnyitása", MenuAction.SHOPPING_LIST),
-                    MenuItem("shopping_new", "Új lista létrehozása", MenuAction.SHOPPING_NEW_LIST),
-                    MenuItem("shopping_back", "Vissza", MenuAction.SUBMENU)
+                // VÁSÁRLÁS (Alph, 2026-09-25): a bevásárlólista mellé az akciós
+                // újságok. UGYANOTT áll, ahol eddig a Bevásárlólista — aki
+                // megszokta a helyét, ott találja, egy szinttel lejjebb. A
+                // „shopping" azonosító marad, a műveletsorok hivatkozhatnak rá.
+                MenuItem("shopping_group", "Vásárlás", MenuAction.SUBMENU, listOf(
+                    MenuItem("shopping", "Bevásárlólista", MenuAction.SUBMENU, listOf(
+                        MenuItem("shopping_open", "Listáim megnyitása", MenuAction.SHOPPING_LIST),
+                        MenuItem("shopping_new", "Új lista létrehozása", MenuAction.SHOPPING_NEW_LIST),
+                        MenuItem("shopping_back", "Vissza a vásárláshoz", MenuAction.SUBMENU)
+                    )),
+                    MenuItem("offers", "Akciós újságok", MenuAction.SUBMENU, listOf(
+                        MenuItem("offers_penny", "Penny", MenuAction.OFFERS_PENNY),
+                        MenuItem("offers_aldi", "Aldi", MenuAction.OFFERS_ALDI),
+                        MenuItem("offers_search", "Keresés minden boltban", MenuAction.OFFERS_SEARCH),
+                        MenuItem("offers_back", "Vissza a vásárláshoz", MenuAction.SUBMENU)
+                    )),
+                    MenuItem("shopping_group_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)
                 )),
                 MenuItem("dictaphone", "Profi Diktafon", MenuAction.SUBMENU, listOf(
                     MenuItem("dict_record", "Felvétel indítása", MenuAction.DICTAPHONE_RECORD),

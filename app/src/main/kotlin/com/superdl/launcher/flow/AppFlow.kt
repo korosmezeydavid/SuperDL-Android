@@ -780,6 +780,27 @@ sealed class AppFlow {
         val names: List<String>,
         val index: Int
     ) : AppFlow()
+
+    // ── AKCIÓS ÚJSÁGOK ──────────────────────────────────────────────────────
+    /** Letöltés folyamatban. A token azonosítja: ha közben kiléptél, az eredmény nem ránt vissza. */
+    data class OffersLoading(val title: String, val token: Long) : AppFlow()
+    /** Egy bolt kategóriái; az első sor az „Összes termék, legolcsóbb elöl". */
+    data class OffersCategoryPick(
+        val storeId: String,
+        val items: List<com.superdl.launcher.offers.OfferItem>,
+        val categories: List<Pair<String, Int>>,
+        val index: Int
+    ) : AppFlow()
+    /** Terméklista. Ha `back` null, balra kilép; különben oda tér vissza. */
+    data class OffersBrowse(
+        val title: String,
+        val items: List<com.superdl.launcher.offers.OfferItem>,
+        val index: Int,
+        val withStore: Boolean,
+        val back: OffersCategoryPick?
+    ) : AppFlow()
+    data class OffersItemMenu(val browse: OffersBrowse, val actionIndex: Int) : AppFlow()
+    object OffersAwaitSearch : AppFlow()
     data class GuideBrowse(val sections: List<com.superdl.launcher.legal.LegalSection>, val index: Int, val title: String) : AppFlow()
 
     data class NotificationBrowse(val notifications: List<com.superdl.launcher.notifications.NotificationEntry>, val index: Int) : AppFlow()

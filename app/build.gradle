@@ -119,6 +119,12 @@ dependencies {
     // változik.
     implementation files('libs/whmobile.aar')
 
+    // GÉPI PRÓBA a gyűjtőkhöz (akciós újság): a Windows-modullal azonos,
+    // lementett oldalakon kell ugyanannyi terméket találniuk. A valódi
+    // org.json kell, mert az Android-féle a gépen csak üres héj.
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+
     // Titkosított tárolás érzékeny adatokhoz (pl. e-mail jelszó):
     // a kulcsot az eszköz hardveres kulcstárolója (Keystore) védi.
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
