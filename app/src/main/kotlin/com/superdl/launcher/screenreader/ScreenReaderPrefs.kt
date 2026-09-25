@@ -188,13 +188,39 @@ object ScreenReaderPrefs {
         return try {
             val p = prefs(context)
             if (p.getBoolean(KEY_TOUCHED, false)) return false
-            if (p.getBoolean(KEY_ENABLED, false)) return false
+            // Csak ha a kapcsolóhoz MÉG SOHA senki nem nyúlt. Ha már van
+            // értéke (akár ki, akár be), az egy korábbi döntés — lásd lent.
+            if (p.contains(KEY_ENABLED)) return false
             if (isEmergencyDisabled(context)) return false
             setEnabled(context, true)
             true
         } catch (_: Exception) {
             false
         }
+    }
+
+    /**
+     * A FELHASZNÁLÓ KIKAPCSOLTA-E.
+     *
+     * A HIBA, AMIT EZ JAVÍT (Alph, 2026-09-25): „kikapcsoltam a Beállítások,
+     * Haladó és technikai, Képernyőolvasó pontban, de amint külső appba
+     * értem, visszakapcsolt." Külső alkalmazás indításakor a program eddig
+     * GONDOLKODÁS NÉLKÜL bekapcsolta az olvasót — pedig a saját megjegyzése
+     * is azt írta, hogy aki a saját megszokott olvasóját használja, az ki
+     * tudja kapcsolni. Nem tudta: a döntését a következő indítás felülírta.
+     *
+     * A kikapcsolt állapotba a felhasználó keze viszi a kapcsolót — a
+     * program maga csak BEkapcsol. (A vészleállítás is kikapcsolja, de az
+     * mellé a saját jelzőjét is felteszi, és olyankor amúgy sem kapcsolunk
+     * vissza semmit.) Ezért ha a kapcsolónak VAN értéke, és az hamis, az a
+     * felhasználó döntése — akkor is, ha még a régi változatban hozta meg.
+     */
+    fun isTurnedOffByUser(context: Context): Boolean = try {
+        val p = prefs(context)
+        p.getBoolean(KEY_TOUCHED, false) && !p.getBoolean(KEY_ENABLED, false) ||
+            p.contains(KEY_ENABLED) && !p.getBoolean(KEY_ENABLED, false)
+    } catch (_: Exception) {
+        false
     }
 
     // ── Vészleállítás (a "biztonsági retesz") ───────────────────────────────

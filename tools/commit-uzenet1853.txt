@@ -1,0 +1,19 @@
+1.85.3 - A kikapcsolt kepernyoolvaso kikapcsolva is marad
+
+A HIBA (Alph, 2026-09-25): "kikapcsoltam a Beallitasok, Halado es
+technikai, Kepernyoolvaso pontban, de amint kulso appba ertem,
+visszakapcsolt."
+
+Kulso alkalmazas inditasakor a program gondolkodas nelkul bekapcsolta
+az olvasot - pedig a sajat megjegyzese is azt irta, hogy aki a sajat
+megszokott olvasojat hasznalja, az kikapcsolhatja. Nem tudta: a dontest
+a kovetkezo inditas felulirta.
+
+A javitas: ha a kapcsolonak mar van erteke, es az hamis, az a
+felhasznalo dontese (a program maga csak bekapcsol; a veszleallitas
+kulon jelzot is allit). Ilyenkor sem kulso app inditasakor, sem a
+szolgaltatas indulasakor nem kapcsolunk vissza. A regi valtozatban
+hozott dontest is felismeri.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WHMcycDiQUDuTQ7pSZgWxu

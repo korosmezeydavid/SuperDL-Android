@@ -12496,6 +12496,10 @@ class MainActivity : AppCompatActivity() {
     private fun enableScreenReaderForExternalApp() {
         if (!ExternalAppHelper.isScreenReaderEnabledInSystem(this)) return
         if (ScreenReaderPrefs.isEmergencyDisabled(this)) return   // vészleállítás tiszteletben
+        // A FELHASZNÁLÓ DÖNTÉSE ELŐBBRE VALÓ. Ha kikapcsolta, nem kapcsoljuk
+        // vissza a háta mögött (Alph, 2026-09-25: „amint külső appba értem,
+        // visszakapcsolt").
+        if (ScreenReaderPrefs.isTurnedOffByUser(this)) return
         if (!ScreenReaderPrefs.isEnabled(this)) {
             ScreenReaderPrefs.setEnabled(this, true)
         }
