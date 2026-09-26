@@ -230,7 +230,7 @@ class MilleBornesActivity : AppCompatActivity() {
         } else {
             ""
         }
-        tts.speak("Lap ${handIndex + 1} a ${hand.size}-ból. ${card.speak()}.$targetHint $hint.")
+        tts.speak("${handIndex + 1}. lap, összesen ${hand.size}. ${card.speak()}.$targetHint $hint.")
     }
 
     private fun refreshUi() {

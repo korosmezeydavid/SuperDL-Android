@@ -4,11 +4,13 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.superdl.launcher.patrol.PatrolAnnouncer
 
@@ -21,6 +23,7 @@ class TimerService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var announcedStart = false
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private val tickRunnable = object : Runnable {
         override fun run() {
@@ -44,6 +47,7 @@ class TimerService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        holdWakeLock(session)
         if (!announcedStart) {
             announcedStart = true
             PatrolAnnouncer.announce(
@@ -60,7 +64,32 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
+        releaseWakeLock()
         super.onDestroy()
+    }
+
+    /**
+     * MIÉRT: a lejárat Handler.postDelayed-re épül; kikapcsolt képernyőnél a
+     * CPU alszik, és a bemondás némán elmarad vagy perceket késik. A zár a
+     * hátralévő idő + 2 perc után magától is elenged.
+     */
+    private fun holdWakeLock(session: ActiveTimerSession) {
+        try {
+            val lock = wakeLock ?: (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SuperDL:Timer")
+                .apply { setReferenceCounted(false) }
+                .also { wakeLock = it }
+            lock.acquire(session.remainingMinutes() * 60_000L + 2 * 60_000L)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let { if (it.isHeld) it.release() }
+        } catch (_: Exception) {
+        }
+        wakeLock = null
     }
 
     private fun checkTimer() {

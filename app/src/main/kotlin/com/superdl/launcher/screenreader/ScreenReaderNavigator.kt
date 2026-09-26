@@ -219,9 +219,13 @@ object ScreenReaderNavigator {
         } catch (_: Exception) {
         }
         node.hintText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
-        try {
-            node.tooltipText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
-        } catch (_: Exception) {
+        // MIÉRT: a tooltipText csak Android 9-től létezik; régebbin
+        // NoSuchMethodError (Error, nem Exception) dobódna és összeomlana.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                node.tooltipText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+            } catch (_: Throwable) {
+            }
         }
 
         // A gyerekek szövege: ez menti meg a "névtelen" sorokat és dobozokat.

@@ -136,7 +136,9 @@ class DictaphoneRecorder(
     }
 
     fun stopAndSave(): File? {
-        if (!isActive) return null
+        // MIÉRT: ha a felvevő szál elszállt, az isActive már hamis — ilyenkor is
+        // el kell engedni a mikrofont, és menteni, amit addig felvettünk.
+        if (audioRecord == null) return null
         isActive = false
         isPaused = false
         recordingThread?.join(8_000L)

@@ -23,14 +23,19 @@ object DictaphoneAacEncoder {
         val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         var trackIndex = -1
         var muxerStarted = false
+        var pcmStream: java.io.InputStream? = null
 
         try {
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             codec.start()
 
             val bufferInfo = MediaCodec.BufferInfo()
-            val pcmData = pcmFile.readBytes()
-            var pcmOffset = 0
+            // MIÉRT: a teljes PCM fájl memóriába olvasása (readBytes) egy órás
+            // felvételnél több száz MB — OutOfMemory. Darabonként olvassuk.
+            val pcmIn = pcmFile.inputStream().buffered(65536)
+            pcmStream = pcmIn
+            var readBuf = ByteArray(16384)
+            var pcmOffset = 0L
             var inputDone = false
             var outputDone = false
 
@@ -40,9 +45,11 @@ object DictaphoneAacEncoder {
                     if (inputIndex >= 0) {
                         val inputBuffer = codec.getInputBuffer(inputIndex) ?: continue
                         inputBuffer.clear()
-                        val chunk = minOf(inputBuffer.remaining(), pcmData.size - pcmOffset)
+                        val want = inputBuffer.remaining()
+                        if (readBuf.size < want) readBuf = ByteArray(want)
+                        val chunk = pcmIn.read(readBuf, 0, want)
                         if (chunk > 0) {
-                            inputBuffer.put(pcmData, pcmOffset, chunk)
+                            inputBuffer.put(readBuf, 0, chunk)
                             pcmOffset += chunk
                             val pts = (pcmOffset * 1_000_000L) / (sampleRate * channels * 2)
                             codec.queueInputBuffer(inputIndex, 0, chunk, pts, 0)
@@ -82,6 +89,7 @@ object DictaphoneAacEncoder {
                 }
             }
         } finally {
+            runCatching { pcmStream?.close() }
             runCatching { codec.stop() }
             runCatching { codec.release() }
             if (muxerStarted) {

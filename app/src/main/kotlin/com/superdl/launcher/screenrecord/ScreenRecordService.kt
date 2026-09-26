@@ -4,8 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.MediaScannerConnection
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -14,6 +17,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.superdl.launcher.files.RecordingsDirs
 import java.io.File
 import java.text.SimpleDateFormat
@@ -98,7 +102,7 @@ class ScreenRecordService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START -> {
-                startForeground(NOTIFICATION_ID, buildNotification())
+                startForegroundTyped()
                 beginRecording(intent)
                 return START_NOT_STICKY
             }
@@ -228,6 +232,38 @@ class ScreenRecordService : Service() {
                 applicationContext, text, critical = true
             )
         } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * MIÉRT: a kétparaméteres startForeground a manifest összes típusát kéri
+     * (mediaProjection|microphone); Android 14-en mikrofon-engedély nélkül ez
+     * SecurityException és összeomlás. A mikrofon típust csak megadott
+     * engedély mellett kérjük.
+     */
+    private fun startForegroundTyped() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, buildNotification())
+            return
+        }
+        var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        }
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(), types)
+        } catch (_: Exception) {
+            try {
+                startForeground(
+                    NOTIFICATION_ID,
+                    buildNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                )
+            } catch (_: Exception) {
+            }
         }
     }
 

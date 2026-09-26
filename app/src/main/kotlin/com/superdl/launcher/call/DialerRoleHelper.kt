@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.telecom.TelecomManager
+import androidx.annotation.RequiresApi
 import com.superdl.launcher.settings.PermissionGuideSection
 
 object DialerRoleHelper {
@@ -101,12 +102,15 @@ object DialerRoleHelper {
         return createLegacyDialerIntent(context)
     }
 
+    // MIÉRT: csak az SDK_INT >= Q ágból hívjuk — a jelölés ezt rögzíti a lint számára.
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun safeRoleAvailable(roleManager: RoleManager): Boolean = try {
         roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)
     } catch (_: Exception) {
         false
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun safeRoleHeld(roleManager: RoleManager): Boolean = try {
         roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
     } catch (_: Exception) {

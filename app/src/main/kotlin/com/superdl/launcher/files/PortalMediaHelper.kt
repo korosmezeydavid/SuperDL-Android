@@ -114,11 +114,15 @@ object PortalMediaHelper {
                         )
                     )
                     // Biztonság: csak az engedélyezett mappákból.
+                    // MIÉRT kanonikus út: a nyers startsWith átengedte a
+                    // "…/voice_notes/../../databases/x" alakú utat, és a
+                    // "voice_notes2" nevű testvérmappát is.
+                    val f = File(path).canonicalFile
                     val allowed = audioDirs(context).any { (_, dir) ->
-                        path.startsWith(dir.absolutePath)
+                        val base = try { dir.canonicalPath } catch (_: Exception) { return@any false }
+                        f.path.startsWith(base + File.separator)
                     }
                     if (!allowed) return null
-                    val f = File(path)
                     if (!f.exists() || !f.isFile) return null
                     Triple(f.readBytes(), f.name, guessAudioMime(f.name))
                 }
@@ -127,6 +131,12 @@ object PortalMediaHelper {
                     val uri = android.content.ContentUris.withAppendedId(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id
                     )
+                    // MIÉRT: az "ms:" azonosító kitalálható sorszám — csak a
+                    // SuperDL saját fotóit adjuk ki, nem a teljes galériát.
+                    val name = context.contentResolver.query(
+                        uri, arrayOf(MediaStore.Images.Media.DISPLAY_NAME), null, null, null
+                    )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                    if (name == null || !name.startsWith("SuperDL", ignoreCase = true)) return null
                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: return null
                     Triple(bytes, "SuperDL_foto_$id.jpg", "image/jpeg")

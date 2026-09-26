@@ -222,7 +222,7 @@ class UnoActivity : AppCompatActivity() {
         val card = hand[handIndex]
         val playable = handIndex in game.playableIndices(hand)
         val hint = if (playable) "játszható" else "nem játszható most"
-        tts.speak("Lap ${handIndex + 1} a ${hand.size}-ból. ${card.speak()}. $hint.")
+        tts.speak("${handIndex + 1}. lap, összesen ${hand.size}. ${card.speak()}. $hint.")
     }
 
     private fun refreshUi() {

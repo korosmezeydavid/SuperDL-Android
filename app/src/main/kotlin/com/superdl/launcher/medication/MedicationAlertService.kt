@@ -57,6 +57,12 @@ class MedicationAlertService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // MIÉRT: START_STICKY utáni újraindításkor null az intent — ilyenkor
+        // nincs esedékes gyógyszer, csak egy megállíthatatlan csengés lenne.
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val hour = intent?.getIntExtra(EXTRA_HOUR, -1) ?: -1
         val minute = intent?.getIntExtra(EXTRA_MINUTE, -1) ?: -1
         val ids = intent?.getIntArrayExtra(EXTRA_REMINDER_IDS)

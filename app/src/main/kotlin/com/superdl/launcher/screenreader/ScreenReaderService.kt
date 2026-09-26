@@ -205,6 +205,12 @@ class ScreenReaderService : AccessibilityService() {
                 "A fokapcsolo magatol bekapcsolt, mert a rendszerben engedelyeztek."
             )
         }
+        // MIÉRT: feloldás előtt a forgatás csak az üres eszköz-védett tárolóból
+        // olvasható; most, a feloldás után, a valódi beállítást töltjük be.
+        try {
+            com.superdl.launcher.gestures.GestureOrientation.warm(this)
+        } catch (_: Exception) {
+        }
         tts = try {
             TtsManager(this)
         } catch (e: Exception) {
@@ -227,7 +233,10 @@ class ScreenReaderService : AccessibilityService() {
         // érvényben, és a menü reagálna a söprésekre a tanulás helyett.
         TrainingState.onModeChanged = {
             handler.post {
-                setTouchExploration(shouldRunInCurrentApp())
+                setTouchExploration(shouldRunInCurrentApp() && !keyboardSuspended)
+                // MIÉRT: a vizsgából kilépve (bármelyik úton) ne maradjon
+                // függőben időzítő, ami később hibát számolna vagy bemondana.
+                if (TrainingState.mode != TrainingState.Mode.EXAM) cancelExamTimers()
                 if (!TrainingState.isActive) {
                     // Kilépés után friss beolvasás, hogy ne régi adatokon dolgozzunk.
                     nodesStale = true
@@ -461,7 +470,7 @@ class ScreenReaderService : AccessibilityService() {
         } else {
             // Feloldás után visszavesszük az irányítást, ha külső appban vagyunk.
             nodesStale = true
-            setTouchExploration(shouldRunInCurrentApp())
+            setTouchExploration(shouldRunInCurrentApp() && !keyboardSuspended)
         }
     }
 
@@ -618,7 +627,11 @@ class ScreenReaderService : AccessibilityService() {
         )
 
         val wasRunning = touchModeActive
-        setTouchExploration(shouldRun)
+        // MIÉRT: ha közben billentyűzet van fent, NEM vesszük vissza az
+        // érintéseket — a billentyűzet-figyelő csak VÁLTOZÁSKOR szól, így
+        // különben az olvasó elfogná a gépelést, és a gesztusokat is eldobná.
+        // A billentyűzet eltűnésekor az updateKeyboardSuspension() veszi vissza.
+        setTouchExploration(shouldRun && !keyboardSuspended)
         clearNodes()
         index = 0
         lastLabel = null      // új alkalmazás: a régi pozíció érvénytelen
@@ -628,6 +641,9 @@ class ScreenReaderService : AccessibilityService() {
         // A KIJELÖLÉS MÓD is megszűnik: a régi szövegmező már nem létezik.
         // Enélkül BERAGADNA — a fel-le söprés nem lépkedne többé elemek között.
         selectionMode = false
+        // MIÉRT: az ÁLLÍTÁS (sebesség, csúszka) is az előző apphoz tartozott;
+        // bent ragadva az új appban a söprések állítanának lépkedés helyett.
+        allitasBezar(csendben = true)
 
         when {
             shouldRun && !wasRunning -> {
@@ -882,6 +898,15 @@ class ScreenReaderService : AccessibilityService() {
         // igen, balra megszakítás. Ez mindent megelőz — ha épp fut valami a
         // kezed helyett, a kiszállásnak kell a legkönnyebbnek lennie.
         if (handleRouteGesture(gestureId)) return true
+        // MIÉRT: CSÖRGŐ HÍVÁSNÁL a jobbra/balra söprés a hívásé (fogadás,
+        // elutasítás), nem az állításé — ezért előbb kilépünk az állításból,
+        // és a lenti szokásos ág kezeli a hívást.
+        if (allitasMod != AllitasMod.NINCS &&
+            (gestureId == GESTURE_SWIPE_RIGHT || gestureId == GESTURE_SWIPE_LEFT) &&
+            ScreenReaderCallControl.isRinging(this)
+        ) {
+            allitasBezar(csendben = true)
+        }
         // ÁLLÍTÁS KÖZBEN a négy alap mozdulat mást jelent: a fel-le nem
         // lépkedés, hanem állítás. Ezért MINDEN más elé kerül — és külön
         // feltételként, nem a `when`-en belül, mert az őrfeltételes ág a
@@ -1019,7 +1044,8 @@ class ScreenReaderService : AccessibilityService() {
 
     /** Görgetés egy "képernyőnyit", majd az új tartalom első elemére állás. */
     private fun scrollPage(forward: Boolean) {
-        val node = nodes.getOrNull(index)
+        // MIÉRT: az index a SZŰRT listába mutat, nem a teljesbe.
+        val node = filtered.getOrNull(index)
         var ok = ScreenReaderNavigator.scroll(node, forward)
         if (!ok) {
             // Az aktuális elem szülői közt nincs görgethető: keressünk a fában.
@@ -2065,6 +2091,7 @@ class ScreenReaderService : AccessibilityService() {
             val now = System.currentTimeMillis()
             if (now - lastTrainingDoubleTapAt < 2500L) {
                 lastTrainingDoubleTapAt = 0L
+                cancelExamTimers()
                 TrainingState.stop()
                 sounds?.play(ScreenReaderSounds.Sound.OFF)
                 say("Tanulás befejezve. A képernyőolvasó a szokásos módon működik tovább.")
@@ -2150,7 +2177,8 @@ class ScreenReaderService : AccessibilityService() {
                 "A mozdulatokkal megvagy. Most jönnek az ÖSSZETETT FELADATOK: " +
                     "több lépés egymás után, valós helyzetekben. Figyelj!"
             )
-            handler.postDelayed({ announceCompositeTask() }, 3500L)
+            handler.removeCallbacks(compositeAnnounce)
+            handler.postDelayed(compositeAnnounce, 3500L)
             return
         }
         say("Helyes! ${TrainingState.index + 1}. feladat. ${order[TrainingState.index].examTask}")
@@ -2158,6 +2186,9 @@ class ScreenReaderService : AccessibilityService() {
 
     /** Az aktuális összetett feladat bemondása, és ha kell, az időzítő indítása. */
     private fun announceCompositeTask() {
+        // MIÉRT: késleltetve fut; ha közben kiléptek a vizsgából, a kiürült
+        // feladatlista miatt különben „Vizsga vége" hangzana el a semmiből.
+        if (!isCompositeExamRunning()) return
         val task = TrainingState.compositeOrder.getOrNull(TrainingState.index)
         if (task == null) {
             finishExam()
@@ -2176,6 +2207,7 @@ class ScreenReaderService : AccessibilityService() {
         cancelCompositeTimer()
         if (task.timeLimitSec <= 0) return
         compositeTimeout = Runnable {
+            if (!isCompositeExamRunning()) return@Runnable
             TrainingState.errors++
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
             if (checkExamFailed()) return@Runnable
@@ -2188,6 +2220,18 @@ class ScreenReaderService : AccessibilityService() {
     private fun cancelCompositeTimer() {
         compositeTimeout?.let { handler.removeCallbacks(it) }
         compositeTimeout = null
+    }
+
+    /** A következő összetett feladat késleltetett bemondása (visszavonható). */
+    private val compositeAnnounce = Runnable { announceCompositeTask() }
+
+    private fun isCompositeExamRunning(): Boolean =
+        TrainingState.mode == TrainingState.Mode.EXAM && TrainingState.inCompositePhase
+
+    /** A vizsga MINDEN függő időzítőjének leállítása — kilépéskor. */
+    private fun cancelExamTimers() {
+        cancelCompositeTimer()
+        handler.removeCallbacks(compositeAnnounce)
     }
 
     /** ÖSSZETETT FELADAT: több mozdulat, helyes SORRENDBEN. */
@@ -2228,7 +2272,8 @@ class ScreenReaderService : AccessibilityService() {
             finishExam()
             return
         }
-        handler.postDelayed({ announceCompositeTask() }, 1800L)
+        handler.removeCallbacks(compositeAnnounce)
+        handler.postDelayed(compositeAnnounce, 1800L)
     }
 
     /** Elérte-e a bukás-határt? @return igaz, ha a vizsga megszakadt */
@@ -2351,7 +2396,14 @@ class ScreenReaderService : AccessibilityService() {
         } catch (_: Exception) {
             null
         } ?: return false
-        val ok = ScreenReaderNavigator.scroll(root, forward)
+        // MIÉRT: a gyökér szinte sosem görgethető, és a scroll() csak az elemet
+        // és a szülőit nézi. Ezért előbb az aktuális elemtől indulunk (a
+        // listája görög), és ha az sem megy, a fában keresünk görgethetőt.
+        var ok = ScreenReaderNavigator.scroll(filtered.getOrNull(index), forward)
+        if (!ok) {
+            val scrollable = ScreenReaderNavigator.findScrollable(root)
+            ok = scrollable != null && ScreenReaderNavigator.scroll(scrollable, forward)
+        }
         if (!ok) return false
 
         sounds?.play(
@@ -2645,7 +2697,10 @@ class ScreenReaderService : AccessibilityService() {
             val ok = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
             if (ok) {
                 sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
-                say("Beillesztve: ${text.take(60)}")
+                // MIÉRT: jelszómezőbe illesztett szöveget (pl. jelszókezelőből)
+                // nem mondunk ki hangosan.
+                val secret = try { node.isPassword } catch (_: Exception) { true }
+                say(if (secret) "Beillesztve." else "Beillesztve: ${text.take(60)}")
             } else {
                 sounds?.play(ScreenReaderSounds.Sound.ERROR)
                 say("A beillesztés nem sikerült.")

@@ -34,17 +34,20 @@ class MatrixKeyboardService : InputMethodService(), MatrixKeypadView.Listener {
     private var shiftLock = false
 
     override fun onCreateInputView(): View {
-        tts = try {
+        // MIÉRT: a rendszer a felületet többször is újraépíti (forgatás,
+        // beállításváltás); minden alkalommal új beszédmotor, hangkészlet és
+        // hangfelismerő szivárogna el. Egyszer hozzuk létre, az onDestroy engedi el.
+        if (tts == null) tts = try {
             TtsManager(this)
         } catch (_: Exception) {
             null
         }
-        sounds = try {
+        if (sounds == null) sounds = try {
             com.superdl.launcher.screenreader.ScreenReaderSounds(this)
         } catch (_: Exception) {
             null
         }
-        voiceInput = try {
+        if (voiceInput == null) voiceInput = try {
             com.superdl.launcher.voice.VoiceInput(this)
         } catch (_: Exception) {
             null
@@ -390,6 +393,11 @@ class MatrixKeyboardService : InputMethodService(), MatrixKeypadView.Listener {
     }
 
     override fun onDestroy() {
+        try {
+            voiceInput?.destroy()
+        } catch (_: Exception) {
+        }
+        voiceInput = null
         try {
             sounds?.release()
         } catch (_: Exception) {

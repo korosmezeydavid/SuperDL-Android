@@ -362,7 +362,11 @@ object ImapReader {
         /** Egy IMAP literál blokk beolvasása (a "{123}" jelölésű rész). */
         fun readLiteral(headerLine: String): String = readLiteralBlock(headerLine)
 
-        fun readLine(): String = reader.readLine() ?: ""
+        // MIÉRT: a lezárt kapcsolat (null) eddig üres sorként jött vissza, és a
+        // hívók "üres sor → tovább" hurkai örökké pörögtek. Kivétel kell: azt
+        // a fetchInbox/fetchBody/countUnread elkapja, és rendes hibát ad.
+        fun readLine(): String =
+            reader.readLine() ?: throw java.io.EOFException("IMAP kapcsolat varatlanul lezarult")
 
         /** Csak elküldi a parancsot, a választ a hívó olvassa (a tag-et adja vissza). */
         fun send(cmd: String, args: String = ""): String {

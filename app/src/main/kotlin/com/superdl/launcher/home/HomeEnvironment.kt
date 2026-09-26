@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.telephony.CellInfoGsm
 import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
@@ -118,20 +119,21 @@ object HomeEnvironment {
     }
 
     private fun cellId(info: Any?): String? = try {
-        when (info) {
-            is CellInfoLte -> {
+        when {
+            info is CellInfoLte -> {
                 val id = info.cellIdentity
                 if (id.ci == Int.MAX_VALUE) null else "lte:${id.ci}:${id.tac}"
             }
-            is CellInfoGsm -> {
+            info is CellInfoGsm -> {
                 val id = info.cellIdentity
                 if (id.cid == Int.MAX_VALUE) null else "gsm:${id.cid}:${id.lac}"
             }
-            is CellInfoWcdma -> {
+            info is CellInfoWcdma -> {
                 val id = info.cellIdentity
                 if (id.cid == Int.MAX_VALUE) null else "wcdma:${id.cid}:${id.lac}"
             }
-            is CellInfoNr -> {
+            // MIÉRT: a CellInfoNr / CellIdentityNr Android 10-es API.
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && info is CellInfoNr -> {
                 val id = info.cellIdentity as? CellIdentityNr
                 if (id == null || id.nci == Long.MAX_VALUE) null else "nr:${id.nci}"
             }

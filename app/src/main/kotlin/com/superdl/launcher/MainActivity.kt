@@ -1506,6 +1506,10 @@ class MainActivity : AppCompatActivity() {
 
         rightSwipeTimes.clear()
         val simple = com.superdl.launcher.menu.MenuPrefs.toggle(this)
+        // MIÉRT: új főmenüt építünk — a régi almenü-verem nem maradhat mögötte,
+        // különben a „vissza" a már nem létező régi menübe vinne.
+        menuStack.clear()
+        menuIndexStack.clear()
         currentMenu = com.superdl.launcher.menu.MenuTree.buildRoot(this)
         currentIndex = 0
         updateDisplay()
@@ -2241,7 +2245,18 @@ class MainActivity : AppCompatActivity() {
             AppFlow.NoteAwaitTitle,
             is AppFlow.NoteAwaitBody -> exitFlow("Jegyzet létrehozás megszakítva.")
             is AppFlow.CalendarBrowse -> exitFlow("Naptár bezárva.")
-            is AppFlow.CatalogBrowse -> startCatalogBrowse()
+            is AppFlow.CatalogBrowse -> {
+                // MIÉRT: nem töltjük le újra — a megjegyzett csoportokhoz lépünk vissza.
+                val groups = catalogGroups
+                if (groups != null && groups.size > 1) {
+                    val back = groups.indexOfFirst { it.second == flow.modules }.coerceAtLeast(0)
+                    activeFlow = AppFlow.CatalogCategoryPick(groups, back)
+                    updateFlowDisplay()
+                    tts.speak(speakCatalogCategory(groups[back]))
+                } else {
+                    exitFlow("Katalógus bezárva.")
+                }
+            }
             is AppFlow.CatalogCategoryPick -> exitFlow("Katalógus bezárva.")
             is AppFlow.FocusListBrowse -> exitFlow("Fókusz bezárva.")
             is AppFlow.FocusWizard -> retreatFocusWizard(flow)
@@ -2491,6 +2506,12 @@ class MainActivity : AppCompatActivity() {
         tts.speak(item.label + ". Almenü megnyitva. " + speakMenuItemLabel(currentMenu[currentIndex]))
     }
 
+    /** Névelő a változó szó elé: „az Anna", „a Péter" — magánhangzónál „az". */
+    private fun withArticle(word: String): String {
+        val first = word.firstOrNull()?.lowercaseChar() ?: return word
+        return if (first in "aáeéiíoóöőuúüű") "az $word" else "a $word"
+    }
+
     private fun exitFlow(message: String, success: Boolean = false, error: Boolean = false) {
         when {
             error -> feedbackError()
@@ -2507,6 +2528,10 @@ class MainActivity : AppCompatActivity() {
         ) {
             stopRadarSession(stopGuidance = GpsRadarManager.isGuiding())
         }
+        // MIÉRT: az élő mérés GPS-sebességfigyelője és a megálló-iránytű eddig
+        // bekapcsolva maradt, ha nem a saját „balra" águkon léptél ki.
+        if (activeFlow is AppFlow.StepsLive) stopSpeedUpdates()
+        stopTransitCompass()
         voiceInput.cancel()
         lastLeftSwipeAt = 0L
         pendingSmsForwardBody = null
@@ -2984,6 +3009,9 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.SIMPLE_MODE_TOGGLE -> {
                 val simple = com.superdl.launcher.menu.MenuPrefs.toggle(this)
+                // MIÉRT: új főmenü — a régi almenü-verem nem maradhat mögötte.
+                menuStack.clear()
+                menuIndexStack.clear()
                 currentMenu = com.superdl.launcher.menu.MenuTree.buildRoot(this)
                 currentIndex = 0
                 updateDisplay()
@@ -3847,7 +3875,8 @@ class MainActivity : AppCompatActivity() {
             activeFlow = restore
             updateFlowDisplay()
             tts.speak("Üzenet elküldve ${recipient.label} részére. Vissza az üzenetlistában.")
-            speakSmsPreview(restore.messages[restore.index])
+            // MIÉRT: sorba tesszük — eddig az előnézet elvágta az „Üzenet elküldve" mondatot.
+            speakSmsPreview(restore.messages[restore.index], queued = true)
             return
         }
         exitFlow(
@@ -4291,7 +4320,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun speakSmsPreview(message: SmsMessage, folder: SmsFolder = message.folder) {
+    /** @param queued igaz: az előző mondat UTÁN szól, nem vágja el (pl. „Üzenet elküldve"). */
+    private fun speakSmsPreview(message: SmsMessage, folder: SmsFolder = message.folder, queued: Boolean = false) {
         val label = SmsHelper.resolveSenderLabel(this, message.address)
         val previewBody = message.body.ifBlank { "üres üzenet" }
         val preview = if (previewBody.length > 60) previewBody.take(60) + "…" else previewBody
@@ -4299,7 +4329,7 @@ class MainActivity : AppCompatActivity() {
             SmsFolder.INBOX -> "Feladó: $label."
             SmsFolder.SENT -> "Címzett: $label."
         }
-        tts.speak("$prefix $preview")
+        if (queued) tts.speakAdd("$prefix $preview") else tts.speak("$prefix $preview")
     }
 
     private fun enterSmsContextMenu(flow: AppFlow.SmsInbox) {
@@ -4391,7 +4421,7 @@ class MainActivity : AppCompatActivity() {
         val label = SmsHelper.resolveSenderLabel(this, flow.messages[flow.messageIndex].address)
         val prompt = when (flow.folder) {
             SmsFolder.INBOX -> "Biztosan törlöd $label üzenetét?"
-            SmsFolder.SENT -> "Biztosan törlöd a $label részére küldött üzenetet?"
+            SmsFolder.SENT -> "Biztosan törlöd ${withArticle(label)} részére küldött üzenetet?"
         }
         tts.speak("$prompt Söpörj jobbra a törléshez, söprés balra a mégsehez. Ismétlés: söprés fel.")
     }
@@ -4565,18 +4595,38 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * MIÉRT: küldés közben a folyamat még EmailConfirm, így egy második jobbra
+     * söprés ugyanazt a levelet kétszer küldte volna el.
+     */
+    private var emailSending = false
+
     private fun sendEmail(recipient: EmailRecipient, subject: String, body: String) {
+        if (emailSending) {
+            tts.speak("Már küldöm.")
+            return
+        }
+        emailSending = true
         voiceInput.cancel()
         tts.speak("E-mail küldése. Várj egy pillanatot.")
+        val sendingFlow = activeFlow
         Thread {
-            val ok = EmailHelper.send(this, recipient, subject, body)
+            val ok = try {
+                EmailHelper.send(this, recipient, subject, body)
+            } finally {
+                mainHandler.post { emailSending = false }
+            }
             postWhenAlive {
-                exitFlow(
-                    if (ok) "E-mail elküldve ${recipient.label} részére."
-                    else "E-mail küldés sikertelen. Ellenőrizd az e-mail küldő beállításait.",
-                    success = ok,
-                    error = !ok
-                )
+                val message = if (ok) "E-mail elküldve ${recipient.label} részére."
+                    else "E-mail küldés sikertelen. Ellenőrizd az e-mail küldő beállításait."
+                // MIÉRT: ha közben máshova mentél, az eredményt csak kimondjuk —
+                // nem rántunk ki onnan, ahol épp vagy.
+                if (activeFlow === sendingFlow) {
+                    exitFlow(message, success = ok, error = !ok)
+                } else {
+                    if (ok) feedbackSuccess() else feedbackError()
+                    tts.speak(message)
+                }
             }
         }.start()
     }
@@ -5100,24 +5150,37 @@ class MainActivity : AppCompatActivity() {
         tts.speak(flow.files[next].name)
     }
 
+    /** MIÉRT: a visszatöltés alatt egy második jobbra söprés duplán importált volna. */
+    private var contactImportRunning = false
+
     /**
      * A kiválasztott fájl visszatöltése. A MÁR MEGLÉVŐ számokat kihagyja —
      * enélkül minden visszatöltés megduplázná az egész névjegyzéket.
      */
     private fun importContactsFromFile(flow: AppFlow.ContactImportBrowse) {
+        if (contactImportRunning) {
+            tts.speak("Már töltöm vissza.")
+            return
+        }
+        contactImportRunning = true
         val file = flow.files[flow.index]
         tts.speak("Visszatöltés: ${file.name}. Várj egy pillanatot.")
         Thread {
-            val (added, skipped) = ContactVcf.import(this, file)
+            val (added, skipped) = try {
+                ContactVcf.import(this, file)
+            } finally {
+                mainHandler.post { contactImportRunning = false }
+            }
             postWhenAlive {
                 if (added == 0 && skipped == 0) {
                     tts.speak("Ebben a fájlban nem találtam névjegyet.")
                     return@postWhenAlive
                 }
                 val skipPart = if (skipped > 0) " $skipped már megvolt, azokat kihagytam." else ""
-                tts.speak("$added névjegy visszatöltve.$skipPart Szinkronizálok.")
+                // MIÉRT: a darabszámot az exitFlow üzenetébe tesszük — külön
+                // kimondva az exitFlow `tts.stop()`-ja elvágta.
+                exitFlow("$added névjegy visszatöltve.$skipPart Szinkronizálok.")
                 runContactSync(manual = false)
-                exitFlow("Visszatöltés kész.")
             }
         }.start()
     }
@@ -5281,7 +5344,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun repeatContactDeleteConfirm(contact: ContactMatch) {
         tts.speak(
-            "Biztosan törlöd ${contact.name} névjegyet? " +
+            "Biztosan törlöd ${contact.name} névjegyét? " +
                 "Söpörj jobbra a törléshez, söprés balra a mégsehez. Ismétlés: söprés fel."
         )
     }
@@ -5453,31 +5516,31 @@ class MainActivity : AppCompatActivity() {
      */
     private fun finishAlarmWeekdayPick(flow: AppFlow.AlarmWeekdayBrowse) {
         if (flow.selectedDays.isEmpty()) {
-            feedbackError()
-            tts.speak(
-                "Legalább egy napot válassz ki, különben az ébresztő soha nem szólalna meg. " +
-                    "Söpörj jobbra a kijelöléshez."
-            )
+            // MIÉRT: a balra itt az egyetlen kiút — üres kijelölésnél eddig
+            // csak figyelmeztettünk, és a felhasználó a képernyőn ragadt.
+            alarmDraftRepeat = AlarmRepeatType.ONCE
+            alarmDraftWeekDays = mutableSetOf()
+            exitFlow("Nem jelöltél ki napot, az ébresztőt nem állítottam be.")
             return
         }
         alarmDraftRepeat = AlarmRepeatType.CUSTOM
         alarmDraftWeekDays = flow.selectedDays.toMutableSet()
         val days = AlarmRepeatType.CUSTOM.speakLabel(flow.selectedDays)
-        tts.speak("Kész: $days.")
-        enterAlarmConfirm(flow.hour, flow.minute, flow.label)
+        // MIÉRT: a „Kész: napok" külön kimondva a megerősítés elvágta — egy mondatba tesszük.
+        enterAlarmConfirm(flow.hour, flow.minute, flow.label, prefix = "Kész: $days. ")
     }
 
-    private fun enterAlarmConfirm(hour: Int, minute: Int, label: String) {
+    private fun enterAlarmConfirm(hour: Int, minute: Int, label: String, prefix: String = "") {
         activeFlow = AppFlow.AlarmConfirm(hour, minute, label)
         updateFlowDisplay()
-        repeatAlarmConfirm(hour, minute, label)
+        repeatAlarmConfirm(hour, minute, label, prefix)
     }
 
-    private fun repeatAlarmConfirm(hour: Int, minute: Int, label: String) {
+    private fun repeatAlarmConfirm(hour: Int, minute: Int, label: String, prefix: String = "") {
         val name = label.ifBlank { "Névtelen ébresztő" }
         val timeText = "${hour.toString().padStart(2, '0')} óra ${minute.toString().padStart(2, '0')} perc"
         tts.speak(
-            "Ébresztő: $name, $timeText. Beállítod? Söpörj jobbra a beállításhoz, söprés balra a mégsehez. Ismétlés: söprés fel."
+            prefix + "Ébresztő: $name, $timeText. Beállítod? Söpörj jobbra a beállításhoz, söprés balra a mégsehez. Ismétlés: söprés fel."
         )
     }
 
@@ -5953,7 +6016,12 @@ class MainActivity : AppCompatActivity() {
     /** A napszak-választóból tovább a ciklushoz (napi/heti), a kiválasztott időpontokkal. */
     private fun proceedFromMedicationTimeOfDay(flow: AppFlow.MedicationTimeOfDayBrowse) {
         if (flow.selected.isEmpty()) {
-            tts.speak("Legalább egy napszakot pipálj ki. Söpörj jobbra a kijelöléshez.")
+            // MIÉRT: a balra itt az egyetlen kiút — üres kijelölésnél kilépünk,
+            // különben a felhasználó a képernyőn ragadt.
+            medicationDraftName = null
+            medicationDraftTimes = emptyList()
+            medicationDraftCourseEndMillis = null
+            exitFlow("Nem pipáltál ki napszakot. Gyógyszer rögzítés megszakítva.")
             return
         }
         // A kiválasztott napszakok időpontjai, napszak-sorrendben.
@@ -6056,7 +6124,11 @@ class MainActivity : AppCompatActivity() {
     private fun proceedMedicationWeekdayIfReady(flow: AppFlow.MedicationWeekdayBrowse) {
         if (flow.cycleType != MedicationCycleType.CUSTOM) return
         if (flow.selectedDays.isEmpty()) {
-            tts.speak("Legalább egy napot válassz ki.")
+            // MIÉRT: a balra itt az egyetlen kiút — üres kijelölésnél kilépünk.
+            medicationDraftName = null
+            medicationDraftTimes = emptyList()
+            medicationDraftCourseEndMillis = null
+            exitFlow("Nem választottál napot. Gyógyszer rögzítés megszakítva.")
             return
         }
         enterMedicationConfirm(flow.name, flow.hour, flow.minute, flow.cycleType, flow.selectedDays)
@@ -6988,6 +7060,15 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * Az időegység „-ban/-ben" alakja, szóközzel előtte: „ percben", „ órában".
+     * MIÉRT: a `label + "ben"` az órából „óraben"-t csinált.
+     */
+    private fun timerUnitInessive(unit: TimerUnitOption?): String {
+        val word = unit?.label?.lowercase() ?: return ""
+        return if (word == "óra") " órában" else " ${word}ben"
+    }
+
     private fun onTimerAmountSpoken(unit: TimerUnitOption, spoken: String, editTimerId: Int?) {
         val amount = VoiceDurationParser.parseAmount(spoken)
         if (amount == null) {
@@ -6996,7 +7077,7 @@ class MainActivity : AppCompatActivity() {
             updateFlowDisplay()
             ensureMicAndRun {
                 voiceInput.listen(
-                    prompt = "Mondd az időtartamot ${unit.label.lowercase()}ben.",
+                    prompt = "Mondd az időtartamot${timerUnitInessive(unit)}.",
                     speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
                     onResult = { retry -> onTimerAmountSpoken(unit, retry, editTimerId) },
                     onError = { exitFlow("Nem értettem az időtartamot.") }
@@ -7052,9 +7133,13 @@ class MainActivity : AppCompatActivity() {
     private fun repeatTimerConfirm(flow: AppFlow.TimerConfirm) {
         val name = flow.label.ifBlank { "Névtelen időzítő" }
         val action = if (flow.editTimerId != null) "Mentem a módosítást?" else "Elmented?"
+        // MIÉRT: „2 óra" + „enként" = „2 óraenként" — egész óránál „óránként".
+        val intervalText = TimerSpeech.speakMinutes(flow.announceIntervalMinutes).let {
+            if (it.endsWith("óra")) it.dropLast(3) + "óránként" else it + "enként"
+        }
         tts.speak(
             "Időzítő: $name, ${TimerSpeech.speakMinutes(flow.durationMinutes)}, " +
-                "jelzés ${TimerSpeech.speakMinutes(flow.announceIntervalMinutes)}enként. $action " +
+                "jelzés $intervalText. $action " +
                 "Söpörj jobbra a mentéshez, söprés balra a mégsehez. Ismétlés: söprés fel."
         )
     }
@@ -7584,6 +7669,7 @@ class MainActivity : AppCompatActivity() {
         return try {
             activeFlow = AppFlow.Menu
             menuStack.clear()
+            menuIndexStack.clear()
             currentMenu = com.superdl.launcher.menu.MenuTree.buildRoot(this)
             currentIndex = 0
             updateDisplay()
@@ -7593,6 +7679,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 activeFlow = AppFlow.Menu
                 menuStack.clear()
+                menuIndexStack.clear()
                 currentMenu = com.superdl.launcher.menu.MenuTree.root
                 currentIndex = 0
                 updateDisplay()
@@ -8157,6 +8244,8 @@ class MainActivity : AppCompatActivity() {
 
     /** A sebesség figyelése a helymeghatározásból. */
     private fun startSpeedUpdates() {
+        // MIÉRT: ismételt indításnál a régi figyelő bent ragadt volna a LocationManagerben.
+        stopSpeedUpdates()
         val hasLocation = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -8481,21 +8570,29 @@ class MainActivity : AppCompatActivity() {
         val correct = q.isCorrect(flow.answerIndex)
         val newScore = if (correct) flow.score + 1 else flow.score
 
-        if (correct) {
+        val feedbackText = if (correct) {
             feedbackSuccess()
-            tts.speak("Helyes! ${q.explanation}")
+            "Helyes! ${q.explanation}"
         } else {
             feedbackError()
-            tts.speak("Nem jó. A helyes válasz: ${q.answers[q.correctIndex]}. ${q.explanation}")
+            "Nem jó. A helyes válasz: ${q.answers[q.correctIndex]}. ${q.explanation}"
         }
 
         val nextIndex = flow.questionIndex + 1
         if (nextIndex >= flow.set.questions.size) {
             val total = flow.set.questions.size
             val percent = (newScore * 100) / total
-            exitFlow("Vége. Eredmény: $newScore a $total kérdésből, $percent százalék.")
+            // MIÉRT: „az 5 kérdésből", „a 10 kérdésből" — a névelő a kimondott számhoz igazodik
+            // (egy, öt..., ezer... magánhangzóval kezdődik).
+            val article = total.toString().let {
+                (it.startsWith("1") && (it.length == 1 || it.length == 4)) || it.startsWith("5")
+            }.let { if (it) "az" else "a" }
+            // MIÉRT: az utolsó válasz visszajelzését az exitFlow `tts.stop()`-ja
+            // elvágta — egy üzenetbe tesszük az eredménnyel.
+            exitFlow("$feedbackText Vége. Eredmény: $newScore $article $total kérdésből, $percent százalék.")
             return
         }
+        tts.speak(feedbackText)
         activeFlow = flow.copy(questionIndex = nextIndex, answerIndex = 0, score = newScore)
         updateFlowDisplay()
         speakQuizQuestion(flow.set, nextIndex, 0)
@@ -8530,6 +8627,10 @@ class MainActivity : AppCompatActivity() {
                 if (!manual &&
                     com.superdl.launcher.catalog.UpdateChecker.alreadyAnnounced(this, info.version)
                 ) return@postWhenAlive
+                // MIÉRT: az automatikus ellenőrzés ne rántsa ki a felhasználót egy
+                // folyamatból (hívás, diktálás, olvasás). Nem jelöljük bejelentettnek,
+                // így a következő ellenőrzéskor — a menüben — szólunk.
+                if (!manual && activeFlow !is AppFlow.Menu) return@postWhenAlive
 
                 com.superdl.launcher.catalog.UpdateChecker.markAnnounced(this, info.version)
                 tts.speak(info.speak())
@@ -8605,6 +8706,14 @@ class MainActivity : AppCompatActivity() {
         tts.speak(reason)
     }
 
+    /**
+     * A legutóbb letöltött katalógus-csoportok. MIÉRT: a modul-listából balra
+     * eddig ÚJRA letöltöttük az egészet — egy csoportnál vagy hálózati hibánál
+     * a felhasználó a listában ragadt. Most a megjegyzett csoportokhoz lépünk
+     * vissza, vagy (ha nincs mihez) bezárjuk a katalógust.
+     */
+    private var catalogGroups: List<Pair<com.superdl.launcher.catalog.CatalogCategory, List<com.superdl.launcher.catalog.CatalogModule>>>? = null
+
     private fun startCatalogBrowse() {
         tts.speak("Katalógus betöltése.")
         Thread {
@@ -8623,6 +8732,7 @@ class MainActivity : AppCompatActivity() {
                             .takeIf { it.isNotEmpty() }
                             ?.let { cat to it }
                     }
+                catalogGroups = groups.takeIf { it.size > 1 }
                 if (groups.size <= 1) {
                     enterCatalogCategory(result.modules)
                     return@postWhenAlive
@@ -9759,7 +9869,7 @@ class MainActivity : AppCompatActivity() {
         action: com.superdl.launcher.calendar.CalendarAction
     ) {
         tts.speak(
-            "Ezt fogom csinálni, amikor a ${event.title} program riasztása megszólal, " +
+            "Ezt fogom csinálni, amikor ${withArticle(event.title)} program riasztása megszólal, " +
                 "és te igent mondasz rá. ${action.label()}. " +
                 "Söpörj jobbra a mentéshez, balra a mégsehez."
         )
@@ -9771,7 +9881,7 @@ class MainActivity : AppCompatActivity() {
         sounds.play(SoundType.ACTION_OK)
         returnToCalendarBrowse(flow.events, flow.eventIndex)
         tts.speakAdd(
-            "Elmentve. A ${event.title} riasztásánál ez lesz az első választható " +
+            "Elmentve. ${withArticle(event.title).replaceFirstChar { it.uppercase() }} riasztásánál ez lesz az első választható " +
                 "lehetőség: ${flow.action.label()}."
         )
     }
@@ -9802,7 +9912,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun repeatCalendarDeleteConfirm(event: CalendarEvent) {
-        tts.speak("Biztosan törlöd a ${event.title} programot? Söpörj jobbra a törléshez, söprés balra a mégsehez.")
+        tts.speak("Biztosan törlöd ${withArticle(event.title)} programot? Söpörj jobbra a törléshez, söprés balra a mégsehez.")
     }
 
     private fun deleteCalendarEvent(flow: AppFlow.CalendarDeleteConfirm) {
@@ -11737,7 +11847,7 @@ class MainActivity : AppCompatActivity() {
                     "Időpont bevitele. Négy számjegy: óra, óra, perc, perc."
             }
             NumberPadPurpose.AMOUNT ->
-                "Időtartam bevitele ${await.timerUnit?.label?.lowercase() ?: ""}ben."
+                "Időtartam bevitele${timerUnitInessive(await.timerUnit)}."
             NumberPadPurpose.DATE ->
                 "Dátum bevitele. Nyolc számjegy: év, év, év, év, hónap, hónap, nap, nap."
             NumberPadPurpose.PRICE -> "Ár bevitele forintban."
@@ -11777,7 +11887,7 @@ class MainActivity : AppCompatActivity() {
                     else -> "Mondd az időpontot. Például: nyolc óra tizenöt."
                 }
                 NumberPadPurpose.AMOUNT ->
-                    "Mondd az időtartamot ${await.timerUnit?.label?.lowercase() ?: ""}ben."
+                    "Mondd az időtartamot${timerUnitInessive(await.timerUnit)}."
                 NumberPadPurpose.DATE -> "Mondd a dátumot. Például: március tizenötödike."
                 NumberPadPurpose.PRICE -> "Mondd az árat forintban."
                 NumberPadPurpose.PIN -> "Mondd a PIN kódot."
@@ -11933,8 +12043,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         ShoppingListStore.addItem(this, listName, itemName, amount)
-        tts.speak("$itemName hozzáadva, $amount forint.")
-        listenForShoppingListMore(listName)
+        listenForShoppingListMore(listName, prefix = "$itemName hozzáadva, $amount forint. ")
     }
 
     private fun startNumberPadFlow(purpose: NumberPadPurpose, sosSlot: Int? = null) {
@@ -11965,7 +12074,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startPinPadFlow(mode: PinPadMode, setupPin: String? = null) {
+    /** @param prefix a bevezető ELÉ kerül — külön kimondva a bevezető elvágta volna. */
+    private fun startPinPadFlow(mode: PinPadMode, setupPin: String? = null, prefix: String = "") {
         val items = NumberPadHelper.itemsFor(NumberPadPurpose.PIN)
         activeFlow = AppFlow.NumberPadInput(
             purpose = NumberPadPurpose.PIN,
@@ -11987,7 +12097,7 @@ class MainActivity : AppCompatActivity() {
             PinPadMode.CONFIRM ->
                 "Erősítsd meg az új PIN kódot. Megerősítés a mentéshez."
         }
-        tts.speak(intro)
+        tts.speak(prefix + intro)
         tts.speakAdd(items.first().speakLabel())
     }
 
@@ -11998,14 +12108,13 @@ class MainActivity : AppCompatActivity() {
         startPinPadFlow(PinPadMode.UNLOCK)
     }
 
-    private fun startLockPinSetupFlow() {
-        startPinPadFlow(PinPadMode.SETUP)
+    private fun startLockPinSetupFlow(prefix: String = "") {
+        startPinPadFlow(PinPadMode.SETUP, prefix = prefix)
     }
 
     private fun toggleLockPin() {
         if (!LockPinStore.hasPinSet(this)) {
-            tts.speak("Előbb állíts be PIN kódot.")
-            startLockPinSetupFlow()
+            startLockPinSetupFlow(prefix = "Előbb állíts be PIN kódot. ")
             return
         }
         val wasEnabled = LockPinStore.isEnabled(this)
@@ -12177,8 +12286,7 @@ class MainActivity : AppCompatActivity() {
                             tts.speak("Nem sikerült hozzáadni.")
                             return
                         }
-                        tts.speak("$itemName hozzáadva ár nélkül.")
-                        listenForShoppingListMore(listName)
+                        listenForShoppingListMore(listName, prefix = "$itemName hozzáadva ár nélkül. ")
                     } else {
                         exitFlow("Bevásárlólista megszakítva.")
                     }
@@ -12290,8 +12398,8 @@ class MainActivity : AppCompatActivity() {
                 val expected = flow.setupPin
                 if (expected == null || pin != expected) {
                     feedbackError()
-                    tts.speak("A két PIN nem egyezik. Kezdd újra.")
-                    startLockPinSetupFlow()
+                    // MIÉRT: egy mondatban — külön kimondva az új bevezető elvágta.
+                    startLockPinSetupFlow(prefix = "A két PIN nem egyezik. Kezdd újra. ")
                     return
                 }
                 LockPinStore.savePin(this, pin)
@@ -12383,8 +12491,7 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 val priceText = price?.let { ", $it forint" }.orEmpty()
-                tts.speak("$itemName hozzáadva$priceText.")
-                listenForShoppingListMore(listName)
+                listenForShoppingListMore(listName, prefix = "$itemName hozzáadva$priceText. ")
             }
         }
     }
@@ -12548,7 +12655,7 @@ class MainActivity : AppCompatActivity() {
     private fun launchExternalAppFromAssistant(query: String) {
         val app = ExternalAppHelper.findByName(this, query)
         if (app == null) {
-            tts.speakThen("Nem találom a $query alkalmazást.") { resumeVoiceAssistantListening() }
+            tts.speakThen("Nem találom ${withArticle(query)} alkalmazást.") { resumeVoiceAssistantListening() }
             return
         }
         // Az asszisztensből indított külső appnál is bekapcsoljuk az olvasót.
@@ -12874,6 +12981,8 @@ class MainActivity : AppCompatActivity() {
         Thread {
             val text = ArticleTextExtractor.fetchText(result.url)
             postWhenAlive {
+                // MIÉRT: ha közben kiléptél, ne rántson vissza a találati listába.
+                if (activeFlow !is AppFlow.SearchLoading) return@postWhenAlive
                 val body = when {
                     !text.isNullOrBlank() -> text
                     result.snippet.isNotBlank() -> result.snippet
@@ -13338,7 +13447,7 @@ class MainActivity : AppCompatActivity() {
             activeFlow = AppFlow.ShoppingListAwaitItem
             updateFlowDisplay()
             voiceInput.listen(
-                prompt = "Mondd a tételt a $listName listához.",
+                prompt = "Mondd a tételt ${withArticle(listName)} listához.",
                 speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
                 onResult = { spoken ->
                     val item = spoken.trim()
@@ -13364,12 +13473,16 @@ class MainActivity : AppCompatActivity() {
         tts.speakAdd("$itemName ára.")
     }
 
-    private fun listenForShoppingListMore(listName: String) {
+    /**
+     * @param prefix a kérdés ELÉ kerül (pl. „Tej hozzáadva."). MIÉRT: külön
+     * kimondva a kérdés (speakThen, QUEUE_FLUSH) elvágta a visszaigazolást.
+     */
+    private fun listenForShoppingListMore(listName: String, prefix: String = "") {
         ensureMicAndRun {
             activeFlow = AppFlow.ShoppingListAwaitMore(listName)
             updateFlowDisplay()
             voiceInput.listen(
-                prompt = "Mondd a következő tételt, vagy mondd: kész.",
+                prompt = prefix + "Mondd a következő tételt, vagy mondd: kész.",
                 speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
                 onResult = { spoken ->
                     val text = spoken.trim()
@@ -13517,7 +13630,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun repeatShoppingDeleteListConfirm(listName: String) {
         tts.speak(
-            "Törlöd a $listName bevásárlólistát és minden tételét? " +
+            "Törlöd ${withArticle(listName)} bevásárlólistát és minden tételét? " +
                 "Söpörj jobbra a törléshez, söprés balra a mégsehez."
         )
     }
@@ -14093,7 +14206,7 @@ class MainActivity : AppCompatActivity() {
                     updateFlowDisplay()
                     val moreHint = if (page.hasMore) " Az utolsó hírnél lefelé söprés a következő 20 hírhez." else ""
                     tts.speak(
-                        "${page.items.size} hír a ${feed.name} forrásból. Söpörj fel-le navigálás, " +
+                        "${page.items.size} hír ${withArticle(feed.name)} forrásból. Söpörj fel-le navigálás, " +
                             "jobbra teljes cikk felolvasása, balra vissza.$moreHint"
                     )
                     tts.speakAdd(page.items.first().speakPreview())
@@ -14211,6 +14324,8 @@ class MainActivity : AppCompatActivity() {
             headingDegrees = heading,
             onResult = { pois ->
                 postWhenAlive {
+                    // MIÉRT: ha közben kiléptél, a késve érkező eredmény ne rántson vissza.
+                    if (activeFlow !is AppFlow.GpsRadarLoading) return@postWhenAlive
                     if (pois.isEmpty()) {
                         stopRadarSession()
                         exitFlow("Nincs közeli bolt, étterem, utca vagy kereszteződés 300 méteren belül.")
@@ -14225,6 +14340,7 @@ class MainActivity : AppCompatActivity() {
             },
             onError = { message ->
                 postWhenAlive {
+                    if (activeFlow !is AppFlow.GpsRadarLoading) return@postWhenAlive
                     stopRadarSession()
                     exitFlow(message, error = true)
                 }
@@ -14567,7 +14683,9 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 val hint = GpsAccuracyRefiner.accuracyHint(result.accuracyMeters)
                 tts.speakThen(hint) {
-                    listenForGpsSaveOwnLocationName(activeFlow as AppFlow.GpsRadarAwaitSaveName, refining.fromAssistant)
+                    // MIÉRT: a súgó alatt kiléphetett — a vak `as` itt összeomlott volna.
+                    val saveFlow = activeFlow as? AppFlow.GpsRadarAwaitSaveName ?: return@speakThen
+                    listenForGpsSaveOwnLocationName(saveFlow, refining.fromAssistant)
                 }
             }
         )
@@ -15797,7 +15915,14 @@ class MainActivity : AppCompatActivity() {
         playDictaphoneRecordingBeep()
     }
 
+    /** MIÉRT: mentés közben egy második balra söprés kétszer mentett (vagy félrebeszélt). */
+    private var dictaphoneSaving = false
+
     private fun stopDictaphoneRecording(save: Boolean) {
+        if (dictaphoneSaving) {
+            tts.speak("Mentés folyamatban.")
+            return
+        }
         stopDictaphoneElapsedLoop()
         if (!DictaphoneManager.isRecording()) {
             exitFlow("Nincs aktív felvétel.")
@@ -15809,8 +15934,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         tts.speak("Felvétel mentése. Várj.")
+        dictaphoneSaving = true
         Thread {
-            val entry = DictaphoneManager.stopAndSave(this@MainActivity)
+            val entry = try {
+                DictaphoneManager.stopAndSave(this@MainActivity)
+            } finally {
+                mainHandler.post { dictaphoneSaving = false }
+            }
             postWhenAlive {
                 if (entry == null) {
                     val detail = DictaphoneManager.lastError() ?: "Felvétel mentése sikertelen."
@@ -16589,42 +16719,48 @@ class MainActivity : AppCompatActivity() {
         if (!ensureLocationPermission()) return
         startTransitCompass()
         tts.speak("Közeli megállók keresése indulási időkkel. Várj egy pillanatot.")
-        val heading = transitCompass?.heading() ?: 0f
-        TransitHelper.fetchNearbyStops(
-            context = this,
-            onResult = { places ->
-                postWhenAlive {
-                    showTransitBrowse(
-                        places,
-                        title = "Közeli megállók",
-                        radiusMode = TransitHelper.StopRadiusMode.NEAR
-                    )
-                }
-            },
-            onError = { message -> postWhenAlive { tts.speak(message) } },
-            headingDegrees = heading
-        )
+        // MIÉRT: a frissen indított iránytű első olvasása mindig 0 fok —
+        // várunk egy kicsit, hogy valódi irányt adjunk a lekérdezésnek.
+        afterTransitCompassSettles { heading ->
+            TransitHelper.fetchNearbyStops(
+                context = this,
+                onResult = { places ->
+                    postWhenAlive {
+                        showTransitBrowse(
+                            places,
+                            title = "Közeli megállók",
+                            radiusMode = TransitHelper.StopRadiusMode.NEAR
+                        )
+                    }
+                },
+                onError = { message -> postWhenAlive { onTransitFetchError(message) } },
+                headingDegrees = heading
+            )
+        }
     }
 
     private fun startTransitFavoritesFlow() {
         if (!ensureLocationPermission()) return
         startTransitCompass()
         tts.speak("Kedvenc megállók betöltése. Várj.")
-        val heading = transitCompass?.heading() ?: 0f
-        TransitHelper.fetchFavoriteStops(
-            context = this,
-            onResult = { places ->
-                postWhenAlive {
-                    showTransitBrowse(
-                        places,
-                        title = "Kedvenc megállók",
-                        radiusMode = TransitHelper.StopRadiusMode.NEAR
-                    )
-                }
-            },
-            onError = { message -> postWhenAlive { tts.speak(message) } },
-            headingDegrees = heading
-        )
+        // MIÉRT: a frissen indított iránytű első olvasása mindig 0 fok —
+        // várunk egy kicsit, hogy valódi irányt adjunk a lekérdezésnek.
+        afterTransitCompassSettles { heading ->
+            TransitHelper.fetchFavoriteStops(
+                context = this,
+                onResult = { places ->
+                    postWhenAlive {
+                        showTransitBrowse(
+                            places,
+                            title = "Kedvenc megállók",
+                            radiusMode = TransitHelper.StopRadiusMode.NEAR
+                        )
+                    }
+                },
+                onError = { message -> postWhenAlive { onTransitFetchError(message) } },
+                headingDegrees = heading
+            )
+        }
     }
 
     private fun startTransitStopFlow() {
@@ -16664,6 +16800,31 @@ class MainActivity : AppCompatActivity() {
     private fun startTransitCompass() {
         transitCompass?.stop()
         transitCompass = CompassProvider(this).also { it.start() }
+    }
+
+    /**
+     * A megálló- és állomás-lekérdezés az iránytű beállása után indul.
+     * MIÉRT: a `startTransitCompass()` után azonnal olvasott irány mindig 0 volt,
+     * így az „előtted / mögötted" irányok hamisak lettek.
+     */
+    private fun afterTransitCompassSettles(fetch: (Float) -> Unit) {
+        val startFlow = activeFlow
+        mainHandler.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            // Ha közben máshova mentél, nem indítjuk el a lekérdezést.
+            if (activeFlow !== startFlow) return@postDelayed
+            fetch(transitCompass?.heading() ?: 0f)
+        }, 400L)
+    }
+
+    /**
+     * Megálló/állomás lekérdezési hiba. MIÉRT: az iránytű eddig bekapcsolva
+     * maradt, és az asszisztensből indítva a felhasználó nem kapott vissza
+     * az asszisztenshez.
+     */
+    private fun onTransitFetchError(message: String) {
+        stopTransitCompass()
+        if (voiceAssistantReturnPending) exitFlow(message) else tts.speak(message)
     }
 
     private fun stopTransitCompass() {
@@ -16871,42 +17032,48 @@ class MainActivity : AppCompatActivity() {
         if (!ensureLocationPermission()) return
         startTransitCompass()
         tts.speak("Közeli vasútállomások keresése indulási időkkel. Várj egy pillanatot.")
-        val heading = transitCompass?.heading() ?: 0f
-        TrainHelper.fetchNearbyStations(
-            context = this,
-            onResult = { stations ->
-                postWhenAlive {
-                    showTrainBrowse(
-                        stations,
-                        title = "Közeli állomások",
-                        radiusMode = TrainHelper.StationRadiusMode.NEAR
-                    )
-                }
-            },
-            onError = { message -> postWhenAlive { tts.speak(message) } },
-            headingDegrees = heading
-        )
+        // MIÉRT: a frissen indított iránytű első olvasása mindig 0 fok —
+        // várunk egy kicsit, hogy valódi irányt adjunk a lekérdezésnek.
+        afterTransitCompassSettles { heading ->
+            TrainHelper.fetchNearbyStations(
+                context = this,
+                onResult = { stations ->
+                    postWhenAlive {
+                        showTrainBrowse(
+                            stations,
+                            title = "Közeli állomások",
+                            radiusMode = TrainHelper.StationRadiusMode.NEAR
+                        )
+                    }
+                },
+                onError = { message -> postWhenAlive { onTransitFetchError(message) } },
+                headingDegrees = heading
+            )
+        }
     }
 
     private fun startTrainFavoritesFlow() {
         if (!ensureLocationPermission()) return
         startTransitCompass()
         tts.speak("Kedvenc állomások betöltése. Várj.")
-        val heading = transitCompass?.heading() ?: 0f
-        TrainHelper.fetchFavoriteStations(
-            context = this,
-            onResult = { stations ->
-                postWhenAlive {
-                    showTrainBrowse(
-                        stations,
-                        title = "Kedvenc állomások",
-                        radiusMode = TrainHelper.StationRadiusMode.NEAR
-                    )
-                }
-            },
-            onError = { message -> postWhenAlive { tts.speak(message) } },
-            headingDegrees = heading
-        )
+        // MIÉRT: a frissen indított iránytű első olvasása mindig 0 fok —
+        // várunk egy kicsit, hogy valódi irányt adjunk a lekérdezésnek.
+        afterTransitCompassSettles { heading ->
+            TrainHelper.fetchFavoriteStations(
+                context = this,
+                onResult = { stations ->
+                    postWhenAlive {
+                        showTrainBrowse(
+                            stations,
+                            title = "Kedvenc állomások",
+                            radiusMode = TrainHelper.StationRadiusMode.NEAR
+                        )
+                    }
+                },
+                onError = { message -> postWhenAlive { onTransitFetchError(message) } },
+                headingDegrees = heading
+            )
+        }
     }
 
     private fun startTrainStationFlow() {
@@ -17425,6 +17592,10 @@ class MainActivity : AppCompatActivity() {
             voiceInput.cancel()
         } catch (_: Exception) {
         }
+        // MIÉRT: az asszisztens indításakor szüneteltettük az „Elena" figyelést,
+        // de eddig csak a balra söprés indította újra — egy rendes parancs után
+        // a hívószó többé nem működött.
+        resumeElenaWakeListening()
         // A válasz már elhangzott, ezért csendben lépünk vissza a menübe.
         exitFlow("")
     }
@@ -17639,8 +17810,7 @@ class MainActivity : AppCompatActivity() {
                 resumeVoiceAssistantListening()
             }
             MenuAction.TTS_ENGINE_READ -> {
-                readCurrentTtsEngine()
-                resumeVoiceAssistantListening()
+                readCurrentTtsEngine { resumeVoiceAssistantListening() }
             }
             MenuAction.BATTERY_PATROL_TOGGLE -> {
                 toggleBatteryPatrol()
@@ -18045,10 +18215,13 @@ class MainActivity : AppCompatActivity() {
     private fun searchYoutube(query: String, page: Int = 0) {
         voiceInput.cancel()
         tts.speak("Keresés: $query. Várj egy pillanatot.")
+        // MIÉRT: ha a keresés alatt kiléptél, a késve érkező eredmény ne rántson vissza.
+        val startFlow = activeFlow
         YoutubeHelper.search(
             query = query,
             page = page,
             onResult = { result ->
+                if (isFinishing || isDestroyed || activeFlow !== startFlow) return@search
                 activeFlow = AppFlow.YoutubeBrowse(result.videos, 0, query, result.page, result.hasMore)
                 updateFlowDisplay()
                 val moreHint = if (result.hasMore) " Az utolsó találatnál lefelé söprés a következő 20 videóhoz." else ""
@@ -18057,7 +18230,10 @@ class MainActivity : AppCompatActivity() {
                 )
                 tts.speakAdd(result.videos.first().speakPreview())
             },
-            onError = { message -> exitFlow(message, error = true) }
+            onError = { message ->
+                if (isFinishing || isDestroyed || activeFlow !== startFlow) return@search
+                exitFlow(message, error = true)
+            }
         )
     }
 
@@ -18068,12 +18244,17 @@ class MainActivity : AppCompatActivity() {
                 query = flow.query,
                 page = flow.page + 1,
                 onResult = { result ->
+                    // MIÉRT: ha közben kiléptél a találatokból, ne rántson vissza.
+                    if (isFinishing || isDestroyed || activeFlow !is AppFlow.YoutubeBrowse) return@search
                     activeFlow = AppFlow.YoutubeBrowse(result.videos, 0, flow.query, result.page, result.hasMore)
                     updateFlowDisplay()
                     tts.speak("${result.videos.size} új találat, ${result.page + 1}. oldal.")
                     tts.speakAdd(result.videos.first().speakPreview())
                 },
-                onError = { tts.speak("A következő találatok nem tölthetők.") }
+                onError = {
+                    if (isFinishing || isDestroyed || activeFlow !is AppFlow.YoutubeBrowse) return@search
+                    tts.speak("A következő találatok nem tölthetők.")
+                }
             )
             return
         }
@@ -18972,7 +19153,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resumeLastBook() {
-        val recent = BookLibrary.resolveRecent(this)
+        // MIÉRT HÁTTÉRSZÁLON: a resolveRecent a teljes könyvtárat bejárja
+        // (BookLibrary.scan) — a fő szálon ez másodpercekre megfagyasztott.
+        val startFlow = activeFlow
+        Thread {
+            val recent = BookLibrary.resolveRecent(this)
+            postWhenAlive {
+                if (activeFlow !== startFlow) return@postWhenAlive
+                resumeLastBookFrom(recent)
+            }
+        }.start()
+    }
+
+    private fun resumeLastBookFrom(recent: List<BookEntry>) {
         val book = recent.firstOrNull()
         if (book == null) {
             if (voiceAssistantReturnPending) {
@@ -19162,8 +19355,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun jumpToBookmark(bookmark: BookBookmark) {
-        if (bookmark.kind == "audio") {
+        // MIÉRT HÁTTÉRSZÁLON: a BookLibrary.scan a teljes tárhelyet bejárja —
+        // a fő szálon ez másodpercekre megfagyasztotta a programot.
+        Thread {
             val books = BookLibrary.scan(this)
+            postWhenAlive {
+                if (activeFlow !is AppFlow.BookBookmarkBrowse) return@postWhenAlive
+                jumpToBookmarkWith(bookmark, books)
+            }
+        }.start()
+    }
+
+    private fun jumpToBookmarkWith(bookmark: BookBookmark, books: List<BookEntry>) {
+        if (bookmark.kind == "audio") {
             val cel = java.io.File(bookmark.bookPath).name.lowercase()
             val book = books.firstOrNull { it.path == bookmark.bookPath }
                 ?: books.firstOrNull {
@@ -19180,7 +19384,6 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-        val books = BookLibrary.scan(this)
         val book = books.firstOrNull { it.path == bookmark.bookPath }
             ?: BookEntry(
                 path = bookmark.bookPath,
@@ -19303,14 +19506,24 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun readCurrentTtsEngine() {
-        val options = TtsVoiceCatalog.getSelectableOptions(this)
-        if (options.isEmpty()) {
-            tts.speak("Nem található telepített T T S hang.")
-            return
-        }
-        val current = options[TtsVoiceCatalog.findCurrentIndex(options, this)]
-        tts.speak("Aktuális T T S hang: ${current.speakFull()}.")
+    /**
+     * MIÉRT HÁTTÉRSZÁLON: a hanglista összegyűjtése másodpercekig is eltarthat,
+     * a fő szálon addig az egész program megfagyott (ahogy a startTtsEngineFlow is).
+     * @param onDone ha megadod, a bemondás UTÁN fut (az asszisztens így folytatja).
+     */
+    private fun readCurrentTtsEngine(onDone: (() -> Unit)? = null) {
+        Thread {
+            val options = TtsVoiceCatalog.getSelectableOptions(applicationContext)
+            postWhenAlive {
+                val message = if (options.isEmpty()) {
+                    "Nem található telepített T T S hang."
+                } else {
+                    val current = options[TtsVoiceCatalog.findCurrentIndex(options, this)]
+                    "Aktuális T T S hang: ${current.speakFull()}."
+                }
+                if (onDone != null) tts.speakThen(message) { onDone() } else tts.speak(message)
+            }
+        }.start()
     }
 
     private fun startSoundTrainingFlow() {
@@ -19747,8 +19960,12 @@ class MainActivity : AppCompatActivity() {
         }
         val item = flow.items[flow.itemIndex]
         tts.speakThen("Mondd be, mi ez. Ha kész, söpörj jobbra. Balra: mégse.") {
+            // MIÉRT: ha a súgó alatt kiléptél, ne induljon el a háttérben egy
+            // felvétel, amit semmi nem állít le.
+            if (activeFlow !is AppFlow.MediaContextMenu) return@speakThen
             playRecordingStartBleep()
             Handler(Looper.getMainLooper()).postDelayed({
+                if (isFinishing || isDestroyed || activeFlow !is AppFlow.MediaContextMenu) return@postDelayed
                 val ok = com.superdl.launcher.gps.VoiceNoteRecorder.startRecording(
                     this, "media_" + item.fileName.substringBeforeLast('.')
                 )
@@ -19859,6 +20076,7 @@ class MainActivity : AppCompatActivity() {
         note: String,
         at: Long
     ) {
+        val idsBefore = com.superdl.launcher.reminder.LaterReminderStore.all(this).map { it.id }.toSet()
         val entry = com.superdl.launcher.reminder.LaterReminderStore.add(
             this, kind, number, name, at, note
         )
@@ -19866,6 +20084,12 @@ class MainActivity : AppCompatActivity() {
             feedbackError()
             exitFlow("Túl sok függő emlékeztető van. Előbb zárj le néhányat.")
             return
+        }
+        // MIÉRT: az add() a régi tételt (ugyanaz a szám) új azonosítóval cseréli le —
+        // a régi riasztását itt mondjuk le, különben a régi időpontban is szólna.
+        val idsAfter = com.superdl.launcher.reminder.LaterReminderStore.all(this).map { it.id }.toSet()
+        (idsBefore - idsAfter).forEach { oldId ->
+            com.superdl.launcher.reminder.LaterReminderScheduler.cancel(this, oldId)
         }
         com.superdl.launcher.reminder.LaterReminderScheduler.schedule(this, entry)
         feedbackSuccess()
@@ -20051,7 +20275,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val total = items.size + reminderAddSlots(kind)
-        val index = itemIndex.coerceIn(0, total - 1)
+        // MIÉRT: az utolsó tétel törlése után az index a „felvétele" sorra
+        // csúszott, és azt mondtuk, hogy a lista kiürült — pedig nem.
+        val index = if (items.isNotEmpty()) {
+            itemIndex.coerceIn(0, items.lastIndex)
+        } else {
+            itemIndex.coerceIn(0, total - 1)
+        }
         activeFlow = AppFlow.ReminderList(kind, items, index)
         updateFlowDisplay()
         val entry = items.getOrNull(index)
@@ -20074,8 +20304,9 @@ class MainActivity : AppCompatActivity() {
                 // A RÉGIT NEM TÖRÖLJÜK ELŐRE. Ha most megszakad az új időpont
                 // megadása, a felhasználó emlékeztető nélkül maradna — pont
                 // arról, amire emlékeztetőt kért. A mentés úgyis felülírja a
-                // korábbit, mert ugyanarra a számra csak egy tartozhat.
-                com.superdl.launcher.reminder.LaterReminderScheduler.cancel(this, entry.id)
+                // korábbit, mert ugyanarra a számra csak egy tartozhat — a régi
+                // riasztását a saveReminder mondja le. (Eddig itt előre lemondtuk,
+                // így megszakított új időpontnál a tétel soha nem szólalt meg.)
                 startReminderFlow(entry.kind, entry.number, entry.name, entry.note)
             }
             com.superdl.launcher.reminder.ReminderAction.SCHEDULE_SMS -> {
@@ -20732,7 +20963,12 @@ class MainActivity : AppCompatActivity() {
                 onResult = { spoken ->
                     val parsed = VoiceTimeParser.parse(spoken)
                     if (parsed == null) {
-                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        // MIÉRT: a „Próbáld újra" után eddig senki nem hallgatott —
+                        // a felhasználó a várakozó képernyőn ragadt. Újra figyelünk
+                        // (de csak ha közben nem lépett ki).
+                        tts.speakThen("Nem értettem az időpontot. Próbáld újra.") {
+                            if (activeFlow === AppFlow.HomeWatchAwaitTime) startHomeWatchTimeFlow()
+                        }
                         return@listen
                     }
                     com.superdl.launcher.home.HomeWatchSettings
@@ -20885,7 +21121,12 @@ class MainActivity : AppCompatActivity() {
                 onResult = { spoken ->
                     val parsed = VoiceTimeParser.parse(spoken)
                     if (parsed == null) {
-                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        // MIÉRT: a „Próbáld újra" után eddig senki nem hallgatott —
+                        // a felhasználó a várakozó képernyőn ragadt. Újra figyelünk
+                        // (de csak ha közben nem lépett ki).
+                        tts.speakThen("Nem értettem az időpontot. Próbáld újra.") {
+                            if (activeFlow === AppFlow.PatrolNightAwaitStart) startPatrolNightStartFlow()
+                        }
                         return@listen
                     }
                     PatrolStore.setNightStartMinutes(this, parsed.first * 60 + parsed.second)
@@ -20908,7 +21149,12 @@ class MainActivity : AppCompatActivity() {
                 onResult = { spoken ->
                     val parsed = VoiceTimeParser.parse(spoken)
                     if (parsed == null) {
-                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        // MIÉRT: a „Próbáld újra" után eddig senki nem hallgatott —
+                        // a felhasználó a várakozó képernyőn ragadt. Újra figyelünk
+                        // (de csak ha közben nem lépett ki).
+                        tts.speakThen("Nem értettem az időpontot. Próbáld újra.") {
+                            if (activeFlow === AppFlow.PatrolNightAwaitEnd) startPatrolNightEndFlow()
+                        }
                         return@listen
                     }
                     PatrolStore.setNightEndMinutes(this, parsed.first * 60 + parsed.second)
@@ -21090,6 +21336,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun askVoiceThemeTime(prompt: String, apply: (Int) -> String) {
+        val startFlow = activeFlow
         ensureMicAndRun {
             voiceInput.listen(
                 prompt = prompt,
@@ -21097,7 +21344,12 @@ class MainActivity : AppCompatActivity() {
                 onResult = { spoken ->
                     val parsed = VoiceTimeParser.parse(spoken)
                     if (parsed == null) {
-                        tts.speak("Nem értettem az időpontot. Próbáld újra.")
+                        // MIÉRT: a „Próbáld újra" után eddig senki nem hallgatott —
+                        // a felhasználó a várakozó képernyőn ragadt. Újra figyelünk
+                        // (de csak ha közben nem lépett ki).
+                        tts.speakThen("Nem értettem az időpontot. Próbáld újra.") {
+                            if (activeFlow === startFlow) askVoiceThemeTime(prompt, apply)
+                        }
                         return@listen
                     }
                     val message = apply(parsed.first * 60 + parsed.second)
@@ -21572,6 +21824,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     return@postWhenAlive
                 }
+                catalogGroups = null
                 activeFlow = AppFlow.CatalogBrowse(themes, 0)
                 updateFlowDisplay()
                 tts.speak(
@@ -21996,8 +22249,11 @@ class MainActivity : AppCompatActivity() {
             val cameraId = cm.cameraIdList.firstOrNull() ?: return
             val wasOn = FlashlightState.isOn
             tts.speak(ToggleAnnouncement.speakBinaryToggle("Zseblámpa", wasOn))
-            FlashlightState.isOn = !wasOn
-            cm.setTorchMode(cameraId, FlashlightState.isOn)
+            val newState = !wasOn
+            cm.setTorchMode(cameraId, newState)
+            // MIÉRT: csak SIKERES váltás után írjuk át — különben hibánál az
+            // állapot hamis maradt, és a következő söprés rossz irányba váltott.
+            FlashlightState.isOn = newState
             tts.speak(ToggleAnnouncement.speakAfterToggle("Zseblámpa", FlashlightState.isOn))
         } catch (_: Exception) {
             tts.speak("Zseblámpa nem elérhető.")
@@ -23889,6 +24145,8 @@ class MainActivity : AppCompatActivity() {
         }
         stopRadarSession(stopGuidance = GpsRadarManager.isGuiding())
         cancelGpsRefining()
+        stopSpeedUpdates()
+        stopTransitCompass()
         sosCountdownActive = false
         countdownHandler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacksAndMessages(null)

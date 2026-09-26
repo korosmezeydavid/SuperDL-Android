@@ -30,6 +30,14 @@ class AlarmReceiver : BroadcastReceiver() {
         val snoozeEnabled = intent.getBooleanExtra(EXTRA_SNOOZE_ENABLED, true)
         val isSnooze = intent.getBooleanExtra(EXTRA_IS_SNOOZE, false)
 
+        // MIÉRT: a szundi a törlés/kikapcsolás után is megszólalhatott. Az
+        // egyszeri ébresztőt a megszólalás maga kapcsolja ki, ezért annál csak
+        // a létezést nézzük; ismétlődőnél a kikapcsolt állapot is kizáró.
+        if (isSnooze && alarmId >= 0) {
+            val entry = AlarmStore.getAll(appContext).firstOrNull { it.id == alarmId }
+            if (entry == null || (!entry.enabled && !entry.isOneTime())) return
+        }
+
         // 0) KIHAGYÁS: ha erre az ébresztőre van érvényben kihagyás, most NEM
         // szólalunk meg — csak "elhasználunk" egyet a számlálóból, és
         // beütemezzük a következő alkalmat. Így nem kell kézzel ki-, majd

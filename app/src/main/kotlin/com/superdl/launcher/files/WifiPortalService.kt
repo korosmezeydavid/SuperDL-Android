@@ -113,6 +113,12 @@ class WifiPortalService : Service() {
         }
         if (!srv.isRunning) {
             if (!srv.start()) {
+                // MIÉRT: startForegroundService után startForeground nélküli
+                // stopSelf() összeomlást okoz — előbb előtérbe lépünk.
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification(null))
+                } catch (_: Exception) {
+                }
                 stopSelf()
                 return START_NOT_STICKY
             }

@@ -39,9 +39,9 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
             return
         }
 
-        if (!intent.getBooleanExtra(EXTRA_SNOOZE, false)) {
-            due.forEach { MedicationScheduler.schedule(appContext, it) }
-        }
+        // MIÉRT: a szundi ágon is ütemezünk — a rendes riasztás ugyanazzal a
+        // kéréskóddal íródik felül, így ez biztonsági háló, nem dupla riasztás.
+        due.forEach { MedicationScheduler.schedule(appContext, it) }
 
         if (MedicationAlertService.isAlertActive(hour, minute)) {
             releaseWakeLock(wakeLock)

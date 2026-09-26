@@ -110,12 +110,16 @@ internal object OsmHelper {
         val name = step.optString("name").ifBlank { "út" }
         val distance = step.optDouble("distance", 0.0).toInt()
         val distText = TransitPlace.formatDistance(distance)
-        val modifier = translateModifier(step.optString("modifier"))
+        // MIÉRT: az OSRM-nél a „maneuver" egy OBJEKTUM ({type, modifier}), nem
+        // szöveg — eddig a típus és az irány mindig üres volt, így minden
+        // lépés „Haladj a … mentén" lett, fordulási utasítás nélkül.
+        val maneuver = step.optJSONObject("maneuver")
+        val modifier = translateModifier(maneuver?.optString("modifier").orEmpty())
         val direction = translateDirection(step.optString("direction"))
-        return when (step.optString("maneuver")) {
+        return when (maneuver?.optString("type").orEmpty()) {
             "depart" -> "Indulás a $name felé, $distText."
             "arrive" -> "Érkezés, $distText."
-            "turn", "new name" -> {
+            "turn", "new name", "continue", "end of road", "fork" -> {
                 val turn = listOf(modifier, direction).filter { it.isNotBlank() }.joinToString(" ")
                 if (turn.isBlank()) "Haladj tovább a $name mentén, $distText."
                 else "$turn a $name irányába, $distText."
@@ -129,6 +133,8 @@ internal object OsmHelper {
         "right" -> "Fordulj jobbra"
         "slight left" -> "Kissé balra"
         "slight right" -> "Kissé jobbra"
+        "sharp left" -> "Fordulj élesen balra"
+        "sharp right" -> "Fordulj élesen jobbra"
         "straight" -> "Egyenesen"
         "uturn" -> "Fordulj vissza"
         else -> ""

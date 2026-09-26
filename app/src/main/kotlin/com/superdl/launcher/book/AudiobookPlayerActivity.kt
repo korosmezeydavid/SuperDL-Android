@@ -278,7 +278,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
         val pos = formatClock(player.currentPosition)
         val dur = formatClock(player.duration)
         val remaining = formatClock((player.duration - player.currentPosition).coerceAtLeast(0))
-        tts.speak("${currentIndex + 1}. sáv. $pos a $dur-ból. Hátra van $remaining.")
+        tts.speak("${currentIndex + 1}. sáv. $pos, összesen $dur. Hátra van $remaining.")
     }
 
     private fun addBookmarkHere() {

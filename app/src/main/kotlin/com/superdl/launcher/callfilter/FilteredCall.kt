@@ -67,7 +67,8 @@ data class FilteredCall(
             it.set(Calendar.HOUR_OF_DAY, 0); it.set(Calendar.MINUTE, 0)
             it.set(Calendar.SECOND, 0); it.set(Calendar.MILLISECOND, 0)
         }
-        return ((b.timeInMillis - a.timeInMillis) / (24 * 60 * 60_000L)).toInt()
+        // MIÉRT kerekítés: nyári időszámítás váltásakor egy nap 23 vagy 25 óra.
+        return Math.round((b.timeInMillis - a.timeInMillis) / 86_400_000.0).toInt()
     }
 }
 

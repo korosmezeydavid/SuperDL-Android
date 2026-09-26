@@ -22,7 +22,7 @@ data class ImapMail(
     }
 
     fun speakHeader(index: Int, total: Int): String =
-        "Levél $index a $total közül. Feladó: ${speakFrom()}. " +
+        "Levél $index ${hungarianArticle(total)} $total közül. Feladó: ${speakFrom()}. " +
             "Tárgy: $subject. Dátum: $date."
 
     fun speakBodyPreview(maxChars: Int = 1200): String {
@@ -33,4 +33,21 @@ data class ImapMail(
         return if (text.isBlank()) "$head A levél tartalma üres."
         else "$head $text"
     }
+}
+
+/**
+ * MIÉRT: „a 5 közül" helyett „az 5 közül" — a névelő a KIMONDOTT számtól függ
+ * (egy, öt, ötven, ötszáz, ezer, egymillió… magánhangzóval kezdődik).
+ */
+private fun hungarianArticle(n: Int): String {
+    if (n < 0) return "a"
+    if (n in 1000..1999) return "az"
+    var x = n
+    while (x >= 1000) x /= 1000
+    val lead = when {
+        x >= 100 -> if (x / 100 == 5) 5 else -1
+        x >= 10 -> if (x / 10 == 5) 5 else -1
+        else -> x
+    }
+    return if (lead == 1 || lead == 5) "az" else "a"
 }

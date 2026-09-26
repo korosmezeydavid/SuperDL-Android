@@ -95,7 +95,10 @@ object GestureOrientation {
             val raw = com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
                 .getString(KEY_MODE, Mode.NORMAL.name) ?: Mode.NORMAL.name
             cache = runCatching { Mode.valueOf(raw) }.getOrDefault(Mode.NORMAL)
-            warmed = true
+            // MIÉRT: feloldás előtt a SafePrefs az (üres) eszköz-védett tárolót
+            // adja; ha ezt véglegesnek vennénk, újraindítás után elveszne a
+            // beállított forgatás. Csak feloldott állapotban számít késznek.
+            warmed = com.superdl.launcher.storage.SafePrefs.isUserUnlocked(context.applicationContext)
         } catch (_: Exception) {
             // Direct Boot vagy más hiba: marad az alap kezelés.
         }

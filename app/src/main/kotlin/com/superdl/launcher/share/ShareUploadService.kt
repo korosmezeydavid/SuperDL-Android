@@ -97,7 +97,16 @@ class ShareUploadService : Service() {
         val file = path?.let { File(it) }
         val target = targetId?.let { CloudTargets.byId(it) }
         if (file == null || !file.isFile || target == null) {
-            stopSelf()
+            // MIÉRT: startForegroundService után startForeground nélküli
+            // stopSelf() összeomlást okoz; futó feltöltést pedig nem állítunk le.
+            if (!isRunning) {
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification(file?.name ?: "Feltöltés", 0))
+                } catch (_: Exception) {
+                }
+                stopForegroundCompat()
+                stopSelf()
+            }
             return START_NOT_STICKY
         }
         if (isRunning) {

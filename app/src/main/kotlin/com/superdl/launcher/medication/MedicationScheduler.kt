@@ -75,7 +75,10 @@ object MedicationScheduler {
 
     fun scheduleSnoozeOneHour(context: Context, reminders: List<MedicationReminder>): Boolean {
         if (reminders.isEmpty()) return false
-        reminders.forEach { cancel(context, it.id) }
+        // MIÉRT: itt korábban cancel() állt, ami a MÁR beütemezett következő
+        // rendes (holnapi) riasztást törölte — a szundi ág pedig nem ütemez
+        // újra, így a napi emlékeztető elhalt. A szundi saját kéréskóddal
+        // (SNOOZE_REQUEST_BASE) fut, nem ütközik a rendes riasztással.
         val triggerAt = System.currentTimeMillis() + 60 * 60_000L
         val cal = Calendar.getInstance().apply { timeInMillis = triggerAt }
         val hour = cal.get(Calendar.HOUR_OF_DAY)

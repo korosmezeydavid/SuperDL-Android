@@ -147,6 +147,12 @@ class YoutubeAudioService : Service() {
         startForegroundSafely(buildNotification(loading = true))
         isRunning = true
 
+        // MIÉRT: minden új videó új beszédmotort hozott létre, a régit viszont
+        // soha nem állítottuk le — a motorkapcsolatok felhalmozódtak.
+        try {
+            tts?.shutdown()
+        } catch (_: Exception) {
+        }
         tts = try {
             TtsManager(this)
         } catch (_: Exception) {

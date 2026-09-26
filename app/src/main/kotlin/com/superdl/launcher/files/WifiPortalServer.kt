@@ -11,6 +11,7 @@ import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -47,7 +48,10 @@ class WifiPortalServer(
 
     private var serverSocket: ServerSocket? = null
     private val running = AtomicBoolean(false)
-    private val pool = Executors.newFixedThreadPool(4)
+    // MIÉRT var: stop() leállítja a szálkészletet (különben minden be-ki
+    // kapcsolás négy szálat hagyott hátra), start() újat hoz létre.
+    @Volatile
+    private var pool: ExecutorService = Executors.newFixedThreadPool(4)
 
     /**
      * Értesítés feltöltéskor – a telefon bemondja, hogy megérkezett a fájl.
@@ -127,10 +131,37 @@ class WifiPortalServer(
     fun speakPin(): String = pin.toCharArray().joinToString(" ")
 
     private fun isAuthorized(headers: Map<String, String>, path: String): Boolean {
-        val cookie = headers["cookie"].orEmpty()
-        if (cookie.contains("superdl_pin=$pin")) return true
+        // MIÉRT pontos egyezés: a korábbi contains() egyetlen kérésben
+        // ("?pin=1000&pin=1001&…") mind a tízezer PIN-t kipróbálhatta.
+        if (cookiePin(headers) == pin) return true
         // A query-ben is jöhet (az első belépéskor)
-        return path.contains("pin=$pin")
+        return queryPin(path) == pin
+    }
+
+    private fun cookiePin(headers: Map<String, String>): String? =
+        headers["cookie"].orEmpty().split(';').map { it.trim() }
+            .firstOrNull { it.startsWith("superdl_pin=") }?.removePrefix("superdl_pin=")
+
+    private fun queryPin(path: String): String? =
+        path.substringAfter('?', "").split('&')
+            .firstOrNull { it.startsWith("pin=") }?.removePrefix("pin=")
+
+    /** A már látott hibás PIN-értékek (sütiből vagy címből). */
+    private val seenWrongGuesses = HashSet<String>()
+
+    /**
+     * MIÉRT értékenként egyszer: egy előző portál-indításból maradt süti
+     * minden kérésnél (favicon is) újra jön — ez egyetlen próbálkozás, nem
+     * tíz. Egy találgató viszont minden ÚJ értékkel egyet fogyaszt.
+     * @return zárolt-e ettől a portál
+     */
+    @Synchronized
+    private fun countNewWrongGuesses(vararg guesses: String?): Boolean {
+        var locked = false
+        for (g in guesses) {
+            if (g != null && seenWrongGuesses.add(g) && registerFailedAttempt()) locked = true
+        }
+        return locked
     }
 
     /**
@@ -239,6 +270,7 @@ class WifiPortalServer(
 
     fun start(): Boolean {
         if (running.get()) return true
+        if (pool.isShutdown) pool = Executors.newFixedThreadPool(4)
         return try {
             // A portál mappa létrehozása induláskor – így a főoldal listája
             // akkor is működik, ha a felhasználó máshova (pl. Zene) tölt fel.
@@ -262,6 +294,7 @@ class WifiPortalServer(
         } catch (_: Exception) {
         }
         serverSocket = null
+        pool.shutdown()
         Log.i(TAG, "Portal stopped")
     }
 
@@ -325,8 +358,14 @@ class WifiPortalServer(
                 // (Fontos: ide kerülhet a jelszó-fájl is, ezért nem lehet nyitott.)
                 path.startsWith("/login") -> handleLogin(output, path)
                 !isAuthorized(headers, path) -> {
-                    registerFailedAttempt()
-                    serveHtml(output, buildLoginPage(false))
+                    // MIÉRT: a PIN nélküli kérés (favicon, az első GET /) nem
+                    // hibás belépés — korábban néhány oldalbetöltés kizárta a
+                    // felhasználót. Csak a tényleges (rossz) PIN-próba számít.
+                    if (countNewWrongGuesses(queryPin(path), cookiePin(headers))) {
+                        serveHtml(output, buildLockedPage())
+                    } else {
+                        serveHtml(output, buildLoginPage(false))
+                    }
                 }
                 method == "GET" && route == "/" ->
                     serveHtml(output, buildIndexPage())

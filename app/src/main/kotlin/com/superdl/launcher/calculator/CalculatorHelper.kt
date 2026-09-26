@@ -15,7 +15,8 @@ data class CalculatorResult(
 object CalculatorHelper {
 
     private val numberWords = mapOf(
-        "nulla" to 0.0, "egy" to 1.0, "kettő" to 2.0, "ketto" to 2.0, "három" to 3.0, "harom" to 3.0,
+        // MIÉRT „két": a „kétszer" ragja levágva „két" marad.
+        "nulla" to 0.0, "egy" to 1.0, "két" to 2.0, "ket" to 2.0, "kettő" to 2.0, "ketto" to 2.0, "három" to 3.0, "harom" to 3.0,
         "négy" to 4.0, "negy" to 4.0, "öt" to 5.0, "ot" to 5.0, "hat" to 6.0, "hét" to 7.0, "het" to 7.0,
         "nyolc" to 8.0, "kilenc" to 9.0, "tíz" to 10.0, "tiz" to 10.0,
         "tizenegy" to 11.0, "tizenkettő" to 12.0, "tizenketto" to 12.0,
@@ -56,6 +57,10 @@ object CalculatorHelper {
             .replace("szorozva", "*")
             .replace("szoroz", "*")
             .replace("szor", "*")
+            // MIÉRT: a magyar szorzórag hangrendtől függ — „hétszer",
+            // „ötször" —, eddig csak a „-szor" alakot értettük.
+            .replace("szer", "*")
+            .replace("ször", "*")
             .replace("osztva", "/")
             .replace("oszt", "/")
             .replace("÷", "/")
@@ -69,6 +74,8 @@ object CalculatorHelper {
         for ((word, value) in numberWords.entries.sortedByDescending { it.key.length }) {
             text = text.replace(Regex("\\b${Regex.escape(word)}\\b"), value.toString())
         }
+        // MIÉRT: a beszédfelismerő a szorzást gyakran „5 x 3" alakban adja.
+        text = text.replace(Regex("(?<=\\d)\\s*x\\s*(?=\\d)"), "*")
 
         text = text.replace(Regex("[^0-9+\\-*/().\\s]"), " ")
             .replace(Regex("\\s+"), "")
