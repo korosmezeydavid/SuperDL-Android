@@ -22,7 +22,8 @@ class GpsSurroundingsService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "GPS_SURROUNDINGS_CHANNEL"
-        private const val NOTIFICATION_ID = 7401
+        // MIÉRT: a 7401-et a bejövőhívás-csengő is használta; ütköztek.
+        private const val NOTIFICATION_ID = 7402
         private const val LOCATION_INTERVAL_MS = 2_000L
     }
 

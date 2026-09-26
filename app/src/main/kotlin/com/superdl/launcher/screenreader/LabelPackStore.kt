@@ -242,6 +242,9 @@ object LabelPackStore {
                 val names = app.optJSONArray("nevek") ?: continue
                 for (j in 0 until names.length()) {
                     val n = names.optJSONObject(j) ?: continue
+                    // MIÉRT: JSON null-ra az optString a "null" SZÖVEGET adja —
+                    // enélkül a felolvasó "null"-nak nevezné az elemet.
+                    if (n.isNull("kulcs") || n.isNull("cimke")) continue
                     val key = n.optString("kulcs").takeIf { it.isNotBlank() } ?: continue
                     if (key in revoked) continue
                     val label = n.optString("cimke").takeIf { it.isNotBlank() } ?: continue

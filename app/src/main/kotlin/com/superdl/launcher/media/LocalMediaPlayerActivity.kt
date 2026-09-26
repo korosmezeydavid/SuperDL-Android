@@ -91,7 +91,8 @@ class LocalMediaPlayerActivity : Activity() {
         AudioFocusGuard(
             context = this,
             onPause = { handler.post { if (prepared && !paused) togglePause(silent = true) } },
-            onResume = { handler.post { if (prepared && paused) togglePause(silent = true) } }
+            onResume = { handler.post { if (prepared && paused) togglePause(silent = true) } },
+            isPlaying = { prepared && !paused }
         )
     }
 

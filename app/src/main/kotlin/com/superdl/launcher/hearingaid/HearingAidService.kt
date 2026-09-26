@@ -87,7 +87,8 @@ class HearingAidService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "HEARING_AID_CHANNEL"
-        private const val NOTIFICATION_ID = 7400
+        // MIÉRT: a 7400-at a GPS radar is használta; a két értesítés felülírta egymást.
+        private const val NOTIFICATION_ID = 7450
         const val ACTION_STOP = "com.superdl.launcher.hearingaid.STOP"
         const val ACTION_UPDATE = "com.superdl.launcher.hearingaid.UPDATE"
 

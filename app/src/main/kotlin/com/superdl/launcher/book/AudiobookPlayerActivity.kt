@@ -57,6 +57,23 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     private val seekStepSec = 15
     private val handler = Handler(Looper.getMainLooper())
 
+    /**
+     * MIÉRT: eddig csak szünetkor/kilépéskor mentettünk; ha a rendszer
+     * megölte az alkalmazást, egy hosszú sáv közepéről a hely elveszett.
+     * Lejátszás közben félpercenként elmentjük. onDestroy-ban leáll.
+     */
+    private val periodicSave = object : Runnable {
+        override fun run() {
+            val playing = try {
+                mediaPlayer?.isPlaying == true
+            } catch (_: Exception) {
+                false
+            }
+            if (playing) saveResume()
+            handler.postDelayed(this, 30_000L)
+        }
+    }
+
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: android.media.AudioFocusRequest? = null
     private var pausedByFocusLoss = false
@@ -201,6 +218,8 @@ class AudiobookPlayerActivity : AppCompatActivity() {
                         " Folytatás innen: ${formatClock(seekMs)}." else ""
                     tts.speak("${currentIndex + 1} / ${tracks.size}. sáv. "
                         + "${trackDisplay(track)}.$hol")
+                    handler.removeCallbacks(periodicSave)
+                    handler.postDelayed(periodicSave, 30_000L)
                 }
                 setOnCompletionListener { onTrackCompleted() }
                 setOnErrorListener { _, _, _ ->
@@ -223,7 +242,14 @@ class AudiobookPlayerActivity : AppCompatActivity() {
             pendingSeekMs = 0
             playCurrent()
         } else {
-            saveResume()
+            // MIÉRT: a végpozíciót mentettük, és a következő megnyitás azonnal
+            // a könyv végére ugrott. Végigért könyv legközelebb elölről induljon;
+            // a lejátszót elengedjük, hogy a stopAndFinish mentése ezt ne írja felül.
+            try {
+                BookStore.saveAudioResume(this, bookPath, trackIdOf(tracks.first()), 0)
+            } catch (_: Exception) {
+            }
+            releasePlayer()
             stopAndFinish("A hangoskönyv végére értél.")
         }
     }
@@ -299,8 +325,11 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     private fun saveResume() {
         val player = mediaPlayer ?: return
         try {
+            // MIÉRT: előkészítés alatt a currentPosition még 0, és felülírta volna
+            // a folytatási helyet — amíg a kért ugrás függőben van, azt mentjük.
+            val ms = if (pendingSeekMs > 0) pendingSeekMs else player.currentPosition
             BookStore.saveAudioResume(
-                this, bookPath, trackIdOf(currentTrack()), player.currentPosition
+                this, bookPath, trackIdOf(currentTrack()), ms
             )
         } catch (_: Exception) {
         }
@@ -475,6 +504,12 @@ class AudiobookPlayerActivity : AppCompatActivity() {
 
     override fun onTouchEvent(event: MotionEvent): Boolean =
         gestureListener.detector.onTouchEvent(event) || super.onTouchEvent(event)
+
+    override fun onPause() {
+        // MIÉRT: háttérbe kerüléskor is mentünk — onDestroy nem mindig fut le.
+        saveResume()
+        super.onPause()
+    }
 
     override fun onDestroy() {
         headphoneGuard.unregister()

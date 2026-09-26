@@ -96,6 +96,9 @@ class TouchExplorer {
     /** Az érintés véget ért (felemelted az ujjad). */
     fun onTouchEnd() {
         hoverStartedAt = 0L
+        // MIÉRT: enélkül a következő érintés UGYANAZON az elemen "nem új"
+        // lenne, és a nyomva tartás időzítője el sem indulna.
+        hoveredNode = null
     }
 
     /** Szabad-e MOST megszólaltatni a helyzetjelző hangot? */

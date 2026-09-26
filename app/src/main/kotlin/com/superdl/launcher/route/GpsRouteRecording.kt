@@ -90,6 +90,10 @@ object GpsRouteSession {
     @Volatile
     var lastApproachThreshold: Int? = null
 
+    /** MIÉRT: a küszöb egy konkrét eseményhez tartozik; másik eseménynél újra kell kezdeni. */
+    @Volatile
+    var lastApproachEventIndex: Int = -1
+
     @Volatile
     var lastPointIndex: Int = -1
 
@@ -112,6 +116,7 @@ object GpsRouteSession {
         lastLocation = null
         lastAnnouncedEventIndex = -1
         lastApproachThreshold = null
+        lastApproachEventIndex = -1
         lastPointIndex = -1
         guidanceReversed = false
         announcedReverseDirection = false

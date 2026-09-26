@@ -81,14 +81,28 @@ class GpsRouteGuideService : Service() {
             return
         }
 
-        if (match.nextEventIndex <= GpsRouteSession.lastAnnouncedEventIndex) return
+        // MIÉRT: visszafelé az események indexe CSÖKKEN, így a "<=" minden
+        // későbbi kanyart elnémított. Az irányhoz igazítva nézzük, mi volt már.
+        val lastAnnounced = GpsRouteSession.lastAnnouncedEventIndex
+        val alreadyAnnounced = lastAnnounced >= 0 && if (reversed) {
+            match.nextEventIndex >= lastAnnounced
+        } else {
+            match.nextEventIndex <= lastAnnounced
+        }
+        if (alreadyAnnounced) return
         val distance = match.distanceToNextEventM ?: return
         val thresholds = listOf(50, 20, 10)
         for (threshold in thresholds) {
             if (distance <= threshold) {
-                val last = GpsRouteSession.lastApproachThreshold
+                // MIÉRT: a megjegyzett küszöb csak ugyanarra az eseményre érvényes.
+                val last = if (GpsRouteSession.lastApproachEventIndex == match.nextEventIndex) {
+                    GpsRouteSession.lastApproachThreshold
+                } else {
+                    null
+                }
                 if (last == null || last > threshold) {
                     GpsRouteSession.lastApproachThreshold = threshold
+                    GpsRouteSession.lastApproachEventIndex = match.nextEventIndex
                     val message = buildApproachMessage(nextEvent, threshold, reversed)
                     PatrolAnnouncer.announce(this, message, withBeep = threshold <= 20, critical = true)
                     if (threshold <= 10) {

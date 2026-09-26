@@ -253,6 +253,12 @@ object VoiceAssistantHelper {
 
     private val CALL_TARGET_BLOCKLIST = listOf(
         "hivasnaplo",
+        // MIÉRT: az "utolsó hívások" különben "hivas" + "ok" lett, és felhívta volna az "ok" nevű névjegyet.
+        "hivasok",
+        "hivasaim",
+        "hivaslista",
+        "utolso hivas",
+        "nem fogadott hivas",
         "hivas ertesites",
         "hivas figyelmeztetes",
         "hivas engedely",
@@ -294,9 +300,11 @@ object VoiceAssistantHelper {
             "hivd",
             "hivj"
         )
-        extractAfter(text, prefixes)?.let { target ->
+        // MIÉRT: a hívó előtagnak egész szónak kell lennie ("hivas" ne illeszkedjen a "hivasok"-ra),
+        // és a név legalább három betű, különben egy félrehallott töredéket tárcsáznánk.
+        extractAfter(text, prefixes, wholeWord = true)?.let { target ->
             val cleaned = cleanCallTarget(target)
-            if (cleaned.length >= 2) return cleaned
+            if (cleaned.length >= 3) return cleaned
         }
 
         extractCallTargetFromSuffix(text)?.let { return it }
@@ -306,13 +314,13 @@ object VoiceAssistantHelper {
 
     private fun extractCallTargetFromSuffix(text: String): String? {
         val patterns = listOf(
-            Regex("""(.+?)\s+hiv(?:as|asa|ast|ja|juk|od)"""),
-            Regex("""(.+?)\s+telefonal(?:as|asa|ast|ok|juk|od)""")
+            Regex("""(.+?)\s+hiv(?:as|asa|ast|ja|juk|od)(?:\s|$)"""),
+            Regex("""(.+?)\s+telefonal(?:as|asa|ast|ok|juk|od)(?:\s|$)""")
         )
         for (pattern in patterns) {
             val match = pattern.find(text) ?: continue
             val cleaned = cleanCallTarget(match.groupValues[1])
-            if (cleaned.length >= 2 && !isCallMetaWord(cleaned)) return cleaned
+            if (cleaned.length >= 3 && !isCallMetaWord(cleaned)) return cleaned
         }
         return null
     }
@@ -388,7 +396,10 @@ object VoiceAssistantHelper {
         containsAny(text, "sos szamok", "s o s szamok", "sos szam felolvas", "sos beallitasok") ->
             MenuAction.SOS_READ_ALL
 
-        containsAny(text, "s o s", "sos", "vesz", "veszhelyzet", "vészhelyzet") ->
+        // MIÉRT: a puszta "vesz"/"sos" részszó-egyezés az "elveszett", "felveszem", "sosem" szavakra is
+        // S.O.S.-t indított (vagy leállított egy futót). A "sos" csak önálló szóként számít.
+        containsWord(text, "sos", "s o s") ||
+            containsAny(text, "veszhelyzet", "vészhelyzet", "veszjelzes", "vészjelzés") ->
             MenuAction.SOS
 
         containsAny(text, "pontos ido", "hany ora", "mennyi az ido", "mennyi az ora", "mennyi ido") &&
@@ -505,7 +516,7 @@ object VoiceAssistantHelper {
         containsAny(text, "mennyire pontos a helyem", "gps pontossag", "hely pontossag") ->
             MenuAction.NAV_WHERE
 
-        containsAny(text, "hivasnaplo", "hivasok", "utolso hivasok") ->
+        containsAny(text, "hivasnaplo", "hivasok", "hivasaim", "utolso hivas", "nem fogadott hivas") ->
             MenuAction.CALL_LOG
 
         containsAny(text, "uj nevjegy", "nevjegy letrehoz", "nevjegy mentes", "kontakt letrehoz") ->
@@ -974,10 +985,10 @@ object VoiceAssistantHelper {
         return text.contains("?") || text.endsWith(" e") || text.contains(" keres")
     }
 
-    private fun extractAfter(text: String, prefixes: List<String>): String? {
+    private fun extractAfter(text: String, prefixes: List<String>, wholeWord: Boolean = false): String? {
         for (prefix in prefixes) {
             val normalizedPrefix = normalize(prefix)
-            val idx = text.indexOf(normalizedPrefix)
+            val idx = if (wholeWord) wordIndexOf(text, normalizedPrefix) else text.indexOf(normalizedPrefix)
             if (idx >= 0) {
                 val rest = text.substring(idx + normalizedPrefix.length).trim()
                     .removePrefix("hogy")
@@ -992,6 +1003,24 @@ object VoiceAssistantHelper {
         }
         return null
     }
+
+    /** Az első olyan előfordulás, amely szóhatáron kezdődik és végződik; -1, ha nincs. */
+    private fun wordIndexOf(text: String, phrase: String): Int {
+        if (phrase.isEmpty()) return -1
+        var idx = text.indexOf(phrase)
+        while (idx >= 0) {
+            val end = idx + phrase.length
+            val startOk = idx == 0 || text[idx - 1] == ' '
+            val endOk = end == text.length || text[end] == ' '
+            if (startOk && endOk) return idx
+            idx = text.indexOf(phrase, idx + 1)
+        }
+        return -1
+    }
+
+    /** Csak egész szóként (vagy szókapcsolatként) illeszkedik, részszóként nem. */
+    private fun containsWord(text: String, vararg terms: String): Boolean =
+        terms.any { term -> wordIndexOf(text, normalize(term)) >= 0 }
 
     private fun containsAny(text: String, vararg terms: String): Boolean =
         terms.any { term ->
