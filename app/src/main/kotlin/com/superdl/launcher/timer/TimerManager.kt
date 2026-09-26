@@ -34,7 +34,7 @@ object TimerManager {
     fun resumeIfNeeded(context: Context) {
         val session = TimerStore.getActiveSession(context) ?: return
         if (session.isFinished()) {
-            PatrolAnnouncer.announce(context, TimerSpeech.speakFinished(session.label)) {
+            PatrolAnnouncer.announce(context, TimerSpeech.speakFinished(session.label), critical = true) {
                 TimerStore.clearActiveSession(context)
             }
             return

@@ -1831,7 +1831,9 @@ object HelpTexts {
             start = "A Söpörj hangtéma a program saját visszajelző hangjait " +
                 "cseréli. A Csengőhang választása a bejövő hívás hangját. " +
                 "A Csengőhang hangerő és a Néma mód az értesítések hangerejét " +
-                "szabja meg. A többi pont egy-egy értesítéstípus hangját állítja " +
+                "szabja meg. A Néma mód a gyógyszer-, program- és " +
+                "ébresztő-emlékeztetőt és az időzítőt NEM némítja el: ezek mindig " +
+                "rendesen szólnak. A többi pont egy-egy értesítéstípus hangját állítja " +
                 "külön, hogy hallás után meg tudd különböztetni, mi szólt.",
             gestures = "Ahol lista nyílik, ott a szokásos: fel-le söpréssel " +
                 "válogatsz, jobbra söpréssel kiválasztod, balra söpréssel " +
