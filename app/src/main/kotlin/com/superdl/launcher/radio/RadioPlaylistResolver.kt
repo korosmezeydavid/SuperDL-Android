@@ -33,7 +33,7 @@ object RadioPlaylistResolver {
             // MIÉRT: a .m3u8 HLS-folyam, nem lejátszási lista — az első sora egy
             // pár másodperces szegmens, ami után a rádió elhallgatna. A MediaPlayer
             // a HLS-t magától kezeli, ezért változatlanul adjuk tovább.
-            lower.endsWith(".m3u8") -> url
+            lower.endsWith(".m3u8") -> resolveM3u8(url)
             lower.endsWith(".m3u") -> extractFromM3u(fetch(url))
             else -> {
                 // Nem playlist-kiterjesztés. Lehet közvetlen stream — de az is
@@ -42,6 +42,17 @@ object RadioPlaylistResolver {
                 resolveByContentType(url)
             }
         }
+    }
+
+    /**
+     * MIÉRT: nem minden .m3u8 HLS — sok rádió sima (UTF-8) m3u listát ad .m3u8 néven,
+     * amit a MediaPlayer nem tud lejátszani. HLS-jelölő (#EXT-X-) vagy letöltési hiba
+     * esetén marad az eredeti cím, különben az első stream-sort adjuk vissza.
+     */
+    private fun resolveM3u8(url: String): String {
+        val body = fetch(url) ?: return url
+        if (body.contains("#EXT-X-")) return url
+        return extractFromM3u(body) ?: url
     }
 
     /** Az URL tartalom-típusa alapján dönt: playlist vagy közvetlen stream. */

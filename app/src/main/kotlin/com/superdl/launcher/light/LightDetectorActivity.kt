@@ -41,6 +41,8 @@ class LightDetectorActivity : AppCompatActivity() {
     private val tonePlayer = LightTonePlayer()
     private val lastUiUpdate = AtomicLong(0L)
     private var lastSpokenBand = -1
+    // Elindult-e már a mérés (engedély megvan, startDetector lefutott) — csak ekkor indítjuk újra a sípot.
+    private var detectorStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +90,7 @@ class LightDetectorActivity : AppCompatActivity() {
     }
 
     private fun startDetector() {
+        detectorStarted = true
         tonePlayer.start()
         tts.speakThen(
             "Fénydetektor bekapcsolva. A síp magassága a fény erősségét jelzi. " +
@@ -118,10 +121,12 @@ class LightDetectorActivity : AppCompatActivity() {
         if (now - lastUiUpdate.get() < 120L) return
         lastUiUpdate.set(now)
         val freq = tonePlayer.luminanceToFrequency(value)
+        // MIÉRT: a fényerő 0–255 közötti nyers érték, de "százalék"-ként mondtuk be és írtuk ki.
+        val percent = value.coerceIn(0, 255) * 100 / 255
         if (isFinishing || isDestroyed) return
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
-            tvLevel.text = getString(R.string.light_detector_level, value, freq)
+            tvLevel.text = getString(R.string.light_detector_level, percent, freq)
         }
         val band = when {
             value < 40 -> 0
@@ -139,7 +144,7 @@ class LightDetectorActivity : AppCompatActivity() {
                 3 -> "Erős fény"
                 else -> "Nagyon erős fény"
             }
-            tts.speakAdd("$label. $value százalék.")
+            tts.speakAdd("$label. $percent százalék.")
         }
     }
 
@@ -163,6 +168,18 @@ class LightDetectorActivity : AppCompatActivity() {
                 tts.speakThen("Kamera engedély szükséges a fénydetektorhoz.") { finish() }
             }
         }
+    }
+
+    // MIÉRT: hívás vagy képernyő-kikapcsolás közben a kamera leáll, de a síp tovább szólt
+    // az utolsó hangon. Háttérben elhallgat, visszatéréskor (ha már mért) újraindul.
+    override fun onStart() {
+        super.onStart()
+        if (detectorStarted) tonePlayer.start()
+    }
+
+    override fun onStop() {
+        tonePlayer.stop()
+        super.onStop()
     }
 
     override fun onDestroy() {

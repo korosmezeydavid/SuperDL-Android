@@ -64,10 +64,28 @@ object TaskRouteStore {
     @Volatile
     private var recordingStartPackage: String = ""
 
-    fun isRecording(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_RECORDING, false)
+    // MIÉRT: a "felvétel megy" jelző lemezen van, a lépések viszont csak memóriában.
+    // Ha a program felvétel közben leállt, az új folyamatban a jelző örökre igaz
+    // maradt (lépések nélkül). Az új folyamat első hozzáférésekor ezért töröljük.
+    @Volatile
+    private var checkedThisProcess = false
+
+    private fun clearStaleRecordingFlag(context: Context) {
+        if (checkedThisProcess) return
+        checkedThisProcess = true
+        val p = prefs(context)
+        if (p.getBoolean(KEY_RECORDING, false)) {
+            p.edit().putBoolean(KEY_RECORDING, false).apply()
+        }
+    }
+
+    fun isRecording(context: Context): Boolean {
+        clearStaleRecordingFlag(context)
+        return prefs(context).getBoolean(KEY_RECORDING, false)
+    }
 
     fun startRecording(context: Context, startPackage: String) {
+        clearStaleRecordingFlag(context)
         recorded.clear()
         recordingStartPackage = startPackage
         prefs(context).edit().putBoolean(KEY_RECORDING, true).apply()

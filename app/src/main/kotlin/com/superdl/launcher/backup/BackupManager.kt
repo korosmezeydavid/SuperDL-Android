@@ -17,8 +17,11 @@ import org.json.JSONObject
  *
  * MIÉRT MŰKÖDIK ÁLTALÁNOSAN: minden Store ugyanazt a mintát követi
  * (JsonPrefsHelper: prefs-fájl + JSON string + séma-verzió), ezért nem kell a
- * 44 Store-t egyenként ismerni — elég a prefs-fájlokat kiolvasni. Így egy új
- * Store magától bekerül a mentésbe, külön munka nélkül.
+ * 44 Store-t egyenként ismerni — elég a prefs-fájlokat kiolvasni.
+ *
+ * FIGYELEM: egy új Store NEM kerül be magától a mentésbe. MIÉRT: a mentett
+ * fájlok listája (INCLUDED_PREFS) kézzel vezetett — új prefs-fájlnál ide is
+ * fel kell venni, különben telefoncserénél elveszik.
  */
 object BackupManager {
 
@@ -55,7 +58,26 @@ object BackupManager {
         "superdl_route_pack_discards", // elvetett letöltött műveletsorok
         "keyguard_pin_assist",
         "com.superdl.launcher_preferences",
-        "com.superdl.launcher.debug_preferences"
+        "com.superdl.launcher.debug_preferences",
+        // MIÉRT: ezek is felhasználói adatok/beállítások voltak, de kimaradtak a
+        // kézi listából, így telefoncserénél elvesztek. (Az SMTP-jelszó és a
+        // zár-PIN tárolója SZÁNDÉKOSAN nincs itt.)
+        "shopping_lists",
+        "sos_phrase_prefs",
+        "superdl_pronunciation",
+        "superdl_music_favorites",
+        "superdl_calendar",
+        "superdl_calendar_actions",
+        "superdl_braille",
+        "superdl_gestures",
+        "superdl_screenreader",
+        "superdl_verbosity",
+        "superdl_menu",
+        "superdl_radio",
+        "email_prefs",                 // csak a címzettlista, jelszó nincs benne
+        "dictaphone_settings",
+        "weather_city_store",
+        "superdl_matrix_keyboard"
     )
 
     /**
@@ -78,7 +100,19 @@ object BackupManager {
         "hotspot_last_known_updated_at",
         "phone_ringer_fixup_v1",
         "battery_full_announced",
-        "day_greeting_last_date"
+        "day_greeting_last_date",
+        // MIÉRT: a csendes mód rendszerállapota (alkalmazva-e, előző szűrő) az
+        // adott telefonhoz tartozik; visszaállítva hamis „visszaállítást" okozna.
+        "quiet_mode_system_applied",
+        "quiet_mode_prev_interruption_filter",
+        // MIÉRT: a képernyőolvasó vészleállítása és hibaszámlálója pillanatnyi
+        // állapot — átvinve az új telefonon kikapcsolná a képernyőolvasót.
+        "emergency_disable",
+        "failure_count",
+        // MIÉRT: a Braille érintéspont-mérés és a horgonyok a régi kijelzőhöz
+        // tartoznak; az új telefonon újra kell mérni.
+        "measured_points",
+        "anchor_points"
     )
 
     data class Summary(

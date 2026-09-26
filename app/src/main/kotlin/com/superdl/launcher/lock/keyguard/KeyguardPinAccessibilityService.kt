@@ -14,6 +14,7 @@ import android.util.Log
 
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.superdl.launcher.lock.keyguard.KeyguardPinDetector.CredentialState
 import com.superdl.launcher.lock.keyguard.KeyguardPinOverlayController.OverlayAction
 import com.superdl.launcher.system.ConnectivityHelper
@@ -188,6 +189,18 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
             return
         }
 
+        // MIÉRT: vészhívó, bejövő hívás, ébresztő a zár FÖLÖTT is megjelenhet
+        // (isKeyguardLocked ilyenkor is igaz). A teljes képernyős, érintést elnyelő
+        // PIN-segéd nem maradhat rajta. A figyelés fut tovább, hogy az app
+        // eltűnése után a segéd visszajöhessen.
+        if (isAppShownOverKeyguard()) {
+            overlay?.hide()
+            pinAssistLocked = false
+            credentialState = CredentialState.NONE
+            startKeyguardPolling()
+            return
+        }
+
         if (pinAssistLocked && overlay?.isVisible == true) {
             val root = KeyguardPinInjector.findKeyguardRoot(this)
             if (root != null) {
@@ -272,12 +285,45 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
         true
     }
 
+    /**
+     * MIÉRT: a nem takart zár alatt az appok láthatatlanok, a fókusz a SystemUI
+     * (TYPE_SYSTEM) ablakán van. Ha egy nem-SystemUI alkalmazásablak kapja a
+     * fókuszt, akkor egy app (hívás, vészhívó, ébresztő, kamera) takarja a zárat.
+     * A saját PIN-segédünk NOT_FOCUSABLE, így nem veszi el a fókuszt.
+     */
+    private fun isAppShownOverKeyguard(): Boolean = try {
+        windows.orEmpty().any { window ->
+            if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) return@any false
+            if (!window.isFocused && !window.isActive) return@any false
+            // MIÉRT: ha a tartalom nem olvasható, inkább elrejtjük a segédet.
+            val root = window.root ?: return@any true
+            val pkg = try {
+                root.packageName
+            } finally {
+                @Suppress("DEPRECATION")
+                root.recycle()
+            }
+            !KeyguardPinDetector.isSystemUiPackage(pkg)
+        }
+    } catch (_: Exception) {
+        false
+    }
+
     private fun applyCredentialState(state: CredentialState) {
         if (!KeyguardPinDetector.isKeyguardLocked(this)) {
             credentialState = CredentialState.NONE
             pinAssistLocked = false
             overlay?.hide()
             stopKeyguardPolling()
+            return
+        }
+
+        // MIÉRT: az eseményágon (pl. a vészhívó számgombjai) is PIN-nek
+        // tűnhet a képernyő — zár fölötti appra a segéd sosem kerülhet rá.
+        if (isAppShownOverKeyguard()) {
+            credentialState = CredentialState.NONE
+            pinAssistLocked = false
+            overlay?.hide()
             return
         }
 
@@ -369,6 +415,11 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
             root.recycle()
             handler.postDelayed({ checkUnlockAfterInput() }, 250L)
             result
+        } catch (t: Throwable) {
+            // MIÉRT: egy kivétel itt megölné a worker szálat, utána minden
+            // gombnyomás csendben elveszne.
+            Log.w(TAG, "Overlay action failed action=$action", t)
+            false
         } finally {
             overlay?.restoreAfterInjection()
         }
@@ -446,7 +497,16 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
                         credentialState = CredentialState.NONE
                         stopKeyguardPolling()
                     }
-                    Intent.ACTION_SCREEN_OFF -> overlay?.hide()
+                    Intent.ACTION_SCREEN_OFF -> {
+                        // MIÉRT: a beragadt pinAssistLocked a következő bekapcsoláskor
+                        // rossz helyzetben is visszatenné a segédet. A SCREEN_ON ág
+                        // újraértékel és újraindítja a figyelést.
+                        evaluateRunnable?.let { handler.removeCallbacks(it) }
+                        overlay?.hide()
+                        pinAssistLocked = false
+                        credentialState = CredentialState.NONE
+                        stopKeyguardPolling()
+                    }
                     Intent.ACTION_SCREEN_ON,
                     Intent.ACTION_BOOT_COMPLETED -> {
                         handler.postDelayed({

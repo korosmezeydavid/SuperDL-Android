@@ -304,7 +304,8 @@ object VoiceAssistantHelper {
         // és a név legalább három betű, különben egy félrehallott töredéket tárcsáznánk.
         extractAfter(text, prefixes, wholeWord = true)?.let { target ->
             val cleaned = cleanCallTarget(target)
-            if (cleaned.length >= 3) return cleaned
+            // MIÉRT: a "hívd fel az S.O.S.-t" ne egy "sos" nevű névjegyet keressen, hanem S.O.S. legyen.
+            if (cleaned.length >= 3 && !isSosWord(cleaned)) return cleaned
         }
 
         extractCallTargetFromSuffix(text)?.let { return it }
@@ -325,8 +326,12 @@ object VoiceAssistantHelper {
         return null
     }
 
+    // MIÉRT: az "sos hívás" különben CallContact("sos") lett, és az S.O.S. helyett névjegyet keresett.
+    // A külön szóként felismert "vész hívás" ugyanígy.
+    private fun isSosWord(value: String): Boolean = value == "sos" || value == "s o s" || value == "vesz"
+
     private fun isCallMetaWord(value: String): Boolean =
-        value in setOf(
+        isSosWord(value) || value in setOf(
             "hivas",
             "telefon",
             "telefonalas",
@@ -398,8 +403,11 @@ object VoiceAssistantHelper {
 
         // MIÉRT: a puszta "vesz"/"sos" részszó-egyezés az "elveszett", "felveszem", "sosem" szavakra is
         // S.O.S.-t indított (vagy leállított egy futót). A "sos" csak önálló szóként számít.
-        containsWord(text, "sos", "s o s") ||
-            containsAny(text, "veszhelyzet", "vészhelyzet", "veszjelzes", "vészjelzés") ->
+        // MIÉRT: a "vészhívás", "vészjelző", "vészriasztás" és a puszta "vész" is S.O.S.; ezek
+        // szótövek ("veszhiv", "veszjelz"...), így az "elveszett"/"veszek" továbbra sem illeszkedik.
+        containsWord(text, "sos", "s o s", "vesz hivas") ||
+            containsAny(text, "veszhelyzet", "veszjelz", "veszhivas", "veszriaszt") ||
+            text.trim() == "vesz" ->
             MenuAction.SOS
 
         containsAny(text, "pontos ido", "hany ora", "mennyi az ido", "mennyi az ora", "mennyi ido") &&

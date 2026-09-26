@@ -367,7 +367,14 @@ object FileManagerHelper {
         // MIÉRT: a hívó a NYERS névvel nézte, van-e már ilyen; a tiltott
         // karakterek kiszedése után viszont egy MÁSIK, létező fájl nevére
         // eshetünk, és a renameTo azt csendben felülírná.
-        if (clean.isBlank() || (target.exists() && clean != file.name)) false
+        // MIÉRT: kis- és nagybetű-érzéketlen tárolón csak kisbetű/nagybetű cserénél a
+        // target "létezik" (maga a fájl) — ezt az átnevezést engedni kell.
+        // MIÉRT (kis/nagybetű): kis/nagybetű-érzékeny tárolón egy PONTOSAN ilyen nevű
+        // másik fájl is lehet — azt nem írhatjuk felül.
+        val exactOther = clean != file.name && file.parentFile?.list()?.any { it == clean } == true
+        if (clean.isBlank() || exactOther ||
+            (target.exists() && !clean.equals(file.name, ignoreCase = true))
+        ) false
         else file.renameTo(target)
     } catch (_: Exception) {
         false
