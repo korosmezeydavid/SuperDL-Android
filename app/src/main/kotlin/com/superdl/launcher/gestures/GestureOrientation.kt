@@ -99,6 +99,10 @@ object GestureOrientation {
             // adja; ha ezt véglegesnek vennénk, újraindítás után elveszne a
             // beállított forgatás. Csak feloldott állapotban számít késznek.
             warmed = com.superdl.launcher.storage.SafePrefs.isUserUnlocked(context.applicationContext)
+            // MIÉRT: a korábban (csak a szokásos tárolóba) mentett forgatás is
+            // kerüljön át az eszköz-védett másolatba, hogy a következő
+            // újraindításkor a PIN-segéden is érvényes legyen.
+            if (warmed) writeDeviceCopy(context, cache)
         } catch (_: Exception) {
             // Direct Boot vagy más hiba: marad az alap kezelés.
         }
@@ -118,6 +122,21 @@ object GestureOrientation {
         try {
             com.superdl.launcher.storage.SafePrefs.get(context.applicationContext, PREFS)
                 .edit().putString(KEY_MODE, mode.name).apply()
+        } catch (_: Exception) {
+        }
+        // MIÉRT: feloldás után a SafePrefs csak a szokásos tárolóba ír, az első
+        // feloldásig viszont az eszköz-védettből olvas — újraindítás után a
+        // zárképernyőn a forgatás elveszett. A ScreenReaderPrefs.writeBoth mintája.
+        writeDeviceCopy(context, mode)
+    }
+
+    private fun writeDeviceCopy(context: Context, mode: Mode) {
+        try {
+            val prefs = context.applicationContext.createDeviceProtectedStorageContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (prefs.getString(KEY_MODE, null) != mode.name) {
+                prefs.edit().putString(KEY_MODE, mode.name).apply()
+            }
         } catch (_: Exception) {
         }
     }

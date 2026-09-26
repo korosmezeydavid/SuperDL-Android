@@ -64,7 +64,11 @@ object ExternalAppHelper {
         val apps = getLaunchableApps(context)
         apps.firstOrNull { normalizeName(it.label) == normalized }?.let { return it }
         apps.firstOrNull { normalizeName(it.label).contains(normalized) }?.let { return it }
-        apps.firstOrNull { normalized.contains(normalizeName(it.label)) }?.let { return it }
+        // MIÉRT: üres vagy egy-két betűs név ("X", "") minden kérésben benne van — rossz appot indított.
+        apps.firstOrNull { app ->
+            val label = normalizeName(app.label)
+            label.length >= 3 && normalized.contains(label)
+        }?.let { return it }
         return apps.firstOrNull { app ->
             val label = normalizeName(app.label)
             normalized.split(" ").any { word -> word.length >= 4 && label.contains(word) }

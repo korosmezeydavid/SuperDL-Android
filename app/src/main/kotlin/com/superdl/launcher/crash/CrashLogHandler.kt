@@ -49,7 +49,15 @@ object CrashLogHandler {
             // sérült lehet, ezért ott hagyjuk a rendszert dolgozni.
             // (A fő szál gesztus-hibáit amúgy is elkapja a gesztus-pajzs.)
             val isMainThread = thread === android.os.Looper.getMainLooper().thread
-            if (!isMainThread) {
+            // MIÉRT: Error (OutOfMemory, StackOverflow) után a folyamat állapota
+            // megbízhatatlan; egy HandlerThread halála után pedig minden későbbi
+            // post csendben elveszne (pl. a PIN-segéd gombjai némán nem tennének
+            // semmit). Ezeket továbbadjuk; a sima szálak Exception-jeit (pl. a
+            // dokumentált engedély nélküli névjegy-szinkron) továbbra is elnyeljük.
+            val swallow = !isMainThread &&
+                throwable !is Error &&
+                thread !is android.os.HandlerThread
+            if (swallow) {
                 Log.w(
                     TAG,
                     "Hatterszal hiba ELSZIGETELVE (${thread.name}): " +

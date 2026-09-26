@@ -77,6 +77,14 @@ object ScreenCurtain {
                 // A kijelző fényereje a minimumra — így OLED-en és LCD-n is
                 // a lehető legkevesebbet fogyaszt.
                 screenBrightness = 0.01f
+                // MIÉRT: Android 12-től a 0,8-nál átlátszatlanabb idegen réteg
+                // FLAG_NOT_TOUCHABLE mellett is ELNYELI a más appoknak szóló
+                // érintéseket. 0,8 a rendszer alapértelmezett határa; a minimális
+                // fényerő mellett a képernyő így is gyakorlatilag sötét marad.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    alpha = 0.8f
+                    format = PixelFormat.TRANSLUCENT
+                }
             }
 
             wm.addView(view, params)

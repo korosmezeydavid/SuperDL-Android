@@ -14,6 +14,9 @@ class SuperInCallService : InCallService() {
 
     private val callbacks = mutableMapOf<Call, Call.Callback>()
 
+    // A DISCONNECTING és a DISCONNECTED is ide fut: ne indítsuk kétszer újra a csengést.
+    private var promotedWaitingCall: Call? = null
+
     override fun onCallAudioStateChanged(audioState: android.telecom.CallAudioState?) {
         super.onCallAudioStateChanged(audioState)
         // Megjegyezzük az AKTUÁLIS állapotot, hogy a hívás-képernyő pontosan
@@ -44,6 +47,7 @@ class SuperInCallService : InCallService() {
 
     override fun onCallRemoved(call: Call) {
         callbacks.remove(call)?.let { call.unregisterCallback(it) }
+        if (promotedWaitingCall == call) promotedWaitingCall = null
         ActiveCallRegistry.onCallRemoved(call)
         // MIÉRT: ha a letett hívás mellett egy TARTOTT hívás maradt, eddig
         // semmi nem vette vissza — a hang és a képernyő leállt, a másik fél
@@ -125,8 +129,28 @@ class SuperInCallService : InCallService() {
                 }
             }
             Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
-                IncomingCallRinger.stop(applicationContext)
-                IncomingCallState.dismissIfShowing(applicationContext)
+                // MIÉRT: ha a letett hívás mellett egy MÁSIK hívás még csörög (várakoztatott
+                // hívás), eddig azt is elnémítottuk és a képernyőjét is bezártuk — némán
+                // csörgött tovább. Csak akkor állítunk le, ha nincs másik csörgő hívás.
+                val waiting = ActiveCallRegistry.ringingCall
+                if (waiting == null || waiting == call) {
+                    IncomingCallRinger.stop(applicationContext)
+                    IncomingCallState.dismissIfShowing(applicationContext)
+                } else if (ActiveCallRegistry.activeCall == null &&
+                    promotedWaitingCall != waiting &&
+                    callState(waiting) == Call.STATE_RINGING
+                ) {
+                    // Már nincs élő beszélgetés: a kopogó hang helyett rendes csengés és
+                    // bejövőhívás-képernyő, mint egy friss hívásnál.
+                    promotedWaitingCall = waiting
+                    val waitingNumber = waiting.details.handle?.schemeSpecificPart.orEmpty()
+                    val waitingName = resolveCallerName(waitingNumber)
+                    IncomingCallRinger.stop(applicationContext)
+                    IncomingCallRinger.start(applicationContext, waitingNumber, waitingName)
+                    if (!IncomingCallState.isShowing) {
+                        IncomingCallState.show(applicationContext, waitingNumber, waitingName)
+                    }
+                }
             }
             Call.STATE_SELECT_PHONE_ACCOUNT -> selectPhoneAccount(call)
         }

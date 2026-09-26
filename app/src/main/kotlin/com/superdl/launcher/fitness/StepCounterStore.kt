@@ -17,6 +17,7 @@ object StepCounterStore {
     private const val KEY_DAY = "day"
     private const val KEY_BASE = "base_count"
     private const val KEY_TODAY = "today_steps"
+    private const val KEY_LAST_TOTAL = "last_sensor_total"
     private const val KEY_GOAL = "daily_goal"
     private const val KEY_HEIGHT = "height_cm"
     private const val KEY_WEIGHT = "weight_kg"
@@ -41,8 +42,12 @@ object StepCounterStore {
         var base = p.getInt(KEY_BASE, -1)
 
         if (savedDay != today || base < 0) {
-            // Új nap: a mostani állás lesz a kiindulópont.
-            base = sensorTotal
+            // Új nap. MIÉRT: ha a mostani állás lenne a kiindulópont, a nap első
+            // megnyitása ELŐTT megtett mai lépések elvesznének. A legutóbb látott
+            // állásból indulunk; ha az nagyobb a mostaninál (újraindult a telefon,
+            // az érzékelő nulláról kezdett) vagy nincs meg, marad a mostani állás.
+            val lastTotal = p.getInt(KEY_LAST_TOTAL, -1)
+            base = if (lastTotal in 0..sensorTotal) lastTotal else sensorTotal
             p.edit().putInt(KEY_DAY, today).putInt(KEY_BASE, base).apply()
         }
         if (sensorTotal < base) {
@@ -51,7 +56,7 @@ object StepCounterStore {
             p.edit().putInt(KEY_BASE, 0).apply()
         }
         val steps = (sensorTotal - base).coerceAtLeast(0)
-        p.edit().putInt(KEY_TODAY, steps).apply()
+        p.edit().putInt(KEY_TODAY, steps).putInt(KEY_LAST_TOTAL, sensorTotal).apply()
         return steps
     }
 
