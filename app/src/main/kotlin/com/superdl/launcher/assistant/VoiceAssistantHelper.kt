@@ -406,7 +406,7 @@ object VoiceAssistantHelper {
         // MIÉRT: a "vészhívás", "vészjelző", "vészriasztás" és a puszta "vész" is S.O.S.; ezek
         // szótövek ("veszhiv", "veszjelz"...), így az "elveszett"/"veszek" továbbra sem illeszkedik.
         containsWord(text, "sos", "s o s", "vesz hivas") ||
-            containsAny(text, "veszhelyzet", "veszjelz", "veszhiv", "veszriaszt") ||
+            containsAny(text, "veszhelyzet", "veszjelz", "veszhivas", "veszriaszt") ||
             text.trim() == "vesz" ->
             MenuAction.SOS
 

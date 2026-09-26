@@ -136,20 +136,28 @@ class SuperInCallService : InCallService() {
                 if (waiting == null || waiting == call) {
                     IncomingCallRinger.stop(applicationContext)
                     IncomingCallState.dismissIfShowing(applicationContext)
-                } else if (ActiveCallRegistry.activeCall == null &&
-                    promotedWaitingCall != waiting &&
-                    callState(waiting) == Call.STATE_RINGING
-                ) {
+                } else if (state == Call.STATE_DISCONNECTED && promotedWaitingCall != waiting) {
                     // Már nincs élő beszélgetés: a kopogó hang helyett rendes csengés és
                     // bejövőhívás-képernyő, mint egy friss hívásnál.
-                    promotedWaitingCall = waiting
-                    val waitingNumber = waiting.details.handle?.schemeSpecificPart.orEmpty()
-                    val waitingName = resolveCallerName(waitingNumber)
-                    IncomingCallRinger.stop(applicationContext)
-                    IncomingCallRinger.start(applicationContext, waitingNumber, waitingName)
-                    if (!IncomingCallState.isShowing) {
-                        IncomingCallState.show(applicationContext, waitingNumber, waitingName)
-                    }
+                    // MIÉRT KÉSLELTETVE ÉS ÚJRA ELLENŐRIZVE: a letevés gyakran a várakozó
+                    // hívást is elutasítja, de az csak kicsivel később lesz DISCONNECTED —
+                    // azonnal egy fölösleges csengés és egy szellem-képernyő jönne.
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        if (ActiveCallRegistry.ringingCall === waiting &&
+                            ActiveCallRegistry.activeCall == null &&
+                            callState(waiting) == Call.STATE_RINGING &&
+                            promotedWaitingCall != waiting
+                        ) {
+                            promotedWaitingCall = waiting
+                            val waitingNumber = waiting.details.handle?.schemeSpecificPart.orEmpty()
+                            val waitingName = resolveCallerName(waitingNumber)
+                            IncomingCallRinger.stop(applicationContext)
+                            IncomingCallRinger.start(applicationContext, waitingNumber, waitingName)
+                            if (!IncomingCallState.isShowing) {
+                                IncomingCallState.show(applicationContext, waitingNumber, waitingName)
+                            }
+                        }
+                    }, 600L)
                 }
             }
             Call.STATE_SELECT_PHONE_ACCOUNT -> selectPhoneAccount(call)

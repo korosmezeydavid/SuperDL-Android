@@ -18,6 +18,7 @@ object StepCounterStore {
     private const val KEY_BASE = "base_count"
     private const val KEY_TODAY = "today_steps"
     private const val KEY_LAST_TOTAL = "last_sensor_total"
+    private const val KEY_LAST_TOTAL_DAY = "last_sensor_total_day"
     private const val KEY_GOAL = "daily_goal"
     private const val KEY_HEIGHT = "height_cm"
     private const val KEY_WEIGHT = "weight_kg"
@@ -46,8 +47,11 @@ object StepCounterStore {
             // megnyitása ELŐTT megtett mai lépések elvesznének. A legutóbb látott
             // állásból indulunk; ha az nagyobb a mostaninál (újraindult a telefon,
             // az érzékelő nulláról kezdett) vagy nincs meg, marad a mostani állás.
+            // MIÉRT: csak a TEGNAPI utolsó állás jó kiindulópont — egy napokkal
+            // korábbi állásból a köztes napok lépései is „mainak" számítanának.
             val lastTotal = p.getInt(KEY_LAST_TOTAL, -1)
-            base = if (lastTotal in 0..sensorTotal) lastTotal else sensorTotal
+            val lastDay = p.getInt(KEY_LAST_TOTAL_DAY, -1)
+            base = if (lastTotal in 0..sensorTotal && lastDay == yesterdayKey()) lastTotal else sensorTotal
             p.edit().putInt(KEY_DAY, today).putInt(KEY_BASE, base).apply()
         }
         if (sensorTotal < base) {
@@ -56,8 +60,15 @@ object StepCounterStore {
             p.edit().putInt(KEY_BASE, 0).apply()
         }
         val steps = (sensorTotal - base).coerceAtLeast(0)
-        p.edit().putInt(KEY_TODAY, steps).putInt(KEY_LAST_TOTAL, sensorTotal).apply()
+        p.edit().putInt(KEY_TODAY, steps).putInt(KEY_LAST_TOTAL, sensorTotal)
+            .putInt(KEY_LAST_TOTAL_DAY, today).apply()
         return steps
+    }
+
+    private fun yesterdayKey(): Int {
+        val c = Calendar.getInstance()
+        c.add(Calendar.DAY_OF_YEAR, -1)
+        return c.get(Calendar.YEAR) * 1000 + c.get(Calendar.DAY_OF_YEAR)
     }
 
     fun todaySteps(context: Context): Int = prefs(context).getInt(KEY_TODAY, 0)
