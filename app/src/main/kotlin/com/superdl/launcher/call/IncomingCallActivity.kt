@@ -213,7 +213,9 @@ class IncomingCallActivity : AppCompatActivity() {
         dismissReceiver?.let { unregisterReceiver(it) }
         dismissReceiver = null
         unregisterPhoneListener()
-        tts.shutdown()
+        // MIÉRT: csendes módban az onCreate a tts létrehozása előtt kilép —
+        // az inicializálatlan lateinit itt összeomlást okozott.
+        if (::tts.isInitialized) tts.shutdown()
         if (::sounds.isInitialized) sounds.release()
         super.onDestroy()
     }

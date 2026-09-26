@@ -4,7 +4,6 @@ import android.util.Log
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
@@ -248,14 +247,16 @@ object ZipHelper {
             var files = 0
             var dirs = 0
             var uncompressed = 0L
-            ZipInputStream(zip.inputStream().buffered()).use { input ->
-                while (true) {
-                    val entry = input.nextEntry ?: break
+            // MIÉRT ZipFile: csak a zip végén lévő tartalomjegyzéket olvassa, nem
+            // bontja ki végig az egészet — és ott a kibontott méret is mindig megvan.
+            ZipFile(zip).use { archive ->
+                val entries = archive.entries()
+                while (entries.hasMoreElements()) {
+                    val entry: ZipEntry = entries.nextElement()
                     if (entry.isDirectory) dirs++ else {
                         files++
                         if (entry.size > 0) uncompressed += entry.size
                     }
-                    input.closeEntry()
                 }
             }
             val sizeText = if (uncompressed > 0) {

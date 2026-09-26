@@ -319,13 +319,16 @@ object ScheduledSmsTime {
         // 30 perc lett belőle. Az egész órát is hozzá kell adni.
         Regex("(\\d+|[a-z]+)\\s+es\\s+(haromnegyed|negyed|fel)\\s+ora").find(text)?.let { m ->
             val n = m.groupValues[1].toLongOrNull() ?: RELATIVE_HOUR_WORDS[m.groupValues[1]]
-                ?: return null
-            val extra = when (m.groupValues[2]) {
-                "fel" -> 30L
-                "negyed" -> 15L
-                else -> 45L
+            // MIÉRT: ha az „és" előtti szó nem szám (pl. „egy nap és fél óra"),
+            // nem dobjuk el az egészet — a lenti szabályok még felismerhetik.
+            if (n != null) {
+                val extra = when (m.groupValues[2]) {
+                    "fel" -> 30L
+                    "negyed" -> 15L
+                    else -> 45L
+                }
+                return now + n * 60 * 60_000L + extra * 60_000L
             }
-            return now + n * 60 * 60_000L + extra * 60_000L
         }
         if (text.contains("fel ora")) return now + 30 * 60_000L
         // MIÉRT ELŐBB: a „háromnegyed óra" szövegében a „negyed óra" is benne van.

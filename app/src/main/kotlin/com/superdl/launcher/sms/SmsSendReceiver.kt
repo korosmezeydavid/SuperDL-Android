@@ -35,6 +35,10 @@ class SmsSendReceiver : BroadcastReceiver() {
         when (resultCode) {
             Activity.RESULT_OK -> {
                 Log.i(TAG, "SMS rész $index/$total: ELKÜLDVE a hálózatnak")
+                // MIÉRT: egy darabolt üzenetnél a későbbi rész sikere felülírta
+                // egy korábbi rész HIBÁJÁT — a csonka üzenetre azt mondtuk, elment.
+                // Ha ugyanennek a küldésnek már van hibája, az marad.
+                if (context?.let { isAlreadyFailed(it) } == true) return
                 lastError = null
                 // CSAK AZ UTOLSÓ RÉSZ SZÁMÍT SIKERNEK. Egy hosszú, darabolt
                 // üzenetnél az első rész sikere még nem jelenti, hogy az egész
@@ -64,6 +68,8 @@ class SmsSendReceiver : BroadcastReceiver() {
         when (resultCode) {
             Activity.RESULT_OK -> {
                 Log.i(TAG, "SMS rész $index/$total: KÉZBESÍTVE a címzettnek")
+                // MIÉRT: lásd handleSent — egy korábbi rész hibáját nem írjuk felül.
+                if (context?.let { isAlreadyFailed(it) } == true) return
                 lastDelivered = true
                 lastError = null
                 if (index >= total) {
@@ -86,6 +92,9 @@ class SmsSendReceiver : BroadcastReceiver() {
             }
         }
     }
+
+    private fun isAlreadyFailed(context: Context): Boolean =
+        SmsOutcomeStore.currentState(context) == SmsOutcomeStore.State.FAILED
 
     private fun fail(context: Context?, index: Int, total: Int, reason: String) {
         Log.w(TAG, "SMS rész $index/$total: SIKERTELEN — $reason")

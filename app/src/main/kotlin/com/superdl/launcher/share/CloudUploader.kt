@@ -305,6 +305,14 @@ object CloudUploader {
         if (target.id == "filebin") {
             return if (bin.isNotBlank()) "https://filebin.net/$bin" else ""
         }
+        // MIÉRT: egy megszűnt vagy átalakult tárhely 200-as HTML-oldalt ad vissza
+        // (pl. file.io), és az abban talált első cím HAMIS linkként ment volna ki.
+        val eleje = body.trimStart().take(1024).lowercase()
+        if (eleje.startsWith("<!doctype") || (eleje.startsWith("<") &&
+                (eleje.contains("<html") || eleje.contains("<head") || eleje.contains("<body")))
+        ) {
+            return ""
+        }
         // JSON-os tárhelyek: a legelső http(s) mező kell, de a JSON idézőjelei
         // és a \/ escape-elés nélkül.
         val tisztitott = body.replace("\\/", "/")

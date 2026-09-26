@@ -1,5 +1,6 @@
 package com.superdl.launcher.callfilter
 
+import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import com.superdl.launcher.call.IncomingCallCache
@@ -9,6 +10,15 @@ import com.superdl.launcher.patrol.PatrolAnnouncer
 class SuperCallScreeningService : CallScreeningService() {
 
     override fun onScreenCall(callDetails: Call.Details) {
+        // MIÉRT: Android 10-től a kimenő hívások is ide futnak be. Egy tiltólistás
+        // szám felhívását így a szűrő "kiszűrt hívásként" naplózta és bemondta,
+        // és a bejövő-hívás tárba is a saját tárcsázott számunk került.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            callDetails.callDirection == Call.Details.DIRECTION_OUTGOING
+        ) {
+            respondToCall(callDetails, CallResponse.Builder().build())
+            return
+        }
         val number = callDetails.handle?.schemeSpecificPart
         val presentation = callDetails.handlePresentation
         if (!number.isNullOrBlank()) {

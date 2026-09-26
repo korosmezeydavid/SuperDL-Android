@@ -3,6 +3,7 @@ package com.superdl.launcher.contacts
 import android.content.ContentProviderOperation
 import android.content.ContentUris
 import android.content.Context
+import android.net.Uri
 import android.provider.ContactsContract
 
 data class ContactMatch(
@@ -73,28 +74,60 @@ object ContactHelper {
     fun findNameByPhone(context: Context, phone: String): String? {
         val normalized = normalizePhone(phone)
         if (normalized.isBlank()) return null
-        val suffix = normalized.filter { it.isDigit() }.takeLast(7)
-        if (suffix.length < 4) return null
-
-        context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
-            null,
-            null,
-            null
-        )?.use { cursor ->
-            val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-            val phoneIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            while (cursor.moveToNext()) {
-                val stored = normalizePhone(cursor.getString(phoneIdx).orEmpty())
-                if (stored.isBlank()) continue
-                if (stored == normalized || stored.endsWith(suffix) || normalized.endsWith(stored.takeLast(7))) {
-                    val name = cursor.getString(nameIdx)?.trim().orEmpty()
+        // MIÉRT: az utolsó 7 számjegyes egyeztetés idegen nevet mondott be
+        // (más körzet, azonos vég), a "06…"/"+36…" alakokat pedig néha elvétette;
+        // engedély nélkül SecurityException-nel a hívásszolgáltatást is ledöntötte.
+        // A rendszer saját számkeresője (PhoneLookup) az elsődleges; a régi
+        // végződéses egyeztetés csak tartalék, legalább 9 számjeggyel.
+        try {
+            val lookupUri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(normalized)
+            )
+            context.contentResolver.query(
+                lookupUri,
+                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(0)?.trim().orEmpty()
                     if (name.isNotBlank()) return name
                 }
             }
+        } catch (_: Exception) {
         }
-        return null
+
+        val digits = normalized.filter { it.isDigit() }
+        if (digits.length < 9) return null
+        val suffix = digits.takeLast(9)
+        return try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val phoneIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                if (nameIdx < 0 || phoneIdx < 0) return@use null
+                var found: String? = null
+                while (cursor.moveToNext()) {
+                    val storedDigits = cursor.getString(phoneIdx).orEmpty().filter { it.isDigit() }
+                    if (storedDigits.length < 9 || !storedDigits.endsWith(suffix)) continue
+                    val name = cursor.getString(nameIdx)?.trim().orEmpty()
+                    if (name.isNotBlank()) {
+                        found = name
+                        break
+                    }
+                }
+                found
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**

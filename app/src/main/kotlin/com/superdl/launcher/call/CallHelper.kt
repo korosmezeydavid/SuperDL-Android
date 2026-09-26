@@ -127,7 +127,21 @@ object CallHelper {
         }
     }
 
-    fun rejectIncomingCall(context: Context): Boolean = endCallAggressive(context)
+    fun rejectIncomingCall(context: Context): Boolean {
+        // MIÉRT: várakoztatott hívás elutasításakor a "mindent bontó" út a
+        // folyamatban lévő beszélgetést is letette. Ha ismerjük a csengő
+        // hívást, CSAK azt utasítjuk el.
+        ActiveCallRegistry.ringingCall?.let { call ->
+            try {
+                call.reject(false, null)
+                return true
+            } catch (_: Exception) {
+                // Ha van élő beszélgetés, azt nem bontjuk a tartalék úton sem.
+                if (ActiveCallRegistry.activeCall != null) return false
+            }
+        }
+        return endCallAggressive(context)
+    }
 
     fun tryEndCall(context: Context): Boolean = endCallAggressive(context)
 

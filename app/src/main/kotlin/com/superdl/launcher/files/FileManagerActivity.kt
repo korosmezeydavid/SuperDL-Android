@@ -529,7 +529,16 @@ class FileManagerActivity : AppCompatActivity() {
             FileAction.OPEN -> openFile(target.file)
             FileAction.RADIO_IMPORT -> importPlaylistToRadio(target.file)
             FileAction.READ_TEXT -> readTextFile(target.file)
-            FileAction.ZIP_INFO -> tts.speak(ZipHelper.describe(target.file))
+            FileAction.ZIP_INFO -> {
+                // MIÉRT háttérszál: nagy zip beolvasása a főszálon megakasztotta a felületet.
+                val zip = target.file
+                Thread {
+                    val text = ZipHelper.describe(zip)
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) tts.speak(text)
+                    }
+                }.start()
+            }
             FileAction.UNZIP -> runZipTask(kicsomagol = true, file = target.file)
             FileAction.ZIP -> runZipTask(kicsomagol = false, file = target.file)
             FileAction.DETAILS -> tts.speak(target.speakDetails(this))
@@ -597,19 +606,27 @@ class FileManagerActivity : AppCompatActivity() {
     private fun doSingleDelete(item: FileItem) {
         pendingDelete = null
         val path = item.file.absolutePath
-        val ok = FileManagerHelper.delete(item.file)
         screen = Screen.BROWSE
         actionTarget = null
-        if (ok) {
-            scanPaths(listOf(path))
-            sounds.play(SoundType.ACTION_OK)
-            tts.speak("${item.name} törölve.")
-            loadDir(currentDir, announce = false)
-        } else {
-            sounds.play(SoundType.ACTION_ERROR)
-            tts.speak("A törlés nem sikerült. Lehet, hogy nincs jogosultság ehhez a fájlhoz.")
-        }
         updateDisplay()
+        // MIÉRT háttérszál: egy nagy mappa törlése percekig is tarthat, és a
+        // főszálon a felület lefagyott (ANR).
+        Thread {
+            val ok = FileManagerHelper.delete(item.file)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (ok) {
+                    scanPaths(listOf(path))
+                    sounds.play(SoundType.ACTION_OK)
+                    tts.speak("${item.name} törölve.")
+                    loadDir(currentDir, announce = false)
+                } else {
+                    sounds.play(SoundType.ACTION_ERROR)
+                    tts.speak("A törlés nem sikerült. Lehet, hogy nincs jogosultság ehhez a fájlhoz.")
+                }
+                updateDisplay()
+            }
+        }.start()
     }
 
     // ==================== Mappa-menü (csoportos műveletek) ====================
@@ -648,13 +665,20 @@ class FileManagerActivity : AppCompatActivity() {
             FolderMenuAction.SEARCH -> startSearch()
             FolderMenuAction.INFO -> {
                 val count = items.count { it.isReal }
-                val size = android.text.format.Formatter.formatShortFileSize(
-                    this, FileManagerHelper.folderSize(currentDir)
-                )
-                tts.speak(
-                    "${FileManagerHelper.speakFolder(currentDir)}. $count elem. " +
-                        "Teljes méret: $size. ${FileManagerHelper.freeSpaceText(this)}"
-                )
+                val dir = currentDir
+                // MIÉRT háttérszál: a méret az összes almappa bejárása — nagy
+                // mappánál a főszálon lefagyasztotta a felületet.
+                Thread {
+                    val bytes = FileManagerHelper.folderSize(dir)
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        val size = android.text.format.Formatter.formatShortFileSize(this, bytes)
+                        tts.speak(
+                            "${FileManagerHelper.speakFolder(dir)}. $count elem. " +
+                                "Teljes méret: $size. ${FileManagerHelper.freeSpaceText(this)}"
+                        )
+                    }
+                }.start()
             }
         }
     }
@@ -662,23 +686,32 @@ class FileManagerActivity : AppCompatActivity() {
     private fun doWipeDir(dir: File) {
         pendingWipeDir = null
         val victims = items.filter { it.isReal }.map { it.file }
-        var ok = 0
-        var failed = 0
-        val paths = mutableListOf<String>()
-        victims.forEach { f ->
-            paths.add(f.absolutePath)
-            if (FileManagerHelper.delete(f)) ok++ else failed++
-        }
-        scanPaths(paths)
         screen = Screen.BROWSE
-        if (failed == 0) {
-            sounds.play(SoundType.ACTION_OK)
-            tts.speak("$ok elem törölve. A mappa üres.")
-        } else {
-            sounds.play(SoundType.ACTION_ERROR)
-            tts.speak("$ok elem törölve, $failed nem sikerült. Azokhoz nincs jogosultság.")
-        }
-        loadDir(currentDir, announce = false)
+        updateDisplay()
+        tts.speak("Törlés folyamatban. ${victims.size} elem. Egy pillanat.")
+        // MIÉRT háttérszál: sok vagy nagy elem törlése a főszálon lefagyasztotta
+        // a felületet (ANR).
+        Thread {
+            var ok = 0
+            var failed = 0
+            val paths = mutableListOf<String>()
+            victims.forEach { f ->
+                paths.add(f.absolutePath)
+                if (FileManagerHelper.delete(f)) ok++ else failed++
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                scanPaths(paths)
+                if (failed == 0) {
+                    sounds.play(SoundType.ACTION_OK)
+                    tts.speak("$ok elem törölve. A mappa üres.")
+                } else {
+                    sounds.play(SoundType.ACTION_ERROR)
+                    tts.speak("$ok elem törölve, $failed nem sikerült. Azokhoz nincs jogosultság.")
+                }
+                loadDir(currentDir, announce = false)
+            }
+        }.start()
     }
 
     // ==================== Kijelölési mód ====================
@@ -797,24 +830,33 @@ class FileManagerActivity : AppCompatActivity() {
     private fun doBatchDelete() {
         pendingBatchDelete = false
         val files = selectedFiles()
-        var ok = 0
-        var failed = 0
-        val paths = mutableListOf<String>()
-        files.forEach { f ->
-            paths.add(f.absolutePath)
-            if (FileManagerHelper.delete(f)) ok++ else failed++
-        }
-        scanPaths(paths)
         selected.clear()
         screen = Screen.BROWSE
-        if (failed == 0) {
-            sounds.play(SoundType.ACTION_OK)
-            tts.speak("$ok elem törölve.")
-        } else {
-            sounds.play(SoundType.ACTION_ERROR)
-            tts.speak("$ok elem törölve, $failed nem sikerült.")
-        }
-        loadDir(currentDir, announce = false)
+        updateDisplay()
+        tts.speak("Törlés folyamatban. ${files.size} elem. Egy pillanat.")
+        // MIÉRT háttérszál: sok vagy nagy elem törlése a főszálon lefagyasztotta
+        // a felületet (ANR).
+        Thread {
+            var ok = 0
+            var failed = 0
+            val paths = mutableListOf<String>()
+            files.forEach { f ->
+                paths.add(f.absolutePath)
+                if (FileManagerHelper.delete(f)) ok++ else failed++
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                scanPaths(paths)
+                if (failed == 0) {
+                    sounds.play(SoundType.ACTION_OK)
+                    tts.speak("$ok elem törölve.")
+                } else {
+                    sounds.play(SoundType.ACTION_ERROR)
+                    tts.speak("$ok elem törölve, $failed nem sikerült.")
+                }
+                loadDir(currentDir, announce = false)
+            }
+        }.start()
     }
 
     // ==================== Célmappa választása ====================
@@ -877,8 +919,21 @@ class FileManagerActivity : AppCompatActivity() {
         Thread {
             var ok = 0
             var failed = 0
+            var sameFolder = 0
             val paths = mutableListOf<String>()
             files.forEach { f ->
+                // MIÉRT: ugyanabba a mappába „áthelyezve" az ütközés-kezelés
+                // „név (2)"-re nevezte volna át — ez nem áthelyezés. Kihagyjuk.
+                val alreadyThere = pendingIsMove && try {
+                    f.parentFile?.canonicalPath == dir.canonicalPath
+                } catch (_: Exception) {
+                    false
+                }
+                if (alreadyThere) {
+                    sameFolder++
+                    failed++
+                    return@forEach
+                }
                 // Önmagába nem mozgatunk: az a fájl elvesztésével járna.
                 val inside = try {
                     dir.canonicalPath == f.canonicalPath ||
@@ -895,10 +950,12 @@ class FileManagerActivity : AppCompatActivity() {
                 } else {
                     FileManagerHelper.copyTo(f, dir)
                 }
-                if (done) {
+                if (done != null) {
                     ok++
                     paths.add(f.absolutePath)
-                    paths.add(File(dir, f.name).absolutePath)
+                    // MIÉRT a visszaadott fájl: ütközésnél „név (2)" lett belőle,
+                    // és a médiatárnak a valódi nevet kell bejelenteni.
+                    paths.add(done.absolutePath)
                 } else {
                     failed++
                 }
@@ -913,7 +970,12 @@ class FileManagerActivity : AppCompatActivity() {
                     tts.speak("$ok elem ${if (pendingIsMove) "áthelyezve" else "másolva"} ide: ${FileManagerHelper.speakFolder(dir)}.")
                 } else {
                     sounds.play(SoundType.ACTION_ERROR)
-                    tts.speak("$ok sikerült, $failed nem. A sikertelenek a helyükön maradtak.")
+                    val same = if (sameFolder > 0) {
+                        " Ebből $sameFolder már eleve ebben a mappában volt, azokat nem mozdítottam."
+                    } else {
+                        ""
+                    }
+                    tts.speak("$ok sikerült, $failed nem. A sikertelenek a helyükön maradtak.$same")
                 }
                 loadDir(currentDir, announce = false)
             }

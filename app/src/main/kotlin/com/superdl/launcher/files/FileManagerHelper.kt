@@ -363,35 +363,47 @@ object FileManagerHelper {
     /** Átnevezés. */
     fun rename(file: File, newName: String): Boolean = try {
         val clean = sanitizeName(newName)
-        if (clean.isBlank()) false else file.renameTo(File(file.parentFile, clean))
+        val target = File(file.parentFile, clean)
+        // MIÉRT: a hívó a NYERS névvel nézte, van-e már ilyen; a tiltott
+        // karakterek kiszedése után viszont egy MÁSIK, létező fájl nevére
+        // eshetünk, és a renameTo azt csendben felülírná.
+        if (clean.isBlank() || (target.exists() && clean != file.name)) false
+        else file.renameTo(target)
     } catch (_: Exception) {
         false
     }
 
-    /** Másolás egy célmappába. */
-    fun copyTo(source: File, targetDir: File): Boolean = try {
+    /**
+     * Másolás egy célmappába.
+     * @return a TÉNYLEGESEN létrejött elem (ütközésnél „név (2)"), vagy null
+     */
+    fun copyTo(source: File, targetDir: File): File? = try {
         val target = uniqueTarget(targetDir, source.name)
         if (source.isDirectory) {
-            source.copyRecursively(target, overwrite = false)
+            if (source.copyRecursively(target, overwrite = false)) target else null
         } else {
             source.copyTo(target, overwrite = false)
-            true
+            target
         }
     } catch (_: Exception) {
-        false
+        null
     }
 
-    /** Áthelyezés egy célmappába. */
-    fun moveTo(source: File, targetDir: File): Boolean = try {
+    /**
+     * Áthelyezés egy célmappába.
+     * @return a TÉNYLEGES új hely (ütközésnél „név (2)"), vagy null
+     */
+    fun moveTo(source: File, targetDir: File): File? = try {
         val target = uniqueTarget(targetDir, source.name)
         if (source.renameTo(target)) {
-            true
+            target
         } else {
             // Másik köteten a rename nem megy: másol + töröl.
-            if (copyTo(source, targetDir)) delete(source) else false
+            val copied = copyTo(source, targetDir)
+            if (copied != null && delete(source)) copied else null
         }
     } catch (_: Exception) {
-        false
+        null
     }
 
     /** Ütközés esetén "név (2).kiterjesztés" alakot ad. */

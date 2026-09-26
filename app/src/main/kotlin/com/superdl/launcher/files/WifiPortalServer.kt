@@ -44,6 +44,10 @@ class WifiPortalServer(
         // kell legyen, mint amennyit a writePartToFile egy körben beolvashat
         // (64 KB + határoló), mert a határoló utáni bájtokat ide toljuk vissza.
         private const val UPLOAD_PUSHBACK_BYTES = 128 * 1024
+
+        // MIÉRT: egy fejléc- vagy űrlapsor ennél sosem hosszabb; a korlát a
+        // sortörés nélküli, végtelen adatfolyam ellen véd.
+        private const val MAX_LINE_BYTES = 16 * 1024
     }
 
     private var serverSocket: ServerSocket? = null
@@ -168,9 +172,13 @@ class WifiPortalServer(
      * Az űrlapok POST-tartalmának beolvasása (Content-Length alapján).
      * Kis méretű, URL-kódolt adat – SMS, névjegy, jegyzet.
      */
-    private fun readBody(input: InputStream, headers: Map<String, String>): String {
+    private fun readBody(
+        input: InputStream,
+        headers: Map<String, String>,
+        maxBytes: Int = 512 * 1024
+    ): String {
         val length = headers["content-length"]?.toIntOrNull() ?: return ""
-        if (length <= 0 || length > 512 * 1024) return ""
+        if (length <= 0 || length > maxBytes) return ""
         return try {
             val buffer = ByteArray(length)
             var read = 0
@@ -191,7 +199,10 @@ class WifiPortalServer(
         if (given == pin) {
             registerSuccessfulLogin()
             val response = "HTTP/1.1 302 Found\r\n" +
-                "Set-Cookie: superdl_pin=$pin; Path=/\r\n" +
+                // MIÉRT HttpOnly + SameSite=Strict: más oldalról (akár egy
+                // rosszindulatú weblapról a hálózaton) indított kérés ne vigye
+                // magával a PIN-sütit, és szkript se olvashassa ki.
+                "Set-Cookie: superdl_pin=$pin; Path=/; HttpOnly; SameSite=Strict\r\n" +
                 "Location: /\r\n" +
                 "Content-Length: 0\r\n" +
                 "Connection: close\r\n\r\n"
@@ -312,6 +323,12 @@ class WifiPortalServer(
 
     private fun handleClient(socket: Socket) {
         try {
+            // MIÉRT: a portál csak a helyi hálózatnak szól. Mobilnetről vagy
+            // nyilvános IPv6-címről érkező kapcsolatot szó nélkül bontunk.
+            if (!isLocalPeer(socket.inetAddress)) {
+                Log.i(TAG, "nem helyi kapcsolat elutasitva")
+                return
+            }
             // Nagyvonalúbb időkorlát: egy több száz MB-os feltöltésnél a WiFi
             // időnként megbicsaklik (roaming, interferencia), és a régi 30 mp
             // már egy rövid szünettől is elvágta a kapcsolatot. 3 perc alatt a
@@ -367,6 +384,15 @@ class WifiPortalServer(
                         serveHtml(output, buildLoginPage(false))
                     }
                 }
+                // MIÉRT (CSRF): egy idegen weboldal a böngészőből is küldhet POST-ot
+                // a portálra. Ha van Origin, annak a saját címünknek kell lennie.
+                // Az Átjáró (Windows) nem küld Origint — az továbbra is átmegy.
+                method == "POST" && isCrossOrigin(headers) ->
+                    serveHtml(
+                        output,
+                        resultPage("Elutasítva: a kérés nem a portál saját oldaláról jött.", false),
+                        status = "403 Forbidden"
+                    )
                 method == "GET" && route == "/" ->
                     serveHtml(output, buildIndexPage())
                 method == "GET" && route.startsWith("/download/") ->
@@ -559,8 +585,16 @@ class WifiPortalServer(
                             readSmallTextUpload(input, headers)
                         )
                     )
+                // MIÉRT nagyobb korlát: a visszaállítás a teljes (URL-kódolt, így
+                // felfújt) mentést hozza — 512 KB fölött eddig csendben üres lett.
                 method == "POST" && route == "/backup/restore" ->
-                    serveHtml(output, PortalControlPages.handleBackupRestore(context, readBody(input, headers)))
+                    serveHtml(
+                        output,
+                        PortalControlPages.handleBackupRestore(
+                            context,
+                            readBody(input, headers, maxBytes = 16 * 1024 * 1024)
+                        )
+                    )
 
                 // ===== Könyvjelző-szinkron (PC <-> telefon) =====
                 method == "GET" && route == "/sync/bookmarks" ->
@@ -1072,16 +1106,28 @@ class WifiPortalServer(
             serveHtml(output, resultPage("A fájl nem található vagy nem tölthető le.", false), status = "404 Not Found")
             return
         }
-        val (bytes, name, mime) = resolved
-        val header = buildString {
-            append("HTTP/1.1 200 OK\r\n")
-            append("Content-Type: $mime\r\n")
-            append("Content-Length: ${bytes.size}\r\n")
-            append("Content-Disposition: attachment; filename=\"$name\"\r\n")
-            append("Connection: close\r\n\r\n")
+        val stream = try {
+            resolved.open()
+        } catch (_: Exception) {
+            null
         }
-        output.write(header.toByteArray())
-        output.write(bytes)
+        if (stream == null) {
+            serveHtml(output, resultPage("A fájl nem található vagy nem tölthető le.", false), status = "404 Not Found")
+            return
+        }
+        // MIÉRT stream: a teljes fájl memóriába olvasása helyett darabonként
+        // másolunk. Ismeretlen méretnél a kapcsolat bontása jelzi a végét.
+        stream.use { media ->
+            val header = buildString {
+                append("HTTP/1.1 200 OK\r\n")
+                append("Content-Type: ${resolved.mime}\r\n")
+                if (resolved.length >= 0) append("Content-Length: ${resolved.length}\r\n")
+                append("Content-Disposition: attachment; filename=\"${resolved.name}\"\r\n")
+                append("Connection: close\r\n\r\n")
+            }
+            output.write(header.toByteArray())
+            media.copyTo(output, 64 * 1024)
+        }
         output.flush()
     }
 
@@ -1408,15 +1454,57 @@ class WifiPortalServer(
 
     // ==================== Segédek ====================
 
+    /**
+     * Egy sor beolvasása (CRLF/LF végű), UTF-8-ként.
+     *
+     * MIÉRT UTF-8: bájtonkénti Char-rá alakítással az ékezetes fájlnevek
+     * (Content-Disposition) elromlottak. MIÉRT korlát: sortörés nélküli,
+     * végtelen "sor" különben elfogyasztaná a memóriát.
+     */
     private fun readLine(input: InputStream): String? {
-        val sb = StringBuilder()
+        val buf = java.io.ByteArrayOutputStream(128)
         while (true) {
             val b = input.read()
-            if (b < 0) return if (sb.isEmpty()) null else sb.toString()
+            if (b < 0) return if (buf.size() == 0) null else buf.toString("UTF-8")
             if (b == '\n'.code) break
-            if (b != '\r'.code) sb.append(b.toChar())
+            if (b != '\r'.code) {
+                if (buf.size() >= MAX_LINE_BYTES) throw java.io.IOException("túl hosszú sor")
+                buf.write(b)
+            }
         }
-        return sb.toString()
+        return buf.toString("UTF-8")
+    }
+
+    /** Van-e idegen Origin a kérésen (CSRF-védelem). Origin nélkül: nincs. */
+    private fun isCrossOrigin(headers: Map<String, String>): Boolean {
+        val origin = headers["origin"] ?: return false
+        if (origin.equals("null", ignoreCase = true)) return true
+        val authority = origin.substringAfter("://", "").substringBefore('/')
+        val host = headers["host"] ?: return true
+        return !authority.equals(host, ignoreCase = true)
+    }
+
+    /**
+     * Helyi hálózatról jön-e a kapcsolat: loopback, link-local, IPv4 magáncím
+     * (10/8, 172.16/12, 192.168/16) vagy IPv6 ULA (fc00::/7).
+     */
+    private fun isLocalPeer(addr: java.net.InetAddress?): Boolean {
+        if (addr == null) return false
+        if (addr.isLoopbackAddress || addr.isLinkLocalAddress) return true
+        val b = addr.address ?: return false
+        if (b.size == 4) return addr.isSiteLocalAddress
+        if (b.size != 16) return false
+        // IPv4-be ágyazott IPv6 (::ffff:a.b.c.d): a benne lévő IPv4 számít.
+        val mapped = (0 until 10).all { b[it].toInt() == 0 } &&
+            (b[10].toInt() and 0xFF) == 0xFF && (b[11].toInt() and 0xFF) == 0xFF
+        if (mapped) {
+            return try {
+                isLocalPeer(java.net.InetAddress.getByAddress(b.copyOfRange(12, 16)))
+            } catch (_: Exception) {
+                false
+            }
+        }
+        return (b[0].toInt() and 0xFE) == 0xFC
     }
 
     private fun sanitize(name: String): String =

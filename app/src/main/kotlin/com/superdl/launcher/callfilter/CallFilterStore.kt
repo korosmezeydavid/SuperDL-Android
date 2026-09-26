@@ -1,6 +1,7 @@
 package com.superdl.launcher.callfilter
 
 import android.content.Context
+import android.telephony.PhoneNumberUtils
 import org.json.JSONArray
 
 object CallFilterStore {
@@ -150,13 +151,13 @@ object CallFilterStore {
     fun isBlacklisted(context: Context, phone: String): Boolean {
         val normalized = normalizePhone(phone)
         if (normalized.isBlank()) return false
-        return getBlacklist(context).any { normalizePhone(it) == normalized }
+        return getBlacklist(context).any { samePhone(context, it, normalized) }
     }
 
     fun isWhitelisted(context: Context, phone: String): Boolean {
         val normalized = normalizePhone(phone)
         if (normalized.isBlank()) return false
-        return getWhitelist(context).any { normalizePhone(it) == normalized }
+        return getWhitelist(context).any { samePhone(context, it, normalized) }
     }
 
     fun addToBlacklist(context: Context, phone: String): Boolean {
@@ -164,7 +165,7 @@ object CallFilterStore {
         if (normalized.isBlank()) return false
         removeFromWhitelist(context, normalized)
         val current = getBlacklist(context).toMutableList()
-        if (current.any { normalizePhone(it) == normalized }) return false
+        if (current.any { samePhone(context, it, normalized) }) return false
         current.add(normalized)
         writeList(context, KEY_BLACKLIST, current)
         return true
@@ -173,7 +174,7 @@ object CallFilterStore {
     fun removeFromBlacklist(context: Context, phone: String): Boolean {
         val normalized = normalizePhone(phone)
         val current = getBlacklist(context)
-        val updated = current.filterNot { normalizePhone(it) == normalized }
+        val updated = current.filterNot { samePhone(context, it, normalized) }
         if (updated.size == current.size) return false
         writeList(context, KEY_BLACKLIST, updated)
         return true
@@ -183,7 +184,7 @@ object CallFilterStore {
         val normalized = normalizePhone(phone)
         if (normalized.isBlank()) return false
         val current = getWhitelist(context).toMutableList()
-        if (current.any { normalizePhone(it) == normalized }) return false
+        if (current.any { samePhone(context, it, normalized) }) return false
         current.add(normalized)
         writeList(context, KEY_WHITELIST, current)
         return true
@@ -192,14 +193,34 @@ object CallFilterStore {
     fun removeFromWhitelist(context: Context, phone: String): Boolean {
         val normalized = normalizePhone(phone)
         val current = getWhitelist(context)
-        val updated = current.filterNot { normalizePhone(it) == normalized }
+        val updated = current.filterNot { samePhone(context, it, normalized) }
         if (updated.size == current.size) return false
         writeList(context, KEY_WHITELIST, updated)
         return true
     }
 
-    fun normalizePhone(phone: String): String =
-        phone.replace(" ", "").replace("-", "").trim()
+    // MIÉRT: a pontos szöveg-egyezés miatt a "06 30…" alakban mentett szám nem
+    // egyezett a "+36 30…" alakban érkező hívással (és zárójel, pont is
+    // elrontotta) — a tiltás/engedélyezés csendben nem hatott. Csak a
+    // számjegyeket és a vezető '+' jelet tartjuk meg, az egyezést pedig a
+    // rendszer telefonszám-összevetése dönti el.
+    fun normalizePhone(phone: String): String {
+        val trimmed = phone.trim()
+        val digits = trimmed.filter { it.isDigit() }
+        return if (trimmed.startsWith("+") && digits.isNotEmpty()) "+$digits" else digits
+    }
+
+    private fun samePhone(context: Context, stored: String, phone: String): Boolean {
+        val a = normalizePhone(stored)
+        val b = normalizePhone(phone)
+        if (a.isBlank() || b.isBlank()) return false
+        if (a == b) return true
+        return try {
+            PhoneNumberUtils.compare(context, a, b)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     private fun readList(context: Context, key: String): List<String> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key, null)
