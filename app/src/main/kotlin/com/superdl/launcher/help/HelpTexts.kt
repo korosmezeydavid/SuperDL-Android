@@ -783,8 +783,8 @@ object HelpTexts {
             start = "Nyolc bolt van: Lidl, Spar és Interspar, Tesco, Penny, Aldi, Auchan, " +
                 "Rossmann, és a dm kiárusítása. Először letölti az ajánlatot — ez fél " +
                 "percig is eltarthat —, utána egy darabig azonnal megnyílik, és net nélkül " +
-                "is böngészhető. A Lidl és a Tesco újságja nagy fájl, ezért azokat csak " +
-                "wifin tölti le. A dm-nél nincs heti akció, csak kiárusítás, amíg a " +
+                "is böngészhető. A Lidl és a Tesco újságja nagy fájl: ha mobilneten vagy, " +
+                "előbb megmondja a méretét, és megkérdezi, letöltse-e. A dm-nél nincs heti akció, csak kiárusítás, amíg a " +
                 "készlet tart. A lista elején a Keresés minden boltban: bemondod, mit " +
                 "keresel, például: csirkemell — és a találatokat a legolcsóbbal kezdve " +
                 "hallod, a bolt nevével.",

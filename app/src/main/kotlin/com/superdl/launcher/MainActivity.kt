@@ -1182,6 +1182,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingDeleteItemConfirm -> repeatShoppingDeleteItemConfirm(flow.item)
             is AppFlow.ShoppingDeleteListConfirm -> repeatShoppingDeleteListConfirm(flow.listName)
             is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersMeteredConfirm -> tts.speak(offersMeteredQuestion(flow))
             is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, -1)
             is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, -1)
             is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, -1)
@@ -1429,6 +1430,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingDeleteItemConfirm -> repeatShoppingDeleteItemConfirm(flow.item)
             is AppFlow.ShoppingDeleteListConfirm -> repeatShoppingDeleteListConfirm(flow.listName)
             is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersMeteredConfirm -> tts.speak(offersMeteredQuestion(flow))
             is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, +1)
             is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, +1)
             is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, +1)
@@ -1770,6 +1772,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ShoppingDeleteItemConfirm -> deleteShoppingItem(flow)
             is AppFlow.ShoppingDeleteListConfirm -> deleteShoppingList(flow)
             is AppFlow.OffersLoading -> tts.speak("Még töltöm, várj egy kicsit. Balra: mégse.")
+            is AppFlow.OffersMeteredConfirm -> onOffersMeteredAnswer(flow, yes = true)
             is AppFlow.OffersCategoryPick -> onOffersCategoryActivate(flow)
             is AppFlow.OffersBrowse -> enterOffersItemMenu(flow)
             is AppFlow.OffersItemMenu -> onOffersItemMenuActivate(flow)
@@ -2169,6 +2172,7 @@ class MainActivity : AppCompatActivity() {
                 offersToken++
                 exitFlow("Rendben, kiléptem. A letöltés a háttérben befejeződik.")
             }
+            is AppFlow.OffersMeteredConfirm -> onOffersMeteredAnswer(flow, yes = false)
             is AppFlow.OffersCategoryPick -> exitFlow("Akciós újság bezárva.")
             is AppFlow.OffersBrowse -> {
                 val back = flow.back
@@ -12974,11 +12978,54 @@ class MainActivity : AppCompatActivity() {
         return if (first in "aáeéiíoóöőuúüű") "az $word" else "a $word"
     }
 
-    private fun openOffersStore(storeId: String) {
+    // ── NAGY ÚJSÁG MOBILNETEN: RÁKÉRDEZÜNK ────────────────────────────────
+    //
+    // Alph kérése (2026-09-26): „a korlátlan internet korában legyen
+    // választható". Nem tiltjuk, hanem megmondjuk a méretet, és ő dönt.
+
+    private fun askOffersMetered(storeId: String, sizeMb: Int, hasCache: Boolean) {
+        val flow = AppFlow.OffersMeteredConfirm(storeId, sizeMb, hasCache)
+        activeFlow = flow
+        updateFlowDisplay()
+        tts.speak(offersMeteredQuestion(flow))
+    }
+
+    private fun offersMeteredQuestion(flow: AppFlow.OffersMeteredConfirm): String {
+        val name = com.superdl.launcher.offers.OfferStore.storeName(flow.storeId)
+        val Name = withArticle(name).replaceFirstChar { it.uppercase() }
+        val size = if (flow.sizeMb > 0) "körülbelül ${flow.sizeMb} megabájt" else "nagy fájl"
+        return "$Name újságja $size. Most mobilneten vagy: a díjcsomagodtól függően ez " +
+            "pénzbe kerülhet, vagy a keretedből fogy. Letöltsem mégis? Jobbra: igen. " +
+            if (flow.hasCache) "Balra: nem, a korábban letöltöttet mutatom." else "Balra: nem."
+    }
+
+    private fun onOffersMeteredAnswer(flow: AppFlow.OffersMeteredConfirm, yes: Boolean) {
+        if (yes) {
+            openOffersStore(flow.storeId, allowMetered = true)
+            return
+        }
+        val (cached, _) = com.superdl.launcher.offers.OfferStore.saved(this, flow.storeId)
+        if (cached.isNotEmpty()) {
+            enterOffersCategories(
+                flow.storeId, cached, 0,
+                intro = "Rendben, nem töltöm le. A korábban letöltött ajánlatot mutatom."
+            )
+        } else {
+            exitFlow("Rendben, nem töltöm le. Wifin bármikor megnyithatod.")
+        }
+    }
+
+    private fun openOffersStore(storeId: String, allowMetered: Boolean = false) {
         val name = com.superdl.launcher.offers.OfferStore.storeName(storeId)
         val (cached, time) = com.superdl.launcher.offers.OfferStore.saved(this, storeId)
         if (cached.isNotEmpty() && com.superdl.launcher.offers.OfferStore.isFresh(time, storeId)) {
             enterOffersCategories(storeId, cached, 0)
+            return
+        }
+        if (!allowMetered && com.superdl.launcher.offers.OfferStore.needsMeteredConfirm(this, storeId)) {
+            askOffersMetered(
+                storeId, com.superdl.launcher.offers.OfferStore.sizeMb(this, storeId), cached.isNotEmpty()
+            )
             return
         }
         val heavy = com.superdl.launcher.offers.OfferStore.store(storeId)?.heavy == true
@@ -12996,7 +13043,7 @@ class MainActivity : AppCompatActivity() {
         Thread {
             var failure: Exception? = null
             val result = try {
-                com.superdl.launcher.offers.OfferStore.download(this, storeId)
+                com.superdl.launcher.offers.OfferStore.download(this, storeId, allowMetered = allowMetered)
             } catch (e: Exception) {
                 android.util.Log.w("SDL_OFFERS", "$storeId letoltes hiba: ${e.javaClass.simpleName}: ${e.message}")
                 failure = e
@@ -13006,12 +13053,13 @@ class MainActivity : AppCompatActivity() {
                 val flow = activeFlow
                 if (flow !is AppFlow.OffersLoading || flow.token != token) return@runOnUiThread
                 val Name = withArticle(name).replaceFirstChar { it.uppercase() }
-                // MIÉRT NEM JÖTT: mobilnet (a nagy PDF-et óvatosságból nem
-                // töltjük le), vagy a bolt oldala nem válaszol. Kimondjuk,
-                // melyik — a kettőre mást kell tenni.
-                val why = if (failure is com.superdl.launcher.offers.OfferStore.NeedsWifi)
-                    "$Name újságja nagy fájl, ezért csak wifin töltöm le — most mobilneten vagy."
-                else "$Name oldala most nem válaszol."
+                // Közben mobilnetre váltott a telefon: most kérdezünk.
+                val nw = failure
+                if (nw is com.superdl.launcher.offers.OfferStore.NeedsWifi) {
+                    askOffersMetered(storeId, nw.sizeMb, cached.isNotEmpty())
+                    return@runOnUiThread
+                }
+                val why = "$Name oldala most nem válaszol."
                 when {
                     !result.isNullOrEmpty() -> enterOffersCategories(storeId, result, 0)
                     cached.isNotEmpty() -> enterOffersCategories(
@@ -23355,6 +23403,12 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.title
                 tvPosition.text = "Letöltés…"
                 tvHint.text = "⬅ mégse"
+            }
+            is AppFlow.OffersMeteredConfirm -> {
+                tvItem.text = "Letöltsem mobilneten?"
+                tvPosition.text = com.superdl.launcher.offers.OfferStore.storeName(flow.storeId) +
+                    if (flow.sizeMb > 0) ", kb. ${flow.sizeMb} MB" else ""
+                tvHint.text = "➡ igen  •  ⬅ nem"
             }
             is AppFlow.OffersCategoryPick -> {
                 val (name, count) = flow.categories[flow.index]

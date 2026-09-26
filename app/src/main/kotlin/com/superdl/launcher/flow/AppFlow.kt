@@ -801,6 +801,8 @@ sealed class AppFlow {
     ) : AppFlow()
     data class OffersItemMenu(val browse: OffersBrowse, val actionIndex: Int) : AppFlow()
     object OffersAwaitSearch : AppFlow()
+    /** Nagy újság mobilneten: letöltsem mégis? (jobbra igen, balra nem) */
+    data class OffersMeteredConfirm(val storeId: String, val sizeMb: Int, val hasCache: Boolean) : AppFlow()
     data class GuideBrowse(val sections: List<com.superdl.launcher.legal.LegalSection>, val index: Int, val title: String) : AppFlow()
 
     data class NotificationBrowse(val notifications: List<com.superdl.launcher.notifications.NotificationEntry>, val index: Int) : AppFlow()

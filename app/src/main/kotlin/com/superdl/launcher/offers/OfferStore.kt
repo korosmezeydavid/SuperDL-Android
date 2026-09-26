@@ -26,25 +26,56 @@ import java.net.URL
 object OfferStore {
 
     /**
-     * @param heavy nagy PDF-újság (Lidl ~58 MB, Tesco ~10 MB hetente): csak
-     *        wifin töltjük le, és egy napig nem kérdezzük újra.
+     * @param heavy nagy PDF-újság (Lidl ~58 MB, Tesco ~10 MB hetente): mobilneten
+     *        csak rákérdezés után töltjük le, és egy napig nem kérdezzük újra.
+     * @param approxMb a becsült méret, amíg egyszer le nem töltöttük (utána a mért).
      * @param menuLabel ahogy a menüben szól (a dm-nél nem heti akció, hanem kiárusítás).
      */
-    data class Store(val id: String, val name: String, val heavy: Boolean = false, val menuLabel: String = name)
+    data class Store(
+        val id: String,
+        val name: String,
+        val heavy: Boolean = false,
+        val menuLabel: String = name,
+        val approxMb: Int = 0
+    )
 
     val STORES = listOf(
         Store("penny", "Penny"),
         Store("aldi", "Aldi"),
-        Store("lidl", "Lidl", heavy = true),
+        Store("lidl", "Lidl", heavy = true, approxMb = 58),
         Store("spar", "Spar"),
-        Store("tesco", "Tesco", heavy = true),
+        Store("tesco", "Tesco", heavy = true, approxMb = 10),
         Store("auchan", "Auchan"),
         Store("rossmann", "Rossmann"),
         Store("dm", "dm", menuLabel = "dm kiárusítás")
     )
 
-    /** Mobilneten nem töltünk le nagy PDF-et — a felhasználó adatkeretét óvjuk. */
-    class NeedsWifi(val storeName: String) : Exception("$storeName: csak wifin")
+    /**
+     * Mobilneten nagy PDF-et nem töltünk le kérdés nélkül — a felhasználó
+     * adatkeretét óvjuk. Ő dönt: a kérdés megmondja a méretet (Alph kérése,
+     * 2026-09-26: „a korlátlan internet korában legyen választható").
+     */
+    class NeedsWifi(val storeName: String, val sizeMb: Int) : Exception("$storeName: mobilnet, $sizeMb MB")
+
+    /** Nagy újság, és mobilneten vagyunk — rá kell kérdezni a letöltés előtt. */
+    fun needsMeteredConfirm(context: Context, id: String): Boolean =
+        store(id)?.heavy == true && isMetered(context)
+
+    /** A legutóbb mért méret megabájtban, vagy a becslés, ha még nem töltöttük le. */
+    fun sizeMb(context: Context, id: String): Int {
+        val measured = try {
+            context.getSharedPreferences("akciok_meret", Context.MODE_PRIVATE).getLong(id, 0L)
+        } catch (_: Exception) { 0L }
+        return if (measured > 0) ((measured + 999_999) / 1_000_000).toInt()
+        else store(id)?.approxMb ?: 0
+    }
+
+    private fun rememberSize(context: Context, id: String, bytes: Long) {
+        if (bytes <= 0) return
+        try {
+            context.getSharedPreferences("akciok_meret", Context.MODE_PRIVATE).edit().putLong(id, bytes).apply()
+        } catch (_: Exception) {}
+    }
 
     private const val FRESH_MS = 6 * 60 * 60 * 1000L
     private const val FRESH_HEAVY_MS = 24 * 60 * 60 * 1000L
@@ -170,7 +201,11 @@ object OfferStore {
      * kifogyáshoz vezetne), hanem fájlba, és a PDFBox is ideiglenes fájlokkal
      * dolgozik. Oldalanként olvasunk. A végén a fájl törlődik.
      */
-    private fun pdfPagesFromUrl(context: Context, url: String): List<String> {
+    private fun pdfPagesFromUrl(
+        context: Context,
+        url: String,
+        counter: java.util.concurrent.atomic.AtomicLong? = null
+    ): List<String> {
         com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context.applicationContext)
         val tmp = File.createTempFile("akcio", ".pdf", context.cacheDir)
         try {
@@ -181,6 +216,7 @@ object OfferStore {
             } finally {
                 c.disconnect()
             }
+            counter?.addAndGet(tmp.length())
             return com.tom_roush.pdfbox.pdmodel.PDDocument.load(
                 tmp, com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly()
             ).use { doc ->
@@ -208,13 +244,20 @@ object OfferStore {
 
     /**
      * Letölti és elmenti. HÁTTÉRSZÁLON hívandó. Üres eredményt nem ment.
-     * @throws NeedsWifi ha nagy PDF-újság, és mobilneten vagyunk
+     * @param allowMetered a felhasználó rábólintott a mobilnetes letöltésre
+     * @throws NeedsWifi ha nagy PDF-újság, mobilneten vagyunk, és még nem kérdeztük meg
      * @throws Exception ha a bolt oldala nem érhető el
      */
-    fun download(context: Context, id: String, progress: (String) -> Unit = {}): List<OfferItem> {
+    fun download(
+        context: Context,
+        id: String,
+        progress: (String) -> Unit = {},
+        allowMetered: Boolean = false
+    ): List<OfferItem> {
         val st = store(id) ?: throw IllegalArgumentException(id)
-        if (st.heavy && isMetered(context)) throw NeedsWifi(st.name)
-        val pdf: (ByteArray) -> List<String> = { pdfPagesFromUrl(context, String(it, Charsets.UTF_8)) }
+        if (st.heavy && !allowMetered && isMetered(context)) throw NeedsWifi(st.name, sizeMb(context, id))
+        val pdfBytes = java.util.concurrent.atomic.AtomicLong(0L)
+        val pdf: (ByteArray) -> List<String> = { pdfPagesFromUrl(context, String(it, Charsets.UTF_8), pdfBytes) }
         val items = when (id) {
             "penny" -> PennyOffers.download(::httpGet, progress)
             "aldi" -> AldiOffers.download(::httpGet, progress)
@@ -227,6 +270,7 @@ object OfferStore {
             "tesco" -> TescoOffers.download(::httpGet, ::urlAsBytes, pdf, progress)
             else -> throw IllegalArgumentException(id)
         }.filter { !isGarbled(it.name) }
+        if (st.heavy) rememberSize(context, id, pdfBytes.get())
         if (items.isNotEmpty()) save(context, id, items)
         return items
     }
