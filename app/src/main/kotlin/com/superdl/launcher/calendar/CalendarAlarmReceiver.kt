@@ -23,11 +23,22 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
         val eventId = intent.getLongExtra(EXTRA_EVENT_ID, -1L)
         if (eventId < 0L) return
 
-        val pendingResult = goAsync()
         val appContext = context.applicationContext
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
         val beginMs = intent.getLongExtra(EXTRA_BEGIN_MS, 0L)
         val endMs = intent.getLongExtra(EXTRA_END_MS, 0L)
+
+        // MIÉRT: a riasztás a beütemezéskori állapotot hordozza. Ha a programot
+        // azóta törölték vagy áthelyezték, a régi riasztás mégis megszólalt,
+        // rossz időben. Előbb továbbgörgetjük az ütemezést (az új időpont így
+        // biztosan beáll), aztán az elavult riasztást csendben eldobjuk.
+        try {
+            CalendarReminderScheduler.rescheduleUpcoming(appContext)
+        } catch (_: Exception) {
+        }
+        if (isStaleInstance(appContext, eventId, beginMs, title)) return
+
+        val pendingResult = goAsync()
         val wakeLock = acquireWakeLock(appContext)
 
         AlertLaunchHelper.launchStaged(
@@ -68,6 +79,18 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         )
+    }
+
+    private fun isStaleInstance(context: Context, eventId: Long, beginMs: Long, title: String): Boolean {
+        // Engedély vagy adat nélkül nem tudjuk ellenőrizni: inkább szóljon.
+        if (beginMs <= 0L || title.isBlank()) return false
+        if (!CalendarHelper.hasReadPermission(context)) return false
+        return try {
+            CalendarHelper.getInstancesBetween(context, beginMs, beginMs + 1L)
+                .none { it.eventId == eventId && it.begin == beginMs }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun acquireWakeLock(context: Context): PowerManager.WakeLock? =

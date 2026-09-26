@@ -60,6 +60,29 @@ object IncomingCallRinger {
         }
     }
 
+    // MIÉRT: beszélgetés közben érkező hívásnál nem nyúlunk a hangmódhoz és a
+    // hangfókuszhoz (az élő hívásé), csak rövid kopogó hangot adunk a hívás
+    // hangcsatornáján, rezgés nélkül.
+    fun startCallWaiting(context: Context, phone: String, name: String) {
+        val appContext = context.applicationContext
+        mainHandler.post {
+            if (QuietModeHelper.shouldSuppressIncomingCalls(appContext)) return@post
+            if (!ringing) {
+                ringing = true
+                ensureNotificationChannel(appContext)
+            }
+            postIncomingNotification(appContext, phone, name)
+            if (mediaPlayer != null || ringtone != null || fallbackTone != null) return@post
+            try {
+                fallbackTone = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80).also { tone ->
+                    tone.startTone(ToneGenerator.TONE_SUP_CALL_WAITING, 2000)
+                }
+            } catch (_: Exception) {
+                fallbackTone = null
+            }
+        }
+    }
+
     fun stop(context: Context) {
         val appContext = context.applicationContext
         mainHandler.post {

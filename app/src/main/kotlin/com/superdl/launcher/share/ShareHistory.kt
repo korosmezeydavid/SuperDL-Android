@@ -155,7 +155,16 @@ object ShareHistoryStore {
                     }
                 )
             }
-            file(context).writeText(arr.toString(), Charsets.UTF_8)
+            // MIÉRT ideiglenes fájl + átnevezés: írás közbeni leállásnál (akku,
+            // kilövés) a félig írt JSON-t a read() sérültnek látná, és az
+            // egész előzmény elveszne. Az átnevezés atomi.
+            val target = file(context)
+            val tmp = File(target.parentFile, "$FILE_NAME.tmp")
+            tmp.writeText(arr.toString(), Charsets.UTF_8)
+            if (!tmp.renameTo(target)) {
+                target.writeText(arr.toString(), Charsets.UTF_8)
+                tmp.delete()
+            }
         } catch (_: Exception) {
             // A tár elvesztése kellemetlen, de nem indok arra, hogy a
             // feltöltés maga meghiúsuljon.

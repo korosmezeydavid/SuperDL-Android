@@ -45,6 +45,10 @@ object CallAudioController {
     var muted: Boolean = false
         private set
 
+    /** Bluetooth-on ment-e a hang, mielőtt a kihangosítást bekapcsoltuk. */
+    @Volatile
+    private var bluetoothBeforeSpeaker: Boolean = false
+
     fun attach(service: InCallService) {
         inCallService = service
         Log.i(TAG, "hangvezerles: Telecom szolgaltatas csatlakoztatva")
@@ -69,10 +73,23 @@ object CallAudioController {
         // 1. TELECOM — a legmegbízhatóbb út.
         inCallService?.let { service ->
             return try {
-                service.setAudioRoute(
-                    if (enabled) CallAudioState.ROUTE_SPEAKER
-                    else CallAudioState.ROUTE_EARPIECE
-                )
+                // MIÉRT: kikapcsoláskor a ROUTE_EARPIECE a bedugott vezetékes
+                // fülhallgatót is megkerülte, és a Bluetooth-headsetről is
+                // levette a hangot. A WIRED_OR_EARPIECE a rendszerre bízza a
+                // választást; ha előtte Bluetooth szólt, oda térünk vissza.
+                @Suppress("DEPRECATION")
+                val state = service.callAudioState
+                if (enabled && state != null && state.route != CallAudioState.ROUTE_SPEAKER) {
+                    bluetoothBeforeSpeaker = state.route == CallAudioState.ROUTE_BLUETOOTH
+                }
+                val bluetoothAvailable = state != null &&
+                    (state.supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH) != 0
+                val route = when {
+                    enabled -> CallAudioState.ROUTE_SPEAKER
+                    bluetoothBeforeSpeaker && bluetoothAvailable -> CallAudioState.ROUTE_BLUETOOTH
+                    else -> CallAudioState.ROUTE_WIRED_OR_EARPIECE
+                }
+                service.setAudioRoute(route)
                 speakerOn = enabled
                 Log.i(TAG, "kihangositas Telecom uton: $enabled")
                 true

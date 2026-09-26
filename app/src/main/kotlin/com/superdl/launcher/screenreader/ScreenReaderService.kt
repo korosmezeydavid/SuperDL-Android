@@ -2391,19 +2391,17 @@ class ScreenReaderService : AccessibilityService() {
      * @return igaz, ha sikerült görgetni (ilyenkor NEM lépünk elemet)
      */
     private fun tryAutoScroll(forward: Boolean): Boolean {
-        val root = try {
-            rootInActiveWindow
+        val hasRoot = try {
+            rootInActiveWindow != null
         } catch (_: Exception) {
-            null
-        } ?: return false
-        // MIÉRT: a gyökér szinte sosem görgethető, és a scroll() csak az elemet
-        // és a szülőit nézi. Ezért előbb az aktuális elemtől indulunk (a
-        // listája görög), és ha az sem megy, a fában keresünk görgethetőt.
-        var ok = ScreenReaderNavigator.scroll(filtered.getOrNull(index), forward)
-        if (!ok) {
-            val scrollable = ScreenReaderNavigator.findScrollable(root)
-            ok = scrollable != null && ScreenReaderNavigator.scroll(scrollable, forward)
+            false
         }
+        if (!hasRoot) return false
+        // MIÉRT: a gyökér szinte sosem görgethető, és a scroll() csak az elemet
+        // és a szülőit nézi, ezért az aktuális elemtől indulunk (a listája görög).
+        // A fában keresett tartalék görgethető NINCS: az gyakran a fül-lapozó
+        // volt, így a lista végén véletlenül fület váltott.
+        val ok = ScreenReaderNavigator.scroll(filtered.getOrNull(index), forward)
         if (!ok) return false
 
         sounds?.play(

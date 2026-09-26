@@ -3,6 +3,9 @@ package com.superdl.launcher.call
 import android.os.Build
 import android.telecom.Call
 import android.telecom.InCallService
+import android.telecom.PhoneAccount
+import android.telecom.PhoneAccountHandle
+import android.telecom.TelecomManager
 import com.superdl.launcher.callfilter.CallFilterEngine
 import com.superdl.launcher.contacts.ContactHelper
 import com.superdl.launcher.system.QuietModeHelper
@@ -42,6 +45,19 @@ class SuperInCallService : InCallService() {
     override fun onCallRemoved(call: Call) {
         callbacks.remove(call)?.let { call.unregisterCallback(it) }
         ActiveCallRegistry.onCallRemoved(call)
+        // MIÉRT: ha a letett hívás mellett egy TARTOTT hívás maradt, eddig
+        // semmi nem vette vissza — a hang és a képernyő leállt, a másik fél
+        // pedig örökre várakozott. Visszavesszük, és aktívként nyilvántartjuk.
+        if (!ActiveCallRegistry.hasManagedCall) {
+            val held = calls.firstOrNull { it != call && callState(it) == Call.STATE_HOLDING }
+            if (held != null) {
+                try {
+                    held.unhold()
+                } catch (_: Exception) {
+                }
+                ActiveCallRegistry.onStateChanged(held, Call.STATE_ACTIVE)
+            }
+        }
         if (!ActiveCallRegistry.hasManagedCall) {
             IncomingCallRinger.stop(applicationContext)
             IncomingCallState.dismissIfShowing(applicationContext)
@@ -72,7 +88,15 @@ class SuperInCallService : InCallService() {
                     call.reject(false, null)
                     return
                 }
-                IncomingCallRinger.start(applicationContext, number, name)
+                // MIÉRT: beszélgetés közben érkező (várakoztatott) hívásra a teljes
+                // csengőhang a fülbe szólt és átállította a hangmódot — ilyenkor
+                // csak rövid kopogó hang jelez.
+                val other = ActiveCallRegistry.activeCall
+                if (other != null && other != call) {
+                    IncomingCallRinger.startCallWaiting(applicationContext, number, name)
+                } else {
+                    IncomingCallRinger.start(applicationContext, number, name)
+                }
                 if (!IncomingCallState.isShowing) {
                     IncomingCallState.show(applicationContext, number, name)
                 }
@@ -103,6 +127,69 @@ class SuperInCallService : InCallService() {
             Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
                 IncomingCallRinger.stop(applicationContext)
                 IncomingCallState.dismissIfShowing(applicationContext)
+            }
+            Call.STATE_SELECT_PHONE_ACCOUNT -> selectPhoneAccount(call)
+        }
+    }
+
+    // MIÉRT: "mindig kérdezzen" SIM-beállításnál a kimenő hívás ebben az
+    // állapotban várt a választásra, amit senki nem adott meg — elakadt.
+    // Az alapértelmezett (vagy az első elérhető) SIM-mel indítjuk.
+    private fun selectPhoneAccount(call: Call) {
+        val telecom = getSystemService(TelecomManager::class.java)
+        @Suppress("DEPRECATION")
+        val available: List<PhoneAccountHandle> = (
+            call.details.intentExtras
+                ?.getParcelableArrayList<PhoneAccountHandle>(Call.AVAILABLE_PHONE_ACCOUNTS)
+                ?: call.details.extras
+                    ?.getParcelableArrayList<PhoneAccountHandle>(Call.AVAILABLE_PHONE_ACCOUNTS)
+            ).orEmpty().ifEmpty {
+                try {
+                    telecom?.callCapablePhoneAccounts.orEmpty()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+        val preferred = try {
+            telecom?.getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL)
+        } catch (_: Exception) {
+            null
+        }
+        val chosen = preferred?.takeIf { available.isEmpty() || it in available }
+            ?: available.firstOrNull()
+        if (chosen == null) {
+            try {
+                call.disconnect()
+            } catch (_: Exception) {
+            }
+            com.superdl.launcher.patrol.PatrolAnnouncer.announce(
+                applicationContext,
+                "A hívás nem indítható: nincs használható SIM-kártya.",
+                withBeep = false
+            )
+            return
+        }
+        try {
+            call.phoneAccountSelected(chosen, false)
+        } catch (_: Exception) {
+            try {
+                call.disconnect()
+            } catch (_: Exception) {
+            }
+            return
+        }
+        if (available.size > 1) {
+            val label = try {
+                telecom?.getPhoneAccount(chosen)?.label?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (!label.isNullOrBlank()) {
+                com.superdl.launcher.patrol.PatrolAnnouncer.announce(
+                    applicationContext,
+                    "Hívás ezzel: $label.",
+                    withBeep = false
+                )
             }
         }
     }

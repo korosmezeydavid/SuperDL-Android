@@ -80,6 +80,14 @@ object SmsOutcomeStore {
         }
     }
 
+    /** Az utolsó üzenet jelenlegi állapota, vagy null, ha nincs/olvashatatlan. */
+    fun currentState(context: Context): State? = try {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.getString(KEY_STATE, null)?.let { State.valueOf(it) }
+    } catch (_: Exception) {
+        null
+    }
+
     /** Felolvasható válasz arra, hogy „mi lett az utolsó üzenettel". */
     fun speakLast(context: Context): String = try {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

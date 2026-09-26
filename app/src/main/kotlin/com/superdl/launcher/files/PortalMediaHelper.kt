@@ -3,6 +3,7 @@ package com.superdl.launcher.files
 import android.content.Context
 import android.provider.MediaStore
 import java.io.File
+import java.io.InputStream
 
 /**
  * Összegyűjti a telefonon a SuperDL által készített MÉDIÁT a WiFi portál
@@ -100,10 +101,24 @@ object PortalMediaHelper {
     }
 
     /**
-     * Egy token feloldása letölthető bájtokká. Visszaadja a (bájtok, név, mime)
-     * hármast, vagy null ha nem található / nem engedélyezett.
+     * Egy letölthető média. MIÉRT nem bájttömb: egy hosszú felvétel vagy nagy
+     * fotó egészben a memóriába olvasva kifogyaszthatta a memóriát — így a
+     * portál közvetlenül a kapcsolatra másolja (streameli).
+     *
+     * @property length a méret bájtban, vagy -1, ha ismeretlen
      */
-    fun resolveToken(context: Context, token: String): Triple<ByteArray, String, String>? {
+    class ResolvedMedia(
+        val length: Long,
+        val name: String,
+        val mime: String,
+        val open: () -> InputStream?
+    )
+
+    /**
+     * Egy token feloldása letölthető médiává, vagy null ha nem található /
+     * nem engedélyezett.
+     */
+    fun resolveToken(context: Context, token: String): ResolvedMedia? {
         return try {
             when {
                 token.startsWith("f:") -> {
@@ -124,7 +139,7 @@ object PortalMediaHelper {
                     }
                     if (!allowed) return null
                     if (!f.exists() || !f.isFile) return null
-                    Triple(f.readBytes(), f.name, guessAudioMime(f.name))
+                    ResolvedMedia(f.length(), f.name, guessAudioMime(f.name)) { f.inputStream() }
                 }
                 token.startsWith("ms:") -> {
                     val id = token.removePrefix("ms:").toLongOrNull() ?: return null
@@ -133,13 +148,23 @@ object PortalMediaHelper {
                     )
                     // MIÉRT: az "ms:" azonosító kitalálható sorszám — csak a
                     // SuperDL saját fotóit adjuk ki, nem a teljes galériát.
+                    var size = -1L
                     val name = context.contentResolver.query(
-                        uri, arrayOf(MediaStore.Images.Media.DISPLAY_NAME), null, null, null
-                    )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                        uri,
+                        arrayOf(MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.SIZE),
+                        null, null, null
+                    )?.use { c ->
+                        if (c.moveToFirst()) {
+                            if (!c.isNull(1)) size = c.getLong(1)
+                            c.getString(0)
+                        } else null
+                    }
                     if (name == null || !name.startsWith("SuperDL", ignoreCase = true)) return null
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: return null
-                    Triple(bytes, "SuperDL_foto_$id.jpg", "image/jpeg")
+                    ResolvedMedia(
+                        if (size > 0) size else -1L,
+                        "SuperDL_foto_$id.jpg",
+                        "image/jpeg"
+                    ) { context.contentResolver.openInputStream(uri) }
                 }
                 else -> null
             }

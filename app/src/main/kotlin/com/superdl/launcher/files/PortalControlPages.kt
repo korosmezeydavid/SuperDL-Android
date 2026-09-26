@@ -1333,13 +1333,24 @@ object PortalControlPages {
         } catch (_: Exception) {
             null
         }
+        // MIÉRT csak azonos szervernél: ha a szerver vagy a felhasználó megváltozott,
+        // a régi jelszót egy MÁSIK (akár idegen) szervernek küldenénk el.
+        val sameServer = existing != null &&
+            existing.host.equals(host, ignoreCase = true) &&
+            existing.imapHost.equals(imapHost, ignoreCase = true) &&
+            existing.username.equals(username, ignoreCase = true)
         val password = if (passwordRaw.isBlank()) {
-            existing?.password.orEmpty()
+            if (sameServer) existing?.password.orEmpty() else ""
         } else {
             passwordRaw.replace(" ", "")
         }
         if (password.isBlank()) {
-            return emailPage(context, error = "A jelszó kötelező.", showAdvanced = true)
+            val why = if (existing != null && !sameServer) {
+                "A szerver vagy a felhasználónév megváltozott, ezért a jelszót újra meg kell adni."
+            } else {
+                "A jelszó kötelező."
+            }
+            return emailPage(context, error = why, showAdvanced = true)
         }
 
         val config = SmtpConfig(
@@ -2267,7 +2278,8 @@ object PortalControlPages {
                   <span class="media-size">$whenTxt$recTxt</span>
                   <a class="btn" href="/calendar?edit=${e.eventId}">Szerkesztés</a>
                   <form method="POST" action="/calendar/delete" style="display:inline"
-                        onsubmit="return confirm('Biztosan törlöd? ${esc(e.title)}');">
+                        data-t="${esc(e.title)}"
+                        onsubmit="return confirm('Biztosan törlöd? ' + this.dataset.t);">
                     <input type="hidden" name="id" value="${e.eventId}">
                     <button type="submit" class="btn secondary">Törlés</button>
                   </form>
@@ -2477,7 +2489,8 @@ object PortalControlPages {
 
         val delListForm = if (active == null) "" else """
             <form method="POST" action="/shopping/dellist" style="display:inline"
-                  onsubmit="return confirm('Biztosan törlöd a teljes listát? ${esc(active)}');">
+                  data-t="${esc(active)}"
+                  onsubmit="return confirm('Biztosan törlöd a teljes listát? ' + this.dataset.t);">
               <button type="submit" class="btn secondary">A(z) ${esc(active)} lista törlése</button>
             </form>
         """.trimIndent()
@@ -2676,11 +2689,14 @@ object PortalControlPages {
         return result
     }
 
+    // MIÉRT az aposztróf is: egyszeres idézőjeles attribútumban (vagy JS-szövegben)
+    // egy ' a névben kitörhetett volna belőle.
     private fun esc(text: String?): String = (text ?: "")
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 
     private fun css(): String = """
         * { box-sizing: border-box; }

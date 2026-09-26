@@ -9,18 +9,52 @@ import com.superdl.launcher.system.QuietModeHelper
 
 class SuperNotificationListener : NotificationListenerService() {
 
+    /** Az már látott értesítés-kulcsok (a „csak egyszer szóljon" frissítésekhez). */
+    private val seenKeys = LinkedHashSet<String>()
+
     override fun onListenerConnected() {
         super.onListenerConnected()
-        activeNotifications?.forEach { postNotification(it) }
+        activeNotifications?.forEach {
+            rememberKey(it.key)
+            postNotification(it)
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        // A "már láttuk" döntés a tárolás ELŐTT kell.
+        val alreadySeen = !rememberKey(sbn.key)
         postNotification(sbn)
-        maybeAnnounceNotification(sbn)
+        if (shouldAnnounce(sbn, alreadySeen)) {
+            maybeAnnounceNotification(sbn)
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotificationStore.remove(sbn.key)
+        seenKeys.remove(sbn.key)
+    }
+
+    /** @return true, ha a kulcs új volt. */
+    private fun rememberKey(key: String): Boolean {
+        val added = seenKeys.add(key)
+        while (seenKeys.size > MAX_SEEN_KEYS) {
+            seenKeys.remove(seenKeys.first())
+        }
+        return added
+    }
+
+    // MIÉRT: a saját értesítéseinket (pl. bejövő hívás), a csoport-összesítőket,
+    // a folyamatban lévő (zene, letöltés, navigáció) értesítéseket és a
+    // "csak egyszer szóljon" frissítéseket is bemondtuk — újra és újra.
+    private fun shouldAnnounce(sbn: StatusBarNotification, alreadySeen: Boolean): Boolean {
+        if (sbn.packageName == packageName) return false
+        val notification = sbn.notification ?: return false
+        if ((notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) != 0) return false
+        if (sbn.isOngoing && notification.category != android.app.Notification.CATEGORY_CALL) return false
+        if (alreadySeen && (notification.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE) != 0) {
+            return false
+        }
+        return true
     }
 
     private fun postNotification(sbn: StatusBarNotification) {
@@ -82,5 +116,9 @@ class SuperNotificationListener : NotificationListenerService() {
                 }
         }
         PatrolAnnouncer.announce(this, message, soundCategory = soundCategory)
+    }
+
+    private companion object {
+        const val MAX_SEEN_KEYS = 200
     }
 }
