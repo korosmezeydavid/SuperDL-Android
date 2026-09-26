@@ -40,6 +40,7 @@ object CatalogStore {
         // Ha címkecsomag volt, a memóriában lévő másolatát is el kell engedni.
         com.superdl.launcher.screenreader.LabelPackStore.invalidate()
         com.superdl.launcher.macro.RoutePackStore.invalidate()
+        com.superdl.launcher.patrol.TalkingClock.invalidate()
     }
 
     /** A letöltött modulok azonosítói, típus szerint szűrve. */

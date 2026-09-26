@@ -29,6 +29,7 @@ object PatrolAnnouncer {
         val withBeep: Boolean,
         val soundCategory: AlertSoundCategory,
         val softChime: Boolean = false,
+        val clockTime: Pair<Int, Int>? = null,
         val onDone: (() -> Unit)?
     )
 
@@ -43,6 +44,7 @@ object PatrolAnnouncer {
         soundCategory: AlertSoundCategory = AlertSoundCategory.GENERAL_NOTIFICATION,
         critical: Boolean = false,
         softChime: Boolean = false,
+        clockTime: Pair<Int, Int>? = null,
         onDone: (() -> Unit)? = null
     ) {
         val trimmed = message.trim()
@@ -63,6 +65,7 @@ object PatrolAnnouncer {
             withBeep = withBeep,
             soundCategory = soundCategory,
             softChime = softChime,
+            clockTime = clockTime,
             onDone = onDone
         )
         if (speaking.compareAndSet(false, true)) {
@@ -90,7 +93,16 @@ object PatrolAnnouncer {
             // (pl. óránkénti időbemondás, feloldás) – kevésbé zavaró.
             playSoftChime(request.appContext)
             mainHandler.postDelayed({
-                speak(request.appContext, request.message, finish)
+                val clock = request.clockTime
+                if (clock != null) {
+                    // BESZÉLŐ ÓRA: élő hangon, klipekből. Ha bármi hiányzik
+                    // vagy nem szól, ugyanaz a mondat a felolvasóval megy.
+                    TalkingClock.play(request.appContext, clock.first, clock.second) { ok ->
+                        if (ok) finish() else speak(request.appContext, request.message, finish)
+                    }
+                } else {
+                    speak(request.appContext, request.message, finish)
+                }
             }, 700L)
         } else if (request.withBeep) {
             AlertSoundPlayer.playOnce(request.appContext, request.soundCategory)

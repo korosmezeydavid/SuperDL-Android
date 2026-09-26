@@ -190,11 +190,19 @@ class BatteryPatrolService : Service() {
         if (key == lastIntervalAnnounceKey) return
         lastIntervalAnnounceKey = key
         // Óránkénti/periodikus időbemondás: egyetlen rövid, lágy csendülés + idő.
+        // Ha a beszélő óra modul le van töltve, és erre a percre van klip,
+        // élő hangon szól („Most tizennégy óra harminc perc van."); különben,
+        // vagy ha a klip nem szólal meg, a felolvasó mondja a dátumot és az időt.
+        val hour = now.get(Calendar.HOUR_OF_DAY)
+        val clock = if (com.superdl.launcher.patrol.TalkingClock.canSay(this, hour, minute)) {
+            Pair(hour, minute)
+        } else null
         PatrolAnnouncer.announce(
             this,
             InfoHelper.speakDateTime(),
             withBeep = false,
-            softChime = true
+            softChime = true,
+            clockTime = clock
         )
     }
 
