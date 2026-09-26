@@ -42,24 +42,41 @@ object AlertSoundPlayer {
             ?: RingtoneManager.getActualDefaultRingtoneUri(context, type)
     }
 
+    /**
+     * EMLÉKEZTETŐK NÉMA MÓDBAN IS SZÓLNAK.
+     *
+     * Alph döntése (2026-09-26): „nagyon fontos a gyógyszer-emlékeztető és minden
+     * emlékeztető normálisan szóljon néma módban is". A néma mód a program
+     * apró hangjait (söprés, értesítés) csendesíti — egy bevenni való gyógyszert
+     * vagy egy programot nem hallgathat el. Ezért ezeknél a kategóriáknál a
+     * néma mód nem számít.
+     */
+    private val ALWAYS_AUDIBLE = setOf(
+        AlertSoundCategory.MEDICATION,
+        AlertSoundCategory.CALENDAR,
+        AlertSoundCategory.ALARM_CLOCK
+    )
+
     fun startLooping(context: Context, category: AlertSoundCategory): () -> Unit {
-        if (!AlertSoundSettingsStore.shouldPlay(context)) return {}
+        val force = category in ALWAYS_AUDIBLE
+        if (!AlertSoundSettingsStore.shouldPlay(context, force)) return {}
         val preset = AlertSoundStore.getPreset(context, category)
-        return startLoopingPreset(context, preset)
+        return startLoopingPreset(context, preset, force)
     }
 
     fun startLoopingPreset(
         context: Context,
-        preset: AlertSoundPreset
+        preset: AlertSoundPreset,
+        force: Boolean = false
     ): () -> Unit {
-        if (!AlertSoundSettingsStore.shouldPlay(context)) return {}
+        if (!AlertSoundSettingsStore.shouldPlay(context, force)) return {}
         ensureAlarmAudible(context)
         val sequence = effectiveSequence(preset)
         val running = AtomicBoolean(true)
         val thread = Thread(
             {
                 while (running.get() && !Thread.currentThread().isInterrupted) {
-                    playToneSequenceSync(context, sequence, force = false)
+                    playToneSequenceSync(context, sequence, force = force)
                     if (running.get() && !Thread.currentThread().isInterrupted) {
                         sleepInterruptibly(700L)
                     }

@@ -19228,13 +19228,15 @@ class MainActivity : AppCompatActivity() {
         val next = AlertSoundSettingsStore.toggleSilentMode(this)
         val systemResult = QuietModeHelper.apply(this, next)
         val extra = when {
+            // MIÉRT: Alph döntése (2026-09-26) — a gyógyszer-, program-, ébresztő- és
+            // időzítő-emlékeztető néma módban is rendesen szól.
             next && systemResult.dndApplied ->
-                "Bekapcsolva. Az emlékeztető hangok és értesítés-bemondások némák. A söprés hangok és a telefon csengőhangja továbbra is működik."
+                "Bekapcsolva. Az értesítés-bemondások némák. A gyógyszer-, program- és ébresztő-emlékeztetők, az időzítő, a söprés hangok és a telefon csengőhangja továbbra is szólnak."
             next && systemResult.needsPolicyAccess ->
-                "Az emlékeztető hangok és értesítés-bemondások némák. A söprés hangok és a telefon csengőhangja továbbra is működik. " +
+                "Az értesítés-bemondások némák. A gyógyszer-, program- és ébresztő-emlékeztetők, az időzítő, a söprés hangok és a telefon csengőhangja továbbra is szólnak. " +
                     "A teljes rendszer-csendhez engedélyezd a Super DL-t a megnyitott Ne zavarjanak beállításban."
             next ->
-                "Bekapcsolva. Az emlékeztető hangok némák. A söprés hangok és a telefon csengőhangja továbbra is működik."
+                "Bekapcsolva. Az értesítés-bemondások némák. Az emlékeztetők, az időzítő, a söprés hangok és a telefon csengőhangja továbbra is szólnak."
             else ->
                 "Kikapcsolva. A korábbi értesítési beállítás visszaállítva."
         }

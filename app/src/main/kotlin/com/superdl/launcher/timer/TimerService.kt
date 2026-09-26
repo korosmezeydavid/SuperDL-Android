@@ -113,13 +113,15 @@ class TimerService : Service() {
             TimerStore.updateLastAnnounced(this, elapsed)
             PatrolAnnouncer.announce(
                 this,
-                TimerSpeech.speakProgress(session.label, elapsed, remaining)
+                TimerSpeech.speakProgress(session.label, elapsed, remaining),
+                critical = true
             )
         }
     }
 
     private fun finishTimer(session: ActiveTimerSession) {
-        PatrolAnnouncer.announce(this, TimerSpeech.speakFinished(session.label)) {
+        // MIÉRT critical: az időzítő lejárta emlékeztető — néma módban is szólnia kell (Alph).
+        PatrolAnnouncer.announce(this, TimerSpeech.speakFinished(session.label), critical = true) {
             TimerStore.clearActiveSession(this@TimerService)
             stopSelf()
         }
