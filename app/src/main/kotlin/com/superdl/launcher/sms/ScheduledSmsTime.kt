@@ -262,8 +262,16 @@ object ScheduledSmsTime {
         val m = cal.get(Calendar.MINUTE)
         val time = "${h.toString().padStart(2, '0')} óra ${m.toString().padStart(2, '0')} perc"
         val left = triggerAt - now
-        val holnap = !sameDay(triggerAt, now)
-        val napText = if (holnap) "holnap " else ""
+        // MIÉRT: eddig minden nem-mai napra „holnap" hangzott el, a
+        // holnaputánra is. A naptári napok különbsége dönt.
+        val offset = dayOffset(triggerAt, now)
+        val napText = when {
+            offset <= 0 -> ""
+            offset == 1 -> "holnap "
+            offset == 2 -> "holnapután "
+            else -> java.text.SimpleDateFormat("yyyy. MMMM d.", java.util.Locale("hu"))
+                .format(java.util.Date(triggerAt)) + " "
+        }
         val leftText = when {
             left < 60_000 -> "kevesebb mint egy perc múlva"
             left < 60 * 60_000 -> "${left / 60_000} perc múlva"
@@ -276,23 +284,53 @@ object ScheduledSmsTime {
         return "$napText$time, $leftText"
     }
 
-    private fun sameDay(a: Long, b: Long): Boolean {
+    /**
+     * Hány naptári nappal van `a` a `now` napja után (negatív: előtte).
+     * MIÉRT kerekítés: a nyári időszámítás váltásakor egy nap 23 vagy 25 óra,
+     * az egész osztás ilyenkor egy nappal elcsúszna.
+     */
+    private fun dayOffset(a: Long, now: Long): Int {
         val ca = Calendar.getInstance().apply { timeInMillis = a }
-        val cb = Calendar.getInstance().apply { timeInMillis = b }
-        return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) &&
-            ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
+        val cb = Calendar.getInstance().apply { timeInMillis = now }
+        listOf(ca, cb).forEach {
+            it.set(Calendar.HOUR_OF_DAY, 0)
+            it.set(Calendar.MINUTE, 0)
+            it.set(Calendar.SECOND, 0)
+            it.set(Calendar.MILLISECOND, 0)
+        }
+        return Math.round((ca.timeInMillis - cb.timeInMillis) / 86_400_000.0).toInt()
     }
 
     // ── „… múlva" ───────────────────────────────────────────────────────────
+
+    /** A „… óra múlva" kimondott számnevei. */
+    private val RELATIVE_HOUR_WORDS = mapOf(
+        "egy" to 1L, "ket" to 2L, "ketto" to 2L, "harom" to 3L,
+        "negy" to 4L, "ot" to 5L, "hat" to 6L, "het" to 7L,
+        "nyolc" to 8L, "kilenc" to 9L, "tiz" to 10L
+    )
 
     private fun parseRelative(text: String, now: Long): Long? {
         if (!text.contains("mulva")) return null
 
         // „másfél óra múlva" — külön, mert nem szám alakban hangzik el.
         if (text.contains("masfel ora")) return now + 90 * 60_000L
+        // MIÉRT: a „két és fél óra" eddig a „fél óra" szabályra futott rá, és
+        // 30 perc lett belőle. Az egész órát is hozzá kell adni.
+        Regex("(\\d+|[a-z]+)\\s+es\\s+(haromnegyed|negyed|fel)\\s+ora").find(text)?.let { m ->
+            val n = m.groupValues[1].toLongOrNull() ?: RELATIVE_HOUR_WORDS[m.groupValues[1]]
+                ?: return null
+            val extra = when (m.groupValues[2]) {
+                "fel" -> 30L
+                "negyed" -> 15L
+                else -> 45L
+            }
+            return now + n * 60 * 60_000L + extra * 60_000L
+        }
         if (text.contains("fel ora")) return now + 30 * 60_000L
-        if (text.contains("negyed ora")) return now + 15 * 60_000L
+        // MIÉRT ELŐBB: a „háromnegyed óra" szövegében a „negyed óra" is benne van.
         if (text.contains("haromnegyed ora")) return now + 45 * 60_000L
+        if (text.contains("negyed ora")) return now + 15 * 60_000L
 
         var total = 0L
         var found = false
@@ -307,12 +345,7 @@ object ScheduledSmsTime {
         }
         // „egy óra múlva" — a kimondott számnév is előfordul
         if (!found) {
-            val words = mapOf(
-                "egy" to 1L, "ket" to 2L, "ketto" to 2L, "harom" to 3L,
-                "negy" to 4L, "ot" to 5L, "hat" to 6L, "het" to 7L,
-                "nyolc" to 8L, "kilenc" to 9L, "tiz" to 10L
-            )
-            for ((w, n) in words) {
+            for ((w, n) in RELATIVE_HOUR_WORDS) {
                 if (Regex("\\b$w\\s+ora").containsMatchIn(text)) {
                     total += n * 60 * 60_000L
                     found = true
@@ -382,18 +415,9 @@ object ScheduledSmsTime {
     }
 
     /** Pontosan `offset` nappal van-e `a` a `now` napja után. */
-    private fun sameDayOffset(a: Long, now: Long, offset: Int): Boolean {
-        val ca = Calendar.getInstance().apply { timeInMillis = a }
-        val cb = Calendar.getInstance().apply { timeInMillis = now }
-        listOf(ca, cb).forEach {
-            it.set(Calendar.HOUR_OF_DAY, 0)
-            it.set(Calendar.MINUTE, 0)
-            it.set(Calendar.SECOND, 0)
-            it.set(Calendar.MILLISECOND, 0)
-        }
-        val days = (ca.timeInMillis - cb.timeInMillis) / (24 * 60 * 60_000L)
-        return days.toInt() == offset
-    }
+    private fun sameDayOffset(a: Long, now: Long, offset: Int): Boolean =
+        // MIÉRT: a dayOffset kerekít, így a nyári időszámítás váltása sem csúsztat.
+        dayOffset(a, now) == offset
 
     /** Ékezetek le, kisbetű — így egy szabály elég mindkét írásmódra. */
     private fun normalize(raw: String): String {

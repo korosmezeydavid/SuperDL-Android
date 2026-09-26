@@ -79,13 +79,16 @@ class DictationKeyboardService : InputMethodService() {
     private var closing = false
 
     override fun onCreateInputView(): View {
-        tts = try { TtsManager(this) } catch (_: Throwable) { null }
-        sounds = try {
+        // MIÉRT: a rendszer a felületet többször is újraépíti (forgatás,
+        // beállításváltás); minden alkalommal új beszédmotor, hangkészlet és
+        // hangfelismerő szivárogna el. Egyszer hozzuk létre, az onDestroy engedi el.
+        if (tts == null) tts = try { TtsManager(this) } catch (_: Throwable) { null }
+        if (sounds == null) sounds = try {
             com.superdl.launcher.screenreader.ScreenReaderSounds(this)
         } catch (_: Throwable) {
             null
         }
-        voiceInput = try { VoiceInput(this) } catch (_: Throwable) { null }
+        if (voiceInput == null) voiceInput = try { VoiceInput(this) } catch (_: Throwable) { null }
 
         val view = TextView(this).apply {
             textSize = 24f
@@ -108,15 +111,21 @@ class DictationKeyboardService : InputMethodService() {
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         closing = false
-        if (restarting && running) return
-
+        // MIÉRT: a jelszó-vizsgálat a „már fut" kilépés ELÉ került. Ha a mező
+        // újraindításkor jelszómezővé vált, a futó hallgatást le kell állítani —
+        // különben a kimondott jelszót beírnánk és hangosan vissza is mondanánk.
         if (isPasswordField()) {
-            tts?.speak(
-                "Jelszómező. Ide nem diktálunk, mert a jelszót mások is hallanák. " +
-                    "Három ujjal koppintva válts másik billentyűzetre."
-            )
+            val wasRunning = running
+            if (running) stopLoop()
+            if (!restarting || wasRunning) {
+                tts?.speak(
+                    "Jelszómező. Ide nem diktálunk, mert a jelszót mások is hallanák. " +
+                        "Három ujjal koppintva válts másik billentyűzetre."
+                )
+            }
             return
         }
+        if (restarting && running) return
         // A TÁJÉKOZTATÓ KIKAPCSOLHATÓ, a név nem.
         startLoop(
             if (com.superdl.launcher.tts.VerbosityPrefs.isKeyboardIntro(this)) {
@@ -135,6 +144,12 @@ class DictationKeyboardService : InputMethodService() {
     // ── A folyamatos hallgatás ──────────────────────────────────────────────
 
     private fun startLoop(intro: String) {
+        // MIÉRT: a koppintás is ide vezet — jelszómezőben sosem indulhat a
+        // hallgatás (a „Beírva: …" bemondás kimondaná a jelszót).
+        if (isPasswordField()) {
+            tts?.speak("Jelszómező. Ide nem diktálunk.")
+            return
+        }
         val vi = voiceInput
         if (vi == null || !vi.isAvailable()) {
             tts?.speak("A hangfelismerés nem érhető el ezen a készüléken.")

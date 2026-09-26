@@ -259,7 +259,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
         val pos = formatClock(player.currentPosition)
         val dur = formatClock(player.duration)
         val remaining = formatClock((player.duration - player.currentPosition).coerceAtLeast(0))
-        tts.speak("$pos a $dur-ból. Hátra van $remaining.")
+        tts.speak("$pos, összesen $dur. Hátra van $remaining.")
     }
 
     private fun cycleSpeed() {

@@ -150,16 +150,21 @@ object NumberPadHelper {
             .trim()
         if (normalized.isBlank()) return ""
 
-        val directDigits = Regex("[+0-9]+").find(normalized)?.value
-        if (!directDigits.isNullOrBlank() && directDigits.any { it.isDigit() }) {
+        // MIÉRT: a felismerő csoportokban adja a számot ("06 30 123 4567");
+        // az első csoport önmagában csonka szám lenne — MINDEN csoport kell.
+        val digitGroup = Regex("[+0-9]+")
+        val tokens = normalized.split(" ").filter { it.isNotBlank() }
+        val hasDigitWord = tokens.any { spokenDigitWords.containsKey(it) }
+        val directDigits = digitGroup.findAll(normalized).joinToString("") { it.value }
+        if (!hasDigitWord && directDigits.any { it.isDigit() }) {
             return directDigits
         }
 
         val builder = StringBuilder()
-        normalized.split(" ").filter { it.isNotBlank() }.forEach { token ->
+        tokens.forEach { token ->
             when {
                 token == "+" -> builder.append('+')
-                token.all { it.isDigit() } -> builder.append(token)
+                digitGroup.matches(token) -> builder.append(token)
                 spokenDigitWords.containsKey(token) -> builder.append(spokenDigitWords.getValue(token))
             }
         }
@@ -204,7 +209,15 @@ object NumberPadHelper {
         val year = digits.substring(0, 4).toIntOrNull() ?: return null
         val month = digits.substring(4, 6).toIntOrNull() ?: return null
         val day = digits.substring(6, 8).toIntOrNull() ?: return null
-        if (month !in 1..12 || day !in 1..31) return null
+        if (month !in 1..12) return null
+        // MIÉRT: a Calendar engedékeny — február 30-ból csendben március 2
+        // lenne. A hónap valódi hosszához mérjük a napot.
+        val monthLength = try {
+            java.time.YearMonth.of(year, month).lengthOfMonth()
+        } catch (_: Exception) {
+            return null
+        }
+        if (day !in 1..monthLength) return null
         val cal = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.YEAR, year)
             set(java.util.Calendar.MONTH, month - 1)

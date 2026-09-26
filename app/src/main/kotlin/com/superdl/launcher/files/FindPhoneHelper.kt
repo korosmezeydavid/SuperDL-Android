@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -43,7 +44,9 @@ object FindPhoneHelper {
             ringtone = RingtoneManager.getRingtone(app, uri)?.apply {
                 @Suppress("DEPRECATION")
                 streamType = AudioManager.STREAM_RING
-                isLooping = true
+                // MIÉRT: a Ringtone.isLooping csak Android 9-től létezik; 8.x-en
+                // NoSuchMethodError (Error, nem Exception) — a catch nem fogná meg.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
                 play()
             }
 

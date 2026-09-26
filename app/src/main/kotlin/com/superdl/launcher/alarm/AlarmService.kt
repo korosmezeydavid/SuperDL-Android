@@ -74,14 +74,24 @@ class AlarmService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // MIÉRT: START_STICKY után a rendszer null intenttel indít újra — ilyenkor
+        // nincs mit megszólaltatni, és nincs képernyő, ami leállítaná.
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val label = intent?.getStringExtra(EXTRA_LABEL)?.takeIf { it.isNotBlank() } ?: "Ébresztő"
         val toneUri = intent?.getStringExtra(EXTRA_TONE_URI)?.let(Uri::parse)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
 
         startForeground(NOTIFICATION_ID, buildNotification(label))
+        // MIÉRT: minden újabb indítás új lejátszót hozott létre, a régit nem
+        // engedte el — az ismétlődő hang leállíthatatlanul szólt tovább.
+        stopToneAndVibration()
         startVibration()
         startTone(toneUri)
 
+        handler.removeCallbacks(autoStopRunnable)
         handler.postDelayed(autoStopRunnable, AUTO_STOP_MS)
         return START_STICKY
     }
@@ -164,16 +174,23 @@ class AlarmService : Service() {
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
-    override fun onDestroy() {
+    private fun stopToneAndVibration() {
         handler.removeCallbacks(fadeRunnable)
-        handler.removeCallbacks(autoStopRunnable)
         player?.runCatching {
             if (isPlaying) stop()
             release()
         }
         player = null
-        vibrator?.cancel()
+        try {
+            vibrator?.cancel()
+        } catch (_: Exception) {
+        }
         vibrator = null
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(autoStopRunnable)
+        stopToneAndVibration()
         super.onDestroy()
     }
 }

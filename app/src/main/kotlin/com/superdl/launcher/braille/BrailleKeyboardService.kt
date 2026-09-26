@@ -43,8 +43,11 @@ class BrailleKeyboardService : InputMethodService() {
     private var closing = false
 
     override fun onCreateInputView(): View {
-        tts = try { TtsManager(this) } catch (_: Throwable) { null }
-        sounds = try { BrailleSounds(this) } catch (_: Throwable) { null }
+        // MIÉRT: a rendszer a felületet többször is újraépíti (forgatás,
+        // beállításváltás); minden alkalommal új beszédmotor szivárogna el.
+        // Egyszer hozzuk létre, és az onDestroy engedi el.
+        if (tts == null) tts = try { TtsManager(this) } catch (_: Throwable) { null }
+        if (sounds == null) sounds = try { BrailleSounds(this) } catch (_: Throwable) { null }
         recognizer = BrailleTouchRecognizer(this, feedback)
 
         val view = TextView(this).apply {
@@ -250,7 +253,10 @@ class BrailleKeyboardService : InputMethodService() {
             }
             sounds?.charWritten()
             result.text?.let { currentInputConnection?.commitText(it, 1) }
-            label?.text = result.text ?: state.speakMode()
+            // MIÉRT: jelszómezőben a KÉPERNYŐRE sem írjuk ki a betűt — a
+            // mellettünk ülő láthatná. Csak egy pötty jelzi, hogy beíródott.
+            label?.text = if (result.text != null && shouldHideChars()) "•"
+            else result.text ?: state.speakMode()
             // JELSZÓMEZŐBEN a karaktert nem mondjuk ki — a jelzőket igen,
             // mert azok nem árulnak el semmit a jelszóból.
             if (result.text != null && shouldHideChars()) {

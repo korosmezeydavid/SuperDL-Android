@@ -560,7 +560,7 @@ class MusicPlayerActivity : AppCompatActivity() {
         val pos = formatClock(player.currentPosition)
         val dur = formatClock(player.duration)
         val remaining = formatClock((player.duration - player.currentPosition).coerceAtLeast(0))
-        tts.speak("$pos a $dur-ból. Hátra van $remaining. Tekerés egység $seekStepSec másodperc.")
+        tts.speak("$pos, összesen $dur. Hátra van $remaining. Tekerés egység $seekStepSec másodperc.")
     }
 
     // ==================== Zeneszám törlése ====================

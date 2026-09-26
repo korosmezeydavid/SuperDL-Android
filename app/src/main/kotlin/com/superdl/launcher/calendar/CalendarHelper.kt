@@ -392,7 +392,16 @@ object CalendarHelper {
         }
         val target = Calendar.getInstance().apply { timeInMillis = dayStartMs }
         val fmt = SimpleDateFormat("EEEE, MMMM d.", Locale("hu", "HU"))
-        val diff = ((dayStartMs - today.timeInMillis) / 86_400_000L).toInt()
+        // MIÉRT kerekítés éjfélre igazítva: a nyári időszámítás váltásakor egy
+        // nap 23 vagy 25 óra, az egész osztás ilyenkor egy nappal elcsúszott.
+        val targetMidnight = Calendar.getInstance().apply {
+            timeInMillis = dayStartMs
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val diff = Math.round((targetMidnight - today.timeInMillis) / 86_400_000.0).toInt()
         return when (diff) {
             0 -> "Ma, ${fmt.format(target.time)}"
             1 -> "Holnap, ${fmt.format(target.time)}"

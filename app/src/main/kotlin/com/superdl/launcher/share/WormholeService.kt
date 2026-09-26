@@ -119,7 +119,16 @@ class WormholeService : Service() {
         }
         val mode = intent?.getStringExtra(EXTRA_MODE)
         if (mode == null) {
-            stopSelf()
+            // MIÉRT: startForegroundService után startForeground nélküli
+            // stopSelf() összeomlást okoz; futó átvitelt pedig nem állítunk le.
+            if (!isRunning) {
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification("Átvitel", 0))
+                } catch (_: Exception) {
+                }
+                stopForegroundCompat()
+                stopSelf()
+            }
             return START_NOT_STICKY
         }
         if (isRunning) {
@@ -130,6 +139,12 @@ class WormholeService : Service() {
             )
             return START_NOT_STICKY
         }
+        // MIÉRT: az alábbi ellenőrzések finishWith()-je stopSelf()-et hív —
+        // ehhez előbb előtérben kell lennünk, különben összeomlás.
+        startForeground(
+            NOTIFICATION_ID,
+            buildNotification(if (mode == MODE_SEND) "Küldés" else "Fájl fogadása", 0)
+        )
 
         val file = intent.getStringExtra(EXTRA_PATH)?.let { File(it) }
         val code = intent.getStringExtra(EXTRA_CODE).orEmpty().trim()

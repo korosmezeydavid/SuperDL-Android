@@ -290,6 +290,10 @@ object PodcastDownloadHelper {
         }
         val target = fileFor(context, ep)
         if (target.exists()) return true
+        // MIÉRT .part: ha a letöltést megölik (akku, rendszer), a félkész fájl
+        // eddig a végleges néven maradt, és késznek látszott. Csak a hiánytalan
+        // letöltés kapja meg a végleges nevet.
+        val part = File(target.parentFile, target.name + ".part")
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(ep.audioUrl).openConnection() as HttpURLConnection).apply {
@@ -301,9 +305,14 @@ object PodcastDownloadHelper {
             }
             if (conn.responseCode !in 200..299) return false
             conn.inputStream.use { input ->
-                target.outputStream().use { output ->
+                part.outputStream().use { output ->
                     input.copyTo(output, 64 * 1024)
                 }
+            }
+            if (!part.renameTo(target)) {
+                // Ha az átnevezés nem megy (egyes tárolókon), másolással pótoljuk.
+                part.copyTo(target, overwrite = true)
+                part.delete()
             }
             addToCatalog(context, ep, target.absolutePath)
             // Szólunk a rendszernek, különben a fájlkezelők és a zenelejátszók
@@ -314,6 +323,7 @@ object PodcastDownloadHelper {
         } catch (e: Exception) {
             Log.w(TAG, "download failed", e)
             try {
+                if (part.exists()) part.delete()
                 if (target.exists()) target.delete()
             } catch (_: Exception) {
             }

@@ -133,6 +133,15 @@ object AlarmScheduler {
         )
         val manager = context.getSystemService(AlarmManager::class.java) ?: return
         manager.cancel(pendingIntent)
+        // MIÉRT: a függő szundi külön kéréskódon él — enélkül a törölt
+        // ébresztő a szundi idejében mégis megszólalt.
+        val snoozeIntent = PendingIntent.getBroadcast(
+            context,
+            SNOOZE_REQUEST_BASE + alarmId,
+            Intent(context, AlarmReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        manager.cancel(snoozeIntent)
     }
 
     fun rescheduleAll(context: Context) {

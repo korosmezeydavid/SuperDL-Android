@@ -715,6 +715,12 @@ class TtsManager(
      */
     private fun fireDone(utteranceId: String?) {
         if (utteranceId?.startsWith("SDL_DONE_") != true) return
+        // MIÉRT: egy félbevágott KORÁBBI speakThen késve érkező onStop/onDone
+        // jelzése nem sütheti el az ÚJ műveletet (pl. a mikrofon indulna, míg
+        // a kérdés még szól). A régi művelet már lefutott, amikor az új
+        // speakThen átvette a helyét — ide csak az aktuális mondat jele jöhet.
+        if (utteranceId != currentDoneId) return
+        currentDoneId = null
         val callback = onUtteranceDone
         onUtteranceDone = null
         doneWatchdog?.let { handler.removeCallbacks(it) }
@@ -723,6 +729,13 @@ class TtsManager(
     }
 
     private var doneWatchdog: Runnable? = null
+
+    /** Az éppen függő speakThen mondatának azonosítója (a motor másik szálon jelez). */
+    @Volatile
+    private var currentDoneId: String? = null
+
+    /** Sorszám, hogy két, ugyanabban az ezredmásodpercben indult mondat se ütközzön. */
+    private var doneSeq = 0L
 
     fun speakThen(text: String, role: SpeechRole, onDone: () -> Unit) {
         if (initFailed || silentMode) {
@@ -759,7 +772,9 @@ class TtsManager(
         previous?.let { handler.post(it) }
 
         applyRole(role)
-        val id = "SDL_DONE_${System.currentTimeMillis()}"
+        val id = "SDL_DONE_${System.currentTimeMillis()}_${++doneSeq}"
+        // MIÉRT: a tts.speak ELŐTT, mert a motor jelzése akár azonnal jöhet.
+        currentDoneId = id
         val prepared = PronunciationDictionary.apply(appContext, orient(text))
         applyLanguageFor(prepared)
         lastSpeakRequestAt = System.currentTimeMillis()

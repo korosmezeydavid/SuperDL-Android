@@ -4,14 +4,21 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.location.LocationListener
+import android.os.Build
 import android.os.IBinder
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.superdl.launcher.call.ActiveCallRegistry
 import com.superdl.launcher.call.CallHelper
+import com.superdl.launcher.call.DialerRoleHelper
 import com.superdl.launcher.gps.GpsLocationHelper
 import com.superdl.launcher.sms.SmsHelper
 import com.superdl.launcher.tts.TtsManager
@@ -70,6 +77,12 @@ class SosService : Service() {
         private const val GPS_WINDOW_MS = 45_000L
 
         private const val POLL_MS = 250L
+
+        /** Szerepkör nélkül: ennyit várunk, hogy a hívás elinduljon (OFFHOOK). */
+        private const val CALL_START_TIMEOUT_MS = 15_000L
+
+        /** Szerepkör ÉS hívásállapot nélkül: vak várakozás, bontás nélkül. */
+        private const val BLIND_WAIT_MS = 90_000L
         private const val EMERGENCY_NUMBER = "112"
 
         /** Fut-e épp S.O.S. Innen tudja a menü, hogy leállítást kérnek. */
@@ -93,7 +106,7 @@ class SosService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(1, buildNotification("Vészjelzés indul…"))
+        startForegroundSafely(buildNotification("Vészjelzés indul…"))
         tts = try {
             TtsManager(this)
         } catch (_: Exception) {
@@ -194,6 +207,10 @@ class SosService : Service() {
      * @return igaz, ha a hívás létrejött (bárki vagy bármi vette fel).
      */
     private suspend fun callAndWait(number: String): Boolean {
+        // MIÉRT: a SosCallWatcher-t csak a SuperInCallService frissíti, ami
+        // csak alapértelmezett telefon-appként fut. Nélküle a fázis örökre
+        // RINGING, és a lenti csengetési határ egy FELVETT hívást bontana.
+        val ownDialer = safe { DialerRoleHelper.isDefaultDialer(this) } == true
         SosCallWatcher.arm()
         val placed = safe { CallHelper.placeCall(this, number) } ?: false
         if (placed != true) {
@@ -201,6 +218,7 @@ class SosService : Service() {
             say("Ezt a számot nem sikerült hívni.")
             return false
         }
+        if (!ownDialer) return waitWithoutDialerRole()
 
         // 5a. Csengetés — legfeljebb RING_TIMEOUT_MS.
         val ringDeadline = System.currentTimeMillis() + RING_TIMEOUT_MS
@@ -234,6 +252,71 @@ class SosService : Service() {
         }
         SosCallWatcher.disarm()
         return true
+    }
+
+    /**
+     * Várakozás alapértelmezett telefon-szerep NÉLKÜL.
+     *
+     * MIÉRT: a rendszer hívásállapotából (TelephonyManager) nem látszik, hogy
+     * felvették-e — kimenő hívásnál a tárcsázás és a beszélgetés egyaránt
+     * OFFHOOK. Ezért SOHA nem bontunk: megvárjuk, hogy a hívás véget érjen
+     * (IDLE), vagy a felső határt. A kicsengő, fel nem vett hívást a hálózat
+     * maga zárja le (vagy hangposta veszi fel) — a lánc ezután megy tovább.
+     */
+    private suspend fun waitWithoutDialerRole(): Boolean {
+        SosCallWatcher.disarm()
+
+        // 1. Megvárjuk, hogy a hívás elinduljon (OFFHOOK).
+        val startDeadline = System.currentTimeMillis() + CALL_START_TIMEOUT_MS
+        var started = false
+        var stateKnown = false
+        while (System.currentTimeMillis() < startDeadline) {
+            if (stopRequested) return true
+            val state = readCallState()
+            if (state == null) break
+            stateKnown = true
+            if (state != TelephonyManager.CALL_STATE_IDLE) {
+                started = true
+                break
+            }
+            delay(POLL_MS)
+        }
+
+        if (!stateKnown) {
+            // Nem olvasható a hívásállapot (hiányzó engedély): vakon várunk,
+            // de NEM bontunk — egy felvett vészhívást elvágni a legrosszabb.
+            val blindDeadline = System.currentTimeMillis() + BLIND_WAIT_MS
+            while (System.currentTimeMillis() < blindDeadline) {
+                if (stopRequested) return true
+                delay(POLL_MS)
+            }
+            return true
+        }
+        if (!started) return false
+
+        // 2. Megvárjuk a hívás végét — de nem örökké.
+        val talkDeadline = System.currentTimeMillis() + MAX_CALL_MS
+        while (System.currentTimeMillis() < talkDeadline) {
+            if (stopRequested) return true
+            val state = readCallState() ?: break
+            if (state == TelephonyManager.CALL_STATE_IDLE) break
+            delay(POLL_MS)
+        }
+        return true
+    }
+
+    /** A rendszer hívásállapota; null, ha nem olvasható (pl. nincs engedély). */
+    private fun readCallState(): Int? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+        return safe {
+            @Suppress("DEPRECATION")
+            getSystemService(TelephonyManager::class.java)?.callState
+        }
     }
 
     private suspend fun callEmergency() {
@@ -326,6 +409,35 @@ class SosService : Service() {
     } catch (t: Throwable) {
         Log.w("SOS", "Lepes hibaja: ${t.javaClass.simpleName}")
         null
+    }
+
+    /**
+     * MIÉRT: a kétparaméteres startForeground a manifest ÖSSZES típusát
+     * (phoneCall|location) kéri; Android 14-en helymeghatározási engedély
+     * nélkül ez SecurityException — és az S.O.S. el sem indul. A helyzet
+     * típust csak megadott engedély mellett kérjük, hiba esetén csak a
+     * hívás-típussal (a MANAGE_OWN_CALLS a manifestben van) próbáljuk újra.
+     */
+    private fun startForegroundSafely(notification: Notification) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            safe { startForeground(1, notification) }
+            return
+        }
+        val hasLocation =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+        if (hasLocation) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        try {
+            startForeground(1, notification, types)
+        } catch (t: Throwable) {
+            Log.w("SOS", "Eloter-inditas hiba: ${t.javaClass.simpleName}")
+            safe {
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+            }
+        }
     }
 
     private fun notify(text: String) {

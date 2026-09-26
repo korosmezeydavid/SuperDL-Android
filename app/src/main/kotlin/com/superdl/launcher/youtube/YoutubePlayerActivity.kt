@@ -491,7 +491,7 @@ class YoutubePlayerActivity : AppCompatActivity() {
         val pos = positionSec
         val total = durationSec
         val text = if (total > 0) {
-            "${formatClock(pos)} a ${formatClock(total)}-ból."
+            "${formatClock(pos)}, összesen ${formatClock(total)}."
         } else {
             formatClock(pos)
         }

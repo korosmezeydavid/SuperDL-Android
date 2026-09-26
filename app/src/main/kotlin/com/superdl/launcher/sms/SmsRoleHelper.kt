@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
+import androidx.annotation.RequiresApi
 import com.superdl.launcher.settings.PermissionGuideSection
 
 object SmsRoleHelper {
@@ -107,12 +108,15 @@ object SmsRoleHelper {
     private fun defaultAppsSettings(): Intent =
         Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
 
+    // MIÉRT: csak az SDK_INT >= Q ágból hívjuk — a jelölés ezt rögzíti a lint számára.
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun safeRoleAvailable(rm: RoleManager): Boolean = try {
         rm.isRoleAvailable(RoleManager.ROLE_SMS)
     } catch (_: Exception) {
         false
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun safeRoleHeld(rm: RoleManager): Boolean = try {
         rm.isRoleHeld(RoleManager.ROLE_SMS)
     } catch (_: Exception) {

@@ -97,7 +97,15 @@ object RssHelper {
         val items = mutableListOf<RssItem>()
         for (feed in feeds) {
             if (items.size >= needed) break
-            items.addAll(parseFeed(feed.url, feed.name, maxItems = perFeed * (page + 2)))
+            // MIÉRT: egyetlen elérhetetlen vagy hibás hírforrás eddig az EGÉSZ
+            // vegyes listát hibára futtatta. A rossz forrást átugorjuk.
+            items.addAll(
+                try {
+                    parseFeed(feed.url, feed.name, maxItems = perFeed * (page + 2))
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            )
         }
         val distinct = items.distinctBy { "${it.source}:${it.title}" }
         val start = page * PAGE_SIZE

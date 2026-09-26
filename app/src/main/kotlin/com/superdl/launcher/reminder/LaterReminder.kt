@@ -96,7 +96,8 @@ data class LaterReminder(
         b.set(Calendar.HOUR_OF_DAY, 0); b.set(Calendar.MINUTE, 0)
         b.set(Calendar.SECOND, 0); b.set(Calendar.MILLISECOND, 0)
         val diff = b.timeInMillis - a.timeInMillis
-        return (diff / (24 * 60 * 60_000L)).toInt()
+        // MIÉRT kerekítés: nyári időszámítás váltásakor egy nap 23 vagy 25 óra.
+        return Math.round(diff / 86_400_000.0).toInt()
     }
 
     companion object {
