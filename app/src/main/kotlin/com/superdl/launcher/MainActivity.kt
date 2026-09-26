@@ -13082,10 +13082,7 @@ class MainActivity : AppCompatActivity() {
     /** Ha nincs még bevásárlólista, ez lesz a neve — a Windows-oldallal egyezően. */
     private val OFFER_DEFAULT_LIST = "Akciós bevásárlás"
 
-    private fun withArticle(word: String): String {
-        val first = word.firstOrNull()?.lowercaseChar() ?: return word
-        return if (first in "aáeéiíoóöőuúüű") "az $word" else "a $word"
-    }
+    // A withArticle() közös segéd (az exitFlow mellett) — a master is használja.
 
     // ── NAGY ÚJSÁG MOBILNETEN: RÁKÉRDEZÜNK ────────────────────────────────
     //

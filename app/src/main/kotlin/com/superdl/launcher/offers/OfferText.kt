@@ -83,7 +83,9 @@ object OfferText {
         }
         Regex("(\\d{2})\\.(\\d{2})-t[óő]l").find(v)?.let { m ->
             val (m1, d1) = m.destructured
-            return "${month(m1)} ${d1.toInt()}-tól"
+            // MIÉRT: a „24-tól" rosszul hangzik („huszonnégy tól"); a sorszámos
+            // alakot a beszédmotor helyesen mondja: „szeptember 24. napjától".
+            return "${month(m1)} ${d1.toInt()}. napjától"
         }
         Regex("(\\d{2})\\.(\\d{2})-ig").find(v)?.let { m ->
             val (m1, d1) = m.destructured
