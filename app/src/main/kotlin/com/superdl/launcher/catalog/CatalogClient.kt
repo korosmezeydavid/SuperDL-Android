@@ -169,6 +169,12 @@ object CatalogClient {
             if (module.type == ModuleType.ROUTE_PACK) {
                 com.superdl.launcher.macro.RoutePackStore.invalidate()
             }
+            // A beszélő óra klipjeit most bontjuk ki (háttérszálon vagyunk),
+            // hogy az első bemondásnak ne kelljen várnia.
+            if (module.type == ModuleType.TALKING_CLOCK) {
+                com.superdl.launcher.patrol.TalkingClock.invalidate()
+                com.superdl.launcher.patrol.TalkingClock.prepare(context)
+            }
             Log.i(TAG, "modul letoltve: ${module.id} v${module.version}")
             null
         } catch (e: Exception) {

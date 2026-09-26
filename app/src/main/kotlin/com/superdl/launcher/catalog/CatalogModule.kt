@@ -95,7 +95,7 @@ enum class CatalogCategory(val label: String) {
             ModuleType.GUIDE -> LEARNING
             ModuleType.RADIO_PACK -> MEDIA
             ModuleType.RECIPES, ModuleType.TEXT_BANK -> EVERYDAY
-            ModuleType.SOUND_THEME -> LOOKS
+            ModuleType.SOUND_THEME, ModuleType.TALKING_CLOCK -> LOOKS
             ModuleType.LABEL_PACK -> LABELS
             ModuleType.ROUTE_PACK -> EVERYDAY
             ModuleType.EXTERNAL_APP -> OTHER
@@ -116,6 +116,7 @@ enum class ModuleType(val key: String, val label: String) {
     LABEL_PACK("labelpack", "elnevezés-csomag"),
     ROUTE_PACK("routepack", "műveletsor-csomag"),
     EXTERNAL_APP("externalapp", "külön alkalmazás"),
+    TALKING_CLOCK("talkingclock", "beszélő óra"),
     UNKNOWN("unknown", "ismeretlen típus");
 
     companion object {
