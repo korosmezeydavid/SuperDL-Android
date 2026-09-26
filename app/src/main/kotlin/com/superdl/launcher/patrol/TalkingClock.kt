@@ -100,7 +100,8 @@ object TalkingClock {
         synchronized(lock) {
             if (key == cachedKey) cached?.let { return it }
             val dir = File(context.filesDir, "beszelo_ora/$id")
-            val marker = File(dir, "kesz-v$version.txt")
+            // A „-2" a kibontás módja: ha változik, a régi kibontás magától újra fut.
+            val marker = File(dir, "kesz-v$version-2.txt")
             val p = if (marker.isFile) readMarker(dir, marker) else unpack(context, id, dir, marker)
             cached = p
             cachedKey = if (p != null) key else null
@@ -140,7 +141,7 @@ object TalkingClock {
                     Log.w(TAG, "$name: eltero mintavetel (${decoded.second}), kihagyva")
                     continue
                 }
-                File(dir, "$name.pcm").writeBytes(decoded.first)
+                File(dir, "$name.pcm").writeBytes(trimTail(decoded.first, decoded.second))
                 count++
             }
             tmp.delete()
@@ -221,6 +222,22 @@ object TalkingClock {
             try { codec?.release() } catch (_: Exception) {}
             try { extractor.release() } catch (_: Exception) {}
         }
+    }
+
+    /**
+     * A visszafejtett AAC végén ~20 ms töltelék-csend van. Három klipnél ez
+     * a szüneteket érezhetően megnyújtaná — levágjuk, 5 ms-ot hagyva, hogy a
+     * gépen gyártott mondatokkal egyformán szóljon (telefonon mérve).
+     */
+    private fun trimTail(pcm: ByteArray, rate: Int): ByteArray {
+        var last = pcm.size / 2 - 1
+        while (last > 0) {
+            val v = (pcm[2 * last].toInt() and 0xff) or (pcm[2 * last + 1].toInt() shl 8)
+            if (kotlin.math.abs(v.toShort().toInt()) > 300) break
+            last--
+        }
+        val keep = ((last + 1 + rate * 5 / 1000) * 2).coerceAtMost(pcm.size)
+        return if (keep >= 2) pcm.copyOf(keep) else pcm
     }
 
     private fun firstChannel(chunk: ByteArray, channels: Int): ByteArray {
