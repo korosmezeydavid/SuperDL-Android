@@ -465,6 +465,10 @@ class ScreenReaderService : AccessibilityService() {
             } catch (_: Exception) {
             }
             setTouchExploration(false)
+            // MIÉRT: az állítás és a kijelölés a zárolás előtti képernyőhöz
+            // tartozott — feloldás után bent ragadva a söprések nem lépkednének.
+            allitasBezar(csendben = true)
+            selectionMode = false
             clearNodes()
             lastLabel = null
         } else {
@@ -611,6 +615,8 @@ class ScreenReaderService : AccessibilityService() {
      * ha külső, és a felhasználó engedélyezte, bekapcsolunk.
      */
     private fun onForegroundAppChanged(pkg: String) {
+        // MIÉRT: más alkalmazásban a régi képernyő elemeit olvasná tovább.
+        stopContinuousReading()
         val own = pkg.startsWith(packageName.removeSuffix(".debug"))
         // EGYETLEN döntési pont: a shouldRunInCurrentApp().
         //
@@ -884,6 +890,10 @@ class ScreenReaderService : AccessibilityService() {
             return false
         }
         if (!touchModeActive || keyboardSuspended || lockSuspended) return false
+        // MIÉRT: bármely mozdulat megállítja a folyamatos olvasást (kivéve azt,
+        // ami elindítja) — különben a mozdulat saját bemondását elvágná, és az
+        // olvasás mehetne tovább (pl. hívásfogadás után).
+        if (gestureId != GESTURE_2_FINGER_SWIPE_DOWN) stopContinuousReading()
         // TANULÓ MÓD: itt SEMMI nem történik élesben — csak tanítunk.
         // Ezért mindent megelőz: a rossz mozdulatnak sincs következménye.
         if (TrainingState.isActive) {
@@ -1178,6 +1188,9 @@ class ScreenReaderService : AccessibilityService() {
         rememberAppSettings()   // ehhez az alkalmazáshoz megjegyezzük
         nodesStale = true
         ensureNodes()
+        // MIÉRT: az ensureNodes() torlódás-gátlás miatt korán kiléphet — ilyenkor
+        // a szűrt lista még a RÉGI módé maradna.
+        applyFilter()
         index = 0
         segments = emptyList()
         segmentIndex = 0
@@ -1399,7 +1412,22 @@ class ScreenReaderService : AccessibilityService() {
             openLabelKeyboard(node, pkg)
             return
         }
-        val existing = ScreenReaderLabels.labelFor(this, node, pkg)
+        // MIÉRT: a kulcsot és az ujjlenyomatot MOST számoljuk ki, amíg az elem
+        // még a képernyőn van — a hangfelismerés végére a node elavulhat (mint
+        // az openLabelKeyboard-nál).
+        val key = ScreenReaderLabels.keyOf(node, pkg)
+        if (key == null) {
+            sounds?.play(ScreenReaderSounds.Sound.ERROR)
+            say("Ezt az elemet nem tudom megjegyezni.")
+            return
+        }
+        val print = try {
+            ElementFingerprint.of(node, screenWidth(), screenHeight())
+        } catch (_: Exception) {
+            null
+        }
+        val what = ScreenReaderNavigator.describe(node)
+        val existing = ScreenReaderLabels.labelForKey(this, key)
         sounds?.play(ScreenReaderSounds.Sound.FIELD)
         vi.listenPrompt(
             prompt = if (existing != null) {
@@ -1412,13 +1440,12 @@ class ScreenReaderService : AccessibilityService() {
                     val name = spoken.trim()
                     if (name.isBlank()) {
                         say("Nem értettem.")
-                    } else if (ScreenReaderLabels.setLabel(this, node, pkg, name)) {
-                        rememberFingerprint(node, pkg)
+                    } else {
+                        ScreenReaderLabels.setLabelByKey(this, key, name)
+                        print?.let { ScreenReaderLabels.saveFingerprint(this, key, it) }
                         sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
                         say("Elmentve: $name. Mostantól így fogom nevezni.")
                         nodesStale = true
-                    } else {
-                        say("Ezt az elemet nem tudom megjegyezni.")
                     }
                 }
             },
@@ -1429,7 +1456,7 @@ class ScreenReaderService : AccessibilityService() {
                     // örökre névtelen marad, vagy nem.
                     sounds?.play(ScreenReaderSounds.Sound.ERROR)
                     say("A hangos elnevezés nem sikerült. Írd be.")
-                    openLabelKeyboard(node, pkg)
+                    openLabelKeyboardForKey(key, what, print)
                 }
             }
         )
@@ -1449,35 +1476,34 @@ class ScreenReaderService : AccessibilityService() {
             say("Ezt az elemet nem tudom megjegyezni.")
             return
         }
+        val print = try {
+            ElementFingerprint.of(node, screenWidth(), screenHeight())
+        } catch (_: Exception) {
+            null
+        }
+        openLabelKeyboardForKey(key, ScreenReaderNavigator.describe(node), print)
+    }
+
+    /** Az elnevező ablak KÉSZ kulccsal — a node-ra már nincs szükség. */
+    private fun openLabelKeyboardForKey(
+        key: String,
+        what: String,
+        print: ElementFingerprint.Print?
+    ) {
         sounds?.play(ScreenReaderSounds.Sound.FIELD)
         try {
             val intent = android.content.Intent(this, LabelInputActivity::class.java).apply {
                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(LabelInputActivity.EXTRA_KEY, key)
-                putExtra(LabelInputActivity.EXTRA_WHAT, ScreenReaderNavigator.describe(node))
+                putExtra(LabelInputActivity.EXTRA_WHAT, what)
             }
-            rememberFingerprint(node, pkg)
+            print?.let { ScreenReaderLabels.saveFingerprint(this, key, it) }
             startActivity(intent)
             nodesStale = true
         } catch (e: Exception) {
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
             say("Az elnevező ablak nem nyílt meg.")
-        }
-    }
-
-    /**
-     * Az elem UJJLENYOMATÁNAK eltétele az elnevezéssel együtt.
-     *
-     * MIÉRT MOST: az ujjlenyomatot akkor kell rögzíteni, amikor az elem MÉG
-     * A KÉPERNYŐN VAN. Utólag már nincs miből.
-     */
-    private fun rememberFingerprint(node: AccessibilityNodeInfo, pkg: String) {
-        try {
-            val key = ScreenReaderLabels.keyOf(node, pkg) ?: return
-            val print = ElementFingerprint.of(node, screenWidth(), screenHeight()) ?: return
-            ScreenReaderLabels.saveFingerprint(this, key, print)
-        } catch (_: Exception) {
         }
     }
 
@@ -1619,7 +1645,11 @@ class ScreenReaderService : AccessibilityService() {
         }
         // Az alkalmazás indulása időbe telik. Ha nem kellett indítani, akkor is
         // hagyunk időt, hogy a bevezető mondat elhangozzon.
-        handler.postDelayed({ runNextStep() }, if (launched) 3000L else 2200L)
+        // MIÉRT: a névvel ellátott routeRunner kell, hogy a stopRoute() le
+        // tudja venni — egy névtelen lambdát nem, és az újraindított műveletsor
+        // kétszer léphetett volna.
+        handler.removeCallbacks(routeRunner)
+        handler.postDelayed(routeRunner, if (launched) 3000L else 2200L)
     }
 
     fun stopRoute(reason: String) {
@@ -1716,6 +1746,23 @@ class ScreenReaderService : AccessibilityService() {
             rootInActiveWindow
         } catch (_: Exception) {
             null
+        }
+        // MIÉRT: más alkalmazásban egy hasonló ujjlenyomatú elem is elég jó
+        // pontot kaphat — ott megnyomni vak nyomkodás lenne. (A gyökér csomagját
+        // is elfogadjuk, mert a currentPackage az eseményekkel késhet.)
+        if (step.packageName.isNotBlank()) {
+            val rootPkg = try {
+                root?.packageName?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (step.packageName != currentPackage && step.packageName != rootPkg) {
+                stopRoute(
+                    "Megálltam a ${playIndex + 1}. lépésnél: nem abban az alkalmazásban " +
+                        "vagyok, ahol ez a lépés volt."
+                )
+                return
+            }
         }
         var best: AccessibilityNodeInfo? = null
         var bestScore = 0f
@@ -1817,6 +1864,14 @@ class ScreenReaderService : AccessibilityService() {
      */
     private fun handleRouteGesture(gestureId: Int): Boolean {
         if (playingRoute == null) return false
+
+        // MIÉRT: CSÖRGŐ HÍVÁSNÁL a jobbra/balra söprés a hívásé (fogadás,
+        // elutasítás) — a műveletsort leállítjuk, és a szokásos ág kezeli.
+        if (ScreenReaderCallControl.isRinging(this)) {
+            pendingTarget = null
+            stopRoute("Hívás jött, a műveletsort leállítottam.")
+            return false
+        }
 
         if (routeAwaitingYes) {
             when (gestureId) {
@@ -3391,7 +3446,16 @@ class ScreenReaderService : AccessibilityService() {
             } catch (_: Exception) {
                 null
             }
-            if (match != null) return speakMatch(match, node, extra)
+            // MIÉRT: a BIZONYTALAN egyezés csak névtelen elemre kerülhet — ha
+            // az elemnek van saját szövege, egy hasonló elem neve ne írja felül.
+            val hasOwnText = try {
+                !node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank()
+            } catch (_: Exception) {
+                false
+            }
+            if (match != null && (match.sure || !hasOwnText)) {
+                return speakMatch(match, node, extra)
+            }
 
             // 3. KÖZÖSSÉGI CÍMKE. VASSZABÁLY: ez az UTOLSÓ út — a saját
             //    címkéd mindig veri a közösét, mert a fentiek előbb futnak le.
@@ -3406,7 +3470,9 @@ class ScreenReaderService : AccessibilityService() {
             } catch (_: Exception) {
                 null
             }
-            if (shared != null) return speakMatch(shared, node, extra)
+            if (shared != null && (shared.sure || !hasOwnText)) {
+                return speakMatch(shared, node, extra)
+            }
         }
         return ScreenReaderNavigator.describe(node)
     }

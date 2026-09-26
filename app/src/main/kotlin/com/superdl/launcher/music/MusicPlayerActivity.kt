@@ -420,6 +420,25 @@ class MusicPlayerActivity : AppCompatActivity() {
 
     private fun currentTrack() = playlist[currentIndex]
 
+    /**
+     * MIÉRT: ha egymás után minden szám hibás volt (pl. törölt fájlok), a
+     * hibakezelő végtelenül — és rekurzívan, a hívó veremén — léptetett.
+     * Egy sikeres előkészítés nullázza.
+     */
+    private var consecutiveFailures = 0
+
+    private fun onTrackFailed() {
+        consecutiveFailures++
+        if (consecutiveFailures >= playlist.size) {
+            consecutiveFailures = 0
+            stopAndFinish("A lista egyik száma sem játszható le.")
+            return
+        }
+        tts.speak("Ez a szám nem játszható le. Következő.")
+        // Aszinkron: ne a hibás lejátszó saját visszahívásán belül engedjük el.
+        handler.post { if (!isFinishing && !isDestroyed) skipToNext(manual = false) }
+    }
+
     private fun playCurrent(announceMode: Boolean = false) {
         releasePlayer()
         val track = currentTrack()
@@ -437,6 +456,7 @@ class MusicPlayerActivity : AppCompatActivity() {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(this@MusicPlayerActivity, track.contentUri)
                 setOnPreparedListener {
+                    consecutiveFailures = 0
                     tvStatus.text = getString(R.string.player_playing)
                     // A mentett hangszínprofil (EQ) rákapcsolása a lejátszóra.
                     try {
@@ -470,15 +490,13 @@ class MusicPlayerActivity : AppCompatActivity() {
                 }
                 setOnCompletionListener { onTrackCompleted() }
                 setOnErrorListener { _, _, _ ->
-                    tts.speak("Ez a szám nem játszható le. Következő.")
-                    skipToNext(manual = false)
+                    onTrackFailed()
                     true
                 }
                 prepareAsync()
             }
         } catch (_: Exception) {
-            tts.speak("Ez a szám nem játszható le. Következő.")
-            skipToNext(manual = false)
+            onTrackFailed()
         }
     }
 

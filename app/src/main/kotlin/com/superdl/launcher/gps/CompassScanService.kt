@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.location.Location
+import android.location.LocationListener
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -39,6 +40,15 @@ class CompassScanService : Service() {
     private var lastPoiRefreshAt = 0L
     private var announcedStart = false
 
+    /**
+     * MIÉRT: eddig csak az utolsó ismert helyet olvastuk, amit senki nem
+     * frissített — séta közben a helyek iránya/távolsága a régi pontból jött.
+     */
+    private var locationListener: LocationListener? = null
+
+    /** MIÉRT: a hibaüzenet 20 másodpercenként ismétlődött volna. */
+    private var announcedError = false
+
     private val scanRunnable = object : Runnable {
         override fun run() {
             performScan()
@@ -53,6 +63,10 @@ class CompassScanService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         compass = CompassProvider(this).also { it.start() }
+        locationListener = GpsLocationHelper.requestUpdates(this) { location ->
+            lastLocation = location
+            GpsRadarStore.lastLocation = location
+        }
         scanHelper.reset()
         loadPois()
     }
@@ -79,6 +93,8 @@ class CompassScanService : Service() {
         handler.removeCallbacks(scanRunnable)
         compass?.stop()
         compass = null
+        GpsLocationHelper.removeUpdates(this, locationListener)
+        locationListener = null
         super.onDestroy()
     }
 
@@ -89,6 +105,7 @@ class CompassScanService : Service() {
             context = this,
             headingDegrees = heading,
             onResult = { list ->
+                announcedError = false
                 lastLocation = GpsRadarStore.lastLocation
                 // Csak a valódi helyek (nem utcák/kereszteződések), a felfedezéshez.
                 pois = list.filter { it.category != "utca" && it.category != "kereszteződés" }
@@ -102,7 +119,10 @@ class CompassScanService : Service() {
                 }
             },
             onError = { message ->
-                PatrolAnnouncer.announce(this, message, withBeep = false, critical = true)
+                if (!announcedError) {
+                    announcedError = true
+                    PatrolAnnouncer.announce(this, message, withBeep = false, critical = true)
+                }
             }
         )
     }

@@ -83,7 +83,13 @@ class HeadphoneUnplugGuard(
 class AudioFocusGuard(
     context: Context,
     private val onPause: () -> Unit,
-    private val onResume: () -> Unit
+    private val onResume: () -> Unit,
+    /**
+     * MIÉRT: ha a fókuszvesztéskor épp nem szólt semmi (a felhasználó
+     * szüneteltetett), a fókusz visszatérése ne indítsa el magától.
+     * Az alapérték a régi viselkedést tartja.
+     */
+    private val isPlaying: () -> Boolean = { true }
 ) {
     private val audioManager =
         context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -95,7 +101,13 @@ class AudioFocusGuard(
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                pausedByFocusLoss = true
+                val wasPlaying = try {
+                    isPlaying()
+                } catch (_: Exception) {
+                    true
+                }
+                // Ha már egyszer mi állítottuk meg, az ismételt vesztés ne törölje a jelzést.
+                if (wasPlaying) pausedByFocusLoss = true
                 try {
                     onPause()
                 } catch (_: Exception) {

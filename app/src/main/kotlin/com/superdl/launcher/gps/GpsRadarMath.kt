@@ -47,14 +47,16 @@ object GpsRadarMath {
         return relative <= tolerance || relative >= 360f - tolerance
     }
 
+    // MIÉRT: a törtszámos szög (pl. 25.5°) a tartományok közti résekbe esett, és
+    // "balra előtted" lett belőle. Folytonos, egymás után vizsgált határok.
     fun relativePositionLabel(relativeBearing: Float): String = when {
         relativeBearing <= 25f || relativeBearing >= 335f -> "előtted"
-        relativeBearing in 26f..70f -> "jobbra előtted"
-        relativeBearing in 71f..110f -> "jobbra"
-        relativeBearing in 111f..160f -> "jobbra mögötted"
-        relativeBearing in 161f..199f -> "mögötted"
-        relativeBearing in 200f..249f -> "balra mögötted"
-        relativeBearing in 250f..289f -> "balra"
+        relativeBearing <= 70f -> "jobbra előtted"
+        relativeBearing <= 110f -> "jobbra"
+        relativeBearing <= 160f -> "jobbra mögötted"
+        relativeBearing < 200f -> "mögötted"
+        relativeBearing < 250f -> "balra mögötted"
+        relativeBearing < 290f -> "balra"
         else -> "balra előtted"
     }
 

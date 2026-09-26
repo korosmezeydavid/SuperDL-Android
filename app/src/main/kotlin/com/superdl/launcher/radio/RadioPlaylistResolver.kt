@@ -30,7 +30,11 @@ object RadioPlaylistResolver {
 
         return when {
             lower.endsWith(".pls") -> extractFromPls(fetch(url))
-            lower.endsWith(".m3u") || lower.endsWith(".m3u8") -> extractFromM3u(fetch(url))
+            // MIÉRT: a .m3u8 HLS-folyam, nem lejátszási lista — az első sora egy
+            // pár másodperces szegmens, ami után a rádió elhallgatna. A MediaPlayer
+            // a HLS-t magától kezeli, ezért változatlanul adjuk tovább.
+            lower.endsWith(".m3u8") -> url
+            lower.endsWith(".m3u") -> extractFromM3u(fetch(url))
             else -> {
                 // Nem playlist-kiterjesztés. Lehet közvetlen stream — de az is
                 // előfordul, hogy kiterjesztés nélkül ad playlistet. Megnézzük a
@@ -56,6 +60,8 @@ object RadioPlaylistResolver {
             val isM3u = type.contains("mpegurl") || type.contains("m3u")
             if (isPls || isM3u) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
+                // HLS (kiterjesztés nélkül is): az eredeti cím marad, lásd resolve().
+                if (isM3u && body.contains("#EXT-X-")) return url
                 val resolved = if (isPls) extractFromPls(body) else extractFromM3u(body)
                 if (resolved != null) return resolved
             }

@@ -69,7 +69,8 @@ class YoutubePlayerActivity : AppCompatActivity() {
         com.superdl.launcher.media.AudioFocusGuard(
             context = this,
             onPause = { mainHandler.post { if (playbackStarted && !paused) togglePause() } },
-            onResume = { mainHandler.post { if (paused) togglePause() } }
+            onResume = { mainHandler.post { if (paused) togglePause() } },
+            isPlaying = { playbackStarted && !paused }
         )
     }
 

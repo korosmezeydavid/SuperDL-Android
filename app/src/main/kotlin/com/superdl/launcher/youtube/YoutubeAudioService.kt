@@ -95,6 +95,13 @@ class YoutubeAudioService : Service() {
     private var title: String = ""
     private var paused = false
 
+    /**
+     * MIÉRT: a feloldó szál a leállítás (vagy egy újabb videó) után is
+     * visszaposztolhatott, és gazdátlan lejátszót indított. Minden indítás és
+     * leállítás lépteti; a régi szál eredményét eldobjuk.
+     */
+    private var playGeneration = 0
+
     /** A visszaeséshez kell: melyik videót akartuk épp hallani. */
     private var lastVideoId: String = ""
 
@@ -106,7 +113,8 @@ class YoutubeAudioService : Service() {
         AudioFocusGuard(
             context = this,
             onPause = { handler.post { pauseIfPlaying() } },
-            onResume = { handler.post { resumeIfPaused() } }
+            onResume = { handler.post { resumeIfPaused() } },
+            isPlaying = { player?.isPlaying == true }
         )
     }
 
@@ -166,6 +174,7 @@ class YoutubeAudioService : Service() {
 
         lastVideoId = videoId
         YoutubeDiagnostics.begin(videoId)
+        val generation = ++playGeneration
 
         // A FELOLDÁS HÁLÓZATOT HASZNÁL, tehát háttérszálon kell.
         Thread {
@@ -182,6 +191,7 @@ class YoutubeAudioService : Service() {
             val candidates = if (audioOnly.isNotEmpty()) audioOnly else urls
 
             handler.post {
+                if (generation != playGeneration || !isRunning) return@post
                 if (candidates.isEmpty()) {
                     // ELSŐ ZSÁKUTCA: a YouTube egyetlen címet sem adott ki.
                     // Itt a FELOLDÓ szorul javításra — a lejátszóval nincs baj.
@@ -205,6 +215,8 @@ class YoutubeAudioService : Service() {
      * következőt kell megpróbálni.
      */
     private fun playFirstWorking(urls: List<String>, index: Int) {
+        // MIÉRT: egy leállítás után beérkező újrapróbálás ne indítson új lejátszót.
+        if (!isRunning) return
         if (index >= urls.size) {
             // MÁSODIK ZSÁKUTCA: volt cím, de a lejátszó mindet elutasította.
             // Itt a KLIENS-ÁLCA szorul javításra (származás-igazoló jelző),
@@ -326,6 +338,7 @@ class YoutubeAudioService : Service() {
 
     private fun stopEverything() {
         isRunning = false
+        playGeneration++
         currentTitle = ""
         try {
             player?.release()
@@ -520,7 +533,14 @@ class YoutubeAudioService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        playGeneration++
         handler.removeCallbacksAndMessages(null)
+        // MIÉRT: ha a rendszer stopEverything nélkül állít le, a lejátszó szólna tovább gazdátlanul.
+        try {
+            player?.release()
+        } catch (_: Exception) {
+        }
+        player = null
         super.onDestroy()
     }
 }

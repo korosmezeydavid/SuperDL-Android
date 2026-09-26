@@ -51,9 +51,13 @@ class RadioPlayerActivity : AppCompatActivity() {
             },
             onResume = {
                 runOnUiThread {
-                    try { mediaPlayer?.start(); paused = false } catch (_: Exception) {}
+                    // MIÉRT: előkészítés közben a start() hibaállapotba dobná a lejátszót.
+                    if (prepared) {
+                        try { mediaPlayer?.start(); paused = false } catch (_: Exception) {}
+                    }
                 }
-            }
+            },
+            isPlaying = { mediaPlayer?.isPlaying == true }
         )
     }
 
@@ -81,7 +85,7 @@ class RadioPlayerActivity : AppCompatActivity() {
             context = this,
             isPlaying = { mediaPlayer?.isPlaying == true },
             onPause = { try { mediaPlayer?.pause(); paused = true } catch (_: Exception) {} },
-            onResume = { try { mediaPlayer?.start(); paused = false } catch (_: Exception) {} }
+            onResume = { if (prepared) try { mediaPlayer?.start(); paused = false } catch (_: Exception) {} }
         )
     }
 
@@ -159,8 +163,16 @@ class RadioPlayerActivity : AppCompatActivity() {
     private var alternativesFetched = false
     private var altIndex = 0
 
+    /**
+     * MIÉRT: gyors adóváltásnál két feloldó szál futott egymás mellett, és
+     * mindkettő elindította a saját lejátszóját — két adó szólt egyszerre.
+     * Minden playCurrent lépteti; a régi szálak eredményét eldobjuk.
+     */
+    private var playGeneration = 0
+
     private fun playCurrent() {
         val station = currentStation() ?: return
+        val generation = ++playGeneration
         releasePlayer()
         prepared = false
         paused = false
@@ -178,6 +190,7 @@ class RadioPlayerActivity : AppCompatActivity() {
             val resolved = RadioPlaylistResolver.resolve(station.streamUrl)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                if (generation != playGeneration) return@runOnUiThread
                 if (resolved == null) {
                     tryAlternative(station)
                     return@runOnUiThread
@@ -199,6 +212,7 @@ class RadioPlayerActivity : AppCompatActivity() {
      */
     private fun tryAlternative(station: RadioStation) {
         if (isFinishing || isDestroyed) return
+        val generation = playGeneration
 
         if (!alternativesFetched) {
             alternativesFetched = true
@@ -207,6 +221,7 @@ class RadioPlayerActivity : AppCompatActivity() {
                 val list = RadioBrowserClient.alternativeStreams(station.name, station.streamUrl)
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (generation != playGeneration) return@runOnUiThread
                     alternatives = list
                     altIndex = 0
                     tryAlternative(station)
@@ -233,6 +248,7 @@ class RadioPlayerActivity : AppCompatActivity() {
             val resolved = RadioPlaylistResolver.resolve(next)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                if (generation != playGeneration) return@runOnUiThread
                 if (resolved == null) {
                     tryAlternative(station)
                 } else {
@@ -244,6 +260,8 @@ class RadioPlayerActivity : AppCompatActivity() {
 
     /** A feloldott stream-URL tényleges lejátszása. */
     private fun startStream(station: RadioStation, streamUrl: String) {
+        // MIÉRT: ha valamiért még élne egy előző lejátszó, ne maradjon gazdátlanul szólva.
+        releasePlayer()
         try {
             halozatiZarFel()
             mediaPlayer = MediaPlayer().apply {

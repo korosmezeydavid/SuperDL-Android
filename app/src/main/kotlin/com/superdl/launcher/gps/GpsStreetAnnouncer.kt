@@ -82,13 +82,18 @@ object GpsStreetAnnouncer {
 
         val ahead = GpsStreetHelper.intersectionAhead(context, headingDegrees)
         if (ahead != null) {
+            // MIÉRT: ha egy frissítés között több küszöböt is átléptünk (pl. 80, 50
+            // és 25 m), mindhárom elhangzott egymás után. Mindet elkönyveljük, de
+            // csak a legközelebbit mondjuk ki.
+            var closest: Int? = null
             for (threshold in INTERSECTION_APPROACH_THRESHOLDS_M) {
                 if (ahead.distanceMeters > threshold) continue
                 val key = "${ahead.id}_approach_$threshold"
                 if (key in GpsRadarStore.announcedIntersectionMilestones) continue
                 GpsRadarStore.announcedIntersectionMilestones.add(key)
-                messages.add(buildApproachMessage(ahead, threshold))
+                if (closest == null || threshold < closest) closest = threshold
             }
+            closest?.let { messages.add(buildApproachMessage(ahead, it)) }
         }
 
         context.intersections.forEach { intersection ->

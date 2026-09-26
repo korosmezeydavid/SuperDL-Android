@@ -53,9 +53,13 @@ class PodcastPlayerActivity : AppCompatActivity() {
             },
             onResume = {
                 runOnUiThread {
-                    try { mediaPlayer?.start(); paused = false } catch (_: Exception) {}
+                    // MIÉRT: előkészítés közben a start() hibaállapotba dobná a lejátszót.
+                    if (prepared) {
+                        try { mediaPlayer?.start(); paused = false } catch (_: Exception) {}
+                    }
                 }
-            }
+            },
+            isPlaying = { mediaPlayer?.isPlaying == true }
         )
     }
 
@@ -82,7 +86,7 @@ class PodcastPlayerActivity : AppCompatActivity() {
             context = this,
             isPlaying = { mediaPlayer?.isPlaying == true },
             onPause = { try { mediaPlayer?.pause(); paused = true } catch (_: Exception) {} },
-            onResume = { try { mediaPlayer?.start(); paused = false } catch (_: Exception) {} }
+            onResume = { if (prepared) try { mediaPlayer?.start(); paused = false } catch (_: Exception) {} }
         )
     }
     private var prepared = false
@@ -184,6 +188,9 @@ class PodcastPlayerActivity : AppCompatActivity() {
                 }
                 setOnCompletionListener {
                     // Végigért: töröljük a pozíciót, hogy legközelebb elölről induljon.
+                    // MIÉRT: prepared=false, különben a stopAndFinish savePosition-je
+                    // a végpozíciót írná vissza a nulla fölé.
+                    prepared = false
                     PodcastStore.setPosition(this@PodcastPlayerActivity, ep.positionKey(), 0)
                     stopAndFinish("Az adás véget ért.")
                 }

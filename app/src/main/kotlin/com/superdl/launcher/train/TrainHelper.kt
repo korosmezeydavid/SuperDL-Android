@@ -243,9 +243,11 @@ object TrainHelper {
             val scheduledSec = time.optLong("IndMDatum").takeIf { it > 0L }
                 ?: time.optLong("ErkMDatum").takeIf { it > 0L }
                 ?: continue
-            if (scheduledSec < nowSec - 120L) continue
             val actualSec = time.optLong("IndTenyDatum").takeIf { it > 0L }
                 ?: time.optLong("ErkTenyDatum").takeIf { it > 0L }
+            // MIÉRT: a késő vonat menetrendi ideje már elmúlt, de még NEM ment el —
+            // a tényleges (késéssel számolt) időre szűrünk, különben kimaradt a listából.
+            if ((actualSec ?: scheduledSec) < nowSec - 120L) continue
             val delayMinutes = computeDelayMinutes(scheduledSec, actualSec)
             val trainNumber = train.optString("Szam").ifBlank { train.optString("ID") }
             // A MÁV API nem ad külön vonatnevet ezen a végponton; a vonal-jelzést használjuk.
