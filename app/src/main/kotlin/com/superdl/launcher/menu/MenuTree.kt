@@ -308,6 +308,8 @@ enum class MenuAction {
     ALERT_SOUND_NOTIFICATION,  // Egyéb értesítés hang
     ALERT_SOUND_VOLUME_CYCLE,  // Csengőhang hangerő
     ALERT_SILENT_MODE_TOGGLE,  // Néma mód ki-be
+    ALERT_SILENT_MODE_ON,      // Néma mód bekapcsolása (Elena: „kapcsold be a néma módot")
+    ALERT_SILENT_MODE_OFF,     // Néma mód kikapcsolása (Elena: „kapcsold ki a néma módot")
     SOUND_THEME_SELECT,        // Söpörj hangtéma választás
     // BESZÉDTÉMA — felvett hanggal megszólaló események. NEM azonos a
     // söprés-hangtémával: az síp, ez mondat.

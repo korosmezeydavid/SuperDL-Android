@@ -181,6 +181,12 @@ object VoiceAssistantHelper {
             if (query.length >= 3) return VoiceAssistantIntent.WebSearch(query)
         }
 
+        // A menüpont-egyezés ELŐTT: a „Néma mód ki-be" menüpont minden néma-módos
+        // mondatot elnyelne, és a be/ki szándék elveszne.
+        matchSilentModeCommand(text)?.let { action ->
+            return VoiceAssistantIntent.RunAction(action)
+        }
+
         matchMenuAction(text)?.let { action ->
             return VoiceAssistantIntent.RunAction(action)
         }
@@ -383,6 +389,28 @@ object VoiceAssistantHelper {
         val longWords = words.filter { it.length >= 4 }
         val hits = longWords.count { text.contains(it) }
         return if (hits >= 2) hits * 3 else longWords.count { text.contains(it) }
+    }
+
+    /**
+     * NÉMA MÓD BE/KI HANGBÓL. MIÉRT KÜLÖN BE ÉS KI: a puszta váltás a „kapcsold ki"
+     * kérésre BEkapcsolta volna, ha épp ki volt kapcsolva. Aki megmondja, mit akar,
+     * annak azt tesszük; ha csak annyit mond, „néma mód", az váltás marad.
+     */
+    private fun matchSilentModeCommand(text: String): MenuAction? {
+        val mentions = containsAny(text, "nema mod", "néma mód", "csendes mod", "csendes mód", "hangok nemitasa")
+        if (mentions) {
+            if (containsWord(text, "ki") || containsAny(text, "kikapcs", "kapcsold ki", "kapcsolj ki")) {
+                return MenuAction.ALERT_SILENT_MODE_OFF
+            }
+            if (containsWord(text, "be") || containsAny(text, "bekapcs", "kapcsold be", "kapcsolj be")) {
+                return MenuAction.ALERT_SILENT_MODE_ON
+            }
+            return MenuAction.ALERT_SILENT_MODE_TOGGLE
+        }
+        if (containsAny(text, "legyen nema", "nemitsd el a telefon", "nemitsd le a telefon")) {
+            return MenuAction.ALERT_SILENT_MODE_ON
+        }
+        return null
     }
 
     private fun matchKeywordAction(text: String): MenuAction? = when {

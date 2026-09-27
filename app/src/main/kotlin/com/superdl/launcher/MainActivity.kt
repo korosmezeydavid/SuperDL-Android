@@ -3508,6 +3508,12 @@ class MainActivity : AppCompatActivity() {
             MenuAction.ALERT_SOUND_VOLUME_CYCLE ->
                 startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.ALERT_VOLUME)
             MenuAction.ALERT_SILENT_MODE_TOGGLE -> toggleAlertSilentMode()
+            MenuAction.ALERT_SILENT_MODE_ON ->
+                if (!AlertSoundSettingsStore.isSilentMode(this)) toggleAlertSilentMode()
+                else tts.speak("A néma mód már be van kapcsolva.")
+            MenuAction.ALERT_SILENT_MODE_OFF ->
+                if (AlertSoundSettingsStore.isSilentMode(this)) toggleAlertSilentMode()
+                else tts.speak("A néma mód már ki van kapcsolva.")
             MenuAction.ALERT_SOUND_CALENDAR -> startAlertSoundPresetFlow(AlertSoundCategory.CALENDAR)
             MenuAction.ALERT_SOUND_MEDICATION -> startAlertSoundPresetFlow(AlertSoundCategory.MEDICATION)
             MenuAction.ALERT_SOUND_ALARM -> startAlertSoundPresetFlow(AlertSoundCategory.ALARM_CLOCK)
@@ -17442,6 +17448,24 @@ class MainActivity : AppCompatActivity() {
             MenuAction.BATTERY_PATROL_TOGGLE -> {
                 toggleBatteryPatrol()
                 resumeVoiceAssistantListening()
+            }
+            // NÉMA MÓD HANGBÓL (Alph kérése, 2026-09-27). Eddig ide nem ért el: „Ez a
+            // parancs még nem elérhető hangból" volt a válasz.
+            MenuAction.ALERT_SILENT_MODE_TOGGLE -> {
+                toggleAlertSilentMode()
+                resumeVoiceAssistantListening()
+            }
+            MenuAction.ALERT_SILENT_MODE_ON,
+            MenuAction.ALERT_SILENT_MODE_OFF -> {
+                val wanted = action == MenuAction.ALERT_SILENT_MODE_ON
+                if (AlertSoundSettingsStore.isSilentMode(this) == wanted) {
+                    tts.speakThen(
+                        if (wanted) "A néma mód már be van kapcsolva." else "A néma mód már ki van kapcsolva."
+                    ) { resumeVoiceAssistantListening() }
+                } else {
+                    toggleAlertSilentMode()
+                    resumeVoiceAssistantListening()
+                }
             }
             MenuAction.SOS -> activateSos()
             MenuAction.NAV_WALK -> startSubFlowFromAssistant { startNavWalkFlow() }
