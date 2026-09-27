@@ -349,6 +349,41 @@ sealed class AppFlow {
     ) : AppFlow()
 
     /**
+     * ALKALMAZÁS SZERINTI FÓKUSZ — MELYIK APPHOZ.
+     *
+     * Két szint, ahogy a Külső alkalmazásoknál: előbb a kategória, aztán az
+     * app — száz alkalmazáson végigsöpörni kimerítő.
+     * @param inGroup hamis: a kategóriák közt lépkedünk; igaz: egy kategória
+     *   alkalmazásai közt (ha csak egy kategória van, rögtön itt kezdünk)
+     */
+    data class AppFocusAppPick(
+        val groups: List<Pair<com.superdl.launcher.apps.AppCategory, List<com.superdl.launcher.apps.ExternalApp>>>,
+        val groupIndex: Int,
+        val inGroup: Boolean,
+        val index: Int
+    ) : AppFlow()
+
+    /** Alkalmazás szerinti fókusz — milyen szigorú legyen a szűrés. */
+    data class AppFocusModePick(
+        val app: com.superdl.launcher.apps.ExternalApp,
+        val modes: List<com.superdl.launcher.callfilter.CallFilterMode>,
+        val index: Int
+    ) : AppFlow()
+
+    /**
+     * Az alkalmazás szerinti fókuszok listája.
+     * @param deleteMode igaz: a jobbra söprés TÖRÖL (megerősítéssel); hamis: ki- és bekapcsol
+     * @param confirmPending törlés módban: az első jobbra söprés után igaz, a
+     *   második jobbra söprés töröl, a balra söprés visszavonja
+     */
+    data class AppFocusList(
+        val items: List<com.superdl.launcher.callfilter.AppFocus>,
+        val index: Int,
+        val deleteMode: Boolean = false,
+        val confirmPending: Boolean = false
+    ) : AppFlow()
+
+    /**
      * NEM SIKERÜLT A HÍVÁS — BETEGYEM A VISSZAHÍVANDÓK KÖZÉ?
      *
      * Alph kérése: „ha valakit hívsz, érzékelje hogy a kimenő hívás

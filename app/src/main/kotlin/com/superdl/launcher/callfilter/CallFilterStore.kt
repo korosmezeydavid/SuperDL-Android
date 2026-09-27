@@ -92,6 +92,15 @@ object CallFilterStore {
         val black = getBlacklist(context).size
         if (white > 0) append(" Fehérlista: $white szám.")
         if (black > 0) append(" Feketelista: $black szám.")
+        // MIÉRT ITT IS: ha egy alkalmazás szerinti fókusz szigorít, azt a
+        // hívásszűrő állapotának is ki kell mondania — különben a
+        // felhasználó a fenti mód alapján nem értené, miért nem csörgött.
+        val appFocus = try {
+            AppFocusStore.speakBrief(context)
+        } catch (_: Exception) {
+            ""
+        }
+        if (appFocus.isNotBlank()) append(" ").append(appFocus)
     }
 
     fun getMode(context: Context): CallFilterMode {
@@ -122,7 +131,17 @@ object CallFilterStore {
         return next
     }
 
-    fun speakMode(context: Context): String = getMode(context).speakLabel
+    fun speakMode(context: Context): String {
+        // Elena ezt mondja fel — akár a fókuszos alkalmazás fölött is, ezért
+        // az épp érvényes alkalmazás szerinti fókuszt is megemlítjük.
+        val appFocus = try {
+            AppFocusStore.speakBrief(context)
+        } catch (_: Exception) {
+            ""
+        }
+        val base = getMode(context).speakLabel
+        return if (appFocus.isBlank()) base else "$base $appFocus"
+    }
 
     @Deprecated("Use getMode()")
     fun isBlockPrivateEnabled(context: Context): Boolean =

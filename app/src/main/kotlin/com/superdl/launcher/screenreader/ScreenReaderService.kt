@@ -256,6 +256,17 @@ class ScreenReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        // ALKALMAZÁS SZERINTI FÓKUSZ: melyik app van elöl.
+        //
+        // MIÉRT A LEGELEJÉN, minden kilépés ELŐTT: a hívásszűrőnek akkor is
+        // tudnia kell, hogy a TikTok van elöl, ha a képernyőolvasó beszéde ki
+        // van kapcsolva, vészleállt, vagy épp billentyűzet miatt szünetel. A
+        // követő maga olcsó és csak memóriában dolgozik, és a rendszer-
+        // rétegeket (értesítési sáv, billentyűzet, saját ablakaink) eldobja.
+        try {
+            com.superdl.launcher.callfilter.ForegroundAppTracker.onAccessibilityEvent(this, event)
+        } catch (_: Exception) {
+        }
         // Feloldás előtt semmit nem csinálunk: nincs beszédmotor, és a zárolt
         // képernyőt szándékosan sem olvasnánk fel.
         if (!isUserUnlocked()) return

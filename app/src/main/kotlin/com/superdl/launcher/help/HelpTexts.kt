@@ -1822,6 +1822,35 @@ object HelpTexts {
                 "bekapcsolva; törölni nem kell őket, elég kikapcsolni."
         ),
 
+        // ── ALKALMAZÁS SZERINTI FÓKUSZ ──────────────────────────────────────
+        "app_focus" to topic(
+            title = "Alkalmazás szerinti fókusz súgó",
+            purpose = "Ahhoz köti a hívásszűrést, hogy MELYIK ALKALMAZÁS van előtérben. " +
+                "Például: amíg a TikTok van elöl, csak a fehérlistás számok hívhatnak. " +
+                "Amikor kilépsz az alkalmazásból, visszaáll a rendes beállítás.",
+            start = "Az Új fókusz egy alkalmazáshoz pont betölti a telepített " +
+                "alkalmazásokat. Előbb a csoportot választod, aztán az alkalmazást, " +
+                "végül azt, hogy ki hívhasson: csak a fehérlista; a fehérlista és a " +
+                "kedvencek; vagy a fehérlista és az ismert névjegyek. A jobbra söprés " +
+                "menti. Ha egy alkalmazásnak már van fókusza, az új választás " +
+                "felülírja. Legfeljebb húsz alkalmazásnak lehet fókusza.",
+            gestures = "Az alkalmazás választásánál fel-le söpréssel válogatsz, jobbra " +
+                "söpréssel lépsz be a csoportba vagy választod ki az alkalmazást, balra " +
+                "söpréssel lépsz vissza a csoportokhoz, onnan ki. A Fókuszaim listában " +
+                "a jobbra söprés helyben ki- vagy bekapcsolja a kiválasztott fókuszt. " +
+                "A Fókusz törlése listában az első jobbra söprés rákérdez, a második " +
+                "töröl, a balra söprés visszavonja.",
+            trouble = "Ahhoz, hogy a program tudja, melyik alkalmazás van elöl, a Super " +
+                "DL képernyőolvasónak vagy a Rendszer PIN segédnek engedélyezve kell " +
+                "lennie a kisegítő lehetőségek között — a képernyőolvasó beszéde " +
+                "ettől még lehet kikapcsolva. Az Állapot pont megmondja, ha ez hiányzik. " +
+                "Ha lezárod vagy elsötétíted a telefont, a fókusz még tíz percig " +
+                "érvényben marad, utána visszaáll a rendes beállítás. Ha egyszerre több " +
+                "fókusz is érvényben van — időzített, hely alapú vagy alkalmazás " +
+                "szerinti —, a szigorúbb nyer. A fehérlistás számok mindig átcsörögnek, " +
+                "a rejtett számokról pedig továbbra is a külön kapcsolójuk dönt."
+        ),
+
         // ── HANGOK ──────────────────────────────────────────────────────────
         "sound_settings" to topic(
             title = "Hangok súgó",
