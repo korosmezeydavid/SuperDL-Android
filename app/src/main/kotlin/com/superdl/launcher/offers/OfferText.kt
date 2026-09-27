@@ -98,7 +98,9 @@ object OfferText {
     fun matches(item: OfferItem, query: String): Boolean {
         val words = plain(query).split(Regex("\\s+")).filter { it.isNotBlank() }
         if (words.isEmpty()) return true
-        val hay = plain(listOf(item.name, item.category, item.store, item.packSize).joinToString(" "))
+        // A megjegyzésben is: ott áll az Illatoriumnál, melyik parfüm ihlette
+        // („versace"), a Pepcónál a termék leírása (a Windows `illik` párja).
+        val hay = plain(listOf(item.name, item.category, item.store, item.packSize, item.note).joinToString(" "))
         return words.all { hay.contains(it) }
     }
 }

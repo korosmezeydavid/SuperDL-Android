@@ -54,10 +54,12 @@ object DmOffers {
                 .filter { it.isNotBlank() && it != "null" }.joinToString(" ").trim()
             val discount = if (old != null && cur != null && old > cur)
                 "-${Math.round(100.0 * (1 - cur.toDouble() / old))}%" else ""
+            val self = td.optString("self")
             out += OfferItem(
                 store = STORE, name = name, price = cur, oldPrice = old, discount = discount,
                 packSize = pack, unitPrice = unit, validity = "",
-                category = cat, code = code, note = "Kiárusítás, amíg a készlet tart"
+                category = cat, code = code, note = "Kiárusítás, amíg a készlet tart",
+                url = if (self.startsWith("/")) "https://www.dm.hu$self" else ""
             )
         }
         return out

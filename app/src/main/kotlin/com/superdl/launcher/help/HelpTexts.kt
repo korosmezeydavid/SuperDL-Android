@@ -54,7 +54,12 @@ object HelpTexts {
      * „Súgó — minden alkalmazás" lista, ott pedig ne szerepeljen kétszer
      * ugyanaz.
      */
-    private val ALIASES = mapOf("transfer_group_tools" to "transfer_group")
+    private val ALIASES = mapOf(
+        "transfer_group_tools" to "transfer_group",
+        // az akciós újságok boltfajta-almenüi ugyanazt a súgót mondják
+        "offers_food" to "offers",
+        "offers_drug" to "offers"
+    )
 
     private fun resolve(menuId: String): String = ALIASES[menuId] ?: menuId
 
@@ -768,7 +773,7 @@ object HelpTexts {
             title = "Vásárlás súgó",
             purpose = "Itt van a bevásárlólistád és az akciós újságok. A kettő össze " +
                 "is ér: az akciós termékek egy mozdulattal a listádra kerülnek.",
-            start = "A Bevásárlólista a megszokott listáid. Az Akciós újságok nyolc bolt " +
+            start = "A Bevásárlólista a megszokott listáid. Az Akciós újságok tizenkét bolt " +
                 "ajánlatait mutatják, és ott kereshetsz is minden boltban egyszerre.",
             gestures = "Fel-le söpréssel választasz, jobbra söpréssel lépsz be, balra " +
                 "söpréssel jössz vissza.",
@@ -780,26 +785,48 @@ object HelpTexts {
             purpose = "A boltok heti akciós ajánlatai — név, ár, kártyás ár, kiszerelés, " +
                 "egységár, meddig érvényes. A telefon maga nézi meg a bolt oldalát, " +
                 "ahogy te is megnéznéd.",
-            start = "Nyolc bolt van: Lidl, Spar és Interspar, Tesco, Penny, Aldi, Auchan, " +
-                "Rossmann, és a dm kiárusítása. Először letölti az ajánlatot — ez fél " +
-                "percig is eltarthat —, utána egy darabig azonnal megnyílik, és net nélkül " +
-                "is böngészhető. A Lidl és a Tesco újságja nagy fájl: ha mobilneten vagy, " +
-                "előbb megmondja a méretét, és megkérdezi, letöltse-e. A dm-nél nincs heti akció, csak kiárusítás, amíg a " +
-                "készlet tart. A lista elején a Keresés minden boltban: bemondod, mit " +
-                "keresel, például: csirkemell — és a találatokat a legolcsóbbal kezdve " +
-                "hallod, a bolt nevével.",
-            gestures = "A kategóriák közt fel-le söpréssel választasz; az első sor az " +
-                "összes termék, legolcsóbb elöl. Jobbra söpréssel nyílik a kategória. " +
-                "A terméken jobbra söpréssel jönnek a műveletek: Felvétel a " +
-                "bevásárlólistára, Részletek, Vissza. Balra söpréssel jössz vissza.",
+            start = "A lista elején a Keresés minden boltban: bemondod, mit keresel, " +
+                "például: csirkemell — és a találatokat a legolcsóbbal kezdve hallod, a " +
+                "bolt nevével. Utána a boltok, fajtánként. Élelmiszerláncok: Lidl, Spar " +
+                "és Interspar, Tesco, Penny, Aldi, Auchan. Drogéria és kozmetika: " +
+                "Rossmann, a dm kiárusítása, Müller, és az Illatorium. Aztán a Pepco, és " +
+                "a Libri akciós könyvei. Mindkét fajta elején ott a Minden élelmiszerlánc " +
+                "egyszerre, illetve a Minden drogéria egyszerre: ez az összes bolt " +
+                "ajánlatát termékcsoportonként mutatja, a legolcsóbbal kezdve, a bolt " +
+                "nevével — így derül ki, hol a legolcsóbb a tej. Az Illatorium a SuperDL " +
+                "készítőjének saját parfümboltja: ez nem akció, hanem a bolt teljes " +
+                "kínálata, kollekciónként; a részleteknél ott áll, melyik ismert parfüm " +
+                "ihlette, és a keresés ebben is keres, például: versace. Először letölti " +
+                "az ajánlatot — ez fél percig is eltarthat, a Libri ötven oldala két-" +
+                "három percig —, utána egy darabig azonnal megnyílik, és net nélkül is " +
+                "böngészhető. A Lidl, a Tesco, a Müller és a Libri nagy letöltés: ha " +
+                "mobilneten vagy, előbb megmondja a méretét, és megkérdezi, letöltse-e. " +
+                "A dm-nél nincs heti akció, csak kiárusítás, amíg a készlet tart.",
+            gestures = "Egy bolt megnyitásakor a termékcsoportokat hallod — Tejtermék " +
+                "és tojás, Ital, Pékáru és a többi, mindegyik a termékszámmal. Az első " +
+                "sor az összes termék, legolcsóbb elöl; ha a boltnak van saját " +
+                "beosztása, az utolsó sor A bolt saját kategóriái. A Libri és az " +
+                "Illatorium rögtön a saját kategóriáival, illetve kollekcióival nyílik. " +
+                "Fel-le söpréssel választasz, jobbra söpréssel nyílik. A " +
+                "terméken jobbra söpréssel jönnek a műveletek: Felvétel a " +
+                "bevásárlólistára, Részletek, Megnyitás a bolt oldalán, Cím másolása, " +
+                "Vissza. A Megnyitás a termék saját oldalát nyitja meg a böngészőben, ha " +
+                "a bolt ad ilyet, különben a bolt akciós oldalát; ahol online is lehet " +
+                "rendelni, azt kimondja. A Cím másolása ugyanezt a címet a vágólapra " +
+                "teszi — beillesztheted egy üzenetbe a segítődnek. Balra söpréssel " +
+                "jössz vissza.",
             trouble = "Ha azt mondja, a bolt oldala nem válaszol, próbáld később — ha " +
                 "van korábban letöltött ajánlat, addig azt mutatja, és ezt meg is " +
-                "mondja. Az újságos boltoknál (Aldi, Lidl, Spar, Tesco, Auchan) az újság " +
-                "szövegéből dolgozunk: csak azt a terméket mondjuk be, amelynek az árát " +
-                "biztosan ki tudtuk olvasni, ezért néhány termék hiányozhat — inkább " +
-                "hiányozzon, mint hogy rossz árat halljál. A " +
-                "felvett tétel a legutóbb megnyitott bevásárlólistádra kerül; ha még " +
-                "nincs listád, Akciós bevásárlás néven létrehozza."
+                "mondja. Az újságos boltoknál (Aldi, Lidl, Spar, Tesco, Auchan, Müller) " +
+                "az újság szövegéből dolgozunk: csak azt a terméket mondjuk be, amelynek " +
+                "az árát biztosan ki tudtuk olvasni, ezért néhány termék hiányozhat — " +
+                "inkább hiányozzon, mint hogy rossz árat halljál. A termékcsoportot a " +
+                "program a termék nevéből állapítja meg; ami bizonytalan, az az Egyéb " +
+                "csoportba kerül, nem rossz helyre. A keresés és az együttes nézet a " +
+                "nagy letöltést nem indítja el: ha egy boltot még nem nyitottál meg, " +
+                "kimondja, hogy abban nem keresett. A felvett tétel a legutóbb " +
+                "megnyitott bevásárlólistádra kerül; ha még nincs listád, Akciós " +
+                "bevásárlás néven létrehozza."
         ),
 
         // ── PROFI DIKTAFON ──────────────────────────────────────────────────

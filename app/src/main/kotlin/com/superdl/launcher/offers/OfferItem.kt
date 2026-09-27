@@ -23,8 +23,20 @@ data class OfferItem(
     val validity: String = "",      // "09.24-tól 09.30-ig"
     val category: String = "",
     val code: String = "",          // a bolt azonosítója (URL vagy cikkszám)
-    val note: String = ""
+    val note: String = "",
+    val group: String = "",         // közös termékcsoport (OfferGroups), ha a gyűjtő tudja
+    val url: String = ""            // a termék oldala a bolt honlapján, ha van
 ) {
+    /**
+     * A termék saját oldala a bolt honlapján — ha a bolt ad ilyet (a régebbi
+     * gyűjtőknél, pl. Penny, a `code` maga a cím). A Windows `hivatkozas()` párja.
+     */
+    fun link(): String = when {
+        url.isNotBlank() -> url
+        code.startsWith("http") -> code
+        else -> ""
+    }
+
     /** Amit a legolcsóbban fizetsz érte (kártyával vagy anélkül). */
     fun bestPrice(): Int? = listOfNotNull(price, cardPrice).minOrNull()
 
@@ -45,6 +57,7 @@ data class OfferItem(
     /** A teljes leírás, mondatokban. */
     fun details(): String {
         val s = mutableListOf("$name. Bolt: $store")
+        if (group.isNotBlank()) s += "Termékcsoport: $group"
         price?.let { s += "Ár: $it forint" }
         cardPrice?.let { s += "${cardName.ifBlank { "Kártyával" }}: $it forint" }
         oldPrice?.let { s += "Eredeti ár: $it forint" }
@@ -65,6 +78,7 @@ data class OfferItem(
         oldPrice?.let { put("oldPrice", it) }
         put("discount", discount); put("packSize", packSize); put("unitPrice", unitPrice)
         put("validity", validity); put("category", category); put("code", code); put("note", note)
+        put("group", group); put("url", url)
     }
 
     companion object {
@@ -81,7 +95,9 @@ data class OfferItem(
             validity = o.optString("validity"),
             category = o.optString("category"),
             code = o.optString("code"),
-            note = o.optString("note")
+            note = o.optString("note"),
+            group = o.optString("group"),
+            url = o.optString("url")
         )
     }
 }

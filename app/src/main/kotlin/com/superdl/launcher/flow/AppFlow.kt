@@ -819,12 +819,22 @@ sealed class AppFlow {
     // ── AKCIÓS ÚJSÁGOK ──────────────────────────────────────────────────────
     /** Letöltés folyamatban. A token azonosítja: ha közben kiléptél, az eredmény nem ránt vissza. */
     data class OffersLoading(val title: String, val token: Long) : AppFlow()
-    /** Egy bolt kategóriái; az első sor az „Összes termék, legolcsóbb elöl". */
+    /**
+     * Egy bolt (vagy egy boltfajta: `storeId` = „kind:elelmiszer") választó-
+     * listája; az első sor az „Összes termék, legolcsóbb elöl".
+     * @param byGroup a sorok a KÖZÖS termékcsoportok (Tejtermék és tojás, Ital…),
+     *        nem a bolt saját kategóriái
+     * @param ownCatsRow az utolsó sor „A bolt saját kategóriái" — oda lép át
+     * @param parent a saját kategóriák listájából balra ide térünk vissza
+     */
     data class OffersCategoryPick(
         val storeId: String,
         val items: List<com.superdl.launcher.offers.OfferItem>,
         val categories: List<Pair<String, Int>>,
-        val index: Int
+        val index: Int,
+        val byGroup: Boolean = false,
+        val ownCatsRow: Boolean = false,
+        val parent: OffersCategoryPick? = null
     ) : AppFlow()
     /** Terméklista. Ha `back` null, balra kilép; különben oda tér vissza. */
     data class OffersBrowse(

@@ -437,6 +437,12 @@ enum class MenuAction {
     OFFERS_AUCHAN,             // Akciós újság: Auchan
     OFFERS_ROSSMANN,           // Akciós újság: Rossmann
     OFFERS_DM,                 // dm kiárusítás
+    OFFERS_MUELLER,            // Akciós újság: Müller
+    OFFERS_PEPCO,              // Akciós újság: Pepco
+    OFFERS_LIBRI,              // Libri akciós könyvek
+    OFFERS_ILLATORIUM,         // Illatorium — a saját parfümbolt teljes kínálata
+    OFFERS_ALL_FOOD,           // minden élelmiszerlánc egyszerre, termékcsoportonként
+    OFFERS_ALL_DRUG,           // minden drogéria egyszerre, termékcsoportonként
 }
 
 data class MenuItem(
@@ -1040,14 +1046,30 @@ object MenuTree {
                         // A keresés ELÖL: aki egy termék legolcsóbb árát keresi,
                         // annak nem kell végighallgatnia nyolc boltot.
                         MenuItem("offers_search", "Keresés minden boltban", MenuAction.OFFERS_SEARCH),
-                        MenuItem("offers_lidl", "Lidl", MenuAction.OFFERS_LIDL),
-                        MenuItem("offers_spar", "Spar és Interspar", MenuAction.OFFERS_SPAR),
-                        MenuItem("offers_tesco", "Tesco", MenuAction.OFFERS_TESCO),
-                        MenuItem("offers_penny", "Penny", MenuAction.OFFERS_PENNY),
-                        MenuItem("offers_aldi", "Aldi", MenuAction.OFFERS_ALDI),
-                        MenuItem("offers_auchan", "Auchan", MenuAction.OFFERS_AUCHAN),
-                        MenuItem("offers_rossmann", "Rossmann", MenuAction.OFFERS_ROSSMANN),
-                        MenuItem("offers_dm", "dm kiárusítás", MenuAction.OFFERS_DM),
+                        // BOLTFAJTÁK (a Windows Bolt-választójának csoportjai):
+                        // tizenkét bolt egy listában már túl hosszú lenne.
+                        MenuItem("offers_food", "Élelmiszerláncok", MenuAction.SUBMENU, listOf(
+                            MenuItem("offers_all_food", "Minden élelmiszerlánc egyszerre", MenuAction.OFFERS_ALL_FOOD),
+                            MenuItem("offers_lidl", "Lidl", MenuAction.OFFERS_LIDL),
+                            MenuItem("offers_spar", "Spar és Interspar", MenuAction.OFFERS_SPAR),
+                            MenuItem("offers_tesco", "Tesco", MenuAction.OFFERS_TESCO),
+                            MenuItem("offers_penny", "Penny", MenuAction.OFFERS_PENNY),
+                            MenuItem("offers_aldi", "Aldi", MenuAction.OFFERS_ALDI),
+                            MenuItem("offers_auchan", "Auchan", MenuAction.OFFERS_AUCHAN),
+                            MenuItem("offers_food_back", "Vissza az akciós újságokhoz", MenuAction.SUBMENU)
+                        )),
+                        MenuItem("offers_drug", "Drogéria és kozmetika", MenuAction.SUBMENU, listOf(
+                            MenuItem("offers_all_drug", "Minden drogéria egyszerre", MenuAction.OFFERS_ALL_DRUG),
+                            MenuItem("offers_rossmann", "Rossmann", MenuAction.OFFERS_ROSSMANN),
+                            MenuItem("offers_dm", "dm kiárusítás", MenuAction.OFFERS_DM),
+                            MenuItem("offers_mueller", "Müller", MenuAction.OFFERS_MUELLER),
+                            // A program készítőjének saját parfümboltja — a teljes
+                            // kínálat, nem akció; a felület ezt ki is mondja.
+                            MenuItem("offers_illatorium", "Illatorium, saját parfümbolt", MenuAction.OFFERS_ILLATORIUM),
+                            MenuItem("offers_drug_back", "Vissza az akciós újságokhoz", MenuAction.SUBMENU)
+                        )),
+                        MenuItem("offers_pepco", "Pepco", MenuAction.OFFERS_PEPCO),
+                        MenuItem("offers_libri", "Libri akciós könyvek", MenuAction.OFFERS_LIBRI),
                         MenuItem("offers_back", "Vissza a vásárláshoz", MenuAction.SUBMENU)
                     )),
                     MenuItem("shopping_group_back", "Vissza a mindennapihoz", MenuAction.SUBMENU)

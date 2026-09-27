@@ -105,7 +105,9 @@ object RossmannOffers {
             packSize = PACK.find(name)?.groupValues?.get(1)?.trim().orEmpty(),
             unitPrice = if (unit != null && base != null) "1 $base = $unit Ft" else "",
             validity = validity, category = category,
-            code = p.optString("id"), note = note
+            code = p.optString("id"), note = note,
+            url = p.optString("slug").takeIf { it.isNotBlank() && it != "null" }
+                ?.let { "https://shop.rossmann.hu/termek/$it" }.orEmpty()
         )
     }
 
