@@ -76,6 +76,13 @@ class KeyguardPinAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (event.packageName?.toString() == packageName) return
+        // ALKALMAZÁS SZERINTI FÓKUSZ: ha a képernyőolvasó nincs engedélyezve,
+        // de a PIN segéd igen, innen is tudjuk, melyik app van elöl. Olcsó,
+        // csak memóriában dolgozik (lásd ForegroundAppTracker).
+        try {
+            com.superdl.launcher.callfilter.ForegroundAppTracker.onAccessibilityEvent(this, event)
+        } catch (_: Exception) {
+        }
 
         if (KeyguardPinSettings.isFeatureEnabled(this) && KeyguardPinDetector.isRelevantEvent(event)) {
             scheduleKeyguardEvaluation {

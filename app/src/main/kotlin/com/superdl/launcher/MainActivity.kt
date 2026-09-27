@@ -1043,6 +1043,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, -1)
             is AppFlow.PlaceFocusModePick -> navigatePlaceFocusMode(flow, -1)
             is AppFlow.PlaceFocusList -> navigatePlaceFocusList(flow, -1)
+            is AppFlow.AppFocusAppPick -> navigateAppFocusAppPick(flow, -1)
+            is AppFlow.AppFocusModePick -> navigateAppFocusMode(flow, -1)
+            is AppFlow.AppFocusList -> navigateAppFocusList(flow, -1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, -1)
             is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, -1)
             is AppFlow.ReminderList -> navigateReminderList(flow, -1)
@@ -1281,6 +1284,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MediaContextMenu -> navigateMediaContextMenu(flow, +1)
             is AppFlow.PlaceFocusModePick -> navigatePlaceFocusMode(flow, +1)
             is AppFlow.PlaceFocusList -> navigatePlaceFocusList(flow, +1)
+            is AppFlow.AppFocusAppPick -> navigateAppFocusAppPick(flow, +1)
+            is AppFlow.AppFocusModePick -> navigateAppFocusMode(flow, +1)
+            is AppFlow.AppFocusList -> navigateAppFocusList(flow, +1)
             is AppFlow.ReminderDelayChoice -> navigateReminderDelay(flow, +1)
             is AppFlow.ReminderAddSource -> navigateReminderAddSource(flow, +1)
             is AppFlow.ReminderList -> navigateReminderList(flow, +1)
@@ -1687,6 +1693,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BugReportSend -> confirmBugReport(flow)
             is AppFlow.PlaceFocusModePick -> savePlaceFocus(flow)
             is AppFlow.PlaceFocusList -> onPlaceFocusActivate(flow)
+            is AppFlow.AppFocusAppPick -> onAppFocusAppPickSelect(flow)
+            is AppFlow.AppFocusModePick -> saveAppFocus(flow)
+            is AppFlow.AppFocusList -> onAppFocusListActivate(flow)
             is AppFlow.MissedCallOffer -> {
                 // A felvételi lánc maga állítja be a következő képernyőt.
                 startReminderFlow(
@@ -2233,6 +2242,9 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.BugReportSend -> cancelBugReport()
             is AppFlow.PlaceFocusModePick -> exitFlow("Hely alapú fókusz felvétele megszakítva.")
             is AppFlow.PlaceFocusList -> exitFlow("Hely alapú fókuszok bezárva.")
+            is AppFlow.AppFocusAppPick -> onAppFocusAppPickBack(flow)
+            is AppFlow.AppFocusModePick -> exitFlow("Alkalmazás szerinti fókusz felvétele megszakítva.")
+            is AppFlow.AppFocusList -> onAppFocusListBack(flow)
             is AppFlow.MissedCallOffer -> exitFlow("Rendben, nem teszem be.")
             is AppFlow.CallBackDeleteOffer -> exitFlow("Rendben, marad a visszahívandók között.")
             is AppFlow.SafeModeConfirm -> exitFlow("Marad a normál működés.")
@@ -3624,6 +3636,11 @@ class MainActivity : AppCompatActivity() {
             MenuAction.PLACE_FOCUS_DELETE -> startPlaceFocusList(deleteMode = true)
             MenuAction.PLACE_FOCUS_PROBE -> togglePlaceFocusProbe()
             MenuAction.PLACE_FOCUS_CHECK -> checkPlaceFocusNow()
+            MenuAction.APP_FOCUS_ADD -> startAppFocusAdd()
+            MenuAction.APP_FOCUS_LIST -> startAppFocusList(deleteMode = false)
+            MenuAction.APP_FOCUS_STATUS ->
+                tts.speak(com.superdl.launcher.callfilter.AppFocusStore.speakStatus(this))
+            MenuAction.APP_FOCUS_DELETE -> startAppFocusList(deleteMode = true)
             MenuAction.SCREEN_RECORD_START -> startScreenRecording()
             MenuAction.SCREEN_RECORD_STOP -> stopScreenRecording()
             MenuAction.SCREEN_RECORD_STATUS -> speakScreenRecordStatus()
@@ -15256,6 +15273,250 @@ class MainActivity : AppCompatActivity() {
         tts.speakAdd(text ?: "Nem történt változás.")
     }
 
+    // ==================== ALKALMAZÁS SZERINTI FÓKUSZ ====================
+    //
+    // Alph kérése (2026-09-27): „alkalmazás alapú ne zavarj/fókusz mód — pl.
+    // amikor a TikTokot használom, olyankor csak a fehérlistás számok
+    // érhetnek el."
+    //
+    // A LÁNC: alkalmazás kiválasztása (kategória, aztán app) → milyen szigorú
+    // legyen → mentés. Hogy melyik app van elöl, azt a kisegítő szolgáltatások
+    // jelentik a ForegroundAppTracker-nek; a hívásszűrő onnan kérdezi.
+
+    private fun startAppFocusAdd() {
+        tts.speak("Alkalmazások betöltése.")
+        // MIÉRT HÁTTÉRSZÁLON: a telepített appok listázása és kategóriába
+        // sorolása sok apppal másodpercekig is eltarthat — közben a
+        // felület nem fagyhat le.
+        Thread {
+            val apps: List<com.superdl.launcher.apps.ExternalApp> = try {
+                ExternalAppHelper.getLaunchableApps(this)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val groups: List<Pair<com.superdl.launcher.apps.AppCategory, List<com.superdl.launcher.apps.ExternalApp>>> = try {
+                if (apps.isEmpty()) emptyList() else com.superdl.launcher.apps.AppCategory.group(this, apps)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            postWhenAlive {
+                // MIÉRT: ha közben máshová léptél, nem rántjuk ki alólad.
+                if (activeFlow !is AppFlow.Menu) return@postWhenAlive
+                if (groups.isEmpty()) {
+                    tts.speak("Nem találtam alkalmazást.")
+                    return@postWhenAlive
+                }
+                val single = groups.size <= 1
+                activeFlow = AppFlow.AppFocusAppPick(groups, 0, inGroup = single, index = 0)
+                updateFlowDisplay()
+                if (single) {
+                    tts.speak(
+                        "Melyik alkalmazásnál legyen fókusz? ${apps.size} alkalmazás. " +
+                            "Fel-le válogatás, jobbra kiválasztás, balra mégse."
+                    )
+                    tts.speakAdd(appFocusAppLine(groups[0].second[0]))
+                } else {
+                    tts.speak(
+                        "Melyik alkalmazásnál legyen fókusz? ${apps.size} alkalmazás, " +
+                            "${groups.size} csoportban. Fel-le válogatás, jobbra belépés, balra mégse."
+                    )
+                    tts.speakAdd(speakCategoryEntry(groups[0]))
+                }
+            }
+        }.start()
+    }
+
+    /** Egy app a listában — ha már van fókusza, azt is elmondjuk. */
+    private fun appFocusAppLine(app: com.superdl.launcher.apps.ExternalApp): String {
+        val existing = com.superdl.launcher.callfilter.AppFocusStore.findByPackage(this, app.packageName)
+            ?: return app.label
+        return "${app.label}, már van fókusza: " +
+            com.superdl.launcher.callfilter.AppFocus.modeLabel(existing.mode)
+    }
+
+    private fun navigateAppFocusAppPick(flow: AppFlow.AppFocusAppPick, delta: Int) {
+        if (flow.groups.isEmpty()) return
+        if (!flow.inGroup) {
+            val next = (flow.groupIndex + delta + flow.groups.size) % flow.groups.size
+            activeFlow = flow.copy(groupIndex = next)
+            updateFlowDisplay()
+            tts.speak(speakCategoryEntry(flow.groups[next]))
+            return
+        }
+        val apps = flow.groups.getOrNull(flow.groupIndex)?.second.orEmpty()
+        if (apps.isEmpty()) return
+        val next = (flow.index + delta + apps.size) % apps.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(appFocusAppLine(apps[next]))
+    }
+
+    private fun onAppFocusAppPickSelect(flow: AppFlow.AppFocusAppPick) {
+        val group = flow.groups.getOrNull(flow.groupIndex) ?: return
+        if (!flow.inGroup) {
+            if (group.second.isEmpty()) return
+            activeFlow = flow.copy(inGroup = true, index = 0)
+            updateFlowDisplay()
+            tts.speak("${group.first.label}, ${group.second.size} alkalmazás.")
+            tts.speakAdd(appFocusAppLine(group.second[0]))
+            return
+        }
+        val app = group.second.getOrNull(flow.index) ?: return
+        val modes = com.superdl.launcher.callfilter.AppFocus.PICKABLE_MODES
+        if (modes.isEmpty()) return
+        // Ha már van szabálya, a mostani módjánál kezdünk — így a
+        // módosítás egy jobbra söprés, ha csak megerősíteni akarod.
+        val existing = com.superdl.launcher.callfilter.AppFocusStore.findByPackage(this, app.packageName)
+        val start = existing?.let { modes.indexOf(it.mode) }?.takeIf { it >= 0 } ?: 0
+        activeFlow = AppFlow.AppFocusModePick(app, modes, start)
+        updateFlowDisplay()
+        tts.speak(
+            "${app.label}. Ki hívhasson, amikor ez van előtérben? " +
+                "${appFocusModeLine(modes[start])} " +
+                "Fel-le söpréssel válassz, jobbra söpréssel mentem, balra mégse."
+        )
+    }
+
+    private fun onAppFocusAppPickBack(flow: AppFlow.AppFocusAppPick) {
+        // Egy kategóriából vissza a kategóriákhoz; onnan (vagy ha csak egy
+        // kategória van) kilépés.
+        if (flow.inGroup && flow.groups.size > 1) {
+            activeFlow = flow.copy(inGroup = false, index = 0)
+            updateFlowDisplay()
+            tts.speak(speakCategoryEntry(flow.groups[flow.groupIndex.coerceIn(0, flow.groups.size - 1)]))
+            return
+        }
+        exitFlow("Alkalmazás szerinti fókusz felvétele megszakítva.")
+    }
+
+    private fun appFocusModeLine(mode: com.superdl.launcher.callfilter.CallFilterMode): String =
+        "${com.superdl.launcher.callfilter.AppFocus.modeLabel(mode)}: " +
+            "${com.superdl.launcher.callfilter.AppFocus.modeSentence(mode)}."
+
+    private fun navigateAppFocusMode(flow: AppFlow.AppFocusModePick, delta: Int) {
+        if (flow.modes.isEmpty()) return
+        val next = (flow.index + delta + flow.modes.size) % flow.modes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(appFocusModeLine(flow.modes[next]))
+    }
+
+    private fun saveAppFocus(flow: AppFlow.AppFocusModePick) {
+        val mode = flow.modes.getOrNull(flow.index) ?: return
+        val store = com.superdl.launcher.callfilter.AppFocusStore
+        val existed = store.findByPackage(this, flow.app.packageName) != null
+        val focus = com.superdl.launcher.callfilter.AppFocus(
+            id = "app_" + System.currentTimeMillis(),
+            packageName = flow.app.packageName,
+            appLabel = flow.app.label,
+            mode = mode
+        )
+        if (!store.upsert(this, focus)) {
+            exitFlow(
+                "Túl sok alkalmazás szerinti fókuszod van, legfeljebb ${com.superdl.launcher.callfilter.AppFocusStore.MAX_ITEMS} lehet. " +
+                    "Törölj egyet.",
+                error = true
+            )
+            return
+        }
+        // MIÉRT FIGYELMEZTETÜNK: kisegítő szolgáltatás nélkül nem tudjuk, mi
+        // van elöl, és a szabály csendben nem hatna.
+        val warning = if (!com.superdl.launcher.callfilter.ForegroundAppTracker.isTrackingPossible(this)) {
+            " FIGYELEM: ehhez a Super DL képernyőolvasónak vagy a Rendszer PIN segédnek " +
+                "engedélyezve kell lennie a kisegítő lehetőségek között, különben nem tudom, " +
+                "melyik alkalmazás van elöl."
+        } else {
+            ""
+        }
+        exitFlow(
+            "${if (existed) "Frissítve" else "Mentve"}: amikor ${withArticle(flow.app.label)} van " +
+                "előtérben, ${com.superdl.launcher.callfilter.AppFocus.modeSentence(mode)}. " +
+                "A fehérlistás számok mindig átcsörögnek.$warning",
+            success = true
+        )
+    }
+
+    private fun startAppFocusList(deleteMode: Boolean) {
+        val items = com.superdl.launcher.callfilter.AppFocusStore.all(this)
+        if (items.isEmpty()) {
+            tts.speak(
+                "Még nincs alkalmazás szerinti fókusz. Az Új fókusz egy alkalmazáshoz " +
+                    "ponttal tudsz létrehozni egyet."
+            )
+            return
+        }
+        activeFlow = AppFlow.AppFocusList(items, 0, deleteMode)
+        updateFlowDisplay()
+        val mit = if (deleteMode) "jobbra söpréssel törlöd" else "jobbra söpréssel ki- és bekapcsolod"
+        tts.speak(
+            "${items.size} alkalmazás szerinti fókusz. ${items[0].speakSummary()}. " +
+                "Fel-le böngészés, $mit, balra vissza."
+        )
+    }
+
+    private fun navigateAppFocusList(flow: AppFlow.AppFocusList, delta: Int) {
+        if (flow.items.isEmpty()) return
+        val next = (flow.index + delta + flow.items.size) % flow.items.size
+        // Lapozás visszavonja a függő törlés-megerősítést: a második jobbra
+        // söprés sose töröljön MÁSIK tételt, mint amire rákérdeztünk.
+        activeFlow = flow.copy(index = next, confirmPending = false)
+        updateFlowDisplay()
+        tts.speak(flow.items[next].speakSummary())
+    }
+
+    private fun onAppFocusListActivate(flow: AppFlow.AppFocusList) {
+        val item = flow.items.getOrNull(flow.index)
+        if (item == null) {
+            exitFlow("Még nincs alkalmazás szerinti fókusz.")
+            return
+        }
+        val store = com.superdl.launcher.callfilter.AppFocusStore
+        if (flow.deleteMode) {
+            if (!flow.confirmPending) {
+                activeFlow = flow.copy(confirmPending = true)
+                updateFlowDisplay()
+                tts.speak(
+                    "Biztosan törlöd ${withArticle(item.appLabel)} fókuszát? " +
+                        "Jobbra söpréssel törlöm, balra mégse."
+                )
+                return
+            }
+            store.remove(this, item.id)
+            feedbackSuccess()
+            val remaining = store.all(this)
+            if (remaining.isEmpty()) {
+                exitFlow("${item.appLabel} fókusza törölve. Nincs több alkalmazás szerinti fókuszod.")
+                return
+            }
+            val index = flow.index.coerceIn(0, remaining.size - 1)
+            activeFlow = flow.copy(items = remaining, index = index, confirmPending = false)
+            updateFlowDisplay()
+            tts.speak("${item.appLabel} fókusza törölve. ${remaining[index].speakSummary()}")
+            return
+        }
+        val on = store.toggle(this, item.id)
+        feedbackSuccess()
+        val updated = store.all(this)
+        if (updated.isEmpty()) {
+            exitFlow("Még nincs alkalmazás szerinti fókusz.")
+            return
+        }
+        activeFlow = flow.copy(items = updated, index = flow.index.coerceIn(0, updated.size - 1))
+        updateFlowDisplay()
+        tts.speak(if (on) "${item.appLabel}: bekapcsolva." else "${item.appLabel}: kikapcsolva.")
+    }
+
+    private fun onAppFocusListBack(flow: AppFlow.AppFocusList) {
+        if (flow.confirmPending) {
+            activeFlow = flow.copy(confirmPending = false)
+            updateFlowDisplay()
+            val current = flow.items.getOrNull(flow.index)
+            tts.speak("Rendben, nem törlöm. ${current?.speakSummary().orEmpty()}")
+            return
+        }
+        exitFlow("Alkalmazás szerinti fókuszok bezárva.")
+    }
+
     /**
      * KÉRDEZZEN-E, HA NEM VETTÉK FEL. Alph kérése, alapból be van
      * kapcsolva. Aki naponta húszszor telefonál, kikapcsolhatja.
@@ -22668,6 +22929,38 @@ class MainActivity : AppCompatActivity() {
                     "➡ ki és be  •  ⬅ vissza"
                 }
             }
+            is AppFlow.AppFocusAppPick -> {
+                val group = flow.groups.getOrNull(flow.groupIndex)
+                if (flow.inGroup) {
+                    val apps = group?.second.orEmpty()
+                    tvItem.text = apps.getOrNull(flow.index)?.label ?: "—"
+                    tvPosition.text = "${group?.first?.label ?: "Alkalmazások"}  •  " +
+                        "${flow.index + 1} / ${apps.size}"
+                    tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+                } else {
+                    tvItem.text = group?.first?.label ?: "—"
+                    tvPosition.text = "Fókusz alkalmazáshoz — csoport  •  " +
+                        "${flow.groupIndex + 1} / ${flow.groups.size}"
+                    tvHint.text = "⬆⬇ választás  •  ➡ belépés  •  ⬅ mégse"
+                }
+            }
+            is AppFlow.AppFocusModePick -> {
+                tvItem.text = flow.modes.getOrNull(flow.index)
+                    ?.let { com.superdl.launcher.callfilter.AppFocus.modeLabel(it) } ?: "—"
+                tvPosition.text = "${flow.app.label} — ki hívhat?  •  " +
+                    "${flow.index + 1} / ${flow.modes.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ mentés  •  ⬅ mégse"
+            }
+            is AppFlow.AppFocusList -> {
+                tvItem.text = flow.items.getOrNull(flow.index)?.appLabel ?: "—"
+                tvPosition.text = "Alkalmazás szerinti fókuszok  •  " +
+                    "${flow.index + 1} / ${flow.items.size}"
+                tvHint.text = when {
+                    flow.deleteMode && flow.confirmPending -> "➡ törlés megerősítése  •  ⬅ mégse"
+                    flow.deleteMode -> "➡ törlés  •  ⬅ vissza"
+                    else -> "➡ ki és be  •  ⬅ vissza"
+                }
+            }
             is AppFlow.MissedCallOffer -> {
                 tvItem.text = flow.name.ifBlank { flow.number }
                 tvPosition.text = "Nem sikerült a hívás"
@@ -23811,6 +24104,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
         isForeground = true
+        // ALKALMAZÁS SZERINTI FÓKUSZ: visszaértél a kezdőképernyőre, tehát a
+        // fókuszos app (pl. TikTok) már nincs elöl. A kisegítő szolgáltatás a
+        // saját csomagunk eseményeit szándékosan eldobja (billentyűzeteink,
+        // lebegő ablakaink miatt), ezért ezt innen jelezzük.
+        com.superdl.launcher.callfilter.ForegroundAppTracker.noteOwnAppInFront(this)
         // A hangerő-gombok a beszéd csatornáját állítsák. Azért ITT is (nem
         // csak az onCreate-ben), mert a felhasználó közben átválthatta a
         // beszéd csatornáját a beállításokban.

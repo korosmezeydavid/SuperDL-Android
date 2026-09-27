@@ -49,10 +49,12 @@ object CallFilterEngine {
         // HA MINDKETTŐ ÉRVÉNYBEN VAN, A SZIGORÚBB NYER: aki két szabályt is
         // beállított ugyanarra az időre, nyilván azt akarta, hogy akkor
         // tényleg ne zavarják.
-        val mode = strictest(
-            PlaceFocusStore.activeMode(context),
-            FocusScheduleStore.activeMode(context)
-        ) ?: CallFilterStore.getMode(context)
+        //
+        // AZ ALKALMAZÁS SZERINTI FÓKUSZ (pl. „amíg a TikTok elöl van, csak a
+        // fehérlista") ugyanígy harmadik fókuszként száll be: a három közül a
+        // szigorúbb nyer. A fehérlista fent már átengedett — ezt ez sem
+        // írhatja felül.
+        val mode = effectiveFocusMode(context) ?: CallFilterStore.getMode(context)
 
         return when (mode) {
             CallFilterMode.TOTAL_DND -> true
@@ -78,16 +80,38 @@ object CallFilterEngine {
             return "feketelista"
         }
         if (isPrivateOrHidden(normalized, handlePresentation)) return "rejtett"
-        val mode = strictest(
-            PlaceFocusStore.activeMode(context),
-            FocusScheduleStore.activeMode(context)
-        ) ?: CallFilterStore.getMode(context)
+        val mode = effectiveFocusMode(context) ?: CallFilterStore.getMode(context)
+        // MIÉRT KÜLÖN OK: a Szűrt hívások listájában így kiderül, hogy a hívás
+        // azért maradt ki, mert épp a fókuszos alkalmazás volt elöl — nem
+        // pedig azért, mert a kézi beállítás szigorú.
+        if (mode != CallFilterMode.ACCEPT_ALL && AppFocusStore.activeMode(context) == mode) {
+            return "alkalmazas"
+        }
         return when (mode) {
             CallFilterMode.TOTAL_DND -> "nezavarj"
             CallFilterMode.PRIORITY_ONLY -> "reszleges"
             CallFilterMode.CONTACTS_ONLY -> "ismeretlen"
             CallFilterMode.ACCEPT_ALL -> "egyeb"
         }
+    }
+
+    /**
+     * A most érvényes fókusz-mód (időzített, hely alapú, alkalmazás szerinti),
+     * vagy null, ha egyik sem hat. Több egyidejű fókusznál a szigorúbb nyer.
+     */
+    private fun effectiveFocusMode(context: Context): CallFilterMode? {
+        // MIÉRT VÉDŐHÁLÓBAN: az alkalmazás szerinti fókusz rendszer-
+        // szolgáltatásokat kérdez (képernyő, zárolás). Ha ez bármiért
+        // elszállna, a hívásszűrés többi része akkor is működjön.
+        val appMode = try {
+            AppFocusStore.activeMode(context)
+        } catch (_: Exception) {
+            null
+        }
+        return strictest(
+            strictest(PlaceFocusStore.activeMode(context), FocusScheduleStore.activeMode(context)),
+            appMode
+        )
     }
 
     /**

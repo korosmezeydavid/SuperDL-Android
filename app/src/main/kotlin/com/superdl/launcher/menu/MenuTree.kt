@@ -352,6 +352,11 @@ enum class MenuAction {
     PLACE_FOCUS_DELETE,        // Törlés
     PLACE_FOCUS_PROBE,         // Próba és éles mód váltása
     PLACE_FOCUS_CHECK,         // Ellenőrzés most
+    // ALKALMAZÁS SZERINTI FÓKUSZ — szűrés, amíg egy kiválasztott app van elöl
+    APP_FOCUS_ADD,             // Új fókusz egy alkalmazáshoz
+    APP_FOCUS_LIST,            // Fókuszaim (ki és be kapcsolás)
+    APP_FOCUS_STATUS,          // Állapot felolvasása
+    APP_FOCUS_DELETE,          // Fókusz törlése
     PENDING_SMS_LIST,          // Függő üzenetek (emlékeztetők az SMS-ekből)
     CALL_LOG_LIMIT,            // Hívásnapló: hány tételt mutasson
     CALL_LOG_WIPE,             // Teljes hívásnapló törlése
@@ -1246,6 +1251,20 @@ object MenuTree {
                     MenuItem("place_focus_check", "Ellenőrzés most", MenuAction.PLACE_FOCUS_CHECK),
                     MenuItem("place_focus_delete", "Fókusz törlése", MenuAction.PLACE_FOCUS_DELETE),
                     MenuItem("place_focus_back", "Vissza", MenuAction.SUBMENU)
+                )),
+                // ALKALMAZÁS SZERINTI FÓKUSZ — Alph kérése (2026-09-27): „amikor
+                // a TikTokot használom, olyankor csak a fehérlistás számok
+                // érhetnek el."
+                //
+                // MIÉRT KÜLÖN AZ IDŐZÍTETTŐL ÉS A HELYTŐL: egy élő adás nem
+                // órára indul és nem helyhez kötött. Amíg az app elöl van,
+                // addig kell csend. A Súgó pontot a menüépítő teszi be.
+                MenuItem("app_focus", "Alkalmazás szerinti fókusz", MenuAction.SUBMENU, listOf(
+                    MenuItem("app_focus_add", "Új fókusz egy alkalmazáshoz", MenuAction.APP_FOCUS_ADD),
+                    MenuItem("app_focus_list", "Fókuszaim", MenuAction.APP_FOCUS_LIST),
+                    MenuItem("app_focus_status", "Állapot", MenuAction.APP_FOCUS_STATUS),
+                    MenuItem("app_focus_delete", "Fókusz törlése", MenuAction.APP_FOCUS_DELETE),
+                    MenuItem("app_focus_back", "Vissza", MenuAction.SUBMENU)
                 )),
                 MenuItem("dialer_default_setup", "Alapértelmezett telefon beállítása", MenuAction.DIALER_DEFAULT_SETUP),
                 MenuItem("dialer_default_status", "Telefon alkalmazás állapota", MenuAction.DIALER_DEFAULT_STATUS),

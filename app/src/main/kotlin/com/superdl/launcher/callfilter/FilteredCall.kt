@@ -34,6 +34,7 @@ data class FilteredCall(
         "nezavarj" -> "Teljes Ne Zavarj"
         "reszleges" -> "részleges szűrés"
         "ismeretlen" -> "ismeretlen szám"
+        "alkalmazas" -> "alkalmazás szerinti fókusz"
         else -> "szűrve"
     }
 
