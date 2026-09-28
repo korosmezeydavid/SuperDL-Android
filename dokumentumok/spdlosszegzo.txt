@@ -564,6 +564,37 @@ VISSZATÉRŐ MINTÁK, amiket a kód következetesen betart:
     A jelentés CSATOLMÁNYKÉNT megy, mert a levéltörzsben elcsonkult.
 
 
+3.21 INTERNET-TESZT (master, 2026-09-28 — MÉG NINCS KIADVA)
+  A Windowsos SuperDL Internet-tesztjének (superdl/nettest.py) telefonos
+  átirata, Alph kérésére. Menü: Eszközök > Internet-teszt:
+  Teljes teszt, Takarékos teszt, Gyors ellenőrzés, Wi-Fi jelerősség
+  figyelése, Korábbi mérések. Kód: nettest/ csomag + MainActivity
+  „INTERNET-TESZT" szakasza.
+  - MÉRÉS: letöltés és feltöltés (Cloudflare nyilvános mérővégpontja,
+    tartalék források; párhuzamos szálak, a bemelegítés levonva, csúcs és
+    ingadozás), késleltetés = TCP-kapcsolatnyitás ideje (NEM ICMP — ki is
+    mondja), ingadozás, sikeres próbák aránya, DNS-idő (a gyorsítótárral
+    együtt), IPv6, publikus adatok (szolgáltató, város, mérőközpont), a
+    SuperDL szolgáltatásainak elérhetősége (katalógus, GitHub, YouTube,
+    Ably, fájlküldés, DNS).
+  - TELEFONOS TÖBBLET: Wi-Fi dBm (valódi mérés), sáv, csatorna, szabvány
+    (API 30+), rx/tx (API 29+); mobilhálózat: szolgáltató, generáció, jelszint
+    és dBm, roaming; VPN, mért kapcsolat, captive portal, privát DNS.
+  - ÍTÉLET ELŐL, UTÁNA SZÁMOK; minden sor önmagában érthető. Mobilneten a
+    teljes teszt előtt rákérdez (a várható adatforgalommal). Mérés közben
+    halk hangjelzés és a fázisok bemondása; balra söpréssel bármikor leáll.
+  - ADATVÉDELEM: a publikus IP, a gépnév (fordított DNS) és a nyilvános
+    saját cím ALAPBÓL REJTVE — a listában, a megosztott jelentésben és az
+    előzményekben is; csak a „Teljes IP-cím bemondása" mondja ki.
+  - WI-FI BEJÁRÁS (mesh-építéshez): 1,5 mp-enként mér, rövid hang, aminek a
+    magassága követi a jelet; csak az érdemi változást mondja ki; jobbra
+    söpréssel a mostani hely diktálva megjelölhető; a végén összefoglaló
+    (hol gyenge → oda kell még egység), megosztható jegyzőkönyv.
+  - Előzmények: 200 mérés a „superdl_nettest" prefsben (a mentésbe felvéve),
+    az utolsó 10 átlaga. Háttérben befejeződött mérés eredményét visszatéréskor
+    mondja be. Egyezés-próba: a szövegek a Python-eredetivel azonosak
+    (NetTestTextTest, 47 teszt).
+
 4. KIEMELT RENDSZEREK — RÉSZLETES MŰKÖDÉS
 --------------------------------------------------------------------------------
 
