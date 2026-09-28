@@ -1,6 +1,18 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-09-02 | **Verzió:** 1.58.0 (versionCode 104)
+**Utolsó frissítés:** 2026-09-28 | **Verzió:** 1.86.0 (versionCode 154)
+
+> **2026-09-28: KIADVA — 1.86.0.** Vásárlás menü (Eszközök → Mindennapi → Vásárlás):
+> bevásárlólista + akciós újságok 12 boltból (`offers/`: Penny, Aldi, Lidl, Spar, Tesco,
+> Auchan, Rossmann, dm, Müller, Illatorium, Pepco, Libri), közös termékcsoportok
+> (`OfferGroups`), boltfajta-nézetek, termékoldal megnyitása/cím másolása. A gyűjtők a
+> Windows `akciok_mod` Python-moduljának átiratai; egyezés-próbák: `app/src/test/.../offers/`
+> (a lementett bolti minták `app/src/test/resources/akcio_minta/` alatt, NEM a tárolóban).
+> Beszélő óra modul (`patrol/TalkingClock.kt`, katalógus-típus `talkingclock`), néma
+> módban mindig szóló emlékeztetők, Elena néma-mód parancs, alkalmazás szerinti fókusz
+> (`callfilter/AppFocus.kt`), az 1.85.1–1.85.4 képernyőolvasó-javítások és öt kör átfogó
+> hibakeresés. Részletek: `tools/relnotes1860.md`; a projekt dokumentumai a claude.ai
+> „super dl windows and android" projektben.
 
 > **2026-09-02: KIADVA — 1.58.0. ÖSSZEOMLÁS-JAVÍTÁS ÉS AZ E-MAIL ÁTSZERVEZÉSE.**
 >
