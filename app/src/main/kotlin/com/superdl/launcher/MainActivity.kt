@@ -28,6 +28,20 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.superdl.launcher.book.AudiobookLibrary
+import com.superdl.launcher.nettest.MODE_FULL
+import com.superdl.launcher.nettest.MODE_QUICK
+import com.superdl.launcher.nettest.MODE_SAVER
+import com.superdl.launcher.nettest.NetInfoCollector
+import com.superdl.launcher.nettest.NetProbe
+import com.superdl.launcher.nettest.NetTestBeeper
+import com.superdl.launcher.nettest.NetTestHistory
+import com.superdl.launcher.nettest.NetTestResult
+import com.superdl.launcher.nettest.NetTestStore
+import com.superdl.launcher.nettest.NetTestText
+import com.superdl.launcher.nettest.SpeedMeter
+import com.superdl.launcher.nettest.StopSignal
+import com.superdl.launcher.nettest.WifiReader
+import com.superdl.launcher.nettest.WifiWalkLog
 import com.superdl.launcher.book.AudiobookPlayerActivity
 import com.superdl.launcher.book.BookBookmark
 import com.superdl.launcher.book.BookEntry
@@ -1189,6 +1203,16 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, -1)
             is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, -1)
             is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, -1)
+            is AppFlow.NetTestMeteredConfirm -> tts.speak(netTestMeteredQuestion(flow))
+            is AppFlow.NetTestRunning -> speakNetTestStatus(flow)
+            is AppFlow.NetTestBrowse -> navigateNetTestBrowse(flow, -1)
+            is AppFlow.NetTestActionMenu -> navigateNetTestActions(flow, -1)
+            is AppFlow.NetTestHistoryBrowse -> navigateNetTestHistory(flow, -1)
+            // a bejárásnál a fel és a le egyaránt a mostani értéket ismétli
+            is AppFlow.WifiWalkLive -> repeatWifiWalkValue()
+            // a hely nevét diktálod, nyitva a mikrofon: itt csendben maradunk
+            is AppFlow.WifiWalkAwaitName -> Unit
+            is AppFlow.WifiWalkSummary -> navigateWifiWalkSummary(flow, -1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, -1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
@@ -1440,6 +1464,14 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.OffersCategoryPick -> navigateOffersCategory(flow, +1)
             is AppFlow.OffersBrowse -> navigateOffersBrowse(flow, +1)
             is AppFlow.OffersItemMenu -> navigateOffersItemMenu(flow, +1)
+            is AppFlow.NetTestMeteredConfirm -> tts.speak(netTestMeteredQuestion(flow))
+            is AppFlow.NetTestRunning -> speakNetTestStatus(flow)
+            is AppFlow.NetTestBrowse -> navigateNetTestBrowse(flow, +1)
+            is AppFlow.NetTestActionMenu -> navigateNetTestActions(flow, +1)
+            is AppFlow.NetTestHistoryBrowse -> navigateNetTestHistory(flow, +1)
+            is AppFlow.WifiWalkLive -> repeatWifiWalkValue()
+            is AppFlow.WifiWalkAwaitName -> Unit
+            is AppFlow.WifiWalkSummary -> navigateWifiWalkSummary(flow, +1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, +1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
@@ -1789,6 +1821,15 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.OffersCategoryPick -> onOffersCategoryActivate(flow)
             is AppFlow.OffersBrowse -> enterOffersItemMenu(flow)
             is AppFlow.OffersItemMenu -> onOffersItemMenuActivate(flow)
+            is AppFlow.NetTestMeteredConfirm -> onNetTestMeteredAnswer(flow, yes = true)
+            is AppFlow.NetTestRunning -> speakNetTestStatus(flow)
+            is AppFlow.NetTestBrowse -> enterNetTestActions(flow)
+            is AppFlow.NetTestActionMenu -> onNetTestAction(flow)
+            is AppFlow.NetTestHistoryBrowse -> tts.speak(flow.lines[flow.index])
+            is AppFlow.WifiWalkLive -> markWifiWalkPlace(flow.token)
+            // diktálás közben (nyitott mikrofon) a jobbra söprés csendben marad
+            is AppFlow.WifiWalkAwaitName -> Unit
+            is AppFlow.WifiWalkSummary -> onWifiWalkSummaryActivate(flow)
             is AppFlow.EmailSmtpPickAccount -> onEmailSmtpPickAccountActivate(flow)
             is AppFlow.YoutubeBrowse -> enterYoutubePlayConfirm(flow.videos, flow.index)
             is AppFlow.YoutubePlayConfirm -> playYoutubeVideo(flow.video)
@@ -2207,6 +2248,19 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.OffersItemMenu -> returnToOffersBrowse(flow.browse)
             AppFlow.OffersAwaitSearch -> exitFlow("Keresés megszakítva.")
+            is AppFlow.NetTestMeteredConfirm -> onNetTestMeteredAnswer(flow, yes = false)
+            is AppFlow.NetTestRunning -> {
+                // A token nő, a kapcsolatok bomlanak: a megszakított mérés nem
+                // fogyaszt tovább adatot, és az eredménye nem ránt vissza.
+                cancelNetTest()
+                exitFlow("Mérés megszakítva. Nem mentettem el.")
+            }
+            is AppFlow.NetTestBrowse -> exitFlow("Internet-teszt bezárva.")
+            is AppFlow.NetTestActionMenu -> returnToNetTestBrowse(flow.browse)
+            is AppFlow.NetTestHistoryBrowse -> exitFlow("Korábbi mérések bezárva.")
+            is AppFlow.WifiWalkLive -> finishWifiWalk()
+            is AppFlow.WifiWalkAwaitName -> cancelWifiWalkNaming(flow)
+            is AppFlow.WifiWalkSummary -> exitFlow("Wi-Fi figyelés bezárva.")
             is AppFlow.ShoppingListAwaitMore -> finishShoppingListCreation(flow.listName)
             is AppFlow.ShoppingEditItemAwaitName -> returnToShoppingBrowse(flow.listName, flow.items, flow.index)
             is AppFlow.ShoppingRenameListAwaitName -> {
@@ -2552,6 +2606,9 @@ class MainActivity : AppCompatActivity() {
         // MIÉRT: az élő mérés GPS-sebességfigyelője és a megálló-iránytű eddig
         // bekapcsolva maradt, ha nem a saját „balra" águkon léptél ki.
         if (activeFlow is AppFlow.StepsLive) stopSpeedUpdates()
+        // Ha az internet-teszt futása közben más úton lépünk ki, a mérés se
+        // töltsön tovább adatot a háttérben.
+        if (activeFlow is AppFlow.NetTestRunning) cancelNetTest()
         stopTransitCompass()
         voiceInput.cancel()
         lastLeftSwipeAt = 0L
@@ -2571,6 +2628,8 @@ class MainActivity : AppCompatActivity() {
         activeFlow = AppFlow.Menu
         updateDisplay()
         tts.speak("$message Vissza a menüben.")
+        // egy közben (például zárolás alatt) elkészült internet-teszt eredménye
+        if (netTestCanSpeak()) announcePendingNetTest(add = true)
     }
 
     private fun startSubFlowFromAssistant(start: () -> Unit) {
@@ -3454,6 +3513,11 @@ class MainActivity : AppCompatActivity() {
             MenuAction.OFFERS_ILLATORIUM -> openOffersStore("illatorium")
             MenuAction.OFFERS_ALL_FOOD -> openOffersKind(com.superdl.launcher.offers.OfferStore.KIND_FOOD)
             MenuAction.OFFERS_ALL_DRUG -> openOffersKind(com.superdl.launcher.offers.OfferStore.KIND_DRUG)
+            MenuAction.NETTEST_FULL -> startNetTest(MODE_FULL)
+            MenuAction.NETTEST_SAVER -> startNetTest(MODE_SAVER)
+            MenuAction.NETTEST_QUICK -> startNetTest(MODE_QUICK)
+            MenuAction.NETTEST_WIFI_WALK -> startWifiWalk()
+            MenuAction.NETTEST_HISTORY -> startNetTestHistory()
             MenuAction.EMAIL_IMAP_READ -> startEmailInboxFlow()
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
@@ -12417,6 +12481,8 @@ class MainActivity : AppCompatActivity() {
                     updateDisplay()
                     feedbackSuccess()
                     tts.speak("PIN helyes. Super DL feloldva.")
+                    // ha zárolás alatt elkészült egy internet-teszt, most hallod
+                    announcePendingNetTest(add = true)
                     // Ha a naptári riasztás menüpontja a zárolás miatt várt,
                     // most indul el. Enélkül némán elveszne — a felhasználó
                     // igent mondott, feloldotta a telefont, és nem történt semmi.
@@ -13599,6 +13665,625 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }.start()
+    }
+
+    // ==================== INTERNET-TESZT ====================
+    //
+    // A windowsos SuperDL Internet-tesztjének telefonos párja (Alph,
+    // 2026-09-28): sebesség, késleltetés, a helyi hálózat, a publikus adatok és
+    // a SuperDL saját szolgáltatásai — plusz amit CSAK a telefon tud: a
+    // mobilhálózat (szolgáltató, 4G/5G, jelerősség), a Wi-Fi jel valódi
+    // dBm-értéke, és a járkálós Wi-Fi jelerősség-figyelő mesh-építéshez.
+    //
+    // A mérés és a szövegek a nettest/ csomagban vannak (android-mentesen,
+    // JVM-en tesztelve, a Python-eredeti kimenetével összevetve); itt csak a
+    // képernyők. A TERVEZÉSI ELVEK a Windowsról jönnek:
+    //  • ELŐSZÖR ÍTÉLET, UTÁNA SZÁMOK: az első sor egy emberi mondat.
+    //  • MINDEN SOR ÖNMAGÁBAN ÉRTELMES: fel-le söpréssel egyenként hallod őket.
+    //  • MÉRÉS KÖZBEN NINCS NÉMASÁG: fázis-bemondás, halk emelkedő pittyegés.
+    //  • BALRA SÖPRÉSSEL bármikor megszakítható — és a megszakított mérés
+    //    eredménye később sem ránt vissza (token).
+    //  • A PUBLIKUS IP alapból MASZKOLT: élő adásban vagy képernyőfelvételen
+    //    fel is olvasódna. Teljes alakban csak külön kérésre hangzik el.
+    //  • MOBILNETEN a teljes teszt előtt RÁKÉRDEZÜNK: ott az adat pénz.
+
+    private val NETTEST_ACTIONS = listOf(
+        "Eredmény megosztása", "Jelentés másolása", "Teljes IP-cím bemondása",
+        "Mérés újra", "Vissza a listához"
+    )
+
+    /** A futó mérés sorszáma. Megszakításkor nő — a régi eredmény így nem ránt vissza. */
+    private var netTestToken = 0L
+
+    /** A futó mérés megszakító jelzője (a nyitott kapcsolatokat is lebontja). */
+    private var netTestStop: StopSignal? = null
+
+    /** A legutóbbi fázis és százalék — háttérszálról írja a mérés. */
+    @Volatile private var netTestPhase: Triple<Long, String, Double>? = null
+
+    /** A legutóbb BEMONDOTT fázis: mindegyiket csak egyszer mondjuk be. */
+    private var netTestSpokenPhase = ""
+
+    /**
+     * EGY MÉG EL NEM MONDOTT EREDMÉNY. Ha a mérés akkor ér véget, amikor nem
+     * szólhatunk (hívás, háttér, zárolás), vagy a képernyő közben másra váltott,
+     * az eredmény mentve van — és ezt a mondatot mondjuk el, amint újra lehet.
+     */
+    private var netTestPending: String? = null
+
+    /** Szólhat-e most a mérés (előtérben vagyunk, és nincs hívás)? */
+    private fun netTestCanSpeak(): Boolean = isForeground && !CallSession.isInCallUiActive
+
+    /** A függő eredmény bemondása (a feloldás, a kilépés és a visszatérés hívja). */
+    private fun announcePendingNetTest(add: Boolean = false) {
+        val text = netTestPending ?: return
+        netTestPending = null
+        if (add) tts.speakAdd(text) else tts.speak(text)
+    }
+
+    private fun startNetTest(mode: String, allowMetered: Boolean = false) {
+        // EGYSZERRE EGY MÉRÉS. A futó mérés akkor is fut, ha a képernyő közben
+        // másra váltott (például a zárolás miatt) — két párhuzamos mérés
+        // egymás sávszélességét mérné, és kétszer fogyasztana adatot.
+        if (activeFlow is AppFlow.NetTestRunning) {
+            tts.speak("Egy mérés már fut. Balra söpréssel megszakíthatod.")
+            return
+        }
+        if (netTestStop != null) {
+            tts.speak(
+                "Egy korábban indított mérés még fut a háttérben. Ha elkészül, bemondom az eredményét, " +
+                    "és a Korábbi mérések közé is bekerül. Addig nem indítok újat."
+            )
+            return
+        }
+        // MOBILNET-VÉDELEM: a teljes teszt valódi adatot tölt. Forgalomkorlátos
+        // kapcsolaton (mobilnet, mért wifi, hotspot) előbb megkérdezzük.
+        val metered = try {
+            (getSystemService(CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager)
+                ?.isActiveNetworkMetered == true
+        } catch (_: Exception) {
+            false
+        }
+        if (mode == MODE_FULL && metered && !allowMetered) {
+            val ask = AppFlow.NetTestMeteredConfirm(
+                mode, com.superdl.launcher.net.NetworkHelper.isMobileData(this)
+            )
+            activeFlow = ask
+            updateFlowDisplay()
+            tts.speak(netTestMeteredQuestion(ask))
+            return
+        }
+        val token = ++netTestToken
+        val stop = StopSignal()
+        netTestStop = stop
+        netTestPhase = null
+        netTestSpokenPhase = ""
+        activeFlow = AppFlow.NetTestRunning(mode, token)
+        updateFlowDisplay()
+        // AZ ADATFORGALMAT ELŐRE KIMONDJUK — mobilneten ez pénz.
+        tts.speak(
+            when (mode) {
+                MODE_SAVER -> "Takarékos teszt indul, körülbelül tizenöt másodperc. Adatforgalom: " +
+                    "${NetTestText.estimatedTraffic(MODE_SAVER)}. A sebesség csak tájékoztató. " +
+                    "Balra söpréssel megszakíthatod."
+                MODE_QUICK -> "Gyors ellenőrzés indul, sebességmérés nélkül. Általában tíz-húsz másodperc; " +
+                    "rossz hálózaton tovább tart. Az adatforgalom elhanyagolható. " +
+                    "Balra söpréssel bármikor leállíthatod."
+                else -> "Teljes teszt indul, körülbelül fél perc. Adatforgalom: " +
+                    "${NetTestText.estimatedTraffic(MODE_FULL)}. Balra söpréssel bármikor megszakíthatod."
+            }
+        )
+        startNetTestTicker(token)
+        val appCtx = applicationContext
+        Thread {
+            val result = try {
+                NetProbe.measure(
+                    mode = mode,
+                    stop = stop,
+                    progress = NetProbe.Progress { phase, pct -> onNetTestProgress(token, phase, pct) },
+                    collectLocal = { NetInfoCollector.collect(appCtx) }
+                )
+            } catch (t: Throwable) {
+                // sose maradjon néma a hiba: egy eredmény akkor is jön, a hibával
+                NetTestResult(time = NetProbe.timestamp(), mode = mode).also {
+                    it.errors += "váratlan hiba: ${SpeedMeter.describe(t)}"
+                }
+            }
+            // A megszakított mérést NEM mentjük: félkész számok rontanák az átlagot.
+            // A mentés a megszakító jelző zárja alatt fut: ha a „Nem mentettem
+            // el" elhangzott, ez már biztosan nem ír (és fordítva).
+            stop.unlessStopped { if (!result.cancelled) NetTestStore.add(appCtx, result) }
+            val history = NetTestStore.load(appCtx)
+            // postWhenAlive: a bezárt (megsemmisült) programhoz már nem nyúlunk
+            postWhenAlive { onNetTestFinished(token, result, history) }
+        }.apply {
+            name = "SDL-nettest"
+            isDaemon = true
+        }.start()
+    }
+
+    private fun netTestMeteredQuestion(flow: AppFlow.NetTestMeteredConfirm): String {
+        val where = if (flow.mobile) {
+            "Most mobilneten vagy: a díjcsomagodtól függően a teljes teszt pénzbe kerülhet, vagy a keretedből fogy."
+        } else {
+            "A telefon szerint ez a kapcsolat forgalomkorlátos, például egy mobil hotspot."
+        }
+        return "$where Adatforgalom a teljes tesztnél: ${NetTestText.estimatedTraffic(MODE_FULL)}; " +
+            "a takarékos tesztnél: ${NetTestText.estimatedTraffic(MODE_SAVER)}. " +
+            "Elindítsam mégis a teljes tesztet? Jobbra: igen. Balra: nem."
+    }
+
+    private fun onNetTestMeteredAnswer(flow: AppFlow.NetTestMeteredConfirm, yes: Boolean) {
+        if (yes) {
+            startNetTest(flow.mode, allowMetered = true)
+            return
+        }
+        exitFlow(
+            "Rendben, nem indítom. A Takarékos teszt ${NetTestText.estimatedTraffic(MODE_SAVER)} " +
+                "adatforgalommal is sokat elárul."
+        )
+    }
+
+    /** Háttérszálról hívódik: a felülethez csak a fő szálon nyúlunk. */
+    private fun onNetTestProgress(token: Long, phase: String, pct: Double) {
+        netTestPhase = Triple(token, phase, pct)
+        postWhenAlive {
+            val f = activeFlow
+            if (f !is AppFlow.NetTestRunning || f.token != token) return@postWhenAlive
+            updateFlowDisplay()
+            // minden fázist egyszer mondunk be, sorba állítva — nem vágunk bele
+            // az indító mondatba; a „Kész" helyett rögtön az eredmény jön
+            // háttérben / hívás közben csendben mérünk tovább
+            if (phase != netTestSpokenPhase && phase != "Kész" && netTestCanSpeak()) {
+                netTestSpokenPhase = phase
+                tts.speakAdd("$phase…")
+            }
+        }
+    }
+
+    /**
+     * NEM NÉMA VÁRAKOZÁS. Kétmásodpercenként egy halk sípszó, aminek a
+     * magassága a haladással emelkedik (mint a Windows ProgressBeeper-e), és
+     * tízmásodpercenként a fázis és a százalék. Beszéd közben hallgat, és
+     * magától elhallgat, amint a mérés véget ér vagy kiléptél.
+     */
+    private fun startNetTestTicker(token: Long) {
+        mainHandler.postDelayed(object : Runnable {
+            private var ticks = 0
+            override fun run() {
+                val f = activeFlow
+                if (f !is AppFlow.NetTestRunning || f.token != token) return
+                ticks++
+                val p = netTestPhase?.takeIf { it.first == token }
+                val pct = p?.third ?: 0.0
+                // háttérben vagy hívás közben se sípszó, se beszéd — a mérés megy tovább
+                if (netTestCanSpeak() && !tts.isSpeaking()) {
+                    if (ticks % 5 == 0) {
+                        tts.speak("${p?.second ?: "Mérés"}, ${pct.toInt()} százalék.")
+                    } else {
+                        NetTestBeeper.beep(400.0 + 8.0 * pct, 60)
+                    }
+                }
+                mainHandler.postDelayed(this, 2_000L)
+            }
+        }, 2_000L)
+    }
+
+    private fun speakNetTestStatus(flow: AppFlow.NetTestRunning) {
+        val p = netTestPhase?.takeIf { it.first == flow.token }
+        tts.speak(
+            if (p == null) "A mérés most indul. Balra söpréssel megszakíthatod."
+            else "Mérés folyamatban: ${p.second}, ${p.third.toInt()} százalék. Balra söpréssel megszakíthatod."
+        )
+    }
+
+    /**
+     * MEGSZAKÍTÁS. A token nő (a futó mérés eredménye így eldobódik), a
+     * kapcsolatokat pedig háttérszálon bontjuk: egy titkosított kapcsolat
+     * lezárása hálózati művelet, a fő szálon az Android nem engedi.
+     */
+    private fun cancelNetTest() {
+        netTestToken++
+        val stop = netTestStop ?: return
+        netTestStop = null
+        // A jelző MOST, a fő szálon (a mentéssel közös zár alatt) — így a
+        // „Nem mentettem el" igaz. A bontás hálózati művelet: háttérszálon.
+        stop.set(closeNow = false)
+        Thread { runCatching { stop.closeAll() } }.apply { isDaemon = true }.start()
+    }
+
+    /**
+     * A MÉRÉS VÉGE (fő szálon). Megszakított mérés (régi token) eredménye
+     * eldobódik. Ha a képernyő közben másra váltott — például a zárolás
+     * miatt —, az eredmény már mentve van: nem rántjuk vissza a felhasználót,
+     * csak szólunk, amint lehet.
+     */
+    private fun onNetTestFinished(token: Long, result: NetTestResult, history: List<NetTestHistory.Entry>) {
+        if (token != netTestToken) return
+        netTestStop = null
+        val flow = activeFlow
+        if (flow is AppFlow.NetTestRunning && flow.token == token) {
+            finishNetTest(result, history)
+            return
+        }
+        netTestPending = "Elkészült az internet-teszt, amit korábban indítottál. " +
+            NetTestText.verdict(result) + " Az eredmény a Korábbi mérések közé került."
+        if (netTestCanSpeak() && activeFlow is AppFlow.Menu) announcePendingNetTest()
+    }
+
+    private fun finishNetTest(result: NetTestResult, history: List<NetTestHistory.Entry>) {
+        netTestStop = null
+        val verdict = NetTestText.verdict(result)
+        val lines = listOf(verdict) + NetTestText.lines(result)
+        activeFlow = AppFlow.NetTestBrowse(result, lines, 0)
+        updateFlowDisplay()
+        val avg = NetTestHistory.average(history)
+        val text = verdict + (if (avg.isNotBlank()) " $avg" else "") +
+            " Fel-le söpréssel olvashatod a részleteket, ${lines.size - 1} sor. " +
+            "Jobbra söpréssel jönnek a műveletek, például a megosztás."
+        // HÍVÁS KÖZBEN, HÁTTÉRBEN NEM SZÓLUNK BELE: az eredmény megvan, és
+        // amint visszajössz, elhangzik (lásd onResume).
+        if (!netTestCanSpeak()) {
+            netTestPending = text
+            return
+        }
+        // a hang is őszinte: ha a sebességet nem sikerült megmérni, nem a „kész" csengő szól
+        if (result.mode != MODE_QUICK && result.speed.downMbps <= 0) feedbackError() else feedbackSuccess()
+        tts.speak(text)
+    }
+
+    private fun navigateNetTestBrowse(flow: AppFlow.NetTestBrowse, delta: Int) {
+        val n = flow.lines.size
+        val next = flow.copy(index = (flow.index + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(next.lines[next.index])
+    }
+
+    private fun returnToNetTestBrowse(browse: AppFlow.NetTestBrowse, say: String? = null) {
+        activeFlow = browse
+        updateFlowDisplay()
+        tts.speak(say ?: browse.lines[browse.index])
+    }
+
+    private fun enterNetTestActions(flow: AppFlow.NetTestBrowse) {
+        activeFlow = AppFlow.NetTestActionMenu(flow, 0)
+        updateFlowDisplay()
+        tts.speak("Műveletek. ${NETTEST_ACTIONS[0]}.")
+    }
+
+    private fun navigateNetTestActions(flow: AppFlow.NetTestActionMenu, delta: Int) {
+        val n = NETTEST_ACTIONS.size
+        val next = flow.copy(actionIndex = (flow.actionIndex + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(NETTEST_ACTIONS[next.actionIndex])
+    }
+
+    private fun onNetTestAction(flow: AppFlow.NetTestActionMenu) {
+        val b = flow.browse
+        when (flow.actionIndex) {
+            0 -> shareNetTestReport(b)
+            1 -> returnToNetTestBrowse(b, copyNetTestReport(b.result))
+            2 -> returnToNetTestBrowse(b, fullIpSentence(b.result))
+            3 -> startNetTest(b.result.mode)
+            else -> returnToNetTestBrowse(b)
+        }
+    }
+
+    /** A teljes jelentés megosztása (levél, üzenet, Drive) — a publikus IP maszkolva. */
+    private fun shareNetTestReport(browse: AppFlow.NetTestBrowse) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "SuperDL – Internet-teszt jelentés")
+            putExtra(Intent.EXTRA_TEXT, NetTestText.report(browse.result))
+        }
+        returnToNetTestBrowse(
+            browse,
+            "Válaszd ki, mivel küldöd el, például levélben vagy üzenetben. A publikus IP-cím maszkolva került bele."
+        )
+        try {
+            startActivity(Intent.createChooser(intent, "Internet-teszt jelentés elküldése"))
+        } catch (_: Exception) {
+            tts.speak("Nincs olyan alkalmazás, ami el tudná küldeni. A Jelentés másolása művelettel a vágólapra teheted.")
+        }
+    }
+
+    private fun copyNetTestReport(result: NetTestResult): String = try {
+        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("SuperDL Internet-teszt", NetTestText.report(result)))
+        "A jelentés a vágólapon, beillesztheted egy levélbe. A publikus IP-cím maszkolva került bele."
+    } catch (_: Exception) {
+        "A vágólapra másolás nem sikerült."
+    }
+
+    /**
+     * A TELJES IP csak kimondva hangzik el, pontonként tagolva, hogy hallás
+     * után le lehessen írni. A listában és a megosztott jelentésben maszkolt
+     * marad: az továbbkerülhet, és ott már nem mi döntjük el, ki olvassa.
+     */
+    private fun fullIpSentence(result: NetTestResult): String {
+        val parts = mutableListOf<String>()
+        if (result.pub.ip.isNotBlank()) parts += "A teljes publikus IP-címed: ${NetTestText.spellIp(result.pub.ip)}."
+        // a gépnév a címet kódolja — ezért csak itt, kérésre hangzik el
+        if (result.pub.host.isNotBlank()) parts += "A szolgáltató szerinti gépneved: ${result.pub.host}."
+        val local = result.local.localIp
+        if (NetTestText.isPublicAddress(local)) {
+            parts += "A telefon saját címe is nyilvános: ${NetTestText.spellIp(local)}."
+        }
+        if (parts.isEmpty()) return "A publikus IP-címet ennél a mérésnél nem sikerült lekérdezni."
+        return parts.joinToString(" ") + " Vigyázz vele: élő adásban vagy képernyőfelvételen ez elhangzik. " +
+            "A listában és a megosztott jelentésben rejtve marad."
+    }
+
+    // ── KORÁBBI MÉRÉSEK ─────────────────────────────────────────────────────
+
+    private fun startNetTestHistory() {
+        // a függő eredmény itt úgyis ott van a lista elején
+        netTestPending = null
+        val list = NetTestStore.load(this)
+        if (list.isEmpty()) {
+            tts.speak("Még nincs korábbi mérés. Minden befejezett teszt ide kerül.")
+            return
+        }
+        val avg = NetTestHistory.average(list)
+        val head = "Korábbi mérések: ${list.size} darab, a legújabb elöl." +
+            (if (avg.isNotBlank()) " $avg" else "") +
+            " Ebből derül ki, ha a sebesség rendszeresen beesik, például minden este."
+        val lines = listOf(head) + NetTestHistory.lines(list, count = NetTestHistory.MAX)
+        activeFlow = AppFlow.NetTestHistoryBrowse(lines, 0)
+        updateFlowDisplay()
+        tts.speak(head)
+        tts.speakAdd("Fel-le söpréssel lépkedhetsz, balra söpréssel kilépsz.")
+    }
+
+    private fun navigateNetTestHistory(flow: AppFlow.NetTestHistoryBrowse, delta: Int) {
+        val n = flow.lines.size
+        val next = flow.copy(index = (flow.index + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(next.lines[next.index])
+    }
+
+    // ── WI-FI JELERŐSSÉG FIGYELÉSE (mesh-építéshez) ─────────────────────────
+    //
+    // A windowsos wifiwin.py párja. Mesh-építés közben az ember JÁRKÁL, és nem
+    // a képernyőt nézi — vakon végképp nem. Ezért:
+    //  • másfél másodpercenként mérünk, és egy rövid hangot adunk, aminek a
+    //    MAGASSÁGA követi a jelet (erősebb jel = magasabb hang);
+    //  • csak az ÉRDEMI változást mondjuk ki (a WifiWalkLog küszöbe szerint);
+    //  • jobbra söpréssel a mostani hely megjelölhető („konyha"), a végén
+    //    pedig megmondjuk, hol gyenge a jel — oda kell még egy mesh-egység.
+    //
+    // CSAK ELŐTÉRBEN FUT: a felhasználó a kezében tartja a telefont, a
+    // képernyő bekapcsolva marad (FLAG_KEEP_SCREEN_ON). Ha a SuperDL a
+    // háttérbe kerül (hívás, zárolás), a figyelés tisztán leáll, és ezt ki is
+    // mondjuk — nem mér tovább csendben, a felhasználó tudta nélkül.
+
+    private val WIFI_WALK_SHARE = "A bejárás jegyzőkönyvének megosztása"
+    private val WIFI_WALK_EXIT = "Kilépés"
+
+    /** A futó figyelés sorszáma; leállításkor nő, és a mérő-hurok ettől megáll. */
+    private var wifiWalkToken = 0L
+    /** Melyik figyelés hurka fut már (hogy egy figyelésnek egy hurka legyen). */
+    private var wifiWalkLoopToken = -1L
+    private var wifiWalkLog: WifiWalkLog? = null
+    private var wifiWalkLast: com.superdl.launcher.nettest.WifiData? = null
+    private var wifiWalkNetwork = ""
+    private var wifiWalkStartedAt = ""
+    private var wifiWalkMisses = 0
+
+    private fun startWifiWalk() {
+        val w = WifiReader.read(this)
+        if (w == null) {
+            tts.speak("Most nem látok Wi-Fi kapcsolatot. Kapcsolódj egy wifihez, és indítsd újra — mobilneten nincs mit mérni.")
+            return
+        }
+        val token = ++wifiWalkToken
+        wifiWalkLog = WifiWalkLog()
+        wifiWalkLast = w
+        wifiWalkNetwork = w.ssid
+        wifiWalkStartedAt = NetProbe.timestamp()
+        wifiWalkMisses = 0
+        NetTestBeeper.prepare(this)
+        activeFlow = AppFlow.WifiWalkLive(token)
+        updateFlowDisplay()
+        val net = if (w.ssid.isNotBlank()) {
+            "Figyelés ${withArticle(w.ssid)} hálózaton."
+        } else {
+            "A hálózat nevét a helymeghatározás nélkül nem látom, de a jelerősséget így is mérem."
+        }
+        val intro = "Wi-Fi jelerősség figyelése. $net Sétálj körbe: a rövid hang magassága követi a jelet, " +
+            "minél magasabb, annál erősebb. Csak az érdemi változást mondom be. Fel vagy le söpréssel " +
+            "megismétlem a mostani értéket, jobbra söpréssel megjelölöd, hol vagy, balra söpréssel " +
+            "leállítod, és megmondom, hova érdemes még egy mesh-egység."
+        tts.speakThen(intro) { startWifiWalkLoop(token) }
+        wifiWalkWatchdog(token)
+    }
+
+    /**
+     * BIZTONSÁGI HÁLÓ: ha a bevezető végét jelző visszahívás elveszne (például
+     * egy közbevágó bemondás miatt), a mérés akkor is elinduljon — de csak ha
+     * már senki nem beszél, hogy az első bemondás ne vágjon bele a bevezetőbe.
+     */
+    private fun wifiWalkWatchdog(token: Long) {
+        mainHandler.postDelayed({
+            if (token != wifiWalkToken || wifiWalkLoopToken == token) return@postDelayed
+            if (!tts.isSpeaking()) startWifiWalkLoop(token) else wifiWalkWatchdog(token)
+        }, 3_000L)
+    }
+
+    private fun startWifiWalkLoop(token: Long) {
+        if (wifiWalkLoopToken == token || token != wifiWalkToken) return
+        wifiWalkLoopToken = token
+        wifiWalkTick(token)
+    }
+
+    private fun wifiWalkTick(token: Long) {
+        val f = activeFlow
+        val live = f is AppFlow.WifiWalkLive && f.token == token
+        val naming = f is AppFlow.WifiWalkAwaitName && f.token == token
+        if (!live && !naming) return
+        val log = wifiWalkLog ?: return
+        val w = WifiReader.read(this)
+        if (w == null) {
+            // egy-egy kimaradt lekérdezés még nem szakadás — három egymás után már az
+            wifiWalkMisses++
+            if (wifiWalkMisses >= 3) {
+                if (naming) voiceInput.cancel()
+                finishWifiWalk("Megszakadt a Wi-Fi kapcsolat, ezért a figyelést leállítottam.")
+                return
+            }
+        } else {
+            wifiWalkMisses = 0
+            wifiWalkLast = w
+            if (w.ssid.isNotBlank()) wifiWalkNetwork = w.ssid
+            // Diktálás közben csendben mérünk: a hang és a beszéd a mikrofonba
+            // kerülne, és elrontaná a hely nevét. Ha a program épp beszél (a
+            // hosszú ismétlés, a „Megjelölve" nyugta), nem vágunk bele — a
+            // viszonyítási alap marad, így a változás elhangzik, amint lehet.
+            val worthSaying = log.add(w.rssi, canSpeak = live && !tts.isSpeaking())
+            if (live) {
+                NetTestBeeper.beep(NetTestText.signalFrequency(w.rssi.toDouble()), 90)
+                if (worthSaying) tts.speak("${w.rssi} dBm, ${NetTestText.signalGrade(w.rssi).first}")
+            }
+            updateFlowDisplay()
+        }
+        mainHandler.postDelayed({ wifiWalkTick(token) }, 1_500L)
+    }
+
+    /** Fel-le söprés: a mostani érték teljes mondatban, a hálózattal és a sávval. */
+    private fun repeatWifiWalkValue() {
+        val w = wifiWalkLast
+        if (w == null) {
+            tts.speak("Még nincs mérés.")
+            return
+        }
+        val where = listOfNotNull(
+            w.ssid.takeIf { it.isNotBlank() },
+            w.band.takeIf { it.isNotBlank() },
+            if (w.channel > 0) "${w.channel}. csatorna" else null
+        ).joinToString(", ")
+        tts.speak(NetTestText.signalText(w.rssi) + if (where.isNotBlank()) " $where." else "")
+    }
+
+    /** Jobbra söprés: a mostani hely megjelölése — a nevét bediktálod. */
+    private fun markWifiWalkPlace(token: Long) {
+        val log = wifiWalkLog ?: return
+        if (log.readings.isEmpty()) {
+            tts.speak("Várj egy pillanatot, még nincs mérés.")
+            return
+        }
+        val canDictate = voiceInput.isAvailable() &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!canDictate) {
+            // Az engedélykérés a háttérbe tenné a SuperDL-t, és az leállítaná a
+            // figyelést — ezért inkább sorszámmal jelölünk, és ezt kimondjuk.
+            val n = log.places.size + 1
+            val p = log.mark("$n. hely") ?: return
+            feedbackSuccess()
+            tts.speak("A hely nevének diktálásához mikrofon kell, ezért $n. hely néven jelöltem meg. ${log.placeText(p)}.")
+            return
+        }
+        activeFlow = AppFlow.WifiWalkAwaitName(token)
+        updateFlowDisplay()
+        voiceInput.listen(
+            prompt = "Hol vagy most? Például: konyha, hálószoba.",
+            speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+            onResult = { spoken -> onWifiWalkPlaceName(token, spoken) },
+            onError = { onWifiWalkPlaceName(token, "") }
+        )
+    }
+
+    private fun onWifiWalkPlaceName(token: Long, spoken: String) {
+        val f = activeFlow
+        if (f !is AppFlow.WifiWalkAwaitName || f.token != token) return
+        val log = wifiWalkLog ?: return
+        val name = spoken.trim()
+        val n = log.places.size + 1
+        // Ha nem értettük a nevet, akkor is megjelöljük: a mérés ott és akkor
+        // történt, kár lenne elveszíteni. A sorszámot kimondjuk.
+        val p = log.mark(name.ifBlank { "$n. hely" })
+        activeFlow = AppFlow.WifiWalkLive(token)
+        updateFlowDisplay()
+        if (p == null) {
+            tts.speak("Még nincs mérés, nem tudtam megjelölni. A figyelés megy tovább.")
+            return
+        }
+        feedbackSuccess()
+        tts.speak(
+            (if (name.isBlank()) "Nem értettem a nevet, ezért $n. hely néven jelöltem meg: " else "Megjelölve – ") +
+                log.placeText(p) + ". A figyelés megy tovább."
+        )
+    }
+
+    /** Balra söprés a diktálásnál: a jelölés elvetése, a figyelés megy tovább. */
+    private fun cancelWifiWalkNaming(flow: AppFlow.WifiWalkAwaitName) {
+        voiceInput.cancel()
+        activeFlow = AppFlow.WifiWalkLive(flow.token)
+        updateFlowDisplay()
+        tts.speak("Megjelölés elvetve. A figyelés megy tovább.")
+    }
+
+    /**
+     * LEÁLLÍTÁS ÉS ÖSSZEFOGLALÓ. A token nő (a mérő-hurok megáll), és
+     * elhangzik, hol volt gyenge a jel. A lista végén a jegyzőkönyv megosztása
+     * (a Windows „Mentés fájlba" párja: a megosztásból Drive-ra vagy levélbe
+     * is menthető).
+     */
+    private fun finishWifiWalk(prefix: String? = null) {
+        wifiWalkToken++
+        val log = wifiWalkLog
+        wifiWalkLog = null
+        val head = prefix?.let { "$it " } ?: ""
+        if (log == null || log.readings.isEmpty()) {
+            exitFlow("${head}Figyelés leállítva. Nem történt mérés.")
+            return
+        }
+        val summary = log.summary().lines().map { it.trim() }.filter { it.isNotBlank() }
+        val rows = summary + listOf(WIFI_WALK_SHARE, WIFI_WALK_EXIT)
+        activeFlow = AppFlow.WifiWalkSummary(rows, 0, log.saveText(wifiWalkNetwork, wifiWalkStartedAt))
+        updateFlowDisplay()
+        tts.speak("${head}Figyelés leállítva. " + summary.joinToString(" "))
+        tts.speakAdd("Fel-le söpréssel végighallgathatod; a lista végén a jegyzőkönyv megosztása.")
+    }
+
+    private fun navigateWifiWalkSummary(flow: AppFlow.WifiWalkSummary, delta: Int) {
+        val n = flow.lines.size
+        val next = flow.copy(index = (flow.index + delta + n) % n)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(next.lines[next.index])
+    }
+
+    private fun onWifiWalkSummaryActivate(flow: AppFlow.WifiWalkSummary) {
+        when (flow.lines[flow.index]) {
+            WIFI_WALK_EXIT -> exitFlow("Wi-Fi figyelés bezárva.")
+            WIFI_WALK_SHARE -> {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "SuperDL – Wi-Fi jelerősség-bejárás")
+                    putExtra(Intent.EXTRA_TEXT, flow.saveText)
+                }
+                tts.speak("Válaszd ki, mivel küldöd el, vagy hova mented, például levélbe vagy a Google Drive-ra.")
+                try {
+                    startActivity(Intent.createChooser(intent, "Wi-Fi bejárás elküldése vagy mentése"))
+                } catch (_: Exception) {
+                    tts.speak("Nincs olyan alkalmazás, ami el tudná küldeni.")
+                }
+            }
+            else -> tts.speak(flow.lines[flow.index])
+        }
+    }
+
+    /** Az életciklusból: ha a SuperDL a háttérbe kerül, a figyelés tisztán leáll. */
+    private fun stopWifiWalkOnPause() {
+        val f = activeFlow
+        if (f is AppFlow.WifiWalkLive || f is AppFlow.WifiWalkAwaitName) {
+            voiceInput.cancel()
+            finishWifiWalk("A SuperDL a háttérbe került, ezért a Wi-Fi figyelést leállítottam.")
+        }
     }
 
     // ==================== BEVÁSÁRLÓLISTA ====================
@@ -24191,6 +24876,56 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Diktálás"
                 tvHint.text = "Mondd, mit keresel  •  ⬅ mégse"
             }
+            is AppFlow.NetTestMeteredConfirm -> {
+                tvItem.text = "Elindítsam a teljes tesztet?"
+                tvPosition.text = "Internet-teszt  •  " +
+                    if (flow.mobile) "mobilnet" else "forgalomkorlátos kapcsolat"
+                tvHint.text = "➡ igen  •  ⬅ nem"
+            }
+            is AppFlow.NetTestRunning -> {
+                val p = netTestPhase?.takeIf { it.first == flow.token }
+                tvItem.text = p?.second?.let { "$it…" } ?: "A mérés indul…"
+                tvPosition.text = "Internet-teszt  •  ${NetTestText.modeName(flow.mode)} mérés  •  " +
+                    "${(p?.third ?: 0.0).toInt()} %"
+                tvHint.text = "⬆⬇ állapot  •  ⬅ megszakítás"
+            }
+            is AppFlow.NetTestBrowse -> {
+                tvItem.text = flow.lines[flow.index]
+                tvPosition.text = "Internet-teszt  •  ${flow.index + 1} / ${flow.lines.size}"
+                tvHint.text = "⬆⬇ sorok  •  ➡ műveletek  •  ⬅ bezárás"
+            }
+            is AppFlow.NetTestActionMenu -> {
+                tvItem.text = NETTEST_ACTIONS[flow.actionIndex]
+                tvPosition.text = "Internet-teszt eredménye"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza"
+            }
+            is AppFlow.NetTestHistoryBrowse -> {
+                tvItem.text = flow.lines[flow.index]
+                tvPosition.text = "Korábbi mérések  •  ${flow.index + 1} / ${flow.lines.size}"
+                tvHint.text = "⬆⬇ választás  •  ⬅ kilépés"
+            }
+            is AppFlow.WifiWalkLive -> {
+                val w = wifiWalkLast
+                val log = wifiWalkLog
+                tvItem.text = if (w != null) "${w.rssi} dBm – ${NetTestText.signalGrade(w.rssi).first}" else "Mérés indul…"
+                tvPosition.text = listOfNotNull(
+                    w?.ssid?.takeIf { it.isNotBlank() } ?: "Wi-Fi",
+                    w?.band?.takeIf { it.isNotBlank() },
+                    w?.channel?.takeIf { it > 0 }?.let { "$it. csatorna" },
+                    log?.let { "${it.readings.size} mérés, ${it.places.size} megjelölt hely" }
+                ).joinToString("  •  ")
+                tvHint.text = "⬆⬇ ismétlés  •  ➡ hely megjelölése  •  ⬅ leállítás"
+            }
+            is AppFlow.WifiWalkAwaitName -> {
+                tvItem.text = "Hol vagy most?"
+                tvPosition.text = "Hely megjelölése  •  diktálás"
+                tvHint.text = "Mondd a hely nevét  •  ⬅ mégse"
+            }
+            is AppFlow.WifiWalkSummary -> {
+                tvItem.text = flow.lines[flow.index]
+                tvPosition.text = "Wi-Fi bejárás  •  ${flow.index + 1} / ${flow.lines.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ megnyitás  •  ⬅ kilépés"
+            }
             is AppFlow.EmailSmtpPickAccount -> {
                 tvItem.text = flow.accounts[flow.index]
                 tvPosition.text = "E-mail fiók  •  ${flow.index + 1} / ${flow.accounts.size}"
@@ -24650,6 +25385,14 @@ class MainActivity : AppCompatActivity() {
         stopSpeedUpdates()
         stopTransitCompass()
         sosCountdownActive = false
+        // a futó internet-teszt ne töltsön tovább adatot a bezárt program helyett
+        netTestToken++
+        netTestStop?.let { stop ->
+            stop.set(closeNow = false)
+            Thread { runCatching { stop.closeAll() } }.apply { isDaemon = true }.start()
+        }
+        netTestStop = null
+        wifiWalkToken++
         countdownHandler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacksAndMessages(null)
         if (::bookReader.isInitialized && bookReader.isActive) bookReader.stop()
@@ -24733,6 +25476,14 @@ class MainActivity : AppCompatActivity() {
             checkPendingGpsArrivalPrompt()
             checkFirstRunSetup()
             checkCallOutcomes()
+            // HÁTTÉRBEN (például hívás alatt) ELKÉSZÜLT INTERNET-TESZT: most mondjuk el.
+            if (netTestPending != null) {
+                mainHandler.postDelayed({
+                    if (netTestCanSpeak() && (activeFlow is AppFlow.Menu || activeFlow is AppFlow.NetTestBrowse)) {
+                        announcePendingNetTest()
+                    }
+                }, 1_500L)
+            }
         }
     }
 
@@ -24852,6 +25603,8 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         isForeground = false
         mediaButtonHandler?.stop()
+        // A Wi-Fi bejárás csak előtérben fut: háttérben nem mér tovább csendben.
+        stopWifiWalkOnPause()
         super.onPause()
     }
 

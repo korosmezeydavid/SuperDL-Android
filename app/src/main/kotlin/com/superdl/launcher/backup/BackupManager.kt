@@ -77,7 +77,11 @@ object BackupManager {
         "email_prefs",                 // csak a címzettlista, jelszó nincs benne
         "dictaphone_settings",
         "weather_city_store",
-        "superdl_matrix_keyboard"
+        "superdl_matrix_keyboard",
+        // AZ INTERNET-TESZT NAPLÓJA (nettest/NetTestStore): két hét mérése
+        // pont akkor kell, amikor a szolgáltatóval vitatkozol — telefon-
+        // cserénél se vesszen el. (Csak maszkolt IP-t tartalmaz.)
+        "superdl_nettest"
     )
 
     /**

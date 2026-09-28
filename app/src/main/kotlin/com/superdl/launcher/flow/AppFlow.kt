@@ -848,6 +848,31 @@ sealed class AppFlow {
     object OffersAwaitSearch : AppFlow()
     /** Nagy újság mobilneten: letöltsem mégis? (jobbra igen, balra nem) */
     data class OffersMeteredConfirm(val storeId: String, val sizeMb: Int, val hasCache: Boolean) : AppFlow()
+
+    // ── INTERNET-TESZT ──────────────────────────────────────────────────────
+    /** A teljes teszt forgalomkorlátos kapcsolaton: elindítsam mégis? (jobbra igen, balra nem) */
+    data class NetTestMeteredConfirm(val mode: String, val mobile: Boolean) : AppFlow()
+    /** Mérés folyamatban. A token azonosítja: a balra söpréssel megszakított mérés eredménye nem ránt vissza. */
+    data class NetTestRunning(val mode: String, val token: Long) : AppFlow()
+    /**
+     * Az eredmény soronként: az ELSŐ sor az ítélet, utána a részletek.
+     * @param lines a felolvasható sorok (a publikus IP bennük maszkolt)
+     */
+    data class NetTestBrowse(
+        val result: com.superdl.launcher.nettest.NetTestResult,
+        val lines: List<String>,
+        val index: Int
+    ) : AppFlow()
+    /** Egy eredménysor műveletei (megosztás, másolás, teljes IP, újramérés, vissza). */
+    data class NetTestActionMenu(val browse: NetTestBrowse, val actionIndex: Int) : AppFlow()
+    /** Korábbi mérések (az első sor az összesítés, utána a legújabb elöl). */
+    data class NetTestHistoryBrowse(val lines: List<String>, val index: Int) : AppFlow()
+    /** Wi-Fi bejárás: élő mérés. A token azonosítja a futó figyelést. */
+    data class WifiWalkLive(val token: Long) : AppFlow()
+    /** Wi-Fi bejárás: a mostani hely nevének diktálása (a mérés közben csendben megy tovább). */
+    data class WifiWalkAwaitName(val token: Long) : AppFlow()
+    /** A bejárás összefoglalója: a sorok, a végén a megosztás és a kilépés. */
+    data class WifiWalkSummary(val lines: List<String>, val index: Int, val saveText: String) : AppFlow()
     data class GuideBrowse(val sections: List<com.superdl.launcher.legal.LegalSection>, val index: Int, val title: String) : AppFlow()
 
     data class NotificationBrowse(val notifications: List<com.superdl.launcher.notifications.NotificationEntry>, val index: Int) : AppFlow()

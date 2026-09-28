@@ -829,6 +829,64 @@ object HelpTexts {
                 "bevásárlás néven létrehozza."
         ),
 
+        // ── INTERNET-TESZT ──────────────────────────────────────────────────
+        // A szöveg a kódból van kiolvasva: MainActivity „INTERNET-TESZT"
+        // szakasza (mozdulatok, műveletek), nettest/NetTestText (adatforgalom,
+        // ítélet), nettest/WifiWalkLog (a bejárás összefoglalója).
+        "nettest" to topic(
+            title = "Internet-teszt súgó",
+            purpose = "Megméri az internetet, és emberi nyelven megmondja, milyen: előbb egy ítélet — " +
+                "például: Az interneted gyors, és hogy mire elég —, utána a számok. Letöltési és " +
+                "feltöltési sebesség, késleltetés, ingadozás, a névfeloldás ideje, a kapcsolat adatai, a " +
+                "publikus adatok, és hogy elérhetők-e a SuperDL szolgáltatásai: a katalógus, a frissítés, " +
+                "a YouTube, a Csevejcenter és a gépre küldés. A telefon ennél többet is lát: a wifi " +
+                "jelerősségét valódi dBm-ben, a sávot és a csatornát, és a mobilhálózatot — szolgáltató, " +
+                "4G vagy 5G, jelerősség —, akkor is, ha épp wifin vagy. A Wi-Fi jelerősség figyelése pedig " +
+                "mesh-hálózat építéséhez való: körbesétálsz a lakásban, és hallod, hol erős a jel és hol gyenge.",
+            start = "A Teljes teszt körülbelül fél perc, és a sebességedtől függően körülbelül 20 és " +
+                "legfeljebb 460 megabájt adatot használ. Ha mobilneten vagy, vagy a kapcsolat " +
+                "forgalomkorlátos, előbb megmondja, mennyi adat megy el, és megkérdezi, elindítsa-e. A " +
+                "Takarékos teszt körülbelül tizenöt másodperc, és legfeljebb körülbelül 11 megabájt; a " +
+                "sebesség itt csak tájékoztató. A Gyors ellenőrzés sebességet nem mér, de minden mást igen, " +
+                "és az adatforgalma elhanyagolható; általában tíz-húsz másodperc, rossz hálózaton tovább " +
+                "tart — balra söpréssel bármikor leállíthatod. Indulás után bemondja a fázisokat — például: Letöltési " +
+                "sebesség mérése —, közben halk, emelkedő sípszó jelzi, hogy dolgozik. A Korábbi mérések a " +
+                "legutóbbi kétszáz befejezett mérést mutatja, a legújabbal kezdve, az elején az utolsó tíz " +
+                "átlagával — ebből derül ki, ha a net rendszeresen beesik, például minden este.",
+            gestures = "Mérés közben fel, le vagy jobbra söpréssel meghallod, hol tart; balra söpréssel " +
+                "megszakítod, és ilyenkor nem menti el. Az eredménynél az első sor az ítélet, utána a " +
+                "részletek soronként: fel-le söpréssel lépkedsz köztük. Bármelyik soron jobbra söpréssel " +
+                "jönnek a műveletek: Eredmény megosztása, Jelentés másolása, Teljes IP-cím bemondása, Mérés " +
+                "újra, Vissza a listához. Balra söpréssel bezárod. A Wi-Fi jelerősség figyelésénél másfél " +
+                "másodpercenként mér; egy rövid hang magassága követi a jelet — minél magasabb, annál " +
+                "erősebb —, és csak az érdemi változást mondja be, például: mínusz 62 dBm, jó. Fel vagy le " +
+                "söpréssel megismétli a mostani értéket, a hálózat nevével, a sávval és a csatornával. " +
+                "Jobbra söpréssel megjelölöd, hol vagy: bemondod a hely nevét, például: konyha. Balra " +
+                "söpréssel leállítod: elmondja, hány mérés volt, a legerősebb, a leggyengébb és az átlagos " +
+                "értéket, a megjelölt helyeket, és hogy hol gyenge a jel — oda érdemes még egy " +
+                "mesh-egységet tenni. Ezt a listát is fel-le söpréssel hallgathatod végig; a végén A " +
+                "bejárás jegyzőkönyvének megosztása, amivel levélbe, üzenetbe vagy a Google Drive-ra " +
+                "küldheted, és a Kilépés.",
+            trouble = "A késleltetés itt a kapcsolatnyitás ideje, nem klasszikus ping — a részletek ezt ki " +
+                "is mondják; csomagvesztést nem mérünk, helyette a sikeres próbák arányát. A névfeloldás " +
+                "idejébe a gyorsítótár is beleszámít. Ha az ítélet azt mondja, hogy a vonal akadozik, " +
+                "ismételd meg a mérést később is: a Korábbi mérésekből megmutathatod a szolgáltatónak. Ha " +
+                "egy szolgáltatásnál azt hallod, hogy nem érhető el, az nem a sebesség hibája, hanem az a " +
+                "kiszolgáló nem válaszol. A publikus IP-címed alapból rejtve van, mert élő adásban vagy " +
+                "képernyőfelvételen felolvasódna. Ugyanígy rejtve marad a szolgáltató szerinti gépneved, " +
+                "amibe a szolgáltatók a címet is beleírják, és a telefon saját címe, ha az nyilvános — " +
+                "mobilneten gyakran az. A Teljes IP-cím bemondása ezeket csak kimondja; a listában, a " +
+                "megosztott jelentésben és a Korábbi mérésekben mindig rejtve maradnak. Ha a mérés a háttérben " +
+                "vagy hívás közben ér véget, csendben elmenti, és amint visszajössz, bemondja az eredményt. Ha a wifi nevét nem mondja: az Android a " +
+                "hálózat nevét csak helymeghatározási engedéllyel és bekapcsolt helymeghatározással adja " +
+                "ki — a jelerősséget enélkül is méri. A 4G vagy 5G megállapításához telefon-engedély kell. " +
+                "A jelerősség-figyelés csak addig mér, amíg a SuperDL előtérben van: ha hívás jön, vagy " +
+                "lezárod a telefont, leáll, és ezt meg is mondja. A telefon a jelet néhány másodpercenként " +
+                "frissíti, ezért egymás után többször is ugyanazt az értéket kaphatod. Ha a hely nevét nem " +
+                "értette, vagy nincs mikrofon-engedély, sorszámmal jelöli meg, például: 2. hely. Ha " +
+                "háromszor egymás után nem látja a wifit, a figyelést leállítja."
+        ),
+
         // ── PROFI DIKTAFON ──────────────────────────────────────────────────
         "dictaphone" to topic(
             title = "Profi Diktafon súgó",

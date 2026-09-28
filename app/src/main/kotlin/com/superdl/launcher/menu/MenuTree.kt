@@ -443,6 +443,11 @@ enum class MenuAction {
     OFFERS_ILLATORIUM,         // Illatorium — a saját parfümbolt teljes kínálata
     OFFERS_ALL_FOOD,           // minden élelmiszerlánc egyszerre, termékcsoportonként
     OFFERS_ALL_DRUG,           // minden drogéria egyszerre, termékcsoportonként
+    NETTEST_FULL,              // Internet-teszt: teljes mérés (sebesség, késleltetés, hálózat, szolgáltatások)
+    NETTEST_SAVER,             // Internet-teszt: takarékos mérés, kevés adatforgalommal
+    NETTEST_QUICK,             // Internet-teszt: gyors ellenőrzés sebességmérés nélkül
+    NETTEST_WIFI_WALK,         // Wi-Fi jelerősség figyelése járkálás közben (mesh-építéshez)
+    NETTEST_HISTORY,           // Internet-teszt: korábbi mérések és átlag
 }
 
 data class MenuItem(
@@ -992,6 +997,19 @@ object MenuTree {
             MenuItem("transfer_group_tools", "Fájlátvitel és megosztás", MenuAction.SUBMENU,
                 transferChildren("_t")),
             MenuItem("flashlight", "Zseblámpa", MenuAction.FLASHLIGHT),
+            // INTERNET-TESZT (a Windows Internet-tesztjének párja, 2026-09-28).
+            // Az Eszközök közt, mert épp AKKOR kell, amikor valami NEM megy
+            // (nem tölt a rádió, akad a videó) — ilyenkor nem a beállítások
+            // mélyén keresi az ember. A telefonon ráadásul többet tud: a
+            // mobilhálózatot és a Wi-Fi jel valódi dBm-értékét is látja.
+            MenuItem("nettest", "Internet-teszt", MenuAction.SUBMENU, listOf(
+                MenuItem("nettest_full", "Teljes teszt", MenuAction.NETTEST_FULL),
+                MenuItem("nettest_saver", "Takarékos teszt", MenuAction.NETTEST_SAVER),
+                MenuItem("nettest_quick", "Gyors ellenőrzés", MenuAction.NETTEST_QUICK),
+                MenuItem("nettest_wifi_walk", "Wi-Fi jelerősség figyelése", MenuAction.NETTEST_WIFI_WALK),
+                MenuItem("nettest_history", "Korábbi mérések", MenuAction.NETTEST_HISTORY),
+                MenuItem("nettest_back", "Vissza az eszközökhöz", MenuAction.SUBMENU)
+            )),
             MenuItem("tools_readers", "Olvasók", MenuAction.SUBMENU, listOf(
                 MenuItem("qr", "Q R kód olvasó", MenuAction.QR_SCAN),
                 MenuItem("medication_reader", "Gyógyszerdoboz olvasó", MenuAction.MEDICATION_READER),
