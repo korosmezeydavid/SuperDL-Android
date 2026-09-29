@@ -13286,7 +13286,10 @@ class MainActivity : AppCompatActivity() {
                     askOffersMetered(storeId, nw.sizeMb, cached.isNotEmpty())
                     return@runOnUiThread
                 }
-                val why = "$Name oldala most nem válaszol."
+                // Ha a bolt oldala válaszolt, de elutasította a kérést, ne mondjuk, hogy „nem válaszol".
+                val why = if (nw is com.superdl.launcher.offers.OfferStore.Refused)
+                    "$Name oldala most nem engedi, hogy a program letöltse az ajánlatokat."
+                else "$Name oldala most nem válaszol."
                 when {
                     !result.isNullOrEmpty() -> enterOffersCategories(storeId, result, 0)
                     cached.isNotEmpty() -> enterOffersCategories(

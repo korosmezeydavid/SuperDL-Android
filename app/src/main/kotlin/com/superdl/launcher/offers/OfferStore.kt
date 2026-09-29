@@ -194,9 +194,22 @@ object OfferStore {
             setRequestProperty("Accept-Language", "hu-HU,hu;q=0.9")
         }
 
+    /**
+     * A bolt oldala válaszolt, de NEM engedi a letöltést (403/429 — pl. a
+     * Tesco bot-védelme, 2026-09-28, Mezei Géza jelentése). Ezt nem kerüljük
+     * meg; de nem is mondjuk, hogy „nem válaszol", mert az hamis magyarázat.
+     */
+    class Refused(val code: Int) : java.io.IOException("HTTP $code (elutasitva)")
+
+    /** A HTTP-válaszkódhoz tartozó hiba, vagy null, ha rendben van. */
+    internal fun errorFor(code: Int): java.io.IOException? = when {
+        code in 200..299 -> null
+        code == 401 || code == 403 || code == 429 -> Refused(code)
+        else -> java.io.IOException("HTTP $code")
+    }
+
     private fun check(c: HttpURLConnection) {
-        val code = c.responseCode
-        if (code !in 200..299) throw java.io.IOException("HTTP $code")
+        errorFor(c.responseCode)?.let { throw it }
     }
 
     private fun httpGet(url: String): String = httpBytes(url).toString(Charsets.UTF_8)
