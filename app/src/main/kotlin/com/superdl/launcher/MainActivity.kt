@@ -13266,12 +13266,14 @@ class MainActivity : AppCompatActivity() {
         )
         startOffersTicker(token)
         Thread {
-            var failure: Exception? = null
+            // Throwable, nem Exception: egy nagy PDF-nĂ©l az OutOfMemoryError is
+            // ide jĂ¶n â€” elkapva a program Ă©letben marad, Ă©s megmondja, mi volt.
+            var failure: Throwable? = null
             val result = try {
                 com.superdl.launcher.offers.OfferStore.download(
                     this, storeId, progress = { offersProgress = token to it }, allowMetered = allowMetered
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 android.util.Log.w("SDL_OFFERS", "$storeId letoltes hiba: ${e.javaClass.simpleName}: ${e.message}")
                 failure = e
                 null
@@ -13289,6 +13291,8 @@ class MainActivity : AppCompatActivity() {
                 // Ha a bolt oldala válaszolt, de elutasította a kérést, ne mondjuk, hogy „nem válaszol".
                 val why = if (nw is com.superdl.launcher.offers.OfferStore.Refused)
                     "$Name oldala most nem engedi, hogy a program letöltse az ajánlatokat."
+                else if (nw is OutOfMemoryError)
+                    "$Name újságja túl nagy volt ennek a telefonnak a memóriájához."
                 else "$Name oldala most nem válaszol."
                 when {
                     !result.isNullOrEmpty() -> enterOffersCategories(storeId, result, 0)
@@ -13590,7 +13594,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     else -> try {
                         com.superdl.launcher.offers.OfferStore.download(this, s.id).ifEmpty { cached }
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                         if (cached.isEmpty()) failed += s.name
                         cached
                     }
@@ -13598,7 +13602,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val all = futures.flatMap { f ->
-            try { f.get() } catch (_: Exception) { emptyList() }
+            try { f.get() } catch (_: Throwable) { emptyList() }
         }
         pool.shutdown()
         return OffersBatch(all, failed.toList(), skipped.toList())

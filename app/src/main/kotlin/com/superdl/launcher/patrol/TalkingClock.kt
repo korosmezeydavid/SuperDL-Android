@@ -75,7 +75,7 @@ object TalkingClock {
 
     private fun installedId(context: Context): String? = try {
         CatalogStore.installedIds(context, ModuleType.TALKING_CLOCK).sorted().firstOrNull()
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     }
 
@@ -112,7 +112,7 @@ object TalkingClock {
     private fun readMarker(dir: File, marker: File): Pack? = try {
         val o = JSONObject(marker.readText())
         Pack(dir, o.getInt("rate"), o.optInt("gap1", 50), o.optInt("gap2", 15))
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         Log.w(TAG, "marker hibas", e)
         null
     }
@@ -151,7 +151,7 @@ object TalkingClock {
             marker.writeText(JSONObject().put("rate", rate).put("gap1", gap1).put("gap2", gap2).toString())
             Log.i(TAG, "kicsomagolva: $id, $count klip, $rate Hz")
             Pack(dir, rate, gap1, gap2)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "kicsomagolas hiba", e)
             null
         }
@@ -214,13 +214,13 @@ object TalkingClock {
             }
             val bytes = out.toByteArray()
             if (bytes.isEmpty()) null else Pair(bytes, rate)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "visszafejtes hiba: ${file.name}", e)
             null
         } finally {
-            try { codec?.stop() } catch (_: Exception) {}
-            try { codec?.release() } catch (_: Exception) {}
-            try { extractor.release() } catch (_: Exception) {}
+            try { codec?.stop() } catch (_: Throwable) {}
+            try { codec?.release() } catch (_: Throwable) {}
+            try { extractor.release() } catch (_: Throwable) {}
         }
     }
 
@@ -307,11 +307,11 @@ object TalkingClock {
                         Log.w(TAG, "AudioTrack write: $written / ${pcm.size}")
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "lejatszas hiba", e)
             } finally {
-                try { track?.stop() } catch (_: Exception) {}
-                try { track?.release() } catch (_: Exception) {}
+                try { track?.stop() } catch (_: Throwable) {}
+                try { track?.release() } catch (_: Throwable) {}
             }
             val result = ok
             mainHandler.post { onDone(result) }
