@@ -1031,6 +1031,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsContextMenu -> navigateSmsContextMenu(flow, -1)
             is AppFlow.SmsDeleteConfirm -> repeatSmsDeleteConfirm(flow)
             is AppFlow.CallLogContextMenu -> navigateCallLogContextMenu(flow, -1)
+            is AppFlow.NumberIdentifyResult -> navigateNumberIdentify(flow, -1)
+            is AppFlow.NumberIdentifySaveConfirm -> repeatNumberIdentifySaveConfirm(flow)
             is AppFlow.FavoritesBrowse -> navigateFavoritesList(flow, -1)
             is AppFlow.FavoriteDeleteConfirm -> repeatFavoriteDeleteConfirm(flow.favorite)
             is AppFlow.CallPickContact -> {
@@ -1288,6 +1290,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsContextMenu -> navigateSmsContextMenu(flow, +1)
             is AppFlow.SmsDeleteConfirm -> repeatSmsDeleteConfirm(flow)
             is AppFlow.CallLogContextMenu -> navigateCallLogContextMenu(flow, +1)
+            is AppFlow.NumberIdentifyResult -> navigateNumberIdentify(flow, +1)
+            is AppFlow.NumberIdentifySaveConfirm -> repeatNumberIdentifySaveConfirm(flow)
             is AppFlow.FavoritesBrowse -> navigateFavoritesList(flow, +1)
             is AppFlow.FavoriteDeleteConfirm -> repeatFavoriteDeleteConfirm(flow.favorite)
             is AppFlow.CallPickContact -> {
@@ -1786,6 +1790,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.CalendarWeekBrowse -> tts.speak(flow.days[flow.index].speakFull())
             is AppFlow.CallLogBrowse -> enterCallLogContextMenu(flow)
             is AppFlow.CallLogContextMenu -> onCallLogContextActivate(flow)
+            is AppFlow.NumberIdentifyResult -> onNumberIdentifyActivate(flow)
+            is AppFlow.NumberIdentifySaveConfirm -> confirmNumberIdentifySave(flow)
             is AppFlow.FavoritesBrowse -> onFavoritesListActivate(flow)
             is AppFlow.FavoriteDeleteConfirm -> deleteFavorite(flow)
             is AppFlow.MusicBrowse -> playMusicFromList(flow.tracks, flow.index)
@@ -1993,6 +1999,8 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.CallLogContextMenu -> returnToCallLogBrowse(flow.entries, flow.entryIndex)
             is AppFlow.CallLogSaveContactAwaitName -> returnToCallLogBrowse(flow.entries, flow.entryIndex)
+            is AppFlow.NumberIdentifyResult -> returnToCallLogBrowse(flow.entries, flow.entryIndex)
+            is AppFlow.NumberIdentifySaveConfirm -> declineNumberIdentifySave(flow)
             is AppFlow.ContactBookBrowse -> backFromContactBook()
             is AppFlow.ContactLetterBrowse -> exitFlow("Névjegyzék bezárva.")
             is AppFlow.ContactImportBrowse -> exitFlow("Visszatöltés megszakítva.")
@@ -10247,6 +10255,7 @@ class MainActivity : AppCompatActivity() {
             CallLogContextAction.CALL -> placeCall(entry.number, entry.name.ifBlank { entry.number })
             CallLogContextAction.SEND_SMS -> startSmsToPhone(entry.number, entry.name.ifBlank { entry.number })
             CallLogContextAction.COPY_NUMBER -> copyPhoneNumber(entry.number)
+            CallLogContextAction.IDENTIFY_NUMBER -> startNumberIdentify(flow)
             CallLogContextAction.REMIND_LATER -> startReminderFlow(
                 com.superdl.launcher.reminder.LaterReminder.KIND_CALL,
                 entry.number,
@@ -10499,6 +10508,183 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Kedvenc mentése sikertelen.")
         }
         returnToCallLogBrowse(entries, index)
+    }
+
+    // ==================== SZÁM AZONOSÍTÁSA ====================
+    //
+    // CSAK LEGÁLIS FORRÁS. Magyarországon nincs olyan ingyenes, legális
+    // szolgáltatás, amely magánszemély nevét adná egy számhoz — ezért nem is
+    // ígérünk ilyet. Négy réteg, ebben a sorrendben: 1. a saját névjegyeid
+    // (más alakban mentve is), 2. az OpenStreetMap cégindex (csak cégek és
+    // intézmények, a telefonra csomagolva), 3. a számterv leírása
+    // (libphonenumber: típus, ország, körzet, eredeti szolgáltató),
+    // 4. kézi keresés: a szám a vágólapra, a honlap a böngészőbe — a
+    // beillesztés a felhasználóé. Automatikusan a szám SOHA nem hagyja el a
+    // telefont.
+
+    /**
+     * Háttérszálon azonosít: a névjegy-lekérdezés és az index első betöltése
+     * nem akaszthatja meg a gesztusokat. Ha közben máshová léptél, az
+     * eredmény nem ránt vissza.
+     */
+    private fun startNumberIdentify(flow: AppFlow.CallLogContextMenu) {
+        val entry = flow.entries[flow.entryIndex]
+        val number = entry.number
+        tts.speak("Azonosítom a számot.")
+        Thread {
+            val report = try {
+                com.superdl.launcher.callid.NumberIdentifier.identify(this, number)
+            } catch (_: Throwable) {
+                // Végső tartalék: legalább a számterv szerinti leírás elhangzik.
+                com.superdl.launcher.callid.IdentifyReport(
+                    com.superdl.launcher.callid.NumberDescriber.describe(number),
+                    null,
+                    emptyList()
+                )
+            }
+            postWhenAlive {
+                if (activeFlow !== flow) return@postWhenAlive
+                showNumberIdentifyResult(flow.entries, flow.entryIndex, number, report)
+            }
+        }.start()
+    }
+
+    /**
+     * Előbb az összefoglaló (az a lényeg), utána a műveletek. Ha pontosan EGY
+     * cégnevet találtunk, rögtön rákérdezünk a mentésre — ez a leggyakoribb
+     * kérés; a „nem" a műveletlistára visz, nem ki.
+     */
+    private fun showNumberIdentifyResult(
+        entries: List<com.superdl.launcher.calllog.CallLogEntry>,
+        entryIndex: Int,
+        number: String,
+        report: com.superdl.launcher.callid.IdentifyReport
+    ) {
+        val actions = com.superdl.launcher.callid.NumberIdentifyAction.forReport(report)
+        val saves = actions.filterIsInstance<com.superdl.launcher.callid.NumberIdentifyAction.SaveContact>()
+        if (saves.size == 1) {
+            // A lista a mentés UTÁNI első ponton áll: ha „nem"-et mondasz,
+            // ne ugyanazt a mentést kínálja újra.
+            val start = actions.indexOfFirst {
+                it !is com.superdl.launcher.callid.NumberIdentifyAction.SaveContact
+            }.coerceAtLeast(0)
+            val result = AppFlow.NumberIdentifyResult(entries, entryIndex, number, report, actions, start)
+            activeFlow = AppFlow.NumberIdentifySaveConfirm(result, saves.first().candidate)
+            updateFlowDisplay()
+            tts.speak(report.summary())
+            tts.speakAdd(numberIdentifySavePrompt(saves.first().candidate))
+            return
+        }
+        activeFlow = AppFlow.NumberIdentifyResult(entries, entryIndex, number, report, actions, 0)
+        updateFlowDisplay()
+        tts.speak(report.summary())
+        tts.speakAdd(
+            "Műveletek: ${actions.first().label}. Söpörj fel-le választás, jobbra végrehajtás, " +
+                "balra vissza a hívásnaplóhoz."
+        )
+    }
+
+    private fun navigateNumberIdentify(flow: AppFlow.NumberIdentifyResult, delta: Int) {
+        val next = (flow.index + delta + flow.actions.size) % flow.actions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(flow.actions[next].label)
+    }
+
+    private fun onNumberIdentifyActivate(flow: AppFlow.NumberIdentifyResult) {
+        when (val action = flow.actions[flow.index]) {
+            is com.superdl.launcher.callid.NumberIdentifyAction.SaveContact -> {
+                activeFlow = AppFlow.NumberIdentifySaveConfirm(flow, action.candidate)
+                updateFlowDisplay()
+                tts.speak(numberIdentifySavePrompt(action.candidate))
+            }
+            com.superdl.launcher.callid.NumberIdentifyAction.NationalDirectory -> openNumberSearchSite(
+                flow,
+                com.superdl.launcher.callid.NumberIdentifyAction.NATIONAL_DIRECTORY_URL,
+                "A számot kimásoltam; a tudakozóban illeszd be."
+            )
+            com.superdl.launcher.callid.NumberIdentifyAction.Comments -> openNumberSearchSite(
+                flow,
+                com.superdl.launcher.callid.NumberIdentifyAction.COMMENTS_URL,
+                "A számot kimásoltam; az oldal keresőjébe illeszd be. Az ott olvasható " +
+                    "hozzászólásokat mások írták, senki nem ellenőrzi őket."
+            )
+            com.superdl.launcher.callid.NumberIdentifyAction.Repeat -> {
+                tts.speak(flow.report.summary())
+                tts.speakAdd(flow.actions[flow.index].label)
+            }
+            com.superdl.launcher.callid.NumberIdentifyAction.Back ->
+                returnToCallLogBrowse(flow.entries, flow.entryIndex)
+        }
+    }
+
+    /**
+     * KÉZI KERESÉS. Csak a honlapot nyitjuk meg, keresőcímet nem rakunk össze
+     * (azoknak az oldalaknak a feltételeit nem néztük át): a szám a vágólapra
+     * kerül, és csak akkor megy el, ha te magad beilleszted.
+     */
+    private fun openNumberSearchSite(flow: AppFlow.NumberIdentifyResult, url: String, say: String) {
+        val toCopy = flow.report.info.dialable.ifBlank { flow.number.trim() }
+        val copied = try {
+            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("phone", toCopy))
+            true
+        } catch (_: Throwable) {
+            false
+        }
+        if (copied) {
+            feedbackSuccess()
+            tts.speak(say)
+        } else {
+            feedbackError()
+            tts.speak("A számot nem sikerült kimásolni. Az oldalon kézzel kell beírnod.")
+        }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            tts.speakAdd("Nem sikerült megnyitni a böngészőt.")
+        }
+    }
+
+    private fun numberIdentifySavePrompt(candidate: com.superdl.launcher.callid.PhoneIndexEntry): String =
+        "Mentsem a névjegyeid közé ezen a néven: ${candidate.name}? Jobbra: igen. Balra: nem."
+
+    private fun repeatNumberIdentifySaveConfirm(flow: AppFlow.NumberIdentifySaveConfirm) {
+        tts.speak(numberIdentifySavePrompt(flow.candidate))
+    }
+
+    /** Ugyanaz a mentés, mint a hívásnapló „Mentés névjegyként" pontjánál — csak a név a találatból jön. */
+    private fun confirmNumberIdentifySave(flow: AppFlow.NumberIdentifySaveConfirm) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            tts.speak("Névjegy mentés engedély szükséges. Engedélyezés után söpörj újra jobbra.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_CONTACTS), PERM_REQUEST)
+            return
+        }
+        val result = flow.result
+        val name = flow.candidate.name
+        val ok = ContactHelper.insertContact(this, name, result.number)
+        if (ok) {
+            feedbackSuccess()
+            returnToCallLogBrowse(result.entries, result.entryIndex)
+            tts.speakAdd("$name mentve a névjegyek közé.")
+        } else {
+            feedbackError()
+            activeFlow = result
+            updateFlowDisplay()
+            tts.speak("Névjegy mentése sikertelen. ${result.actions[result.index].label}.")
+        }
+    }
+
+    private fun declineNumberIdentifySave(flow: AppFlow.NumberIdentifySaveConfirm) {
+        val result = flow.result
+        activeFlow = result
+        updateFlowDisplay()
+        tts.speak(
+            "Nem mentettem. Műveletek: ${result.actions[result.index].label}. " +
+                "Söpörj fel-le választás, jobbra végrehajtás, balra vissza a hívásnaplóhoz."
+        )
     }
 
     // ==================== KEDVENCEK ====================
@@ -24594,6 +24780,16 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = entry.number
                 tvPosition.text = "Névjegy mentése"
                 tvHint.text = "Diktáld a nevet  •  ⬅ mégse"
+            }
+            is AppFlow.NumberIdentifyResult -> {
+                tvItem.text = flow.actions[flow.index].label
+                tvPosition.text = "Szám azonosítása  •  ${flow.index + 1} / ${flow.actions.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ végrehajtás  •  ⬅ vissza  •  ${flow.number}"
+            }
+            is AppFlow.NumberIdentifySaveConfirm -> {
+                tvItem.text = flow.candidate.name
+                tvPosition.text = "Mentés a névjegyek közé?  •  ${flow.result.number}"
+                tvHint.text = "➡ igen  •  ⬅ nem  •  ⬆⬇ ismétlés"
             }
             is AppFlow.ContactCreateAwaitName -> {
                 tvItem.text = "Új névjegy neve"

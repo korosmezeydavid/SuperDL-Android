@@ -8,6 +8,12 @@ enum class CallLogContextAction(val label: String) {
     SEND_SMS("SMS küldés"),
     COPY_NUMBER("Szám másolása"),
     /**
+     * SZÁM AZONOSÍTÁSA — csak legális, helyi forrásból: névjegyek,
+     * OpenStreetMap cégindex, a számterv (libphonenumber). A tudakozós
+     * keresést csak kézzel kínálja fel; a szám magától nem megy el sehova.
+     */
+    IDENTIFY_NUMBER("Szám azonosítása"),
+    /**
      * EMLÉKEZTETÉS KÉSŐBBRE. Ami ide kerül, az a „Visszahívandók" listára
      * megy — nem az ébresztők közé. A visszahívás nem ébresztő.
      */
@@ -24,6 +30,8 @@ enum class CallLogContextAction(val label: String) {
     companion object {
         fun forEntry(context: Context, entry: CallLogEntry): List<CallLogContextAction> {
             val actions = mutableListOf(CALL, SEND_SMS, COPY_NUMBER)
+            // Mindig ott van: rejtett számra is kimondja, hogy az nem azonosítható.
+            actions.add(IDENTIFY_NUMBER)
             if (entry.number.isNotBlank()) actions.add(REMIND_LATER)
             if (!ContactHelper.isKnownNumber(context, entry.number)) {
                 actions.add(SAVE_CONTACT)

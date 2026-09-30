@@ -1,0 +1,34 @@
+OpenStreetMap telefonszám-index — licenc és forrásmegjelölés
+=============================================================
+
+Az app/src/main/assets/telefon_index_hu.tsv fájl az OpenStreetMap
+adatbázisából SZÁRMAZTATOTT ADATBÁZIS (Derived Database).
+
+Forrás:   © OpenStreetMap-közreműködők — https://www.openstreetmap.org/copyright
+Licenc:   Open Database License (ODbL) 1.0 — https://opendatacommons.org/licenses/odbl/1-0/
+
+Mit tartalmaz:
+  Magyarországi OSM objektumok (cégek, intézmények, üzletek) telefonszáma
+  E.164 alakban, a nevük, a típusuk magyarul és a településük. Csak olyan
+  objektum kerül bele, amelynek van neve ÉS telefonszáma az OSM-ben.
+  Magánszemélyek adatai nincsenek benne — az OSM sem gyűjt ilyet.
+
+Hogyan készül:
+  tools/osm_telefon_index.py egy Overpass-kivonatból (JSON) állítja elő.
+  A letöltés időpontját a TSV első sora rögzíti.
+
+A megosztás feltétele (share-alike):
+  Az ODbL 4.4 pontja szerint a nyilvánosan használt származtatott adatbázist
+  ugyanezen licenc alatt elérhetővé kell tenni. Ez a fájl — és az őt előállító
+  program — ebben a tárolóban nyilvános, ODbL 1.0 alatt; ezzel a feltétel
+  teljesül. Aki továbbadja, az ODbL 1.0 alatt tegye, a fenti
+  forrásmegjelöléssel együtt.
+
+Forrásmegjelölés a programban:
+  A Super DL a „Szám azonosítása" eredményében minden OSM-találatnál kimondja,
+  hogy az adat az OpenStreetMap közösségétől származik és lehet elavult, a
+  Telefon és Hívások súgója pedig megnevezi a forrást és a licencet.
+
+Az adatok pontossága:
+  Az OSM közösségi adat. A telefonszám, a név vagy a cím elavult vagy hibás
+  lehet; a program ezt a felhasználónak is kimondja.

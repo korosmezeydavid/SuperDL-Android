@@ -616,6 +616,26 @@ sealed class AppFlow {
         val entryIndex: Int
     ) : AppFlow()
 
+    /**
+     * „Szám azonosítása" eredménye: a műveletek listája (mentés a talált
+     * néven, kézi tudakozós keresés, eredmény újra, vissza). Balra a
+     * hívásnapló ugyanazon sorára visz vissza.
+     */
+    data class NumberIdentifyResult(
+        val entries: List<com.superdl.launcher.calllog.CallLogEntry>,
+        val entryIndex: Int,
+        val number: String,
+        val report: com.superdl.launcher.callid.IdentifyReport,
+        val actions: List<com.superdl.launcher.callid.NumberIdentifyAction>,
+        val index: Int
+    ) : AppFlow()
+
+    /** Mentsem a névjegyek közé ezen a néven? (jobbra igen, balra nem — vissza az eredményhez) */
+    data class NumberIdentifySaveConfirm(
+        val result: NumberIdentifyResult,
+        val candidate: com.superdl.launcher.callid.PhoneIndexEntry
+    ) : AppFlow()
+
     data class ContactCreateAwaitName(val phone: String) : AppFlow()
 
     data class FavoritesBrowse(

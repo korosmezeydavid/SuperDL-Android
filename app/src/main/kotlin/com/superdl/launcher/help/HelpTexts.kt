@@ -1044,10 +1044,33 @@ object HelpTexts {
                 "listájára, és a megadott időben szól. Nem kell hozzá, hogy előtte " +
                 "hívás legyen — a névjegyből is felvehető. " +
                 "A hívásnaplóban a jobbra söprés műveleteket ad: hívás, SMS, szám " +
-                "másolása, emlékeztetés később, mentés névjegyként, kedvencekhez " +
-                "adás, fehérlistára, szám letiltása. A letiltott — feketelistás — " +
-                "szám hívásai nem látszanak a hívásnaplóban; erről a Hívásszűrő " +
-                "súgója mond többet. " +
+                "másolása, szám azonosítása, emlékeztetés később, mentés névjegyként, " +
+                "kedvencekhez adás, fehérlistára, szám letiltása. A letiltott — " +
+                "feketelistás — szám hívásai nem látszanak a hívásnaplóban; erről a " +
+                "Hívásszűrő súgója mond többet. " +
+                // A négy réteg és a „semmi nem megy el" ígéret a
+                // callid/NumberIdentifier és a MainActivity startNumberIdentify
+                // kódjából; ha ott változik, itt is kell.
+                "A SZÁM AZONOSÍTÁSA csak legális forrásból, a telefonon dolgozik, négy " +
+                "lépésben. Először a névjegyeidet nézi meg — lehet, hogy a szám más " +
+                "alakban már el van mentve. Ha ott nincs, a telefonra csomagolt " +
+                "OpenStreetMap-cégadatokban keres: ebben csak cégek és intézmények " +
+                "vannak, magánszemélyek nincsenek, és mivel közösségi adat, lehet " +
+                "elavult. Ha itt nevet talál, megkérdezi, elmentse-e ezen a néven: " +
+                "jobbra söprés igen, balra söprés nem. Harmadszor mindig elmondja, amit " +
+                "maga a szám elárul: mobil vagy vezetékes, zöld szám vagy emelt díjas — " +
+                "ennek a visszahívása drága lehet —, melyik ország, melyik körzet, " +
+                "mobilnál pedig, hogy eredetileg melyik szolgáltató számtartományából " +
+                "való; a szám azóta átvihető másik szolgáltatóhoz. Rejtett számot nem " +
+                "lehet azonosítani. Végül két kézi keresést kínál: a nemzeti tudakozót " +
+                "és a telefonszam-tudakozo.hu hozzászólásait. Ilyenkor a szám a " +
+                "vágólapra kerül, a honlap megnyílik a böngészőben, és a beillesztés a " +
+                "te döntésed. A program a számot magától SOHA nem küldi el sehova. " +
+                "Magánszemély mobilszámához nevet legálisan csak a nemzeti tudakozó " +
+                "adhat, és csak ha a tulajdonosa hozzájárult. Az eredmény után fel-le " +
+                "söpréssel választasz a műveletek közül, jobbra söpréssel végrehajtod, " +
+                "balra söpréssel visszajutsz a hívásnaplóba. A cégadatok forrása: " +
+                "OpenStreetMap-közreműködők, ODbL 1.0 licenc. " +
                 "A KEDVENC HÍVÁSA a leggyorsabb út: fel-le söpréssel megkeresed, és a " +
                 "jobbra söprés azonnal tárcsáz — itt szándékosan nincs visszakérdezés, " +
                 "mert a kedvenc épp az, akit gondolkodás nélkül akarsz hívni.",

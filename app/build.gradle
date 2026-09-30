@@ -155,6 +155,11 @@ dependencies {
     implementation 'com.google.mlkit:face-detection:16.1.7'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    // Szam azonositasa (offline): a szam tipusa, orszaga, korzete, eredeti szolgaltatoja.
+    // Apache-2.0, a Google libphonenumber-e; halozatot nem hasznal.
+    implementation 'com.googlecode.libphonenumber:libphonenumber:9.0.40'
+    implementation 'com.googlecode.libphonenumber:carrier:2.40'
+    implementation 'com.googlecode.libphonenumber:geocoder:3.40'
     // MP3-KÓDOLÓ A RÁDIÓFELVÉTELHEZ.
     //
     // A RÉGI TÁMOGATÓ KÖNYVTÁR TELJES KIZÁRÁSA — ÉS MIÉRT.
