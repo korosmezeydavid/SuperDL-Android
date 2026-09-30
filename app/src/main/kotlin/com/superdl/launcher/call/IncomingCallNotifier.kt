@@ -34,6 +34,11 @@ object IncomingCallNotifier {
         if (CallFilterEngine.shouldBlock(context, number, TelecomManager.PRESENTATION_ALLOWED)) {
             CallHelper.rejectIncomingCall(context)
             IncomingCallCache.clear()
+            // Ha feketelistás volt, a sora a rendszer hívásnaplójából is
+            // eltűnik — a takarító a háttérben dönti el, és soha nem dob.
+            com.superdl.launcher.callfilter.BlacklistCallLogPurger.scheduleAfterBlock(
+                context, number, System.currentTimeMillis()
+            )
             return
         }
         if (IncomingCallState.isShowing) return

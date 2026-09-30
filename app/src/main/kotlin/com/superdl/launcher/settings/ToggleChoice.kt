@@ -86,6 +86,13 @@ object ToggleChoice {
             "Kérdés sikertelen hívás után",
             { com.superdl.launcher.call.CallOutcomeWatcher.isEnabled(it) }
         ),
+        // A feketelistás hívás sorának törlése a RENDSZER hívásnaplójából.
+        // A SuperDL saját listáiban a feketelistás szám ettől függetlenül
+        // mindig rejtve van.
+        MenuAction.CALL_FILTER_BLACKLIST_PURGE_TOGGLE to Spec(
+            "Feketelistás hívások törlése",
+            { com.superdl.launcher.callfilter.CallFilterStore.isBlacklistPurgeEnabled(it) }
+        ),
 
         // ── S.O.S. ──────────────────────────────────────────────────────
         MenuAction.SOS_COUNTDOWN_TOGGLE to Spec(

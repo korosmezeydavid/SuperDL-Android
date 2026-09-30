@@ -1045,7 +1045,9 @@ object HelpTexts {
                 "hívás legyen — a névjegyből is felvehető. " +
                 "A hívásnaplóban a jobbra söprés műveleteket ad: hívás, SMS, szám " +
                 "másolása, emlékeztetés később, mentés névjegyként, kedvencekhez " +
-                "adás, fehérlistára, szám letiltása. " +
+                "adás, fehérlistára, szám letiltása. A letiltott — feketelistás — " +
+                "szám hívásai nem látszanak a hívásnaplóban; erről a Hívásszűrő " +
+                "súgója mond többet. " +
                 "A KEDVENC HÍVÁSA a leggyorsabb út: fel-le söpréssel megkeresed, és a " +
                 "jobbra söprés azonnal tárcsáz — itt szándékosan nincs visszakérdezés, " +
                 "mert a kedvenc épp az, akit gondolkodás nélkül akarsz hívni.",
@@ -1056,6 +1058,62 @@ object HelpTexts {
                 "söprés előbb a betűkhöz visz vissza, csak onnan kifelé. A betűindexet " +
                 "és azt, hogy a teljes számot mondja-e vagy csak az utolsó négy " +
                 "számjegyet, a Névjegyzék beállítások almenüben kapcsolod."
+        ),
+
+        // ── HÍVÁSSZŰRŐ ──────────────────────────────────────────────────────
+        // A menüpontok nevei a MenuTree „call_filter" almenüjéből, a
+        // viselkedés a CallLogVisibility / BlacklistCallLogPurger kódjából.
+        "call_filter" to topic(
+            title = "Hívásszűrő súgó",
+            purpose = "Itt dől el, ki csöröghet be. A Szűrés erőssége négy mód közül " +
+                "választ, a Rejtett számú hívások külön kérdés. A fehérlistán lévő " +
+                "szám MINDEN szűrésen átjön, a Teljes Ne Zavarj alatt is. A " +
+                "feketelistán lévő szám soha nem csöröghet — és a Super DL úgy " +
+                "kezeli, mintha nem is létezne: nem látszik a hívásnaplóban, nem " +
+                "számít bele a nem fogadott hívásokba, nem kérdez rá hívás után, " +
+                "nem mondja be, és a Szűrt hívások listájában sem szerepel.",
+            start = "Az Állapot pont egy mondatban elmondja, mi van most érvényben. " +
+                "A Feketelistás hívások törlése a hívásnaplóból kapcsoló alapból " +
+                "BE van kapcsolva: ilyenkor a feketelistás hívás pár másodperccel " +
+                "az elutasítás után a telefon SAJÁT hívásnaplójából is eltűnik, így " +
+                "más alkalmazásban sem látod. Ha kikapcsolod, a rendszer naplójában " +
+                "megmarad, de a Super DL akkor sem mutatja. A Feketelistás hívások " +
+                "törlése most előbb átnézi a teljes hívásnaplót, és megszámolja, hány " +
+                "sor tartozik feketelistás számhoz — bejövő és kimenő is. Ha egy sincs, " +
+                "ezt mondja, és kész. Ha van, rákérdez: például „12 hívás törlődne a " +
+                "telefon hívásnaplójából. Jobbra: törlés. Balra: mégse.” Csak a jobbra " +
+                "söprés után töröl, és csak azokat, amiket megszámolt; utána megmondja, " +
+                "hányat törölt. A Szűrt hívások a hívásnaplóban választó " +
+                "a TÖBBI kiszűrt hívásról szól — rejtett szám, Ne Zavarj, részleges " +
+                "szűrés, ismeretlen szám, fókusz. Alapból Látszik, ahogy eddig; ha " +
+                "Rejtve, ezek nem látszanak a hívásnaplóban, és a nem fogadott " +
+                "hívások között meg a visszahívási kérdésekben sem. Egy szűrt hívás " +
+                "csak a saját elutasított, nem fogadott vagy blokkolt sorát rejti el, " +
+                "a fogadott és a kimenő hívást soha. A Szűrt hívások " +
+                "listájában mindig megmaradnak, tehát semmi nem vész el.",
+            gestures = "Fel-le söpréssel lépkedsz a pontok között, jobbra söpréssel " +
+                "nyitod meg. A Feketelistás hívások törlése a hívásnaplóból " +
+                "kapcsoló: rálépve elmondja, hol áll, és egy jobbra söprés azonnal " +
+                "átbillenti. A Szűrés erőssége, a Rejtett számú hívások, a Szűrt " +
+                "hívások a hívásnaplóban és a Szűrt hívás bemondása választót nyit: " +
+                "fel-le söpréssel válogatsz, jobbra söpréssel beállítod, balra " +
+                "söpréssel semmi nem változik. A Feketelistás hívások törlése most " +
+                "kérdésénél a jobbra söprés töröl, a balra söprés mégse — ilyenkor " +
+                "semmi nem törlődik; fel-le söpréssel újra meghallod a kérdést. A " +
+                "Fehérlista és a Feketelista listájában jobbra söpréssel jönnek a " +
+                "műveletek.",
+            trouble = "A hívásnapló törléséhez a rendszer engedélye kell. Ha nincs " +
+                "meg, a program ezt kimondja és elkéri; addig nem töröl, de a " +
+                "feketelistás hívást a Super DL akkor is elrejti. Ha egy szám a " +
+                "fehérlistán és a feketelistán is rajta van, a fehérlista nyer: " +
+                "átcsörög, látszik, és a sorát sosem töröljük. Rejtett számú hívást " +
+                "soha nem törlünk, mert nincs szám, amihez igazodni lehetne. Törölni " +
+                "csak PONTOSAN egyező számot törlünk: a 06-os, a +36-os és a 0036-os " +
+                "alak ugyanaz, de egy csonka, előhívó nélküli vagy más országbeli " +
+                "szám nem — ha a feketelistán egy szám előhívó nélkül áll, a " +
+                "hívásait elrejtjük, de a sorukat lehet, hogy nem töröljük. Ha egy " +
+                "számot leveszel a feketelistáról, a régi hívásai újra látszanak — " +
+                "kivéve azokat, amelyeket addigra már töröltünk a hívásnaplóból."
         ),
 
         // ── NÉVJEGYZÉK BEÁLLÍTÁSOK ──────────────────────────────────────────

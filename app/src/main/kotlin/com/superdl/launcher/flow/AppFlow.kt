@@ -1162,6 +1162,18 @@ sealed class AppFlow {
     ) : AppFlow()
 
     /**
+     * FEKETELISTÁS HÍVÁSOK TÖRLÉSE — A MEGERŐSÍTÉS.
+     *
+     * Ugyanaz az elv, mint a teljes törlésnél: visszavonhatatlan, ezért egy
+     * söprés nem indíthatja el. A darabszám benne van a kérdésben, és csak
+     * a MEGSZÁMOLT sorok törlődnek (`ids`) — ami azóta jött, arról nem
+     * kérdeztünk.
+     */
+    data class BlacklistPurgeConfirm(
+        val ids: List<Long>
+    ) : AppFlow()
+
+    /**
      * TÖBB ÁLLÁSÚ BEÁLLÍTÁS VÁLASZTÓJA.
      *
      * Ez váltja fel a körbeforgatást. Eddig a jobbra söprés minden lépésben

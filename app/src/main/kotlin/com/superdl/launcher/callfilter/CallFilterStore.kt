@@ -34,6 +34,26 @@ object CallFilterStore {
     private const val KEY_ANNOUNCE = "call_filter_announce"
 
     /**
+     * FEKETELISTÁS HÍVÁS TÖRLÉSE A RENDSZER HÍVÁSNAPLÓJÁBÓL.
+     *
+     * ALPH DÖNTÉSE (2026-09-30): „akit odaraktunk, azt pontosan azért raktuk
+     * oda, hogy ne is tudjunk róla" — és „teljes törlés is akár". A SuperDL
+     * a saját listáiban ettől függetlenül MINDIG elrejti a feketelistás
+     * számot; ez a kapcsoló arról szól, hogy a rendszer (és más alkalmazások)
+     * hívásnaplójából is eltűnjön.
+     *
+     * ALAPBÓL BEKAPCSOLVA, mert ez maga a kérés.
+     */
+    private const val KEY_PURGE_BLACKLIST = "call_filter_blacklist_purge_log"
+
+    /**
+     * A TÖBBI SZŰRT HÍVÁS (rejtett, Ne zavarj, fókusz, ismeretlen) látszik-e a
+     * hívásnaplóban. ALAPBÓL LÁTSZIK, ahogy eddig — egy frissítés ne tüntessen
+     * el csendben hívásokat. A Szűrt hívások listájában mindig megmaradnak.
+     */
+    private const val KEY_HIDE_FILTERED_IN_LOG = "call_filter_hide_filtered_in_log"
+
+    /**
      * MIT CSINÁLJON A PROGRAM, HA KISZŰRT EGY HÍVÁST.
      *
      * A néma mellett szól, hogy éjjel ne ébresszen; ellene, hogy nem
@@ -72,6 +92,24 @@ object CallFilterStore {
             .edit().putBoolean(KEY_HIDDEN_BLOCKED, blocked).apply()
     }
 
+    fun isBlacklistPurgeEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_PURGE_BLACKLIST, true)
+
+    fun setBlacklistPurgeEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_PURGE_BLACKLIST, enabled).apply()
+    }
+
+    fun isFilteredHiddenInLog(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_HIDE_FILTERED_IN_LOG, false)
+
+    fun setFilteredHiddenInLog(context: Context, hidden: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_HIDE_FILTERED_IN_LOG, hidden).apply()
+    }
+
     fun announceMode(context: Context): AnnounceMode =
         AnnounceMode.fromId(
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -92,6 +130,8 @@ object CallFilterStore {
         val black = getBlacklist(context).size
         if (white > 0) append(" Fehérlista: $white szám.")
         if (black > 0) append(" Feketelista: $black szám.")
+        // Csak az eltérést mondjuk: alapból látszanak, azt nem kell ismételni.
+        if (isFilteredHiddenInLog(context)) append(" A szűrt hívások a hívásnaplóban rejtve.")
         // MIÉRT ITT IS: ha egy alkalmazás szerinti fókusz szigorít, azt a
         // hívásszűrő állapotának is ki kell mondania — különben a
         // felhasználó a fenti mód alapján nem értené, miért nem csörgött.
@@ -227,6 +267,23 @@ object CallFilterStore {
         val trimmed = phone.trim()
         val digits = trimmed.filter { it.isDigit() }
         return if (trimmed.startsWith("+") && digits.isNotEmpty()) "+$digits" else digits
+    }
+
+    /**
+     * A REJTÉSHEZ használt összevetés: a szűrő saját (rendszer-) összevetése
+     * VAGY a magyar alakokat (06 / +36 / 0036) egységesítő tiszta összevetés.
+     * Így amit a szűrő feketelistásként elutasított, azt a rejtés is biztosan
+     * felismeri.
+     *
+     * TÖRLÉSHEZ SOHA: a rendszer-összevetés az utolsó hét számjegyre is
+     * ráhúz. A törlés a szigorú [CallLogVisibility.samePhoneStrict]-et
+     * használja; ott ez csak a FEHÉRLISTA védelméhez kell (ha lazán is
+     * fehérlistás, nem törlünk).
+     */
+    fun samePhoneLoose(context: Context, a: String, b: String): Boolean {
+        if (CallLogVisibility.isHiddenNumber(a) || CallLogVisibility.isHiddenNumber(b)) return false
+        if (CallLogVisibility.samePhone(a, b)) return true
+        return samePhone(context, a, b)
     }
 
     private fun samePhone(context: Context, stored: String, phone: String): Boolean {

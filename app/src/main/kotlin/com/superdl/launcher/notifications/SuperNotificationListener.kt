@@ -16,6 +16,7 @@ class SuperNotificationListener : NotificationListenerService() {
         super.onListenerConnected()
         activeNotifications?.forEach {
             rememberKey(it.key)
+            if (isBlacklistedCallNotification(it)) return@forEach
             postNotification(it)
         }
     }
@@ -23,6 +24,11 @@ class SuperNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         // A "már láttuk" döntés a tárolás ELŐTT kell.
         val alreadySeen = !rememberKey(sbn.key)
+        // FEKETELISTÁS SZÁM HÍVÁS-ÉRTESÍTÉSE (pl. a tárcsázó „Nem fogadott
+        // hívás" értesítése): se nem tároljuk, se nem mondjuk be. Alph döntése
+        // (2026-09-30): „akit odaraktunk, azt pontosan azért raktuk oda, hogy
+        // ne is tudjunk róla."
+        if (isBlacklistedCallNotification(sbn)) return
         postNotification(sbn)
         if (shouldAnnounce(sbn, alreadySeen)) {
             maybeAnnounceNotification(sbn)
@@ -55,6 +61,32 @@ class SuperNotificationListener : NotificationListenerService() {
             return false
         }
         return true
+    }
+
+    /**
+     * Hívás-értesítés-e, amelynek a szövegében feketelistás szám áll.
+     *
+     * KORLÁT: csak a SZÁMOT ismerjük fel. Ha a tárcsázó a névjegy nevét írja
+     * ki szám nélkül, azt innen nem tudjuk összekötni a feketelistával. A
+     * szűrő viszont a feketelistás hívásnál eleve kéri a rendszert, hogy ne
+     * adjon értesítést — ez csak a kivételes eseteket fogja meg.
+     */
+    private fun isBlacklistedCallNotification(sbn: StatusBarNotification): Boolean = try {
+        if (PatrolNotificationClassifier.classify(sbn) != PatrolNotificationClassifier.Kind.CALL) {
+            false
+        } else {
+            val extras = sbn.notification?.extras
+            val text = listOfNotNull(
+                extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(),
+                extras?.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
+                extras?.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString(),
+                sbn.notification?.tickerText?.toString()
+            ).joinToString(" ")
+            text.isNotBlank() &&
+                com.superdl.launcher.callfilter.CallLogGate.load(this).textMentionsBlacklisted(text)
+        }
+    } catch (_: Throwable) {
+        false
     }
 
     private fun postNotification(sbn: StatusBarNotification) {

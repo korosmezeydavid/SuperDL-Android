@@ -160,12 +160,25 @@ object CallOutcomeWatcher {
         val name: String,
         val date: Long,
         val duration: Long,
-        val incoming: Boolean
+        val incoming: Boolean,
+        val type: Int = 0
     )
 
     private fun readEntries(context: Context, since: Long): List<Entry> {
         val out = mutableListOf<Entry>()
+        // FEKETELISTÁS SZÁMRÓL SOSEM KÉRDEZÜNK („visszahívott", „nem vette
+        // fel"), a szűrt hívásról pedig akkor nem, ha a hívásnaplóban is
+        // rejtve van. Ami a listában nem látszik, az kérdésként se bukkanjon fel.
+        //
+        // MIÉRT OLVASUNK KICSIT KORÁBBRÓL IS: egy szűrt hívás csak a hozzá
+        // időben legközelebbi sort rejtheti el. Ha az a sor épp a határ előtt
+        // van, látnunk kell — különben a szűrt hívás a határ utáni, valódi
+        // hívást nyelné el.
+        val gate = com.superdl.launcher.callfilter.CallLogGate.load(context)
+        val from = since - com.superdl.launcher.callfilter.CallLogVisibility.FILTER_MATCH_WINDOW_MS
         try {
+            val candidates = mutableListOf<Entry>()
+            val rows = mutableListOf<com.superdl.launcher.callfilter.CallLogVisibility.LogRow>()
             context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
                 arrayOf(
@@ -173,10 +186,11 @@ object CallOutcomeWatcher {
                     CallLog.Calls.CACHED_NAME,
                     CallLog.Calls.DATE,
                     CallLog.Calls.DURATION,
-                    CallLog.Calls.TYPE
+                    CallLog.Calls.TYPE,
+                    CallLog.Calls.CACHED_NORMALIZED_NUMBER
                 ),
                 "${CallLog.Calls.DATE} > ?",
-                arrayOf(since.toString()),
+                arrayOf(from.toString()),
                 "${CallLog.Calls.DATE} DESC"
             )?.use { cursor ->
                 val iNumber = cursor.getColumnIndex(CallLog.Calls.NUMBER)
@@ -184,27 +198,39 @@ object CallOutcomeWatcher {
                 val iDate = cursor.getColumnIndex(CallLog.Calls.DATE)
                 val iDur = cursor.getColumnIndex(CallLog.Calls.DURATION)
                 val iType = cursor.getColumnIndex(CallLog.Calls.TYPE)
+                val iNorm = cursor.getColumnIndex(CallLog.Calls.CACHED_NORMALIZED_NUMBER)
                 var count = 0
                 while (cursor.moveToNext() && count < SCAN_LIMIT) {
                     count++
                     val number = if (iNumber >= 0) cursor.getString(iNumber).orEmpty() else ""
-                    if (number.isBlank()) continue
                     val type = if (iType >= 0) cursor.getInt(iType) else 0
+                    val date = if (iDate >= 0) cursor.getLong(iDate) else 0L
+                    val normalized = if (iNorm >= 0) cursor.getString(iNorm).orEmpty() else ""
+                    rows.add(gate.row(number, date, type, normalized))
                     val incoming = type == CallLog.Calls.INCOMING_TYPE ||
                         type == CallLog.Calls.MISSED_TYPE ||
                         type == CallLog.Calls.REJECTED_TYPE
-                    val outgoing = type == CallLog.Calls.OUTGOING_TYPE
-                    if (!incoming && !outgoing) continue
-                    out.add(
+                    candidates.add(
                         Entry(
                             number = number,
                             name = if (iName >= 0) cursor.getString(iName).orEmpty() else "",
-                            date = if (iDate >= 0) cursor.getLong(iDate) else 0L,
+                            date = date,
                             duration = if (iDur >= 0) cursor.getLong(iDur) else 0L,
-                            incoming = incoming
+                            incoming = incoming,
+                            type = type
                         )
                     )
                 }
+            }
+            val hidden = gate.hiddenIndices(rows)
+            candidates.forEachIndexed { i, entry ->
+                if (i in hidden) return@forEachIndexed
+                // A határ előtti sorok csak a párosításhoz kellettek.
+                if (entry.date <= since) return@forEachIndexed
+                if (entry.number.isBlank()) return@forEachIndexed
+                val outgoing = entry.type == CallLog.Calls.OUTGOING_TYPE
+                if (!entry.incoming && !outgoing) return@forEachIndexed
+                out.add(entry)
             }
         } catch (_: Throwable) {
             // A hívásnapló olvasása engedélyhez kötött. Ha nincs meg, ez a

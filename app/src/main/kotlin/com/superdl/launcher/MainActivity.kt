@@ -213,6 +213,7 @@ import com.superdl.launcher.setup.AutostartHelper
 import com.superdl.launcher.setup.SetupPrefs
 import com.superdl.launcher.settings.PermissionGuideTexts
 import com.superdl.launcher.settings.PermissionGuideType
+import com.superdl.launcher.callfilter.BlacklistCallLogPurger
 import com.superdl.launcher.callfilter.CallFilterHelper
 import com.superdl.launcher.callfilter.CallFilterMode
 import com.superdl.launcher.callfilter.CallFilterStore
@@ -734,6 +735,10 @@ class MainActivity : AppCompatActivity() {
         add(Manifest.permission.READ_CONTACTS)
         add(Manifest.permission.WRITE_CONTACTS)
         add(Manifest.permission.READ_CALL_LOG)
+        // A FEKETELISTÁS HÍVÁSOK TÖRLÉSÉHEZ kell (alapból bekapcsolt funkció).
+        // Ugyanabba a csoportba tartozik, mint az olvasás, ezért ha az már
+        // megvan, a rendszer külön kérdés nélkül megadja.
+        add(Manifest.permission.WRITE_CALL_LOG)
         add(Manifest.permission.SEND_SMS)
         add(Manifest.permission.READ_SMS)
         add(Manifest.permission.RECEIVE_SMS)
@@ -1066,6 +1071,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, -1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, -1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
+            is AppFlow.BlacklistPurgeConfirm -> repeatBlacklistPurgeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, -1)
             is AppFlow.FirstLessonChoice -> navigateFirstLesson(flow, -1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, -1)
@@ -1322,6 +1328,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> navigateReminderContext(flow, +1)
             is AppFlow.HistoryLimitChoice -> navigateHistoryLimit(flow, +1)
             is AppFlow.HistoryWipeConfirm -> repeatHistoryWipeConfirm(flow)
+            is AppFlow.BlacklistPurgeConfirm -> repeatBlacklistPurgeConfirm(flow)
             is AppFlow.ChoiceSettingBrowse -> navigateChoiceSetting(flow, +1)
             is AppFlow.FirstLessonChoice -> navigateFirstLesson(flow, +1)
             is AppFlow.PhoneListBrowse -> navigatePhoneList(flow, +1)
@@ -1603,6 +1610,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ReminderContextMenu -> onReminderContextActivate(flow)
             is AppFlow.HistoryLimitChoice -> onHistoryLimitActivate(flow)
             is AppFlow.HistoryWipeConfirm -> performHistoryWipe(flow)
+            is AppFlow.BlacklistPurgeConfirm -> performBlacklistPurge(flow)
             is AppFlow.ChoiceSettingBrowse -> onChoiceSettingActivate(flow)
             is AppFlow.FirstLessonChoice -> onFirstLessonActivate(flow)
             is AppFlow.PhoneListBrowse -> enterPhoneListMenu(flow)
@@ -2414,6 +2422,7 @@ class MainActivity : AppCompatActivity() {
             // A TÖRLÉS ELVETÉSE A KÖNNYŰ MOZDULAT. Ami visszavonhatatlan,
             // ahhoz a nehezebb irány tartozzon.
             is AppFlow.HistoryWipeConfirm -> exitFlow("Nem töröltem semmit.")
+            is AppFlow.BlacklistPurgeConfirm -> exitFlow("Nem töröltem semmit.")
             is AppFlow.MediaLabelRecording -> cancelMediaLabelRecording(flow)
             is AppFlow.MediaBrowse -> {
                 com.superdl.launcher.gps.VoiceNoteRecorder.stopPlayback()
@@ -2531,6 +2540,11 @@ class MainActivity : AppCompatActivity() {
                     (if (CallFilterStore.isHiddenBlocked(this)) "tiltva." else "átengedve.")
                 ToggleAnnouncement.isToggle(item.action) ->
                     ToggleAnnouncement.speakFocused(this, item.label, item.action)
+                // A választó is mondja meg, hol áll most — ne kelljen megnyitni
+                // csak azért, hogy kiderüljön.
+                item.action == MenuAction.CALL_FILTER_LOG_VISIBILITY ->
+                    "${item.label}. Most: " +
+                        (if (CallFilterStore.isFilteredHiddenInLog(this)) "rejtve." else "látszik.")
                 else -> item.label
             }
         }.getOrElse { item.label }
@@ -3705,6 +3719,10 @@ class MainActivity : AppCompatActivity() {
                 startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.FILTER_ANNOUNCE)
             MenuAction.CALL_FILTER_WHITELIST -> startPhoneListFlow(white = true)
             MenuAction.CALL_FILTER_BLACKLIST -> startPhoneListFlow(white = false)
+            MenuAction.CALL_FILTER_BLACKLIST_PURGE_TOGGLE -> toggleBlacklistPurge()
+            MenuAction.CALL_FILTER_BLACKLIST_PURGE_NOW -> purgeBlacklistedCallsNow()
+            MenuAction.CALL_FILTER_LOG_VISIBILITY ->
+                startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.FILTERED_IN_LOG)
             MenuAction.FILTERED_CALLS -> startFilteredCallsFlow()
             MenuAction.CALL_FILTER_MODE_STATUS -> tts.speak(CallFilterStore.speakStatus(this))
 
@@ -10264,8 +10282,53 @@ class MainActivity : AppCompatActivity() {
         }
         feedbackSuccess()
         val masked = ContactHelper.maskPhone(entry.number)
-        tts.speak("A $masked szám letiltva. A jövőbeni hívásai automatikusan elutasításra kerülnek.")
+        val message = "A $masked szám letiltva. A jövőbeni hívásai automatikusan elutasításra kerülnek."
+        // A LETILTOTT SZÁM AZONNAL ELTŰNIK A LISTÁBÓL. Feketelistás szám sehol
+        // nem látszik — a most nyitott hívásnaplóban sem maradhat benne.
+        refreshCallLogAfterBlock(message)
         ensureCallScreeningRole(promptIfMissing = true)
+    }
+
+    /**
+     * A tiltás után a hívásnaplót újraolvassuk, így a letiltott szám sorai
+     * kimaradnak. Ha semmi nem maradt, kilépünk a listából.
+     *
+     * HÁTTÉRSZÁLON olvasunk (az egész naplót átnézi); az üzenet azonnal
+     * elhangzik, a lista utána cserélődik — de csak akkor, ha még ugyanabban
+     * a hívásnaplóban vagy.
+     */
+    private fun refreshCallLogAfterBlock(message: String) {
+        tts.speak(message)
+        val flow = activeFlow as? AppFlow.CallLogContextMenu ?: return
+        val oldEntries = flow.entries
+        Thread {
+            val refreshed = try {
+                CallLogHelper.getRecentCalls(this)
+            } catch (_: Throwable) {
+                null
+            }
+            postWhenAlive {
+                if (refreshed == null) return@postWhenAlive
+                val current = activeFlow
+                // Csak a SAJÁT listánkat cseréljük: a műveletek menüjét vagy a
+                // már visszalépett listát. Ha közben máshová léptél, nem nyúlunk.
+                val index = when {
+                    current is AppFlow.CallLogContextMenu && current.entries === oldEntries ->
+                        current.entryIndex
+                    current is AppFlow.CallLogBrowse && current.entries === oldEntries ->
+                        current.index
+                    else -> return@postWhenAlive
+                }
+                if (refreshed.isEmpty()) {
+                    exitFlow("A hívásnapló üres.")
+                    return@postWhenAlive
+                }
+                val next = index.coerceIn(0, refreshed.lastIndex)
+                activeFlow = AppFlow.CallLogBrowse(refreshed, next)
+                updateFlowDisplay()
+                tts.speakAdd(refreshed[next].speakPreview())
+            }
+        }.start()
     }
 
     private fun returnToCallLogBrowse(entries: List<com.superdl.launcher.calllog.CallLogEntry>, index: Int) {
@@ -21673,6 +21736,158 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ==================== FEKETELISTA A HÍVÁSNAPLÓBAN ====================
+    //
+    // Alph döntése (2026-09-30): „akit odaraktunk, azt pontosan azért raktuk
+    // oda, hogy ne is tudjunk róla! ne is tudjon még gondolati szinten se
+    // zaklatni, irritálni." A SuperDL saját listáiban a feketelistás szám
+    // MINDIG rejtve van; ez a két pont a RENDSZER hívásnaplójáról szól.
+
+    /** Van-e hívásnapló-olvasási ÉS -írási engedély. Ha nincs, elkéri, és megmondja. */
+    private fun ensureCallLogWritePermission(): Boolean {
+        val missing = listOf(
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.WRITE_CALL_LOG
+        ).filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) return true
+        ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERM_REQUEST)
+        return false
+    }
+
+    private fun toggleBlacklistPurge() {
+        val label = "Feketelistás hívások törlése"
+        val on = !CallFilterStore.isBlacklistPurgeEnabled(this)
+        CallFilterStore.setBlacklistPurgeEnabled(this, on)
+        feedbackSuccess()
+        if (!on) {
+            tts.speak(
+                ToggleAnnouncement.speakAfterToggle(
+                    label, false,
+                    "Kikapcsolva. A rendszer hívásnaplójában megmaradnak, de a Super DL " +
+                        "továbbra sem mutatja őket."
+                )
+            )
+            return
+        }
+        // AZ IGAZAT MONDJUK: engedély nélkül a rendszer csendben nem töröl.
+        if (!BlacklistCallLogPurger.hasPermission(this)) {
+            tts.speak(
+                ToggleAnnouncement.speakAfterToggle(
+                    label, true,
+                    "Bekapcsolva, de a hívásnapló írásához engedély kell, és most nincs " +
+                        "meg. Elkérem; amíg nincs meg, nem tudok törölni."
+                )
+            )
+            ensureCallLogWritePermission()
+            return
+        }
+        tts.speak(
+            ToggleAnnouncement.speakAfterToggle(
+                label, true,
+                "Bekapcsolva. A feketelistás hívás a rendszer hívásnaplójából is eltűnik, " +
+                    "pár másodperccel a hívás után. A már meglévőket a Feketelistás " +
+                    "hívások törlése most pont takarítja el."
+            )
+        )
+    }
+
+    /**
+     * KÉT LÉPÉS: előbb MEGSZÁMOLJUK (háttérszálon), aztán a darabszámmal
+     * rákérdezünk, és csak a jobbra söprés után törlünk. Visszavonhatatlan —
+     * vakon egy elsöpört mozdulat nem indíthatja el.
+     */
+    private fun purgeBlacklistedCallsNow() {
+        if (CallFilterStore.getBlacklist(this).isEmpty()) {
+            tts.speak("A feketelista üres, nincs mit törölni.")
+            return
+        }
+        if (!ensureCallLogWritePermission()) {
+            feedbackError()
+            tts.speak(
+                "A hívásnapló törléséhez engedély kell, és most nincs meg. Elkértem; " +
+                    "ha megadtad, válaszd újra ezt a pontot."
+            )
+            return
+        }
+        tts.speak("Feketelistás hívások keresése.")
+        val startedFrom = activeFlow
+        // HÁTTÉRSZÁLON: az egész hívásnaplót átnézi, a fő szálon akadna.
+        Thread {
+            val result = BlacklistCallLogPurger.countAll(this)
+            postWhenAlive {
+                // Ha közben máshová léptél, nem ugrunk rá egy törlési kérdéssel.
+                if (activeFlow !== startedFrom) return@postWhenAlive
+                when (result) {
+                    is BlacklistCallLogPurger.Result.Found -> {
+                        if (result.ids.isEmpty()) {
+                            tts.speak("Nem volt feketelistás hívás a hívásnaplóban.")
+                        } else {
+                            activeFlow = AppFlow.BlacklistPurgeConfirm(result.ids)
+                            updateFlowDisplay()
+                            repeatBlacklistPurgeConfirm(activeFlow as AppFlow.BlacklistPurgeConfirm)
+                        }
+                    }
+                    BlacklistCallLogPurger.Result.NoPermission -> {
+                        feedbackError()
+                        tts.speak(
+                            "Nem tudom átnézni: a rendszer nem adott engedélyt a " +
+                                "hívásnapló olvasásához és írásához."
+                        )
+                    }
+                    else -> {
+                        feedbackError()
+                        tts.speak("A hívásnapló átnézése nem sikerült. Nem töröltem semmit.")
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun repeatBlacklistPurgeConfirm(flow: AppFlow.BlacklistPurgeConfirm) {
+        val n = flow.ids.size
+        val mi = if (n == 1) "Egy hívás" else "$n hívás"
+        tts.speak("$mi törlődne a telefon hívásnaplójából. Jobbra: törlés. Balra: mégse.")
+    }
+
+    private fun performBlacklistPurge(flow: AppFlow.BlacklistPurgeConfirm) {
+        // A kérdést azonnal lezárjuk, hogy egy második jobbra söprés ne
+        // indítsa el újra; az eredményt a háttérszál mondja be.
+        exitFlow("Törlés folyamatban.")
+        Thread {
+            val result = BlacklistCallLogPurger.deleteCounted(this, flow.ids)
+            postWhenAlive {
+                when (result) {
+                    is BlacklistCallLogPurger.Result.Deleted -> {
+                        feedbackSuccess()
+                        tts.speak(
+                            when (result.count) {
+                                0 -> "Nem töröltem semmit: ezek a hívások azóta eltűntek, vagy már nem feketelistásak."
+                                1 -> "Egy feketelistás hívást töröltem a hívásnaplóból."
+                                else -> "${result.count} feketelistás hívást töröltem a hívásnaplóból."
+                            }
+                        )
+                    }
+                    BlacklistCallLogPurger.Result.NoPermission -> {
+                        feedbackError()
+                        tts.speak(
+                            "Nem tudtam törölni: a rendszer nem adott engedélyt a " +
+                                "hívásnapló írásához."
+                        )
+                    }
+                    else -> {
+                        feedbackError()
+                        tts.speak(
+                            "A törlés közben hiba történt. Lehet, hogy egy részük " +
+                                "megmaradt; a Super DL így sem mutatja őket."
+                        )
+                    }
+                }
+            }
+        }.start()
+    }
+
     // ==================== SZŰRT HÍVÁSOK ====================
     //
     // Eddig semmi nem jegyezte fel, kit szűrt ki a program: elutasította a
@@ -21680,7 +21895,9 @@ class MainActivity : AppCompatActivity() {
     // elérni — pedig lehet, hogy pont az volt a fontos.
 
     private fun startFilteredCallsFlow() {
-        val items = com.superdl.launcher.callfilter.FilteredCallStore.all(this)
+        // A FEKETELISTÁS HÍVÁSOK KIMARADNAK — se nem olvassuk fel, se nem
+        // számoljuk őket (Alph döntése, 2026-09-30).
+        val items = com.superdl.launcher.callfilter.FilteredCallStore.visible(this)
         if (items.isEmpty()) {
             tts.speak("Nincs kiszűrt hívás az elmúlt harminc napból.")
             return
@@ -21717,7 +21934,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun returnToFilteredCalls(itemIndex: Int) {
-        val items = com.superdl.launcher.callfilter.FilteredCallStore.all(this)
+        val items = com.superdl.launcher.callfilter.FilteredCallStore.visible(this)
         if (items.isEmpty()) {
             exitFlow("A szűrt hívások listája kiürült.")
             return
@@ -24616,6 +24833,11 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "${flow.count} tétel  •  NEM vonható vissza"
                 tvHint.text = "➡ törlés  •  ⬅ mégse"
             }
+            is AppFlow.BlacklistPurgeConfirm -> {
+                tvItem.text = "Feketelistás hívások törlése"
+                tvPosition.text = "${flow.ids.size} hívás  •  NEM vonható vissza"
+                tvHint.text = "➡ törlés  •  ⬅ mégse"
+            }
             is AppFlow.ChoiceSettingBrowse -> {
                 tvItem.text = flow.labels[flow.index]
                 tvPosition.text = "${flow.setting.title}  •  ${flow.index + 1} / ${flow.labels.size}"
@@ -25360,6 +25582,7 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.READ_CONTACTS -> "névjegyek"
         Manifest.permission.WRITE_CONTACTS -> "névjegy mentés"
         Manifest.permission.READ_CALL_LOG -> "hívásnapló"
+        Manifest.permission.WRITE_CALL_LOG -> "hívásnapló írás"
         Manifest.permission.READ_PHONE_NUMBERS -> "telefonszámok"
         Manifest.permission.SEND_SMS, Manifest.permission.READ_SMS -> "üzenetek"
         Manifest.permission.ACCESS_FINE_LOCATION -> "helymeghatározás"

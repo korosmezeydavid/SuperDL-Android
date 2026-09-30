@@ -364,6 +364,9 @@ enum class MenuAction {
     CALL_FILTER_ANNOUNCE,      // Szűrt hívás bemondása: soha / jelentésben / mindig
     CALL_FILTER_WHITELIST,     // Fehérlista megtekintése
     CALL_FILTER_BLACKLIST,     // Feketelista megtekintése
+    CALL_FILTER_BLACKLIST_PURGE_TOGGLE, // Feketelistás hívások törlése a hívásnaplóból (ki-be)
+    CALL_FILTER_BLACKLIST_PURGE_NOW,    // Feketelistás hívások törlése most (egyszeri takarítás)
+    CALL_FILTER_LOG_VISIBILITY,         // Szűrt hívások a hívásnaplóban: látszik / rejtve
     FILTERED_CALLS,            // Kiszűrt hívások listája
     SMS_LIMIT,                 // Üzenetek: hány tételt mutasson
     SMS_WIPE,                  // Összes üzenet törlése (bejövő és kimenő)
@@ -652,6 +655,27 @@ object MenuTree {
                 MenuItem("cf_hidden", "Rejtett számú hívások", MenuAction.CALL_FILTER_HIDDEN),
                 MenuItem("cf_white", "Fehérlista", MenuAction.CALL_FILTER_WHITELIST),
                 MenuItem("cf_black", "Feketelista", MenuAction.CALL_FILTER_BLACKLIST),
+                // FEKETELISTA A HÍVÁSNAPLÓBAN — Alph döntése (2026-09-30): „akit
+                // odaraktunk, azt pontosan azért raktuk oda, hogy ne is tudjunk
+                // róla". A SuperDL saját listáiban a feketelistás szám MINDIG
+                // rejtve van; ez a kapcsoló a rendszer hívásnaplójából is törli.
+                MenuItem(
+                    "cf_black_purge",
+                    "Feketelistás hívások törlése a hívásnaplóból",
+                    MenuAction.CALL_FILTER_BLACKLIST_PURGE_TOGGLE
+                ),
+                MenuItem(
+                    "cf_black_purge_now",
+                    "Feketelistás hívások törlése most",
+                    MenuAction.CALL_FILTER_BLACKLIST_PURGE_NOW
+                ),
+                // A TÖBBI SZŰRT HÍVÁS: választható, hogy látszik-e a
+                // hívásnaplóban. A Szűrt hívások listájában mindig megmarad.
+                MenuItem(
+                    "cf_log_filtered",
+                    "Szűrt hívások a hívásnaplóban",
+                    MenuAction.CALL_FILTER_LOG_VISIBILITY
+                ),
                 MenuItem("cf_announce", "Szűrt hívás bemondása", MenuAction.CALL_FILTER_ANNOUNCE),
                 MenuItem("cf_back", "Vissza", MenuAction.SUBMENU)
             )),

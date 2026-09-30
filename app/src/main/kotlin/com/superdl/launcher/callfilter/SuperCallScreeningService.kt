@@ -43,7 +43,15 @@ class SuperCallScreeningService : CallScreeningService() {
         }
         respondToCall(callDetails, response)
 
-        if (block) noteBlockedCall(number, presentation)
+        if (block) {
+            val blockedAt = System.currentTimeMillis()
+            noteBlockedCall(number, presentation)
+            // FEKETELISTÁS HÍVÁS: a sora a rendszer hívásnaplójából is
+            // eltűnik (ha a beállítás be van kapcsolva). A takarító maga nézi
+            // meg a háttérben, hogy tényleg feketelistás-e — itt, a hívás
+            // kezelésének pillanatában, nem töltünk vele időt.
+            BlacklistCallLogPurger.scheduleAfterBlock(applicationContext, number, blockedAt)
+        }
     }
 
     /**
@@ -67,6 +75,12 @@ class SuperCallScreeningService : CallScreeningService() {
         }
 
         FilteredCallStore.add(app, szam, nev, ok)
+
+        // FEKETELISTÁS SZÁMRÓL SOHA NEM SZÓLUNK — Alph döntése (2026-09-30):
+        // „akit odaraktunk, azt pontosan azért raktuk oda, hogy ne is tudjunk
+        // róla." A feljegyzés (fent) megmarad, de a Szűrt hívások listája sem
+        // olvassa fel.
+        if (ok == CallLogVisibility.REASON_BLACKLIST) return
 
         // A BEMONDÁS CSAK AKKOR, HA KÉRTED. Alapból néma marad, és a
         // helyzetjelentés mondja meg, hány hívást szűrt a program aznap —

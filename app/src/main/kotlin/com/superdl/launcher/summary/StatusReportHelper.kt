@@ -93,15 +93,57 @@ object StatusReportHelper {
     private fun missedCallsLine(context: Context): String {
         return try {
             var count = 0
+            // FEKETELISTÁS SZÁM NEM SZÁMÍT BELE (Alph döntése, 2026-09-30:
+            // „ne is tudjunk róla"), a szűrt hívás pedig akkor nem, ha a
+            // hívásnaplóban is rejtve van. Ezért soronként nézzük, nem a
+            // puszta darabszámot kérjük.
+            //
+            // MIÉRT A TÖBBI ELUTASÍTOTT/BLOKKOLT SORT IS BEOLVASSUK: egy szűrt
+            // hívás csak a hozzá LEGKÖZELEBBI sort rejtheti el. Ha a nyoma egy
+            // „elutasított" sor, azt kell elrejtenie — nem a mellette álló,
+            // valódi nem fogadott hívást.
+            val gate = com.superdl.launcher.callfilter.CallLogGate.load(context)
+            val since = System.currentTimeMillis() - 31L * 24 * 60 * 60_000L
+            val rows = mutableListOf<com.superdl.launcher.callfilter.CallLogVisibility.LogRow>()
+            val countable = mutableListOf<Boolean>()
             context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
-                arrayOf(CallLog.Calls._ID),
-                "${CallLog.Calls.TYPE} = ? AND ${CallLog.Calls.NEW} = 1",
-                arrayOf(CallLog.Calls.MISSED_TYPE.toString()),
+                arrayOf(
+                    CallLog.Calls.NUMBER,
+                    CallLog.Calls.DATE,
+                    CallLog.Calls.TYPE,
+                    CallLog.Calls.NEW,
+                    CallLog.Calls.CACHED_NORMALIZED_NUMBER
+                ),
+                "(${CallLog.Calls.TYPE} = ? AND ${CallLog.Calls.NEW} = 1) OR " +
+                    "(${CallLog.Calls.TYPE} IN (?, ?, ?, ?) AND ${CallLog.Calls.DATE} > ?)",
+                arrayOf(
+                    CallLog.Calls.MISSED_TYPE.toString(),
+                    CallLog.Calls.MISSED_TYPE.toString(),
+                    CallLog.Calls.REJECTED_TYPE.toString(),
+                    CallLog.Calls.BLOCKED_TYPE.toString(),
+                    CallLog.Calls.VOICEMAIL_TYPE.toString(),
+                    since.toString()
+                ),
                 null
             )?.use { cursor ->
-                count = cursor.count
+                val iNumber = cursor.getColumnIndex(CallLog.Calls.NUMBER)
+                val iDate = cursor.getColumnIndex(CallLog.Calls.DATE)
+                val iType = cursor.getColumnIndex(CallLog.Calls.TYPE)
+                val iNew = cursor.getColumnIndex(CallLog.Calls.NEW)
+                val iNorm = cursor.getColumnIndex(CallLog.Calls.CACHED_NORMALIZED_NUMBER)
+                while (cursor.moveToNext()) {
+                    val number = if (iNumber >= 0) cursor.getString(iNumber).orEmpty() else ""
+                    val date = if (iDate >= 0) cursor.getLong(iDate) else 0L
+                    val type = if (iType >= 0) cursor.getInt(iType) else 0
+                    val isNew = iNew >= 0 && cursor.getInt(iNew) == 1
+                    val normalized = if (iNorm >= 0) cursor.getString(iNorm).orEmpty() else ""
+                    rows.add(gate.row(number, date, type, normalized))
+                    countable.add(type == CallLog.Calls.MISSED_TYPE && isNew)
+                }
             }
+            val hidden = gate.hiddenIndices(rows)
+            count = countable.indices.count { countable[it] && it !in hidden }
             when (count) {
                 0 -> "Nincs nem fogadott hívás."
                 1 -> "1 nem fogadott hívás."

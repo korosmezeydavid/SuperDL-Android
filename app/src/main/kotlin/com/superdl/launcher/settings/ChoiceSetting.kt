@@ -29,6 +29,7 @@ enum class ChoiceSetting(val title: String) {
     CALL_FILTER_MODE("Hívás szűrő mód"),
     HIDDEN_CALLS("Rejtett számú hívások"),
     FILTER_ANNOUNCE("Szűrt hívás bemondása"),
+    FILTERED_IN_LOG("Szűrt hívások a hívásnaplóban"),
     ALERT_VOLUME("Csengőhang hangerő"),
     TIME_INTERVAL("Idő bemondás gyakorisága"),
     BATTERY_FIRST_ALERT("Első akkumulátor figyelmeztetés");
@@ -38,6 +39,7 @@ enum class ChoiceSetting(val title: String) {
         CALL_FILTER_MODE -> CallFilterMode.entries.map { it.menuLabel }
         HIDDEN_CALLS -> listOf("Tiltva", "Átengedve")
         FILTER_ANNOUNCE -> CallFilterStore.AnnounceMode.entries.map { it.label }
+        FILTERED_IN_LOG -> listOf("Látszik", "Rejtve")
         ALERT_VOLUME -> AlertSoundSettingsStore.VOLUME_STEPS.map { "$it százalék" }
         TIME_INTERVAL -> PatrolStore.TIME_INTERVALS.map { "$it perc" }
         BATTERY_FIRST_ALERT ->
@@ -51,6 +53,7 @@ enum class ChoiceSetting(val title: String) {
         HIDDEN_CALLS -> if (CallFilterStore.isHiddenBlocked(context)) 0 else 1
         FILTER_ANNOUNCE ->
             CallFilterStore.AnnounceMode.entries.indexOf(CallFilterStore.announceMode(context))
+        FILTERED_IN_LOG -> if (CallFilterStore.isFilteredHiddenInLog(context)) 1 else 0
         ALERT_VOLUME ->
             AlertSoundSettingsStore.VOLUME_STEPS
                 .indexOf(AlertSoundSettingsStore.getVolumePercent(context))
@@ -85,6 +88,19 @@ enum class ChoiceSetting(val title: String) {
             val mode = CallFilterStore.AnnounceMode.entries[index]
             CallFilterStore.setAnnounceMode(context, mode)
             mode.speakLabel
+        }
+        // MIÉRT KELL KIMONDANI, HOGY NEM VÉSZ EL: aki a „rejtve"-t választja,
+        // annak tudnia kell, hol találja meg mégis, ha keresné.
+        FILTERED_IN_LOG -> {
+            val hide = index == 1
+            CallFilterStore.setFilteredHiddenInLog(context, hide)
+            if (hide) {
+                "Szűrt hívások a hívásnaplóban rejtve. A nem fogadott hívások között és " +
+                    "a visszahívási kérdésekben sem szerepelnek. A Szűrt hívások " +
+                    "listájában továbbra is megtalálod őket."
+            } else {
+                "Szűrt hívások a hívásnaplóban látszanak."
+            }
         }
         ALERT_VOLUME -> {
             val value = AlertSoundSettingsStore.VOLUME_STEPS[index]

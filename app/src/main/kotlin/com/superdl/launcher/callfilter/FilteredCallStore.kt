@@ -53,6 +53,21 @@ object FilteredCallStore {
 
     fun count(context: Context): Int = all(context).size
 
+    /**
+     * AMIT A SZŰRT HÍVÁSOK LISTÁJA FELOLVAS: minden, KIVÉVE a feketelistás
+     * számokat.
+     *
+     * Alph döntése (2026-09-30): „akit odaraktunk, azt pontosan azért raktuk
+     * oda, hogy ne is tudjunk róla." A feljegyzés megmarad (becsületből és
+     * hibakereséshez), de se nem olvassuk fel, se nem számoljuk — egy
+     * „három feketelistás hívás elrejtve" mondat is épp rá emlékeztetne.
+     */
+    fun visible(context: Context): List<FilteredCall> {
+        val items = all(context)
+        // A már beolvasott listát adjuk át, hogy a JSON-t ne értelmezzük kétszer.
+        return CallLogGate.load(context, preloaded = items).visibleFilteredCalls(items)
+    }
+
     /** Hány hívást szűrt ki a program ma. A helyzetjelentés ezt mondja be. */
     fun countToday(context: Context): Int {
         val start = java.util.Calendar.getInstance().apply {
@@ -61,7 +76,9 @@ object FilteredCallStore {
             set(java.util.Calendar.SECOND, 0)
             set(java.util.Calendar.MILLISECOND, 0)
         }.timeInMillis
-        return all(context).count { it.at >= start }
+        // A feketelistás hívás itt sem számít — ugyanazért, amiért a
+        // listában sem szerepel.
+        return visible(context).count { it.at >= start }
     }
 
     fun add(context: Context, number: String, name: String, reason: String) {
