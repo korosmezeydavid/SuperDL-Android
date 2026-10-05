@@ -156,11 +156,12 @@ object AldiOffers {
     }
 
     /** Az aktuális Aldi-újságok termékei. Fajtánként a legfrissebb egy elég. */
-    fun download(get: (String) -> String, progress: (String) -> Unit = {}): List<OfferItem> {
+    fun download(get: (String) -> String, progress: (String) -> Unit = {},
+                 today: LocalDate = LocalDate.now()): List<OfferItem> {
         val out = mutableListOf<OfferItem>()
         val seen = mutableSetOf<String>()
         val kindsDone = mutableSetOf<String>()
-        for ((name, kind, week) in leafletNames()) {
+        for ((name, kind, week) in leafletNames(today)) {
             if (kind in kindsDone) continue
             val raw = try { get("$BASE/$name/spreads.json") } catch (_: Exception) { continue }
             kindsDone += kind

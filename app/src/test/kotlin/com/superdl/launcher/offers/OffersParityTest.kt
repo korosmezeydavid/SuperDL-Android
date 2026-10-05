@@ -54,7 +54,9 @@ class OffersParityTest {
     fun aldiUgyanannyi() {
         val get = loader()
         assumeTrue("nincs minta", get != null)
-        val items = AldiOffers.download(get!!)
+        // A lementett minták 2026. 39. hetéből valók: a teszt dátuma
+        // nem függhet attól, mikor futtatjuk a kiadási ellenőrzést.
+        val items = AldiOffers.download(get!!, today = java.time.LocalDate.of(2026, 9, 24))
         val exp = expected()
         println("ALDI: ${items.size} (Windows: ${exp.getInt("aldi")}), árral: ${items.count { it.price != null }}")
         items.take(5).forEach { println("  ${it.name} | ${it.price} | ${it.packSize} | ${it.category} | ${it.validity}") }
