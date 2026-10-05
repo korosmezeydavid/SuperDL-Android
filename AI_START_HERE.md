@@ -1,6 +1,21 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-09-28 | **Verzió:** 1.86.0 (versionCode 154)
+**Utolsó frissítés:** 2026-10-05 | **Verzió:** 1.87.0 (versionCode 155)
+
+> **2026-10-05: KIADVA — 1.87.0.** Az 1.86.0 utáni nyolc helyi commit
+> és a kiadási commit (`e10c7bb`) a GitHub `master` ágán van.
+> Internet-teszt, feketelistás hívások elrejtése a SuperDL hívásnaplójából,
+> offline Szám azonosítása OpenStreetMap-adatokból, valamint az Akciós újság
+> és a Beszélő óra hibatűrésének javítása. Részletek: `tools/relnotes1870.md`.
+> A `v1.87.0` GitHub-kiadás két azonos tartalmú, aláírt APK-t tartalmaz:
+> `SuperDL-1.87.0.apk` és `SuperDL.apk`. SHA-256 mindkettőnél:
+> `ca836a308a9c138dad0d281e706944597d1b2162a43cfd86bab214e090b17840`.
+> Az APK verziókódja 155, az aláírás tanúsítványa a korábbiéval egyezik.
+> A `testDebugUnitTest` és az `assembleRelease` sikeres; a dátumfüggő Aldi-
+> mintatesztet rögzített tesztdátumra állítottuk. A `verzio.json` a Windows
+> repó `mobil` ágán 1.87.0-ra frissült (`2f5bc4a`). A felhasználó saját
+> készülékén a kiadás előtt kipróbálta a funkciókat; a release APK-t külön
+> a telefonjára nem telepítettük.
 
 > **2026-09-28: KIADVA — 1.86.0.** Vásárlás menü (Eszközök → Mindennapi → Vásárlás):
 > bevásárlólista + akciós újságok 12 boltból (`offers/`: Penny, Aldi, Lidl, Spar, Tesco,
