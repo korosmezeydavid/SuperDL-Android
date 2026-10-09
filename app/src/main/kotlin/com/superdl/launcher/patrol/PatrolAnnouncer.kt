@@ -2,6 +2,7 @@ package com.superdl.launcher.patrol
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.AudioAttributes
 import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
@@ -98,10 +99,10 @@ object PatrolAnnouncer {
                     // BESZÉLŐ ÓRA: élő hangon, klipekből. Ha bármi hiányzik
                     // vagy nem szól, ugyanaz a mondat a felolvasóval megy.
                     TalkingClock.play(request.appContext, clock.first, clock.second) { ok ->
-                        if (ok) finish() else speak(request.appContext, request.message, finish)
+                        if (ok) finish() else speak(request.appContext, request.message, finish, speakerTime = true)
                     }
                 } else {
-                    speak(request.appContext, request.message, finish)
+                    speak(request.appContext, request.message, finish, speakerTime = true)
                 }
             }, 700L)
         } else if (request.withBeep) {
@@ -144,7 +145,8 @@ object PatrolAnnouncer {
      * Mostantól: MINDIG van időkorlát, a motor PONTOSAN EGYSZER zárul be, és
      * a bezárás a főszálon, egy kis szünet után történik.
      */
-    private fun speak(context: Context, message: String, onDone: () -> Unit) {
+    private fun speak(context: Context, message: String, onDone: () -> Unit,
+                      speakerTime: Boolean = false) {
         // TARTÓK, NEM EGYSZERŰ VÁLTOZÓK: a motor létrejötte és a motor első
         // visszajelzése VERSENYEZHET egymással. A tartóból mindkét irány
         // ugyanazt a példányt látja, akármelyik ér előbb ide.
@@ -199,6 +201,14 @@ object PatrolAnnouncer {
                     engine.setLanguage(Locale.getDefault())
                 }
                 engine.setSpeechRate(TtsSettingsStore.getSpeechRate(context))
+                if (speakerTime) {
+                    // A klip nélküli időbemondás ne a média-folyam füleses
+                    // útvonalára essen vissza. A pontos útvonal OEM-függő.
+                    engine.setAudioAttributes(AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build())
+                }
                 engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) {

@@ -63,15 +63,22 @@ class RingtonePickerActivity : AppCompatActivity() {
                 AudioManager.STREAM_NOTIFICATION,
                 "Értesítési hang választás"
             )
+            TONE_ALL -> Triple(
+                SystemRingtoneHelper.allAlertTones(this),
+                AudioManager.STREAM_ALARM,
+                "Programhang választás"
+            )
             else -> Triple(
                 SystemRingtoneHelper.alarmTones(this),
                 AudioManager.STREAM_ALARM,
                 "Ébresztőhang választás"
             )
         }
-        items = list
+        items = if (intent.hasExtra(EXTRA_CATEGORY)) {
+            listOf(SystemRingtoneHelper.RingtoneItem("Beépített SuperDL-hangok", Uri.parse(BUILT_IN_TONES))) + list
+        } else list
         streamType = stream
-        tvTitle.text = label
+        tvTitle.text = intent.getStringExtra(EXTRA_PICKER_LABEL) ?: label
 
         gestureListener = SwipeGestureListener(
             context = this,
@@ -98,7 +105,7 @@ class RingtonePickerActivity : AppCompatActivity() {
         })
 
         if (items.isEmpty()) {
-            tts.speakThen("Nem találtam gyári hangokat ezen az eszközön.") {
+            tts.speakThen("Nem találtam elérhető rendszerhangot. A saját fájlokhoz ellenőrizd a médiahangok engedélyét és a Notifications mappát.") {
                 setResult(Activity.RESULT_CANCELED)
                 finish()
             }
@@ -129,7 +136,8 @@ class RingtonePickerActivity : AppCompatActivity() {
     }
 
     private fun previewCurrent() {
-        preview.preview(current().uri, streamType)
+        if (current().uri.toString() == BUILT_IN_TONES) preview.stop()
+        else preview.preview(current().uri, streamType)
     }
 
     private fun updateDisplay() {
@@ -142,6 +150,7 @@ class RingtonePickerActivity : AppCompatActivity() {
         val data = Intent().apply {
             putExtra(EXTRA_RESULT_URI, chosen.uri.toString())
             putExtra(EXTRA_RESULT_TITLE, chosen.title)
+            putExtra(EXTRA_CATEGORY, intent.getStringExtra(EXTRA_CATEGORY))
         }
         setResult(Activity.RESULT_OK, data)
         tts.speakThen("Kiválasztva: ${chosen.title}.") { finish() }
@@ -182,9 +191,13 @@ class RingtonePickerActivity : AppCompatActivity() {
         const val EXTRA_CURRENT_URI = "current_uri"
         const val EXTRA_RESULT_URI = "result_uri"
         const val EXTRA_RESULT_TITLE = "result_title"
+        const val EXTRA_CATEGORY = "alert_category"
+        const val EXTRA_PICKER_LABEL = "picker_label"
+        const val BUILT_IN_TONES = "superdl:built-in-tones"
 
         const val TONE_ALARM = 0
         const val TONE_RINGTONE = 1
         const val TONE_NOTIFICATION = 2
+        const val TONE_ALL = 3
     }
 }

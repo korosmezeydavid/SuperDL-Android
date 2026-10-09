@@ -725,6 +725,7 @@ sealed class AppFlow {
     ) : AppFlow()
 
     object EmailSmtpAwaitUsername : AppFlow()
+    data class EmailSmtpPasswordMethod(val index: Int) : AppFlow()
     object EmailSmtpAwaitPassword : AppFlow()
     object EmailSmtpAwaitFromName : AppFlow()
 
@@ -1563,6 +1564,16 @@ sealed class AppFlow {
         val reminders: List<com.superdl.launcher.medication.MedicationReminder>,
         val index: Int,
         val deleteMode: Boolean = false
+    ) : AppFlow()
+
+    data class MedicationUpcomingBrowse(
+        val reminders: List<com.superdl.launcher.medication.MedicationReminder>,
+        val index: Int
+    ) : AppFlow()
+
+    data class MedicationUpcomingAction(
+        val reminders: List<com.superdl.launcher.medication.MedicationReminder>,
+        val index: Int
     ) : AppFlow()
 
     data class MedicationDeleteConfirm(

@@ -1225,7 +1225,9 @@ object HelpTexts {
                 "Gmailhez ALKALMAZÁSJELSZÓ kell, nem a sima jelszavad — azt a Google " +
                 "fiókod biztonsági beállításaiban tudod létrehozni. Ha a program " +
                 "talál e-mail fiókot a telefonon, a címet magától felajánlja. Ha " +
-                "megvan, a Postafiók megnyitása hozza a leveleket, az Új levél írása " +
+                "jelszót kér, fel-le söpréssel választhatsz a vágólap, a telefonon " +
+                "lévő szövegfájl, a WiFi-portál fájlja és a diktálás között. " +
+                "a beállítás kész, a Postafiók megnyitása hozza a leveleket, az Új levél írása " +
                 "pedig végigvezet a küldésen.",
             gestures = "A levéllistában fel-le söpréssel lépkedsz, jobbra söpréssel " +
                 "megnyílik a teljes levél, balra söpréssel kilépsz. A megnyitott " +
@@ -1242,9 +1244,11 @@ object HelpTexts {
                 "vizsgálata menüpont végigpróbálja a kapcsolatot, és elmondja, hol " +
                 "akad el; ez fél percig is eltarthat. Ha egy levélre nem tudsz " +
                 "válaszolni, mert nincs válaszolható feladó-cím, használd az Új levél " +
-                "írása pontot. A jelszó diktálását el lehet kerülni: ha felteszel a " +
-                "WiFi fájlportállal egy szövegfájlt, aminek a nevében szerepel az, " +
-                "hogy jelszó, a program abból olvassa be."
+                "írása pontot. A jelszó diktálását el lehet kerülni: másold a " +
+                "vágólapra a 16 karakteres alkalmazásjelszót, vagy válassz ki a " +
+                "telefonról egy azt tartalmazó szövegfájlt. A WiFi-portálra " +
+                "feltöltött jelszófájl is külön kiválasztható. A szövegfájlt a " +
+                "beállítás után töröld a telefonról."
         ),
 
         // ── S.O.S. ──────────────────────────────────────────────────────────

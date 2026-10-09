@@ -92,7 +92,7 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
         val ids = intent.getIntArrayExtra(EXTRA_REMINDER_IDS)
         if (ids != null && ids.isNotEmpty()) {
             return ids.toList().mapNotNull { id -> MedicationStore.getById(context, id) }
-                .filter { reminder -> reminder.enabled }
+                .filter { reminder -> reminder.enabled && !MedicationStore.wasTakenForToday(context, reminder.id) }
         }
         val hour = intent.getIntExtra(EXTRA_HOUR, -1)
         val minute = intent.getIntExtra(EXTRA_MINUTE, -1)

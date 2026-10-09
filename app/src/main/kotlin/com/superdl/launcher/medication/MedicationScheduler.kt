@@ -28,7 +28,7 @@ object MedicationScheduler {
             cancel(context, entry.id)
             return false
         }
-        val triggerAt = nextTriggerMillis(entry)
+        val triggerAt = nextTriggerMillis(entry, MedicationStore.wasTakenForToday(context, entry.id))
         if (triggerAt <= 0L) return false
         // A következő riasztás túllépné a kúra végét? Akkor ez volt az utolsó.
         if (entry.courseEndMillis != null && triggerAt > entry.courseEndMillis) {
@@ -100,14 +100,14 @@ object MedicationScheduler {
         return AlarmScheduler.setExactAlarm(context, triggerAt, pendingIntent)
     }
 
-    fun nextTriggerMillis(entry: MedicationReminder): Long {
+    fun nextTriggerMillis(entry: MedicationReminder, skipToday: Boolean = false): Long {
         val cal = Calendar.getInstance().apply {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
             set(Calendar.HOUR_OF_DAY, entry.hour)
             set(Calendar.MINUTE, entry.minute)
         }
-        if (cal.timeInMillis <= System.currentTimeMillis()) {
+        if (skipToday || cal.timeInMillis <= System.currentTimeMillis()) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
         }
         if (entry.cycleType != MedicationCycleType.DAILY) {

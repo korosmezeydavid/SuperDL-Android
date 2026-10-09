@@ -187,9 +187,11 @@ import com.superdl.launcher.email.EmailStore
 import com.superdl.launcher.email.ImapMail
 import com.superdl.launcher.email.ImapReader
 import com.superdl.launcher.email.SmtpConfigStore
+import com.superdl.launcher.email.SmtpPasswordInput
 import com.superdl.launcher.search.ArticleTextExtractor
 import com.superdl.launcher.search.SearchHelper
 import com.superdl.launcher.search.SearchResult
+import com.superdl.launcher.search.SuperSurfHelper
 import com.superdl.launcher.search.WikipediaHelper
 import com.superdl.launcher.summary.DaySummaryHelper
 import com.superdl.launcher.summary.StatusReportHelper
@@ -418,6 +420,12 @@ class MainActivity : AppCompatActivity() {
 
     private var smtpDraftUsername = ""
     private var smtpDraftPassword = ""
+    private val smtpPasswordMethods = listOf(
+        "Beillesztés a vágólapról",
+        "Szövegfájl kiválasztása a telefonról",
+        "Feltöltött fájl a WiFi-portál mappájából",
+        "Jelszó bediktálása"
+    )
     private var voiceAssistantReturnPending = false
     private var assistantLockedMode = false
     private var pendingAssistantFromKeyguard = false
@@ -649,6 +657,40 @@ class MainActivity : AppCompatActivity() {
         } else {
             tts.speak("A csengőhang nem változott.")
         }
+    }
+
+    private val alertTonePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val category = result.data?.getStringExtra(RingtonePickerActivity.EXTRA_CATEGORY)
+            ?.let { name -> AlertSoundCategory.entries.firstOrNull { it.name == name } }
+        val uri = result.data?.getStringExtra(RingtonePickerActivity.EXTRA_RESULT_URI)
+        val title = result.data?.getStringExtra(RingtonePickerActivity.EXTRA_RESULT_TITLE)
+        if (result.resultCode == RESULT_OK && category != null &&
+            uri == RingtonePickerActivity.BUILT_IN_TONES) {
+            startAlertSoundPresetFlow(category)
+        } else if (result.resultCode == RESULT_OK && category != null && !uri.isNullOrBlank()) {
+            AlertSoundStore.setTone(this, category, uri, title ?: "Választott hang")
+            tts.speak("${category.label} hang beállítva: ${title ?: "választott hang"}.")
+        } else {
+            tts.speak("A hang nem változott.")
+        }
+    }
+
+    private val smtpPasswordFileLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (activeFlow !is AppFlow.EmailSmtpPasswordMethod) return@registerForActivityResult
+        if (uri == null) {
+            tts.speak("Fájlválasztás megszakítva. Válassz másik jelszóbeviteli módot.")
+            return@registerForActivityResult
+        }
+        val content = try {
+            contentResolver.openInputStream(uri)?.use(SmtpPasswordInput::readText)
+        } catch (_: Exception) {
+            null
+        }
+        acceptSmtpPassword(content, "fájlból")
     }
 
     private val alarmTonePickerLauncher = registerForActivityResult(
@@ -1133,6 +1175,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationTimeOfDayBrowse -> navigateMedicationTimeOfDay(flow, -1)
             is AppFlow.MedicationWeekdayBrowse -> navigateMedicationWeekday(flow, -1)
             is AppFlow.MedicationListBrowse -> navigateMedicationList(flow, -1)
+            is AppFlow.MedicationUpcomingBrowse -> navigateMedicationUpcoming(flow, -1)
+            is AppFlow.MedicationUpcomingAction -> tts.speak("Már bevettem. Jobbra söpréssel jóváhagyod, balra visszalépsz.")
             is AppFlow.MedicationDeleteConfirm -> repeatMedicationDeleteConfirm(flow.reminder)
             is AppFlow.MedicationConfirm -> repeatMedicationConfirm(flow)
             is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
@@ -1222,6 +1266,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.WifiWalkAwaitName -> Unit
             is AppFlow.WifiWalkSummary -> navigateWifiWalkSummary(flow, -1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, -1)
+            is AppFlow.EmailSmtpPasswordMethod -> navigateSmtpPasswordMethod(flow, -1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
             AppFlow.EmailSmtpAwaitFromName -> repeatSmtpPrompt(flow)
@@ -1394,6 +1439,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationTimeOfDayBrowse -> navigateMedicationTimeOfDay(flow, +1)
             is AppFlow.MedicationWeekdayBrowse -> navigateMedicationWeekday(flow, +1)
             is AppFlow.MedicationListBrowse -> navigateMedicationList(flow, +1)
+            is AppFlow.MedicationUpcomingBrowse -> navigateMedicationUpcoming(flow, +1)
+            is AppFlow.MedicationUpcomingAction -> tts.speak("Már bevettem. Jobbra söpréssel jóváhagyod, balra visszalépsz.")
             is AppFlow.MedicationDeleteConfirm -> repeatMedicationDeleteConfirm(flow.reminder)
             is AppFlow.MedicationConfirm -> repeatMedicationConfirm(flow)
             is AppFlow.SosPhraseConfirm -> repeatSosPhraseConfirm(flow.phrase)
@@ -1484,6 +1531,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.WifiWalkAwaitName -> Unit
             is AppFlow.WifiWalkSummary -> navigateWifiWalkSummary(flow, +1)
             is AppFlow.EmailSmtpPickAccount -> navigateEmailSmtpPickAccount(flow, +1)
+            is AppFlow.EmailSmtpPasswordMethod -> navigateSmtpPasswordMethod(flow, +1)
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
             AppFlow.EmailSmtpAwaitFromName -> repeatSmtpPrompt(flow)
@@ -1655,6 +1703,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.MedicationTimeOfDayBrowse -> toggleMedicationTimeOfDay(flow)
             is AppFlow.MedicationWeekdayBrowse -> onMedicationWeekdayActivate(flow)
             is AppFlow.MedicationListBrowse -> onMedicationListActivate(flow)
+            is AppFlow.MedicationUpcomingBrowse -> enterMedicationUpcomingAction(flow)
+            is AppFlow.MedicationUpcomingAction -> markMedicationUpcomingTaken(flow)
             is AppFlow.MedicationDeleteConfirm -> deleteMedication(flow.reminder)
             is AppFlow.MedicationConfirm -> saveMedication(flow)
             is AppFlow.VoiceThemeRecord -> onVoiceRecordActivate(flow)
@@ -1845,6 +1895,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.WifiWalkAwaitName -> Unit
             is AppFlow.WifiWalkSummary -> onWifiWalkSummaryActivate(flow)
             is AppFlow.EmailSmtpPickAccount -> onEmailSmtpPickAccountActivate(flow)
+            is AppFlow.EmailSmtpPasswordMethod -> onSmtpPasswordMethodActivate(flow)
             is AppFlow.YoutubeBrowse -> enterYoutubePlayConfirm(flow.videos, flow.index)
             is AppFlow.YoutubePlayConfirm -> playYoutubeVideo(flow.video)
             is AppFlow.LegalBrowse -> onLegalSectionActivate(flow)
@@ -1969,6 +2020,12 @@ class MainActivity : AppCompatActivity() {
                 tts.speak("Törlés megszakítva.")
             }
             is AppFlow.MedicationListBrowse -> exitFlow("Patika Őrangyal bezárva.")
+            is AppFlow.MedicationUpcomingBrowse -> exitFlow("Soron következő gyógyszerek bezárva.")
+            is AppFlow.MedicationUpcomingAction -> {
+                activeFlow = AppFlow.MedicationUpcomingBrowse(flow.reminders, flow.index)
+                updateFlowDisplay()
+                speakMedicationUpcoming(flow.reminders[flow.index])
+            }
             // ELSŐ INDÍTÁSKOR a balra söprés NEM kilépés, hanem "ezt későbbre
             // hagyom" — az alapvetőket kivéve, azokat nem lehet elhalasztani.
             is AppFlow.VoiceThemeRecord -> onVoiceRecordBack(flow)
@@ -2184,10 +2241,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SosSetupMethodPick -> exitFlow("S.O.S. szám beállítás megszakítva.")
             is AppFlow.SosContactCandidateBrowse -> startSosNumberSetup(flow.slot)
             AppFlow.WeatherAwaitCity -> exitFlow("Időjárás keresés megszakítva.")
-            is AppFlow.EmailSmtpPickAccount -> exitFlow("E-mail küldő beállítás megszakítva.")
+            is AppFlow.EmailSmtpPickAccount -> cancelSmtpSetup()
+            is AppFlow.EmailSmtpPasswordMethod -> cancelSmtpSetup()
             AppFlow.EmailSmtpAwaitUsername,
             AppFlow.EmailSmtpAwaitPassword,
-            AppFlow.EmailSmtpAwaitFromName -> exitFlow("E-mail küldő beállítás megszakítva.")
+            AppFlow.EmailSmtpAwaitFromName -> cancelSmtpSetup()
             AppFlow.SearchAwaitQuery,
             AppFlow.SearchLoading -> exitFlow("Keresés megszakítva.")
             is AppFlow.SearchResultBrowse -> exitFlow("Internet kereső bezárva.")
@@ -3543,6 +3601,9 @@ class MainActivity : AppCompatActivity() {
             MenuAction.EMAIL_IMAP_READ -> startEmailInboxFlow()
             MenuAction.EMAIL_DIAGNOSTICS -> startEmailDiagnosticsFlow()
             MenuAction.WEB_SEARCH -> startWebSearchFlow()
+            MenuAction.SURF_WIKIPEDIA, MenuAction.SURF_DICTIONARY,
+            MenuAction.SURF_RATE, MenuAction.SURF_MVGYOSZ,
+            MenuAction.SURF_MOBILARENA, MenuAction.SURF_PCFORUM -> startSuperSurfFlow(item.action)
             MenuAction.NAV_WHERE -> startNavWhereFlow()
             MenuAction.NAV_WALK -> startNavWalkFlow()
             MenuAction.NAV_SEARCH -> startNavSearchFlow()
@@ -3670,12 +3731,12 @@ class MainActivity : AppCompatActivity() {
             MenuAction.ALERT_SILENT_MODE_OFF ->
                 if (AlertSoundSettingsStore.isSilentMode(this)) toggleAlertSilentMode()
                 else tts.speak("A néma mód már ki van kapcsolva.")
-            MenuAction.ALERT_SOUND_CALENDAR -> startAlertSoundPresetFlow(AlertSoundCategory.CALENDAR)
-            MenuAction.ALERT_SOUND_MEDICATION -> startAlertSoundPresetFlow(AlertSoundCategory.MEDICATION)
-            MenuAction.ALERT_SOUND_ALARM -> startAlertSoundPresetFlow(AlertSoundCategory.ALARM_CLOCK)
-            MenuAction.ALERT_SOUND_SMS -> startAlertSoundPresetFlow(AlertSoundCategory.SMS)
-            MenuAction.ALERT_SOUND_EMAIL -> startAlertSoundPresetFlow(AlertSoundCategory.EMAIL)
-            MenuAction.ALERT_SOUND_NOTIFICATION -> startAlertSoundPresetFlow(AlertSoundCategory.GENERAL_NOTIFICATION)
+            MenuAction.ALERT_SOUND_CALENDAR -> startAlertTonePicker(AlertSoundCategory.CALENDAR)
+            MenuAction.ALERT_SOUND_MEDICATION -> startAlertTonePicker(AlertSoundCategory.MEDICATION)
+            MenuAction.ALERT_SOUND_ALARM -> startAlertTonePicker(AlertSoundCategory.ALARM_CLOCK)
+            MenuAction.ALERT_SOUND_SMS -> startAlertTonePicker(AlertSoundCategory.SMS)
+            MenuAction.ALERT_SOUND_EMAIL -> startAlertTonePicker(AlertSoundCategory.EMAIL)
+            MenuAction.ALERT_SOUND_NOTIFICATION -> startAlertTonePicker(AlertSoundCategory.GENERAL_NOTIFICATION)
             MenuAction.TRAINING_PLAYGROUND -> startTrainingPlaygroundFlow()
             MenuAction.BOOK_LIBRARY -> startBookLibraryFlow()
             MenuAction.BOOK_SEARCH -> startBookSearchFlow()
@@ -3818,6 +3879,7 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.DICTAPHONE_LIBRARY -> startDictaphoneLibraryFlow()
             MenuAction.MEDICATION_READ -> readMedicationReminders()
+            MenuAction.MEDICATION_UPCOMING -> if (BuildConfig.DEBUG) startMedicationUpcomingFlow()
             MenuAction.MEDICATION_ADD -> startMedicationAddFlow()
             MenuAction.MEDICATION_SEARCH -> startMedicationSearchFlow()
             MenuAction.MEDICATION_DELETE -> startMedicationListFlow(deleteMode = true)
@@ -4768,7 +4830,7 @@ class MainActivity : AppCompatActivity() {
                 smtpDraftUsername = accounts.first()
                 tts.speakThen(
                     "${EmailAccountHelper.speakAccount(accounts.first())} " +
-                        "Most mondd a Gmail alkalmazásjelszavadat. Ez nem a sima jelszavad."
+                        "Most válaszd ki, hogyan adod meg a Gmail alkalmazásjelszót. Ez nem a sima jelszavad."
                 ) {
                     listenForSmtpPassword()
                 }
@@ -4819,7 +4881,7 @@ class MainActivity : AppCompatActivity() {
         smtpDraftUsername = flow.accounts[flow.index]
         tts.speakThen(
             "${EmailAccountHelper.speakAccount(smtpDraftUsername)} " +
-                "Most mondd a Gmail alkalmazásjelszavadat."
+                "Most válaszd ki az alkalmazásjelszó beviteli módját."
         ) {
             listenForSmtpPassword()
         }
@@ -4828,33 +4890,79 @@ class MainActivity : AppCompatActivity() {
     private fun repeatSmtpPrompt(flow: AppFlow) {
         when (flow) {
             is AppFlow.EmailSmtpPickAccount -> tts.speak(EmailAccountHelper.speakAccount(flow.accounts[flow.index]))
+            is AppFlow.EmailSmtpPasswordMethod -> tts.speak(smtpPasswordMethods[flow.index])
             AppFlow.EmailSmtpAwaitUsername -> listenForSmtpUsernameManual()
-            AppFlow.EmailSmtpAwaitPassword -> listenForSmtpPassword()
+            AppFlow.EmailSmtpAwaitPassword -> listenForSmtpPasswordSpoken()
             AppFlow.EmailSmtpAwaitFromName -> listenForSmtpFromName()
             else -> Unit
         }
     }
 
     private fun listenForSmtpPassword() {
-        activeFlow = AppFlow.EmailSmtpAwaitPassword
+        activeFlow = AppFlow.EmailSmtpPasswordMethod(0)
         updateFlowDisplay()
-        // A Gmail app-jelszót gyakorlatilag lehetetlen bediktálni (16 véletlen
-        // karakter), ezért felajánljuk a fájlból olvasást: a felhasználó a
-        // WiFi fájlportálon feltölt egy txt-t, és abból vesszük ki.
-        val fileHint = findPasswordFile()
-        if (fileHint != null && readPasswordFromFile(fileHint)) {
-            // Sikerült a fájlból beolvasni – nem kell diktálni a 16 karaktert.
-            val masked = smtpDraftPassword.take(2) + " és további " +
-                (smtpDraftPassword.length - 2).coerceAtLeast(0) + " karakter"
-            tts.speakThen(
-                "A jelszót beolvastam a feltöltött fájlból: ${fileHint.name}. " +
-                    "A jelszó $masked. Folytatom a beállítást."
-            ) {
-                listenForSmtpFromName()
+        tts.speak("Alkalmazásjelszó megadása. Söpörj fel-le a módok között, jobbra a kiválasztáshoz. " +
+            smtpPasswordMethods[0])
+    }
+
+    private fun cancelSmtpSetup() {
+        smtpDraftPassword = ""
+        smtpDraftUsername = ""
+        exitFlow("E-mail küldő beállítás megszakítva.")
+    }
+
+    private fun navigateSmtpPasswordMethod(flow: AppFlow.EmailSmtpPasswordMethod, delta: Int) {
+        val next = (flow.index + delta + smtpPasswordMethods.size) % smtpPasswordMethods.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(smtpPasswordMethods[next])
+    }
+
+    private fun onSmtpPasswordMethodActivate(flow: AppFlow.EmailSmtpPasswordMethod) {
+        when (flow.index) {
+            0 -> {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val content = try {
+                    clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()
+                } catch (_: Exception) {
+                    null
+                }
+                if (acceptSmtpPassword(content, "vágólapról")) {
+                    // Ne maradjon az app-jelszó véletlenül a vágólapon.
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) clipboard.clearPrimaryClip()
+                        else clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                    } catch (_: Exception) { }
+                }
             }
-            return
+            1 -> smtpPasswordFileLauncher.launch(arrayOf("text/plain"))
+            2 -> {
+                val file = findPasswordFile()
+                val content = file?.takeIf { it.length() in 1..1024 }
+                    ?.let { FileManagerHelper.readTextFile(it, 1024) }
+                acceptSmtpPassword(content, "a portál mappájából")
+            }
+            else -> {
+                activeFlow = AppFlow.EmailSmtpAwaitPassword
+                updateFlowDisplay()
+                listenForSmtpPasswordSpoken()
+            }
         }
-        listenForSmtpPasswordSpoken()
+    }
+
+    private fun acceptSmtpPassword(raw: String?, source: String): Boolean {
+        val password = SmtpPasswordInput.normalize(raw)
+        if (password == null) {
+            tts.speak("Nem találtam érvényes, 16 karakteres Gmail alkalmazásjelszót $source. " +
+                "Söpörj fel-le másik beviteli módhoz, vagy próbáld újra.")
+            return false
+        }
+        smtpDraftPassword = password
+        tts.speakThen("Az alkalmazásjelszót átvettem $source. A tartalmát nem mondom ki. " +
+            "Ha szövegfájlt használtál, a beállítás után töröld a fájlt a telefonról.") {
+            listenForSmtpFromName()
+        }
+        return true
     }
 
     /** A feltöltött jelszó-fájl megkeresése a portál mappájában. */
@@ -4873,32 +4981,17 @@ class MainActivity : AppCompatActivity() {
         null
     }
 
-    /** A jelszó beolvasása a feltöltött fájlból. */
-    private fun readPasswordFromFile(file: java.io.File): Boolean {
-        val content = FileManagerHelper.readTextFile(file, 500) ?: return false
-        val password = content.lineSequence()
-            .map { line -> line.trim() }
-            .firstOrNull { line -> line.isNotBlank() }
-            ?: return false
-        smtpDraftPassword = password
-        return true
-    }
-
     private fun listenForSmtpPasswordSpoken() {
         voiceInput.listen(
             prompt = "Mondd a Gmail alkalmazásjelszavadat. Ez nem a sima jelszavad.",
             speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
             onResult = { spoken ->
-                val password = spoken.trim().replace(" ", "")
-                if (password.isBlank()) {
-                    tts.speak("A jelszó nem lehet üres.")
-                    listenForSmtpPasswordSpoken()
-                    return@listen
+                if (!acceptSmtpPassword(spoken, "diktálásból")) {
+                    activeFlow = AppFlow.EmailSmtpPasswordMethod(3)
+                    updateFlowDisplay()
                 }
-                smtpDraftPassword = password
-                listenForSmtpFromName()
             },
-            onError = { exitFlow("E-mail küldő beállítás megszakítva.") }
+            onError = { listenForSmtpPassword() }
         )
     }
 
@@ -6392,6 +6485,70 @@ class MainActivity : AppCompatActivity() {
         }
         tts.speak(intro)
         speakMedicationEntry(reminders.first())
+    }
+
+    private fun upcomingMedicationReminders(): List<MedicationReminder> {
+        val now = System.currentTimeMillis()
+        val today = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val day = today.get(java.util.Calendar.DAY_OF_WEEK)
+        return MedicationStore.getEnabled(this).filter { reminder ->
+            val due = java.util.Calendar.getInstance().apply {
+                timeInMillis = now
+                set(java.util.Calendar.HOUR_OF_DAY, reminder.hour)
+                set(java.util.Calendar.MINUTE, reminder.minute)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            reminder.shouldFireOn(day) && due > now &&
+                (reminder.courseEndMillis == null || due <= reminder.courseEndMillis) &&
+                !MedicationStore.wasTakenForToday(this, reminder.id)
+        }
+    }
+
+    private fun startMedicationUpcomingFlow() {
+        val reminders = upcomingMedicationReminders()
+        if (reminders.isEmpty()) {
+            tts.speak("Ma már nincs soron következő gyógyszer emlékeztető.")
+            return
+        }
+        activeFlow = AppFlow.MedicationUpcomingBrowse(reminders, 0)
+        updateFlowDisplay()
+        tts.speak("${reminders.size} ma soron következő gyógyszer. Fel-le söpréssel választhatsz, jobbra söpréssel megnyithatod a helyi művelet menüt.")
+        speakMedicationUpcoming(reminders.first())
+    }
+
+    private fun speakMedicationUpcoming(reminder: MedicationReminder) {
+        tts.speak("${reminder.name}, ${reminder.speakTime()}.")
+    }
+
+    private fun navigateMedicationUpcoming(flow: AppFlow.MedicationUpcomingBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.reminders.size) % flow.reminders.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakMedicationUpcoming(flow.reminders[next])
+    }
+
+    private fun enterMedicationUpcomingAction(flow: AppFlow.MedicationUpcomingBrowse) {
+        activeFlow = AppFlow.MedicationUpcomingAction(flow.reminders, flow.index)
+        updateFlowDisplay()
+        tts.speak("${flow.reminders[flow.index].name}: Már bevettem. Jobbra söpréssel jóváhagyod, balra visszalépsz.")
+    }
+
+    private fun markMedicationUpcomingTaken(flow: AppFlow.MedicationUpcomingAction) {
+        val reminder = flow.reminders[flow.index]
+        if (!MedicationStore.markUpcomingTaken(this, reminder.id)) {
+            tts.speak("Az adag már nem jelölhető be előre bevettként.")
+        } else {
+            tts.speak("${reminder.name}: a mai ${reminder.speakTime()} emlékeztető kimarad. A következő napok emlékeztetői megmaradnak.")
+        }
+        val remaining = upcomingMedicationReminders()
+        if (remaining.isEmpty()) {
+            exitFlow("Ma már nincs több soron következő gyógyszer emlékeztető.")
+        } else {
+            activeFlow = AppFlow.MedicationUpcomingBrowse(remaining, flow.index.coerceAtMost(remaining.lastIndex))
+            updateFlowDisplay()
+            speakMedicationUpcoming(remaining[(activeFlow as AppFlow.MedicationUpcomingBrowse).index])
+        }
     }
 
     private fun navigateMedicationList(flow: AppFlow.MedicationListBrowse, delta: Int) {
@@ -13147,7 +13304,10 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== INTERNET KERESŐ ====================
 
+    private var surfSearchLabel = "Internet kereső"
+
     private fun startWebSearchFlow() {
+        surfSearchLabel = "Internet kereső"
         ensureMicAndRun {
             activeFlow = AppFlow.SearchAwaitQuery
             updateFlowDisplay()
@@ -13168,6 +13328,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runWebSearch(query: String, fromAssistant: Boolean = false) {
+        surfSearchLabel = "Internet kereső"
         voiceInput.cancel()
         activeFlow = AppFlow.SearchLoading
         updateFlowDisplay()
@@ -13275,7 +13436,10 @@ class MainActivity : AppCompatActivity() {
         updateFlowDisplay()
         tts.speak("Oldal betöltése: ${result.title}. Várj.")
         Thread {
-            val text = ArticleTextExtractor.fetchText(result.url)
+            val superSurfSource = flow.query.startsWith("MVGYOSZ:") ||
+                flow.query.startsWith("Mobilarena:") || flow.query.startsWith("PC Fórum:")
+            val text = if (superSurfSource) runCatching { SuperSurfHelper.sourceArticle(result.url) }.getOrNull()
+                else ArticleTextExtractor.fetchText(result.url)
             postWhenAlive {
                 if (activeFlow !is AppFlow.SearchLoading) return@postWhenAlive
                 val body = when {
@@ -19285,6 +19449,10 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.NEWS_READ -> startSubFlowFromAssistant { startNewsReadFlow() }
             MenuAction.WEB_SEARCH -> startSubFlowFromAssistant { startWebSearchFlow() }
+            MenuAction.SURF_WIKIPEDIA, MenuAction.SURF_DICTIONARY,
+            MenuAction.SURF_RATE, MenuAction.SURF_MVGYOSZ,
+            MenuAction.SURF_MOBILARENA, MenuAction.SURF_PCFORUM ->
+                startSubFlowFromAssistant { startSuperSurfFlow(action) }
             MenuAction.DAY_SUMMARY -> {
                 tts.speak("Napi összefoglaló összeállítása. Várj.")
                 DaySummaryHelper.fetchAndSpeak(
@@ -21027,6 +21195,97 @@ class MainActivity : AppCompatActivity() {
         if (!next) {
             AlertSoundPlayer.preview(this, AlertSoundPreset.SOFT_CHIME)
         }
+    }
+
+    private fun startAlertTonePicker(category: AlertSoundCategory) {
+        val type = when (category) {
+            AlertSoundCategory.SMS, AlertSoundCategory.EMAIL,
+            AlertSoundCategory.GENERAL_NOTIFICATION -> RingtonePickerActivity.TONE_NOTIFICATION
+            else -> RingtonePickerActivity.TONE_ALL
+        }
+        alertTonePickerLauncher.launch(Intent(this, RingtonePickerActivity::class.java).apply {
+            putExtra(RingtonePickerActivity.EXTRA_TONE_TYPE, type)
+            putExtra(RingtonePickerActivity.EXTRA_PICKER_LABEL, "${category.label} hang választása")
+            putExtra(RingtonePickerActivity.EXTRA_CATEGORY, category.name)
+            putExtra(RingtonePickerActivity.EXTRA_CURRENT_URI,
+                AlertSoundStore.getToneUri(this@MainActivity, category)?.toString())
+        })
+    }
+
+    private fun startSuperSurfFlow(action: MenuAction) {
+        val label = when (action) {
+            MenuAction.SURF_WIKIPEDIA -> "Wikipédia"
+            MenuAction.SURF_DICTIONARY -> "Wikiszótár"
+            MenuAction.SURF_RATE -> "Árfolyamváltó"
+            MenuAction.SURF_MVGYOSZ -> "MVGYOSZ"
+            MenuAction.SURF_MOBILARENA -> "Mobilarena"
+            MenuAction.SURF_PCFORUM -> "PC Fórum"
+            else -> return
+        }
+        surfSearchLabel = "Super Surf: $label"
+        ensureMicAndRun {
+            activeFlow = AppFlow.SearchAwaitQuery
+            updateFlowDisplay()
+            val instruction = if (action == MenuAction.SURF_RATE)
+                "Mondd például: 100 euró forintba. Ha nem mondasz összeget, egy egységet váltunk."
+            else "Mondd el, mit keresel."
+            voiceInput.listen(
+                prompt = "$surfSearchLabel. $instruction",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val query = spoken.trim()
+                    if (query.isBlank()) exitFlow("Üres keresés.")
+                    else runSuperSurf(action, query, label)
+                },
+                onError = { exitFlow("Keresés megszakítva.") }
+            )
+        }
+    }
+
+    private fun runSuperSurf(action: MenuAction, query: String, label: String) {
+        voiceInput.cancel()
+        activeFlow = AppFlow.SearchLoading
+        updateFlowDisplay()
+        tts.speak("$label: lekérdezés folyamatban.")
+        Thread {
+            try {
+                val domain = when (action) {
+                    MenuAction.SURF_MVGYOSZ -> "mvgyosz.hu"
+                    MenuAction.SURF_MOBILARENA -> "mobilarena.hu"
+                    MenuAction.SURF_PCFORUM -> "pcforum.hu"
+                    else -> null
+                }
+                if (domain != null) {
+                    val results = SearchHelper.search("site:$domain $query")
+                        .filter { result -> SuperSurfHelper.belongsToSite(result.url, domain) }
+                    postWhenAlive {
+                        if (activeFlow !is AppFlow.SearchLoading) return@postWhenAlive
+                        if (results.isEmpty()) exitFlow("A $label oldalon nem találtam eredményt. Próbálj másik keresőszót.")
+                        else showSearchResults("$label: $query", results)
+                    }
+                    return@Thread
+                }
+                val reading = when (action) {
+                    MenuAction.SURF_WIKIPEDIA -> SuperSurfHelper.wikipedia(query)
+                    MenuAction.SURF_DICTIONARY -> SuperSurfHelper.dictionary(query)
+                    MenuAction.SURF_RATE -> SuperSurfHelper.exchange(query)
+                    else -> null
+                }
+                postWhenAlive {
+                    if (activeFlow !is AppFlow.SearchLoading) return@postWhenAlive
+                    if (reading == null) {
+                        exitFlow("A $label forrásban nincs olvasható találat. Próbálj másik kifejezést.")
+                    } else {
+                        val result = SearchResult(reading.title, reading.body.take(240), reading.url)
+                        startSearchArticleReading(result, reading.body, listOf(result), 0, query, reading.source)
+                    }
+                }
+            } catch (_: Exception) {
+                postWhenAlive {
+                    if (activeFlow is AppFlow.SearchLoading) exitFlow("A $label lekérdezése nem sikerült. Ellenőrizd az internetkapcsolatot, és próbáld újra.")
+                }
+            }
+        }.start()
     }
 
     private fun startAlertSoundPresetFlow(category: AlertSoundCategory) {
@@ -24251,6 +24510,17 @@ class MainActivity : AppCompatActivity() {
                     "⬆⬇ választás  •  ➡ felolvas  •  ⬅ vissza"
                 }
             }
+            is AppFlow.MedicationUpcomingBrowse -> {
+                val reminder = flow.reminders[flow.index]
+                tvItem.text = "${reminder.name}  •  ${reminder.speakTime()}"
+                tvPosition.text = "Soron következő gyógyszerek  •  ${flow.index + 1} / ${flow.reminders.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ helyi művelet  •  ⬅ vissza"
+            }
+            is AppFlow.MedicationUpcomingAction -> {
+                tvItem.text = "Már bevettem"
+                tvPosition.text = "${flow.reminders[flow.index].name}  •  ${flow.reminders[flow.index].speakTime()}"
+                tvHint.text = "➡ jóváhagyás  •  ⬅ vissza"
+            }
             is AppFlow.MedicationDeleteConfirm -> {
                 tvItem.text = flow.reminder.name
                 tvPosition.text = "Gyógyszer törlése  •  ${flow.reminder.speakTime()}"
@@ -25106,12 +25376,12 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = "⬆⬇ választás  •  ➡ ki-be  •  ⬅ vissza"
             }
             AppFlow.SearchAwaitQuery -> {
-                tvItem.text = "Internet kereső"
+                tvItem.text = surfSearchLabel
                 tvPosition.text = "Keresés diktálása"
                 tvHint.text = "Mondd mit keresel  •  ⬅ mégse"
             }
             AppFlow.SearchLoading -> {
-                tvItem.text = "Internet kereső"
+                tvItem.text = surfSearchLabel
                 tvPosition.text = "Keresés folyamatban"
                 tvHint.text = "Kérem várjon  •  ⬅ megszakítás"
             }
@@ -25354,6 +25624,11 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.EmailSmtpPickAccount -> {
                 tvItem.text = flow.accounts[flow.index]
                 tvPosition.text = "E-mail fiók  •  ${flow.index + 1} / ${flow.accounts.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ mégse"
+            }
+            is AppFlow.EmailSmtpPasswordMethod -> {
+                tvItem.text = smtpPasswordMethods[flow.index]
+                tvPosition.text = "Alkalmazásjelszó bevitele  •  ${flow.index + 1} / ${smtpPasswordMethods.size}"
                 tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ mégse"
             }
             AppFlow.NavAwaitWalkDestination -> {

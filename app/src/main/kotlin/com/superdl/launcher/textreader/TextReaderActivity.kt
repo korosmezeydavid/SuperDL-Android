@@ -53,6 +53,8 @@ class TextReaderActivity : AppCompatActivity() {
     private val scanPaused = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
+    /** A kamera és a kézi olvasás külön szálon fut: másolás közben tilos újrahasznosítani a képet. */
+    private val bitmapLock = Any()
     private val latestSpeechText = AtomicReference("")
     private val pendingSpeechText = AtomicReference<String?>(null)
     private var imageAnalysis: ImageAnalysis? = null
@@ -258,7 +260,7 @@ class TextReaderActivity : AppCompatActivity() {
             }
             announceText(speech)
         } catch (oom: OutOfMemoryError) {
-            latestBitmap.getAndSet(null)?.recycle()
+            clearLatestBitmap()
             System.gc()
             handleMemoryFailure()
         } catch (_: Exception) {
@@ -362,13 +364,19 @@ class TextReaderActivity : AppCompatActivity() {
 
     private fun triggerManualRead() {
         val engine = recognitionEngine ?: return
-        val bitmap = latestBitmap.get()
-        if (bitmap == null) {
+        val frameCopy = try {
+            synchronized(bitmapLock) {
+                latestBitmap.get()?.takeUnless { it.isRecycled }
+                    ?.copy(Bitmap.Config.ARGB_8888, false)
+            }
+        } catch (oom: OutOfMemoryError) {
+            handleMemoryFailure()
+            return
+        }
+        if (frameCopy == null) {
             tts.speak(getString(R.string.text_reader_no_frame))
             return
         }
-
-        val frameCopy = bitmap.copy(Bitmap.Config.ARGB_8888, false)
         engine.recognize(
             bitmap = frameCopy,
             onResult = { raw ->
@@ -454,6 +462,12 @@ class TextReaderActivity : AppCompatActivity() {
         }
     }
 
+    private fun clearLatestBitmap() {
+        synchronized(bitmapLock) {
+            latestBitmap.getAndSet(null)?.recycle()
+        }
+    }
+
     override fun onDestroy() {
         scanning.set(false)
         mainHandler.removeCallbacksAndMessages(null)
@@ -467,7 +481,7 @@ class TextReaderActivity : AppCompatActivity() {
         CameraStabilityHelper.shutdownExecutor(cameraExecutor)
         recognitionEngine?.close()
         recognitionEngine = null
-        latestBitmap.getAndSet(null)?.recycle()
+        clearLatestBitmap()
         tts.shutdown()
         sounds.release()
         super.onDestroy()
@@ -509,16 +523,19 @@ class TextReaderActivity : AppCompatActivity() {
 
             try {
                 val bitmap = imageProxy.toBitmap()
-                latestBitmap.getAndSet(bitmap)?.recycle()
                 val frameCopy = try {
                     bitmap.copy(Bitmap.Config.ARGB_8888, false)
                 } catch (oom: OutOfMemoryError) {
-                    latestBitmap.getAndSet(null)?.recycle()
+                    bitmap.recycle()
+                    clearLatestBitmap()
                     System.gc()
                     postWhenAlive { handleMemoryFailure() }
                     return
                 }
-                bitmap.recycle()
+                synchronized(bitmapLock) {
+                    if (scanning.get()) latestBitmap.getAndSet(bitmap)?.recycle()
+                    else bitmap.recycle()
+                }
                 engine.recognize(
                     bitmap = frameCopy,
                     onResult = { raw ->
@@ -531,7 +548,7 @@ class TextReaderActivity : AppCompatActivity() {
                     }
                 )
             } catch (oom: OutOfMemoryError) {
-                latestBitmap.getAndSet(null)?.recycle()
+                clearLatestBitmap()
                 System.gc()
                 postWhenAlive { handleMemoryFailure() }
             } catch (_: Exception) {

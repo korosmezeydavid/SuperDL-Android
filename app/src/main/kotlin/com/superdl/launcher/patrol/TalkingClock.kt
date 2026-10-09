@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.AudioManager
+import android.media.AudioDeviceInfo
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -282,7 +284,7 @@ object TalkingClock {
                     val t = AudioTrack.Builder()
                         .setAudioAttributes(
                             AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setUsage(AudioAttributes.USAGE_ALARM)
                                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                                 .build()
                         )
@@ -297,12 +299,27 @@ object TalkingClock {
                         .setBufferSizeInBytes(pcm.size)
                         .build()
                     track = t
+                    // A periodikus időbemondás a zsebben lévő telefonon is
+                    // hallatszódjon, ha vezetékes vagy Bluetooth füles aktív.
+                    val audio = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                        .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                        ?.let { speaker ->
+                            if (!t.setPreferredDevice(speaker)) {
+                                Log.w(TAG, "A hangszóró-kimenet kiválasztása sikertelen")
+                            }
+                        }
                     val written = t.write(pcm, 0, pcm.size)
                     if (written == pcm.size) {
                         t.play()
+                        Thread.sleep(100)
+                        val routed = t.routedDevice
+                        if (routed != null && routed.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                            Log.w(TAG, "A beszélő óra nem a hangszóróra került: ${routed.type}")
+                        }
                         val ms = pcm.size / 2 * 1000L / rate
-                        Thread.sleep(ms + 200)
-                        ok = true
+                        Thread.sleep(ms + 100)
+                        ok = routed == null || routed.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                     } else {
                         Log.w(TAG, "AudioTrack write: $written / ${pcm.size}")
                     }

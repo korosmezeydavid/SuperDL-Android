@@ -141,6 +141,12 @@ enum class MenuAction {
     RADIO_SCHEDULE,    // Rádió: időzített felvételek kezelése
     NEWS_READ,      // Hírek felolvasása (RSS)
     WEB_SEARCH,     // Internet kereső – felolvasott találatok
+    SURF_WIKIPEDIA,
+    SURF_DICTIONARY,
+    SURF_RATE,
+    SURF_MVGYOSZ,
+    SURF_MOBILARENA,
+    SURF_PCFORUM,
     DAY_GREETING,   // Napi üdvözlés (dátum, névnap, időjárás)
     DAY_SUMMARY,    // Napi összefoglaló
     STATUS_REPORT,  // Gyors helyzetjelentés (offline: idő, akku, térerő, hívások, üzenetek, ébresztő, naptár)
@@ -297,6 +303,7 @@ enum class MenuAction {
     CALL_FILTER_MODE_CYCLE,          // Hívás szűrő mód váltása (4 szint)
     CALL_FILTER_MODE_STATUS,         // Hívás szűrő állapota
     MEDICATION_READ,     // Patika Őrangyal – emlékeztetők felolvasása
+    MEDICATION_UPCOMING, // Debug: ma soron következő adagok
     MEDICATION_ADD,      // Patika Őrangyal – új gyógyszer rögzítése
     MEDICATION_SEARCH,   // Gyógyszerkereső - tájékoztató lekérése névből
     MEDICATION_DELETE,   // Patika Őrangyal – emlékeztető törlése
@@ -943,7 +950,19 @@ object MenuTree {
             MenuItem("news_read", "Hírek felolvasása", MenuAction.NEWS_READ),
             MenuItem("news_feed_manage", "Hírforrások kezelése", MenuAction.NEWS_FEED_MANAGE),
             MenuItem("news_feed_opml", "Hírforrások OPML import", MenuAction.NEWS_FEED_IMPORT_OPML),
-            MenuItem("web_search", "Internet kereső", MenuAction.WEB_SEARCH),
+            MenuItem("super_surf", "Super Surf", MenuAction.SUBMENU, listOf(
+                MenuItem("surf_web", "Általános internetes keresés", MenuAction.WEB_SEARCH),
+                MenuItem("surf_wikipedia", "Wikipédia, teljes cikk", MenuAction.SURF_WIKIPEDIA),
+                MenuItem("surf_dictionary", "Wikiszótár", MenuAction.SURF_DICTIONARY),
+                MenuItem("surf_rate", "Árfolyamváltó", MenuAction.SURF_RATE),
+                MenuItem("surf_sources", "Forrás weboldalak", MenuAction.SUBMENU, listOf(
+                    MenuItem("surf_mvgyosz", "MVGYOSZ", MenuAction.SURF_MVGYOSZ),
+                    MenuItem("surf_mobilarena", "Mobilarena", MenuAction.SURF_MOBILARENA),
+                    MenuItem("surf_pcforum", "PC Fórum", MenuAction.SURF_PCFORUM),
+                    MenuItem("surf_sources_back", "Vissza a Super Surf menübe", MenuAction.SUBMENU)
+                )),
+                MenuItem("surf_back", "Vissza az Információ menübe", MenuAction.SUBMENU)
+            )),
             MenuItem("battery", "Akkumulátor állapot", MenuAction.BATTERY),
             MenuItem("info_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
@@ -1139,6 +1158,7 @@ object MenuTree {
                 )),
                 MenuItem("pharmacy_guardian", "Patika Őrangyal", MenuAction.SUBMENU, listOf(
                     MenuItem("med_read", "Aktuális emlékeztetők felolvasása", MenuAction.MEDICATION_READ),
+                    *if (com.superdl.launcher.BuildConfig.DEBUG) arrayOf(MenuItem("med_upcoming", "Soron következő gyógyszerek", MenuAction.MEDICATION_UPCOMING)) else emptyArray(),
                     MenuItem("med_add", "Új gyógyszer rögzítése", MenuAction.MEDICATION_ADD),
                     MenuItem("med_search", "Gyógyszerkereső", MenuAction.MEDICATION_SEARCH),
                     MenuItem("med_delete", "Emlékeztető törlése", MenuAction.MEDICATION_DELETE),

@@ -3,9 +3,15 @@ package com.superdl.launcher.feedback
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.AudioDeviceInfo
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.net.Uri
+import android.os.SystemClock
+import android.os.Build
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -60,8 +66,27 @@ object AlertSoundPlayer {
     fun startLooping(context: Context, category: AlertSoundCategory): () -> Unit {
         val force = category in ALWAYS_AUDIBLE
         if (!AlertSoundSettingsStore.shouldPlay(context, force)) return {}
+        AlertSoundStore.getToneUri(context, category)?.let { uri ->
+            return startLoopingUri(context, category, uri, force)
+        }
         val preset = AlertSoundStore.getPreset(context, category)
         return startLoopingPreset(context, preset, force)
+    }
+
+    private fun startLoopingUri(context: Context, category: AlertSoundCategory,
+                                uri: Uri, force: Boolean): () -> Unit {
+        if (force) ensureAlarmAudible(context)
+        val running = AtomicBoolean(true)
+        val thread = Thread({
+            while (running.get() && !Thread.currentThread().isInterrupted) {
+                if (!playSelectedSync(context, uri, category, running)) {
+                    playToneSequenceSync(context, effectiveSequence(AlertSoundStore.getPreset(context, category)), force)
+                }
+                if (running.get()) sleepInterruptibly(700L)
+            }
+        }, "SuperDL-SelectedAlertLoop")
+        thread.start()
+        return { running.set(false); thread.interrupt() }
     }
 
     fun startLoopingPreset(
@@ -92,7 +117,152 @@ object AlertSoundPlayer {
     }
 
     fun playOnce(context: Context, category: AlertSoundCategory) {
-        preview(context, AlertSoundStore.getPreset(context, category))
+        val force = category in ALWAYS_AUDIBLE
+        if (!AlertSoundSettingsStore.shouldPlay(context, force)) return
+        if (category == AlertSoundCategory.SMS) {
+            Thread({ playSmsOnSpeaker(context) }, "SuperDL-SmsSpeakerAlert").start()
+            return
+        }
+        val uri = AlertSoundStore.getToneUri(context, category)
+        if (uri == null) {
+            preview(context, AlertSoundStore.getPreset(context, category))
+            return
+        }
+        Thread({
+            if (!playSelectedSync(context, uri, category, AtomicBoolean(true))) {
+                playToneSequenceSync(context, effectiveSequence(AlertSoundStore.getPreset(context, category)), force)
+            }
+        }, "SuperDL-SelectedAlertOnce").start()
+    }
+
+    /** Az SMS saját lejátszót kap: más hangok és a beszéd útvonalát nem állítjuk át. */
+    private fun playSmsOnSpeaker(context: Context) {
+        // A telefon értesítési csatornája lehet 0-ra halkítva akkor is, ha a
+        // felhasználó a SuperDL-ben külön SMS-hangot választott.
+        ensureAlarmAudible(context)
+        val preset = AlertSoundStore.getPreset(context, AlertSoundCategory.SMS)
+        val uri = AlertSoundStore.getToneUri(context, AlertSoundCategory.SMS)
+            ?: resolveUri(context, preset)
+        if (uri != null && playSmsUriOnSpeaker(context, uri)) return
+        val notes = effectiveSequence(preset)
+        if (!playSmsSequenceOnSpeaker(context, notes)) {
+            // Ha a gyártói hangútvonal elutasítja a célzott lejátszást,
+            // maradjon legalább egy hallható rendszer-ébresztő hang.
+            playToneSequenceSync(context, notes, force = true)
+        }
+    }
+
+    private fun speaker(context: Context): AudioDeviceInfo? =
+        (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager)
+            .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+
+    private fun playSmsUriOnSpeaker(context: Context, uri: Uri): Boolean {
+        var player: MediaPlayer? = null
+        return try {
+            player = MediaPlayer()
+            player.setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            player.setDataSource(context, uri)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                speaker(context)?.let { player.setPreferredDevice(it) }
+            }
+            player.prepare()
+            player.start()
+            SystemClock.sleep(150L)
+            val routed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                player.routedDevice else null
+            if (routed != null && routed.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                Log.w(TAG, "SMS-hang nem a készülék hangszórójára került: ${routed.type}")
+                return false
+            }
+            val deadline = SystemClock.elapsedRealtime() + 30_000L
+            while (player.isPlaying && SystemClock.elapsedRealtime() < deadline) {
+                sleepInterruptibly(100L)
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "SMS-hang hangszórós lejátszása sikertelen", e)
+            false
+        } finally {
+            try { player?.release() } catch (_: Exception) {}
+        }
+    }
+
+    private fun playSmsSequenceOnSpeaker(context: Context, notes: List<Pair<Int, Int>>): Boolean {
+        val sampleRate = 16_000
+        val volume = toneVolume(context) / ToneGenerator.MAX_VOLUME.toDouble()
+        val samples = ArrayList<Short>()
+        for ((frequency, durationMs) in notes) {
+            val count = sampleRate * durationMs.coerceAtLeast(0) / 1000
+            for (i in 0 until count) {
+                val edge = minOf(i, count - 1 - i, sampleRate / 100).toDouble() /
+                    (sampleRate / 100)
+                val wave = if (frequency > 0) kotlin.math.sin(
+                    2.0 * Math.PI * frequency * i / sampleRate) else 0.0
+                samples.add((wave * edge * volume * Short.MAX_VALUE).toInt().toShort())
+            }
+        }
+        if (samples.isEmpty()) return false
+        val data = ShortArray(samples.size) { samples[it] }
+        var track: AudioTrack? = null
+        try {
+            track = AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setBufferSizeInBytes(data.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            speaker(context)?.let { track.setPreferredDevice(it) }
+            if (track.write(data, 0, data.size) != data.size) return false
+            track.play()
+            SystemClock.sleep(100L)
+            val routed = track.routedDevice
+            if (routed != null && routed.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                Log.w(TAG, "SMS tartalékhang nem a hangszóróra került: ${routed.type}")
+                return false
+            }
+            sleepInterruptibly(data.size * 1000L / sampleRate + 100L)
+            return true
+        } catch (e: Exception) {
+            Log.w(TAG, "Beépített SMS-hang hangszórós lejátszása sikertelen", e)
+            return false
+        } finally {
+            try { track?.stop() } catch (_: Exception) {}
+            try { track?.release() } catch (_: Exception) {}
+        }
+    }
+
+    private fun playSelectedSync(context: Context, uri: Uri,
+                                 category: AlertSoundCategory, running: AtomicBoolean): Boolean {
+        var ringtone: android.media.Ringtone? = null
+        return try {
+            ringtone = RingtoneManager.getRingtone(context, uri) ?: return false
+            ringtone.audioAttributes = AudioAttributes.Builder()
+                .setUsage(if (category in ALWAYS_AUDIBLE) AudioAttributes.USAGE_ALARM
+                          else AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            ringtone.play()
+            SystemClock.sleep(150L)
+            val deadline = SystemClock.elapsedRealtime() + 30_000L
+            while (running.get() && !Thread.currentThread().isInterrupted &&
+                   ringtone.isPlaying && SystemClock.elapsedRealtime() < deadline) {
+                sleepInterruptibly(100L)
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "A választott értesítési hang nem játszható le", e)
+            false
+        } finally {
+            try { ringtone?.stop() } catch (_: Exception) {}
+        }
     }
 
     fun preview(context: Context, preset: AlertSoundPreset) {

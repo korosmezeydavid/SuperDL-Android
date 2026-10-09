@@ -12,6 +12,7 @@ object MedicationStore {
     private const val PREFS = "superdl"
     private const val KEY_REMINDERS = "medication_reminders"
     private const val KEY_HISTORY = "medication_ingestion_history"
+    private const val KEY_TAKEN_TODAY = "medication_early_taken"
     private const val KEY_REMINDERS_SCHEMA = "medication_reminders_schema"
     private const val KEY_HISTORY_SCHEMA = "medication_history_schema"
     private const val SCHEMA_VERSION = 1
@@ -43,8 +44,47 @@ object MedicationStore {
     fun getDueAt(context: Context, hour: Int, minute: Int): List<MedicationReminder> {
         val dayOfWeek = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK)
         return getEnabled(context).filter {
-            it.hour == hour && it.minute == minute && it.shouldFireOn(dayOfWeek)
+            it.hour == hour && it.minute == minute && it.shouldFireOn(dayOfWeek) && !wasTakenForToday(context, it.id)
         }
+    }
+
+    private fun dayKey(millis: Long): String {
+        val day = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${day.get(java.util.Calendar.YEAR)}-${day.get(java.util.Calendar.DAY_OF_YEAR)}"
+    }
+
+    fun wasTakenForToday(context: Context, reminderId: Int): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_TAKEN_TODAY, null)?.let { raw ->
+                runCatching { JSONObject(raw).optString(reminderId.toString()) == dayKey(System.currentTimeMillis()) }
+                    .getOrDefault(false)
+            } ?: false
+
+    /** Csak a még ma esedékes egyetlen adag jelölhető be előre bevettként. */
+    fun markUpcomingTaken(context: Context, reminderId: Int): Boolean {
+        val reminder = getById(context, reminderId) ?: return false
+        val now = System.currentTimeMillis()
+        val today = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val due = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, reminder.hour)
+            set(java.util.Calendar.MINUTE, reminder.minute)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (!reminder.enabled || !reminder.shouldFireOn(today.get(java.util.Calendar.DAY_OF_WEEK)) ||
+            reminder.isCourseExpired(now) || due.timeInMillis <= now ||
+            (reminder.courseEndMillis != null && due.timeInMillis > reminder.courseEndMillis) ||
+            wasTakenForToday(context, reminderId)) return false
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val records = runCatching { JSONObject(prefs.getString(KEY_TAKEN_TODAY, "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        records.put(reminderId.toString(), dayKey(now))
+        if (!prefs.edit().putString(KEY_TAKEN_TODAY, records.toString()).commit()) return false
+        logIngestion(context, listOf(reminder))
+        MedicationScheduler.cancel(context, reminderId)
+        MedicationScheduler.schedule(context, reminder)
+        return true
     }
 
     fun add(
@@ -73,6 +113,7 @@ object MedicationStore {
         )
         reminders.add(entry)
         saveAll(context, reminders)
+        clearTakenDay(context, entry.id)
         return entry
     }
 
@@ -102,7 +143,16 @@ object MedicationStore {
         val removed = reminders.firstOrNull { it.id == id } ?: return null
         reminders.removeAll { it.id == id }
         saveAll(context, reminders)
+        clearTakenDay(context, id)
         return removed
+    }
+
+    private fun clearTakenDay(context: Context, id: Int) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val records = runCatching { JSONObject(prefs.getString(KEY_TAKEN_TODAY, "{}") ?: "{}") }
+            .getOrNull() ?: return
+        records.remove(id.toString())
+        prefs.edit().putString(KEY_TAKEN_TODAY, records.toString()).apply()
     }
 
     /** Egy emlékeztető be- vagy kikapcsolása (pl. lejárt kúránál automatikusan). */

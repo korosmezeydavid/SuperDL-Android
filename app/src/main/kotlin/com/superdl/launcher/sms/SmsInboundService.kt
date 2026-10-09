@@ -4,6 +4,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 
 class SmsInboundService : Service() {
@@ -17,12 +19,18 @@ class SmsInboundService : Service() {
         }
         val source = intent.getStringExtra(EXTRA_SOURCE).orEmpty().ifBlank { "service" }
         val wakeLock = acquireWakeLock(this)
-        try {
+        val stored = try {
             SmsInboundHandler.handleIntent(applicationContext, Intent(intent), source)
-        } finally {
+        } catch (e: Exception) {
+            SmsDebugLog.append(this, "SMS feldolgozás sikertelen ($source): ${e.message}")
+            false
+        }
+        // A hang saját szálon szól. Ha a Service azonnal leáll, a háttérben
+        // indított folyamat az értesítőhang vége előtt megszűnhet.
+        Handler(Looper.getMainLooper()).postDelayed({
             releaseWakeLock(wakeLock)
             stopSelf(startId)
-        }
+        }, if (stored) 10_000L else 0L)
         return START_NOT_STICKY
     }
 

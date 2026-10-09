@@ -17,8 +17,8 @@ android {
         applicationId "com.superdl.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 155
-        versionName "1.87.0"
+        versionCode 156
+        versionName "1.88.0"
     }
 
     signingConfigs {

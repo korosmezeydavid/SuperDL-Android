@@ -3,6 +3,7 @@ package com.superdl.launcher.sms
 import android.content.Context
 import android.content.Intent
 import com.superdl.launcher.feedback.AlertSoundCategory
+import com.superdl.launcher.feedback.AlertSoundPlayer
 import com.superdl.launcher.patrol.PatrolAnnouncer
 import com.superdl.launcher.patrol.PatrolStore
 import com.superdl.launcher.system.QuietModeHelper
@@ -26,9 +27,12 @@ object SmsIncomingNotifier {
     }
 
     private fun maybeAnnounce(context: Context, address: String, body: String) {
-        if (!PatrolStore.isMasterEnabled(context)) return
         if (QuietModeHelper.shouldSuppressNotificationAnnouncements(context)) return
         if (PatrolStore.isQuietNow(context)) return
+        // Az SMS hangja nem függ a külön bekapcsolható feladó- és szövegbemondástól.
+        // Különben alapbeállítással teljesen néma az új üzenet.
+        AlertSoundPlayer.playOnce(context, AlertSoundCategory.SMS)
+        if (!PatrolStore.isMasterEnabled(context)) return
         if (!PatrolStore.isSmsAlertEnabled(context)) return
 
         val label = SmsHelper.resolveSenderLabel(context, address)
@@ -37,6 +41,7 @@ object SmsIncomingNotifier {
         PatrolAnnouncer.announce(
             context = context,
             message = "Új üzenet. Feladó: $label. $spokenPreview",
+            withBeep = false,
             soundCategory = AlertSoundCategory.SMS
         )
     }

@@ -67,6 +67,10 @@ class MedicationAlertService : Service() {
         val minute = intent?.getIntExtra(EXTRA_MINUTE, -1) ?: -1
         val ids = intent?.getIntArrayExtra(EXTRA_REMINDER_IDS)
         val due = loadDueReminders(hour, minute, ids)
+        if (due.isEmpty()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val title = due.joinToString(", ") { it.name }.ifBlank { "Patika Őrangyal" }
         markActive(hour, minute)
         startForeground(NOTIFICATION_ID, buildNotification(title, hour, minute, ids))
@@ -83,7 +87,7 @@ class MedicationAlertService : Service() {
     private fun loadDueReminders(hour: Int, minute: Int, ids: IntArray?): List<MedicationReminder> {
         if (ids != null && ids.isNotEmpty()) {
             return ids.toList().mapNotNull { id -> MedicationStore.getById(this, id) }
-                .filter { reminder -> reminder.enabled }
+                .filter { reminder -> reminder.enabled && !MedicationStore.wasTakenForToday(this, reminder.id) }
         }
         if (hour < 0 || minute < 0) return emptyList()
         return MedicationStore.getDueAt(this, hour, minute)

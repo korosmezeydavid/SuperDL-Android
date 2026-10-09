@@ -1,5 +1,14 @@
 # Változások
 
+## 1.88.0 (versionCode 156) — 2026-10-09
+
+- Az SMS hangja az opcionális feladó-/szövegbemondástól függetlenül indul. A hangszórós kimenetet headset mellett is kéri; készülékes visszaigazolás szükséges.
+- Az automatikus beszélő óra a beépített hangszórót célozza. A rendszer és a Notifications mappa értesítési hangjai is választhatók.
+- Az e-mail alkalmazásjelszó vágólapról vagy helyi szövegfájlból is bevihető.
+- A Super Surf az Információ menüben az általános keresést, Wikipédiát, Wikiszótárt és árfolyamlekérdezést egy helyre gyűjti. A forrásoldalak jelenleg keresős próbaüzemben működnek.
+- A podcast-letöltés követi a korlátozott számú HTTPS-átirányítást; javult a Szövegolvasó képkockakezelése.
+- A „Soron következő gyógyszerek / Már bevettem” felület továbbra is csak debugban érhető el.
+
 ## 1.54.9 (versionCode 100) — 2026-07-06
 
 ### Sürgős javítás – Super DL összeomlás induláskor

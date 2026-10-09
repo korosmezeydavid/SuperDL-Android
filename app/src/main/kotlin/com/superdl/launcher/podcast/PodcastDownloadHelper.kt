@@ -20,6 +20,42 @@ object PodcastDownloadHelper {
     private const val TAG = "SuperDL.PodcastDl"
     private const val PREFS = "superdl"
     private const val KEY_DOWNLOADS = "podcast_downloads"
+    private const val MAX_AUDIO_REDIRECTS = 5
+
+    /** Az RSS-ben szereplő HTTP MP3 cím HTTPS-re is átirányíthat. */
+    internal fun resolveAudioRedirect(current: URL, location: String): URL {
+        val next = URL(current, location)
+        require(next.protocol.equals("http", true) || next.protocol.equals("https", true)) {
+            "Nem támogatott podcast-átirányítás"
+        }
+        return next
+    }
+
+    internal fun openAudioConnection(rawUrl: String): HttpURLConnection {
+        var url = URL(rawUrl)
+        require(url.protocol.equals("http", true) || url.protocol.equals("https", true))
+        repeat(MAX_AUDIO_REDIRECTS + 1) { redirects ->
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 20_000
+                readTimeout = 60_000
+                instanceFollowRedirects = false
+                setRequestProperty("User-Agent", "SuperDL/1.9")
+            }
+            val code = try { connection.responseCode } catch (error: Exception) {
+                connection.disconnect()
+                throw error
+            }
+            if (code !in listOf(301, 302, 303, 307, 308)) return connection
+            val location = connection.getHeaderField("Location")
+            connection.disconnect()
+            if (redirects == MAX_AUDIO_REDIRECTS || location.isNullOrBlank()) {
+                throw java.io.IOException("Túl sok vagy hibás podcast-átirányítás")
+            }
+            url = resolveAudioRedirect(url, location)
+        }
+        throw java.io.IOException("Túl sok podcast-átirányítás")
+    }
 
     /**
      * HOVA KERÜLJÖN A LETÖLTÖTT ADÁS.
@@ -296,14 +332,11 @@ object PodcastDownloadHelper {
         val part = File(target.parentFile, target.name + ".part")
         var conn: HttpURLConnection? = null
         return try {
-            conn = (URL(ep.audioUrl).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 20_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "SuperDL/1.9")
+            conn = openAudioConnection(ep.audioUrl)
+            if (conn.responseCode !in 200..299) {
+                Log.w(TAG, "download HTTP ${conn.responseCode}: ${ep.audioUrl}")
+                return false
             }
-            if (conn.responseCode !in 200..299) return false
             conn.inputStream.use { input ->
                 part.outputStream().use { output ->
                     input.copyTo(output, 64 * 1024)

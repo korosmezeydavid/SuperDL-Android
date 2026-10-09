@@ -1,6 +1,59 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
-**Utolsó frissítés:** 2026-10-05 | **Verzió:** 1.87.0 (versionCode 155)
+> **2026-10-07: HELYI DEBUG – telefonos Gmail alkalmazásjelszó bevitel, telepítve.**
+> Az e-mail küldő beállításában a jelszóhoz külön, gesztusokkal bejárható
+> választó készült: vágólapról beillesztés, a telefonon lévő szövegfájl
+> kiválasztása az Android fájlválasztóval, a korábbi WiFi-portál mappájának
+> fájlja, illetve diktálás. A jelszó 16 karakteres formátumát ellenőrizzük;
+> szóközös csoportok elfogadottak. A tartalmat nem mondjuk ki, sikeres
+> vágólapos átvétel után a vágólapot töröljük; a szövegfájl törlésére
+> figyelmeztetünk. A mentés továbbra is `SmtpConfigStore` útján történik.
+> A `testDebugUnitTest` és `assembleDebug` sikeres. A `com.superdl.launcher.debug`
+> csomagot `adb install -r` frissítette az Armor 24 készüléken
+> (serial 3116TF1010002416, Success); a `firstInstallTime` változatlan
+> 2026-09-09 05:10:17, az új `lastUpdateTime` 2026-10-07 20:31:28.
+> Az appot elindítottuk. A jelszóbeviteli és hangútvonalas készülékes,
+> képernyőolvasós próbát a felhasználó végzi el. Éles kiadás és push nem történt.
+
+> **2026-10-07: HELYI DEBUG JAVÍTÁS – SMS-hang és periodikus beszélő óra.**
+> A bejövő SMS hangja korábban a külön SMS-felolvasási kapcsolótól függött
+> (ennek alapértéke kikapcsolt), így az üzenet teljesen néma lehetett. A hang
+> most külön indul, míg a feladó/szöveg bemondása továbbra is választható.
+> Az SMS saját hangja az ébresztő hangfolyamot és célzottan a beépített
+> hangszórót használja; sikertelen célzott útvonalnál tartalék hang indul.
+> A fogadó Service rövid ideig életben marad, hogy az aszinkron hang ne vesszen
+> el a folyamat korai leállításakor. A letöltött beszélőóra-klip szintén a
+> beépített hangszórót célozza, a TTS-tartalék időbemondás ébresztő típusú
+> hangútvonalat kap. A `compileDebugKotlin`, `testDebugUnitTest` és
+> `assembleDebug` sikeres; az APK készült, de ADB-n nem látszik telefon,
+> ezért készülékes SMS- és vezetékes/Bluetooth-headsetes próba még szükséges.
+> Kiadás, GitHub-feltöltés és telepítés nem történt. A munkakönyvtárban más,
+> korábbi befejezetlen módosítások is vannak; kiadás előtt külön diff-áttekintés kell.
+
+**Utolsó frissítés:** 2026-10-06 | **Verzió:** 1.87.0 (versionCode 155)
+
+> **2026-10-06: HELYI DEBUG FEJLESZTÉS — mobilos Super Surf.**
+> Információ → Super Surf: az általános internetes keresés változatlanul elérhető,
+> mellette külön Wikipédia teljes szöveg, Wikiszótár, árfolyamváltó és
+> „Forrás weboldalak” (MVGYOSZ, Mobilarena, PC Fórum) hanggal kereshető.
+> A forrásoldalas találatok a választott tartományra vannak szűrve; a cikkolvasó
+> hosszabb szöveget dolgoz fel, és a meglévő felolvasási/jegyzetmentési gesztusokat
+> használja. Az árfolyam a Frankfurter napi középárfolyama, nem banki vételi/eladási
+> ár. A célzott `SuperSurfHelperTest` és az `assembleDebug` sikeres; a debug APK
+> a csatlakoztatott telefonra települt és elindult. A képernyőolvasós, gesztusos
+> használatot a felhasználónak még ellenőriznie kell. Kiadás és GitHub-feltöltés
+> nem történt. A módosítások más, már folyamatban lévő helyi munkával közös
+> munkakönyvtárban vannak, ezért kiadás előtt a teljes git diffet át kell nézni.
+
+> **2026-10-05: HELYI DEBUG PROTOTÍPUS — soron következő gyógyszerek.**
+> A Patika Őrangyal debug menüjében a „Soron következő gyógyszerek”
+> a még ma esedékes adagokat sorolja. Jobbra söprésre egyetlen helyi művelet,
+> „Már bevettem” jelenik meg; újabb jobbra söprés az adott adag mai
+> értesítését kihagyja és naplózza a felhasználó jelölését. A következő
+> napi/heti ismétlés és a többi adag megmarad. A mai kihagyás tartós,
+> újraütemezéskor és a riasztás indításakor is ellenőrzött. Release menüben
+> nem jelenik meg. A `testDebugUnitTest` és `assembleDebug` sikeres;
+> készülékes, képernyőolvasós próba még hátravan. GitHubra nem került fel.
 
 > **2026-10-05: KIADVA — 1.87.0.** Az 1.86.0 utáni nyolc helyi commit
 > és a kiadási commit (`e10c7bb`) a GitHub `master` ágán van.
@@ -463,3 +516,24 @@ A fejlesztő kulcsszóval hívja elő ezeket. Ha egy jelszót mond, EZT a fájlt
 | `realarm` | `dokumentumok/realarm.txt` | ébresztő-nyomozás (LEZÁRVA, 2026-08-14) |
 | — | `dokumentumok/hibalista.txt` | a `nagytakaritas` QA-kör találatai |
 | — | `dokumentumok/katalogus-terv.txt`, `nitaplay.txt`, `hibakereses-terv.txt`, `mobilinfora.txt`, `spdlosszegzo.txt` | további tervek és összegzők |
+
+### 2026-10-05 – helyi hibajavítások, nem kiadott debug állapot
+
+Géza 1.87.0 Gépház letöltési hibájánál a podcast hangfájljának HTTP címe HTTPS-re irányít át. A `PodcastDownloadHelper` most korlátozott számban, explicit módon követi az átirányítást. Helyi HTTP szerveres egységteszt és `:app:testDebugUnitTest :app:assembleDebug` sikeres. Teljes epizód és készülékes letöltés még nincs kipróbálva.
+
+A bejelentéshez csatolt régebbi 1.86.0 Szövegolvasó-naplóban `Can't copy a recycled bitmap` összeomlás szerepelt. A jelenlegi forrásban is fennállt az élettartamhiba; a legutolsó képkocka cseréjét és másolását zárolással, helyes újrahasznosítási sorrenddel javítottuk. Debug build sikeres, készülékes kamera-/képernyőolvasó-próba még szükséges.
+
+A „tesco 4” panasz pontos tárgya nem egyértelmű. A Tesco oldala erről a gépről HTTP 403-at ad; a bejelentőtől pontos lépést és hibaüzenetet kértünk. A két kész javítás helyi, GitHubra nem került, nincs új kiadás. A 2026-10-05-i debug APK: `app/build/outputs/apk/debug/SuperDL-1.87.0-debug.apk`.
+
+### 2026-10-05 esti Gmail-vizsgálat
+
+Géza pontosította, hogy az Android Akciós újság > Élelmiszerláncok > Tesco letöltése nem engedélyezett. A Tesco katalógusoldala közvetlen próbán is HTTP 403-at adott, az OfferStore már külön kezeli ezt a hozzáférés-megtagadást. Nincs igazolt helyi kódhiba/javítás; ezt válaszban közöltük. Kiss István a Redmi 6 beszélőóra néha hiányzó szótagjait jelezte (például 12 órakor), de nem világos, automatikus vagy menüből indított bemondás, illetve klip vagy TTS hang. Pontos időpontot és módot kértünk, spekulatív javítás nem történt. A Redmi 14 korlátozott engedélyek megadása korábban lefagyást okozott nála; újabb kísérletet nem kértünk.
+
+### 2026-10-06 – helyi debug: teljes értesítési/programhang-választás
+
+A korábbi hat beépített `AlertSoundPreset` helyett az SMS, e-mail és egyéb értesítések a `RingtonePickerActivity` akadálymentes rendszerértesítési hanglistáját nyitják. A program-, gyógyszer- és ébresztő-emlékeztetőknél a rendszer értesítési, ébresztő- és csengőhangjai együtt választhatók. A `Notifications` mappa MediaStore-ban látható hangjai akkor is bekerülnek az értesítési listába, ha a rendszer nem jelölte őket értesítési hangnak; a régi beépített SuperDL-hangok külön választási pontból továbbra is elérhetők. A választott URI és cím kategóriánként tárolódik, és a tényleges egyszeri/ismétlődő lejátszás is azt használja. A korábbi beállítások változatlanul működnek, amíg a felhasználó új hangot nem választ.
+
+Ellenőrzés: `:app:testDebugUnitTest :app:assembleDebug` sikeres, `git diff --check` tiszta. A csatlakoztatott Armor 24 debug alkalmazását `adb install -r` sikeresen frissítettük. A készülék `Notifications` mappájában három hang látható (`firework`, két `viber_message`), mindhárom MediaStore rekordként `is_notification=1` státuszú. Képernyőolvasós, hangminőségi és emlékeztető-életciklus próba még szükséges. Nincs GitHub push vagy éles kiadás.
+
+### 2026-10-07 – helyi debug: SMS hang a készülék hangszóróján
+Az SMS értesítőhangja külön MediaPlayer útvonalon a beépített hangszórót kéri akkor is, ha headset csatlakozik. A beépített SuperDL SMS-hangsor AudioTrackkel ugyanezt kéri. A többi értesítési hang és a beszéd routingja változatlan. Android 9+ rendszeren a MediaPlayer.setPreferredDevice használatos; az Android nem garantálja a tényleges útvonalat, ezért valódi vezetékes és Bluetooth-headsetes SMS-próba szükséges. A 2026-10-07-i :app:testDebugUnitTest és :app:assembleDebug sikeres, adb install -r sikeres az Armor 24-en; első telepítési idő megmaradt. Csak debug, nincs GitHub push vagy éles kiadás.
