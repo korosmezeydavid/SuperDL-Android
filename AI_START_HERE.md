@@ -1,5 +1,17 @@
 # SuperDL — OLVASD EL ELŐSZÖR (AI asszisztensnek)
 
+> **2026-10-09: KIADVA – Android 1.88.0 (versionCode 156).**
+> Forráscommit: `1699db8`; GitHub release: https://github.com/korosmezeydavid/SuperDL-Android/releases/tag/v1.88.0
+> A `SuperDL.apk` és a verziózott APK SHA-256 értéke:
+> `59021ba353c1cf950c52ea366c236e7fd14b2fd33cf0c5f92151cfe3fd89efcb`.
+> Az előző kiadással azonos aláíró tanúsítványt ellenőriztük; 134 egységteszt
+> sikeres, az `assembleRelease` sikeres. A mobil frissítésjelző `mobil`
+> ága 1.88.0-ra frissült (`bbcc540`). A telefon a végső ellenőrzéskor nem
+> jelent meg ADB-n, ezért a vezetékes/Bluetooth-headsetes SMS- és beszélőóra-
+> hangútvonal, valamint a képernyőolvasós használat készülékes próbája még
+> szükséges. A „Soron következő gyógyszerek / Már bevettem” továbbra is
+> csak a debug változatban érhető el, a nyilvános 1.88.0-ban nincs benne.
+
 > **2026-10-07: HELYI DEBUG – telefonos Gmail alkalmazásjelszó bevitel, telepítve.**
 > Az e-mail küldő beállításában a jelszóhoz külön, gesztusokkal bejárható
 > választó készült: vágólapról beillesztés, a telefonon lévő szövegfájl
