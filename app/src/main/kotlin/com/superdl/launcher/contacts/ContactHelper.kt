@@ -153,6 +153,10 @@ object ContactHelper {
         emptyList()
     }
 
+    /** Szinkronhoz: hiba esetén ne írjuk felül üres listával a mentett névjegyeket. */
+    fun listAllWithPhoneForSync(context: Context, limit: Int = 500): List<ContactMatch> =
+        listAllWithPhoneUnsafe(context, limit)
+
     private fun listAllWithPhoneUnsafe(context: Context, limit: Int): List<ContactMatch> {
         val results = linkedMapOf<String, ContactMatch>()
         val projection = arrayOf(
@@ -160,13 +164,14 @@ object ContactHelper {
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
             ContactsContract.CommonDataKinds.Phone.NUMBER
         )
-        context.contentResolver.query(
+        val cursor = context.contentResolver.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
             projection,
             null,
             null,
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
-        )?.use { cursor ->
+        ) ?: throw IllegalStateException("A névjegyszolgáltató nem adott választ")
+        cursor.use { cursor ->
             val idIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
             val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
             val phoneIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)

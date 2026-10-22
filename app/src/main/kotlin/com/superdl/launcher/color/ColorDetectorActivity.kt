@@ -24,6 +24,7 @@ import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 @ExperimentalGetImage
@@ -35,6 +36,7 @@ class ColorDetectorActivity : AppCompatActivity() {
     private lateinit var gestureListener: SwipeGestureListener
     private lateinit var cameraExecutor: ExecutorService
     private var imageAnalysis: ImageAnalysis? = null
+    private val exitRequested = AtomicBoolean(false)
 
     private val lastUiUpdate = AtomicLong(0L)
     private var lastSpokenColor: String? = null
@@ -140,9 +142,10 @@ class ColorDetectorActivity : AppCompatActivity() {
     }
 
     private fun finishDetector() {
+        if (!exitRequested.compareAndSet(false, true)) return
+        imageAnalysis?.clearAnalyzer()
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speak("Színfelismerő leállítva.")
-        finish()
+        tts.speakThen("Színfelismerő leállítva.") { finish() }
     }
 
     private fun hasCameraPermission(): Boolean =

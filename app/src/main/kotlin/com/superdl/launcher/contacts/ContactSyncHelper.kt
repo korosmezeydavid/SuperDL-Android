@@ -52,7 +52,7 @@ object ContactSyncHelper {
             return SyncResult(0, System.currentTimeMillis(), 0)
         }
         val googleTriggered = requestGoogleContactsSync(appContext)
-        val contacts = ContactHelper.listAllWithPhone(appContext)
+        val contacts = ContactHelper.listAllWithPhoneForSync(appContext)
         val syncedAt = System.currentTimeMillis()
         ContactStore.save(appContext, contacts, syncedAt)
         Log.i(TAG, "Synced ${contacts.size} contacts, googleAccounts=$googleTriggered")

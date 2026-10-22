@@ -60,6 +60,7 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     /** Automatikus lámpa sötétben — lásd camera/AutoTorchController. */
     private val autoTorch = com.superdl.launcher.camera.AutoTorchController()
     private var lastBackPressAt = 0L
+    private var exitRequested = false
 
     // Egyesített mód: megnyitáskor pillanatkép ("Mi van előttem?"), a
     // folyamatos figyelés (régi Kitekintő) le söpréssel kapcsolható be-ki.
@@ -619,6 +620,8 @@ class EnvironmentScannerActivity : AppCompatActivity() {
     }
 
     private fun finishScanner() {
+        if (exitRequested) return
+        exitRequested = true
         scanning.set(false)
         guidance.stop()
         sounds.play(SoundType.SWIPE_LEFT)
@@ -657,8 +660,8 @@ class EnvironmentScannerActivity : AppCompatActivity() {
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.env_scanner_permission_denied))
-                tts.runWhenReady { tts.speak(getString(R.string.env_scanner_permission_denied)) }
-                finish()
+                exitRequested = true
+                tts.speakThen(getString(R.string.env_scanner_permission_denied)) { finish() }
             }
         }
     }

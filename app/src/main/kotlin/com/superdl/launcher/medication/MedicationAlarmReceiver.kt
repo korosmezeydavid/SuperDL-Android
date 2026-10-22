@@ -104,7 +104,10 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
         try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             pm.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                // MIÉRT: az ACQUIRE_CAUSES_WAKEUP nem kombinálható PARTIAL_WAKE_LOCK-kal.
+                // A képernyőt a MedicationAlertActivity turnScreenOn beállítása ébreszti;
+                // itt csak a CPU-t tartjuk ébren, amíg a jelzés elindul.
+                PowerManager.PARTIAL_WAKE_LOCK,
                 "SuperDL:MedicationAlarm"
             ).apply {
                 setReferenceCounted(false)

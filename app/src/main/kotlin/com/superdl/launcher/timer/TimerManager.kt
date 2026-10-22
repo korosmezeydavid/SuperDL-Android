@@ -3,13 +3,11 @@ package com.superdl.launcher.timer
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.superdl.launcher.patrol.PatrolAnnouncer
 
 object TimerManager {
 
     fun isRunning(context: Context): Boolean {
-        val session = TimerStore.getActiveSession(context) ?: return false
-        return !session.isFinished()
+        return TimerStore.getActiveSession(context) != null
     }
 
     fun start(context: Context, timer: TimerEntry) {
@@ -34,9 +32,7 @@ object TimerManager {
     fun resumeIfNeeded(context: Context) {
         val session = TimerStore.getActiveSession(context) ?: return
         if (session.isFinished()) {
-            PatrolAnnouncer.announce(context, TimerSpeech.speakFinished(session.label), critical = true) {
-                TimerStore.clearActiveSession(context)
-            }
+            startService(context)
             return
         }
         startService(context)

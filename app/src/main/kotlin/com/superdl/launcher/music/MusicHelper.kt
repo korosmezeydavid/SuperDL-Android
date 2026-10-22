@@ -48,31 +48,23 @@ object MusicHelper {
         }
         val all = mutableListOf<Pair<MusicTrack, String>>() // track + relatív útvonal (rendezéshez)
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
+        val projection = mutableListOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.IS_MUSIC
-        )
-        val selection = buildString {
-            append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
-            append(" AND ${MediaStore.Audio.Media.DURATION} > 30000")
-            // Amit a rendszer maga jelölt meg: podcast mindig, hangoskönyv
-            // Android 10-től (a régebbi adatbázisban nincs ilyen oszlop).
-            //
-            // AZ "IS NULL" RÉSZ NEM DÍSZ. Ahol az oszlop üres (márpedig
-            // előfordul), ott a puszta "= 0" HAMIS lenne, és a szám némán
-            // kimaradna a listából — pont az a hiba, amit egyszer már
-            // orvosoltunk a darabszám-korláttal.
-            append(" AND (${MediaStore.Audio.Media.IS_PODCAST} IS NULL")
-            append(" OR ${MediaStore.Audio.Media.IS_PODCAST} = 0)")
+            MediaStore.Audio.Media.IS_MUSIC,
+            MediaStore.Audio.Media.IS_PODCAST
+        ).apply {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                append(" AND (${MediaStore.Audio.Media.IS_AUDIOBOOK} IS NULL")
-                append(" OR ${MediaStore.Audio.Media.IS_AUDIOBOOK} = 0)")
+                add(MediaStore.Audio.Media.IS_AUDIOBOOK)
+                add(MediaStore.Audio.Media.RELATIVE_PATH)
             }
-        }
+        }.toTypedArray()
+        // A besorolást a lekérdezés UTÁN döntjük el: a Music mappa felülírja
+        // a rendszer téves „hangoskönyv / podcast / nem zene” jelölését.
+        val selection = "${MediaStore.Audio.Media.DURATION} > 30000"
         val sort = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         queryTracks(context, collection, projection, selection, sort)?.use { cursor ->
@@ -81,12 +73,19 @@ object MusicHelper {
             val artistIdx = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
             val durationIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
             val dataIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+            val relativeIdx = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+            val musicIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_MUSIC)
+            val podcastIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_PODCAST)
+            val audiobookIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_AUDIOBOOK)
             while (cursor.moveToNext() && all.size < limit) {
                 val id = cursor.getLong(idIdx)
                 val title = cursor.getString(titleIdx)?.trim().orEmpty()
                 if (title.isBlank()) continue
-                val path = if (dataIdx >= 0) cursor.getString(dataIdx)?.lowercase().orEmpty() else ""
-                if (isBookMaterial(path, bookFolders, musicRoot)) continue
+                val path = mediaPath(cursor, dataIdx, relativeIdx)
+                if (!isMusicCandidate(path, musicRoot, bookFolders,
+                        musicIdx >= 0 && cursor.getInt(musicIdx) != 0,
+                        podcastIdx >= 0 && cursor.getInt(podcastIdx) != 0,
+                        audiobookIdx >= 0 && cursor.getInt(audiobookIdx) != 0)) continue
                 val uri = Uri.withAppendedPath(collection, id.toString())
                 val track = MusicTrack(
                     id = id,
@@ -142,10 +141,16 @@ object MusicHelper {
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.DATE_ADDED
-        )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0" +
-            " AND ${MediaStore.Audio.Media.DURATION} > 30000"
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.IS_MUSIC,
+            MediaStore.Audio.Media.IS_PODCAST
+        ).toMutableList().apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                add(MediaStore.Audio.Media.IS_AUDIOBOOK)
+                add(MediaStore.Audio.Media.RELATIVE_PATH)
+            }
+        }.toTypedArray()
+        val selection = "${MediaStore.Audio.Media.DURATION} > 30000"
         val sort = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
         val ki = mutableListOf<MusicTrack>()
         queryTracks(context, collection, projection, selection, sort)?.use { cursor ->
@@ -154,12 +159,18 @@ object MusicHelper {
             val artistIdx = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
             val durationIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
             val dataIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+            val relativeIdx = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+            val musicIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_MUSIC)
+            val podcastIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_PODCAST)
+            val audiobookIdx = cursor.getColumnIndex(MediaStore.Audio.Media.IS_AUDIOBOOK)
             while (cursor.moveToNext() && ki.size < limit) {
                 val title = cursor.getString(titleIdx)?.trim().orEmpty()
                 if (title.isBlank()) continue
-                val path =
-                    if (dataIdx >= 0) cursor.getString(dataIdx)?.lowercase().orEmpty() else ""
-                if (isBookMaterial(path, bookFolders, musicRoot)) continue
+                val path = mediaPath(cursor, dataIdx, relativeIdx)
+                if (!isMusicCandidate(path, musicRoot, bookFolders,
+                        musicIdx >= 0 && cursor.getInt(musicIdx) != 0,
+                        podcastIdx >= 0 && cursor.getInt(podcastIdx) != 0,
+                        audiobookIdx >= 0 && cursor.getInt(audiobookIdx) != 0)) continue
                 val id = cursor.getLong(idIdx)
                 ki.add(
                     MusicTrack(
@@ -255,8 +266,32 @@ object MusicHelper {
         musicRoot: String
     ): Boolean {
         if (path.isBlank()) return false
-        if (musicRoot.isNotEmpty() && path.startsWith(musicRoot)) return false
+        if (isInMusicFolder(path, musicRoot)) return false
         if (bookFolders.any { path.startsWith(it) }) return true
         return BOOK_HINTS.any { path.contains(it) }
+    }
+
+    private fun isInMusicFolder(path: String, musicRoot: String): Boolean =
+        (musicRoot.isNotEmpty() && path.startsWith(musicRoot)) || path.contains("/music/")
+
+    /** A mappa a döntő, a médiatár jelölése csak az egyéb helyeken számít. */
+    internal fun isMusicCandidate(
+        path: String,
+        musicRoot: String,
+        bookFolders: List<String>,
+        isMusic: Boolean,
+        isPodcast: Boolean,
+        isAudiobook: Boolean
+    ): Boolean {
+        if (isBookMaterial(path, bookFolders, musicRoot)) return false
+        if (isInMusicFolder(path, musicRoot)) return true
+        return isMusic && !isPodcast && !isAudiobook
+    }
+
+    private fun mediaPath(cursor: android.database.Cursor, dataIdx: Int, relativeIdx: Int): String {
+        val absolute = if (dataIdx >= 0) cursor.getString(dataIdx)?.lowercase().orEmpty() else ""
+        if (absolute.isNotBlank()) return absolute
+        val relative = if (relativeIdx >= 0) cursor.getString(relativeIdx)?.lowercase().orEmpty() else ""
+        return if (relative.isBlank()) "" else "/" + relative.trimStart('/')
     }
 }

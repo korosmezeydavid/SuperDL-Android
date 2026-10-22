@@ -952,6 +952,29 @@ sealed class AppFlow {
         val index: Int
     ) : AppFlow()
 
+    object TransitWatchLoading : AppFlow()
+    data class TransitWatchSearchChoice(val index: Int = 0) : AppFlow()
+    data class TransitWatchRouteBrowse(
+        val routes: List<com.superdl.launcher.transit.GtfsRoute>, val index: Int
+    ) : AppFlow()
+    data class TransitWatchPatternBrowse(
+        val patterns: List<com.superdl.launcher.transit.GtfsTripStopSequence>, val index: Int
+    ) : AppFlow()
+    data class TransitWatchBoardingBrowse(
+        val sequence: com.superdl.launcher.transit.GtfsTripStopSequence, val index: Int
+    ) : AppFlow()
+    data class TransitWatchDestinationBrowse(
+        val sequence: com.superdl.launcher.transit.GtfsTripStopSequence,
+        val boardingIndex: Int, val index: Int
+    ) : AppFlow()
+    data class TransitWatchConfirm(
+        val sequence: com.superdl.launcher.transit.GtfsTripStopSequence,
+        val boardingIndex: Int, val destinationIndex: Int
+    ) : AppFlow()
+    data class TransitWatchActive(val actionIndex: Int = 0) : AppFlow()
+    object TransitWatchStopConfirm : AppFlow()
+    data class TransitWatchCorrectionBrowse(val index: Int) : AppFlow()
+
     object TrainAwaitStation : AppFlow()
     data class TrainBrowse(
         val stations: List<com.superdl.launcher.train.TrainStation>,
@@ -1625,6 +1648,19 @@ sealed class AppFlow {
 
 
     object GpsRouteRecordingActive : AppFlow()
+
+    data class GpsRouteNoteChoice(
+        val fix: android.location.Location,
+        val generation: Long,
+        val capturedAtMs: Long,
+        val index: Int = 0
+    ) : AppFlow()
+
+    data class GpsRouteVoiceRecording(
+        val fix: android.location.Location,
+        val generation: Long,
+        val capturedAtMs: Long
+    ) : AppFlow()
 
     data class GpsRouteAwaitName(val route: com.superdl.launcher.route.GpsRouteRecording) : AppFlow()
 

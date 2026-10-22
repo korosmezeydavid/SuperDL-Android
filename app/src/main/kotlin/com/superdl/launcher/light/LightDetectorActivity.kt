@@ -25,6 +25,7 @@ import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 @ExperimentalGetImage
@@ -37,6 +38,7 @@ class LightDetectorActivity : AppCompatActivity() {
     private lateinit var gestureListener: SwipeGestureListener
     private lateinit var cameraExecutor: ExecutorService
     private var imageAnalysis: ImageAnalysis? = null
+    private val exitRequested = AtomicBoolean(false)
 
     private val tonePlayer = LightTonePlayer()
     private val lastUiUpdate = AtomicLong(0L)
@@ -149,9 +151,12 @@ class LightDetectorActivity : AppCompatActivity() {
     }
 
     private fun finishDetector() {
+        if (!exitRequested.compareAndSet(false, true)) return
+        detectorStarted = false
+        tonePlayer.stop()
+        imageAnalysis?.clearAnalyzer()
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speak("Fénydetektor leállítva.")
-        finish()
+        tts.speakThen("Fénydetektor leállítva.") { finish() }
     }
 
     private fun hasCameraPermission(): Boolean =

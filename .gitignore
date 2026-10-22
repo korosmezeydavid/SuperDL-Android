@@ -23,6 +23,7 @@ app/src/main/assets/ably_key.txt
 *.pem
 *.p12
 secrets.properties
+telegram.local.properties
 
 # --- Build-kimenetek es naplok ---
 *.apk

@@ -108,8 +108,8 @@ object GpsStreetAnnouncer {
     }
 
     fun introMessage(): String =
-        "Környezeti figyelő aktív. Utcaneveket és kereszteződéseket mondok be séta közben, " +
-            "mint a Voice Vista programban. A műveletek menüben ki-be kapcsolható."
+        "Környezeti figyelő aktív. Utcaneveket és kereszteződéseket mondok be séta közben. " +
+            "A műveletek menüben ki-be kapcsolható."
 
     private fun buildApproachMessage(intersection: StreetIntersection, threshold: Int): String =
         buildString {

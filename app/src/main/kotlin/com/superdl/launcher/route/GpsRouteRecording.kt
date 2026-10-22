@@ -1,6 +1,7 @@
 package com.superdl.launcher.route
 
 import android.location.Location
+import java.util.concurrent.ConcurrentHashMap
 
 enum class RouteEventType {
     START,
@@ -10,7 +11,9 @@ enum class RouteEventType {
     TURN_SLIGHT,
     U_TURN,
     CROSSING,
-    WAYPOINT
+    WAYPOINT,
+    /** A felvétel irányában érvényes, saját szövegű emlékeztető. */
+    NOTE
 }
 
 data class RoutePoint(
@@ -26,7 +29,8 @@ data class RouteEvent(
     val latitude: Double,
     val longitude: Double,
     val timestampMs: Long,
-    val label: String? = null
+    val label: String? = null,
+    val voiceNotePath: String? = null
 )
 
 data class GpsRouteRecording(
@@ -63,6 +67,9 @@ data class GpsRouteRecording(
 }
 
 object GpsRouteSession {
+    /** A helyfigyelő és a felület külön szálon használja a felvételt. */
+    val recordingLock = Any()
+
     @Volatile
     var isRecording: Boolean = false
 
@@ -76,6 +83,17 @@ object GpsRouteSession {
     var events: MutableList<RouteEvent> = mutableListOf()
 
     @Volatile
+    var lastRecordingLocation: Location? = null
+
+    /** A későn visszatérő diktálás ne írhasson bele egy következő felvételbe. */
+    @Volatile
+    var recordingGeneration: Long = 0L
+
+    /** Rövid hangjegyzet közben a rögzítő szolgáltatás nem beszélhet a mikrofonba. */
+    @Volatile
+    var isVoiceNoteRecording: Boolean = false
+
+    @Volatile
     var isGuiding: Boolean = false
 
     @Volatile
@@ -84,41 +102,33 @@ object GpsRouteSession {
     @Volatile
     var lastLocation: Location? = null
 
-    @Volatile
-    var lastAnnouncedEventIndex: Int = -1
+    /** A diktálás után mentett jelölő indexe nem feltétlenül követi az útvonal sorrendjét. */
+    val announcedEventIndices: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
-    @Volatile
-    var lastApproachThreshold: Int? = null
-
-    /** MIÉRT: a küszöb egy konkrét eseményhez tartozik; másik eseménynél újra kell kezdeni. */
-    @Volatile
-    var lastApproachEventIndex: Int = -1
-
-    @Volatile
-    var lastPointIndex: Int = -1
+    /** Egy pontra több esemény eshet; mindegyik közelítési állapota külön él. */
+    val approachThresholds: MutableMap<Int, Int> = ConcurrentHashMap()
 
     @Volatile
     var guidanceReversed: Boolean = false
 
-    @Volatile
-    var announcedReverseDirection: Boolean = false
-
     fun clearRecording() {
-        isRecording = false
-        recordingName = ""
-        points = mutableListOf()
-        events = mutableListOf()
+        synchronized(recordingLock) {
+            recordingGeneration++
+            isRecording = false
+            isVoiceNoteRecording = false
+            recordingName = ""
+            points = mutableListOf()
+            events = mutableListOf()
+            lastRecordingLocation = null
+        }
     }
 
     fun clearGuidance() {
         isGuiding = false
         activeRoute = null
         lastLocation = null
-        lastAnnouncedEventIndex = -1
-        lastApproachThreshold = null
-        lastApproachEventIndex = -1
-        lastPointIndex = -1
+        announcedEventIndices.clear()
+        approachThresholds.clear()
         guidanceReversed = false
-        announcedReverseDirection = false
     }
 }

@@ -857,8 +857,7 @@ class FaceCameraActivity : AppCompatActivity() {
                 } else {
                     sounds.play(SoundType.ACTION_ERROR)
                     setStatusText(getString(R.string.face_camera_permission_denied))
-                    tts.runWhenReady { tts.speak(getString(R.string.face_camera_permission_denied)) }
-                    finish()
+                    tts.speakThen(getString(R.string.face_camera_permission_denied)) { finish() }
                 }
             }
             REQ_AUDIO -> initializeCamera()

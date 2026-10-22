@@ -159,6 +159,7 @@ enum class MenuAction {
     TRANSIT_STOP,   // Megálló keresése felolvasással
     TRANSIT_FAVORITES, // Kedvenc megállók (Holabusz-szerű)
     TRANSIT_ROUTE,  // Útvonal tömegközlekedéssel felolvasással
+    TRANSIT_STOP_WATCH, // BKK megállófigyelő, kijelölt járat és cél
     TRAIN_NEARBY,        // Közeli vasútállomások indulási időkkel
     TRAIN_STATION_SEARCH, // Állomás keresése felolvasással
     TRAIN_FAVORITES,     // Kedvenc állomások indulási időkkel
@@ -183,6 +184,7 @@ enum class MenuAction {
     PATROL_NOTIFICATION_ALERT_TOGGLE, // Egyéb értesítés ki-be
     PATROL_TIME_ANNOUNCE_TOGGLE, // Idő bemondás ki-be
     PATROL_TIME_INTERVAL_CYCLE, // Idő bemondás gyakorisága
+    PATROL_CLOCK_VOICE_CYCLE, // Egész órás bemondás hangja
     PATROL_NIGHT_MODE_TOGGLE, // Éjszakai csend ki-be
     PATROL_NIGHT_START_SET, // Éjszakai csend kezdete
     PATROL_NIGHT_END_SET, // Éjszakai csend vége
@@ -278,6 +280,7 @@ enum class MenuAction {
     TIMER_LIST,      // Időzítők listája
     TIMER_START,     // Időzítő indítása
     TIMER_STOP,      // Aktív időzítő leállítása
+    TIMER_TONE,      // Időzítő lejárati hangja
     TIMER_EDIT,      // Időzítő módosítása
     TIMER_DELETE,    // Időzítő törlése
     DICTAPHONE_RECORD,   // Profi diktafon felvétel
@@ -417,6 +420,7 @@ enum class MenuAction {
     BOOK_TTS_RATE,    // Könyvolvasó: beszédsebesség
     BOOK_TTS_PITCH,   // Könyvolvasó: hangmagasság
     BOOK_TTS_STATUS,  // Könyvolvasó: hangbeállítás felolvasása
+    BOOK_READING_ANNOUNCEMENTS, // Automatikus haladásjelzés olvasás közben
     SR_TRAIN_FREE,   // Képernyőolvasó: szabad gyakorlás (tét nélkül)
     SR_TRAIN_LESSONS,// Képernyőolvasó: Elena tanárnő órái
     SR_TRAIN_EXAM,   // Képernyőolvasó: vizsga osztályzattal
@@ -438,6 +442,7 @@ enum class MenuAction {
     GAME_SLOT,                 // Félkarú rabló – nyerőgép
     GAME_MILLE_BORNES,         // Mille Bornes – ezer mérföld
     CHAT_OPEN,                 // Csevejcenter – valós idejű csevegő (Ably-szoba)
+    TELEGRAM_OPEN,             // Telegram kliens – csak helyi fejlesztői változat
     OFFERS_PENNY,              // Akciós újság: Penny
     OFFERS_ALDI,               // Akciós újság: Aldi
     OFFERS_SEARCH,             // Akciós újság: keresés minden boltban
@@ -532,6 +537,13 @@ object MenuTree {
             items = items.map { group ->
                 if (group.children.isEmpty()) group
                 else group.copy(children = removeDeep(group.children, "failure_test"))
+            }
+        }
+
+        if (!com.superdl.launcher.BuildConfig.FEATURE_TELEGRAM) {
+            items = items.map { group ->
+                if (group.children.isEmpty()) group
+                else group.copy(children = removeDeep(group.children, "telegram_accessible"))
             }
         }
 
@@ -776,6 +788,7 @@ object MenuTree {
                 MenuItem("email_sub_back", "Vissza", MenuAction.SUBMENU)
             )),
             MenuItem("csevej", "Csevejcenter – valós idejű csevegő", MenuAction.CHAT_OPEN),
+            MenuItem("telegram_accessible", "Telegram – akadálymentes próba", MenuAction.TELEGRAM_OPEN),
             MenuItem("sms_back", "Vissza a főmenübe", MenuAction.SUBMENU)
         )),
 
@@ -794,6 +807,7 @@ object MenuTree {
                 MenuItem("timer_list", "Időzítők listája", MenuAction.TIMER_LIST),
                 MenuItem("timer_start", "Időzítő indítása", MenuAction.TIMER_START),
                 MenuItem("timer_stop", "Aktív időzítő leállítása", MenuAction.TIMER_STOP),
+                MenuItem("timer_tone", "Lejárati hang választása", MenuAction.TIMER_TONE),
                 MenuItem("timer_edit", "Időzítő módosítása", MenuAction.TIMER_EDIT),
                 MenuItem("timer_delete", "Időzítő törlése", MenuAction.TIMER_DELETE),
                 MenuItem("clock_back", "Vissza", MenuAction.SUBMENU)
@@ -931,8 +945,9 @@ object MenuTree {
             MenuItem("book_folder_set", "Könyvmappa beállítása", MenuAction.BOOK_FOLDER_SET),
             MenuItem("book_folder_read", "Könyvmappa felolvasása", MenuAction.BOOK_FOLDER_READ),
             MenuItem("book_folder_clear", "Könyvmappa törlése", MenuAction.BOOK_FOLDER_CLEAR),
-            MenuItem("book_voice", "Felolvasó hangja", MenuAction.SUBMENU, listOf(
+            MenuItem("book_voice", "Könyvolvasó beállításai", MenuAction.SUBMENU, listOf(
                 MenuItem("book_tts_status", "Jelenlegi beállítás", MenuAction.BOOK_TTS_STATUS),
+                MenuItem("book_reading_announcements", "Automatikus haladásjelzés ki és be", MenuAction.BOOK_READING_ANNOUNCEMENTS),
                 MenuItem("book_tts_own", "Saját hang ki és be", MenuAction.BOOK_TTS_OWN),
                 MenuItem("book_tts_engine", "Beszédmotor választása", MenuAction.BOOK_TTS_ENGINE),
                 MenuItem("book_tts_rate", "Beszédsebesség", MenuAction.BOOK_TTS_RATE),
@@ -1433,6 +1448,7 @@ object MenuTree {
                 MenuItem("patrol_notification", "Egyéb értesítés ki-be", MenuAction.PATROL_NOTIFICATION_ALERT_TOGGLE),
                 MenuItem("patrol_time", "Idő bemondás ki-be", MenuAction.PATROL_TIME_ANNOUNCE_TOGGLE),
                 MenuItem("patrol_interval", "Idő bemondás gyakorisága", MenuAction.PATROL_TIME_INTERVAL_CYCLE),
+                MenuItem("patrol_clock_voice", "Óra hangja: Elena, Lilly vagy Martin", MenuAction.PATROL_CLOCK_VOICE_CYCLE),
                 MenuItem("patrol_night", "Éjszakai csend ki-be", MenuAction.PATROL_NIGHT_MODE_TOGGLE),
                 MenuItem("patrol_night_start", "Éjszakai csend kezdete", MenuAction.PATROL_NIGHT_START_SET),
                 MenuItem("patrol_night_end", "Éjszakai csend vége", MenuAction.PATROL_NIGHT_END_SET),

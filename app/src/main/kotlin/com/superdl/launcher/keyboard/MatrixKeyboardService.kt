@@ -52,7 +52,10 @@ class MatrixKeyboardService : InputMethodService(), MatrixKeypadView.Listener {
         } catch (_: Exception) {
             null
         }
-        return MatrixKeypadView(this, this).also { view = it }
+        return MatrixKeypadView(this, this).also {
+            view = it
+            it.setEditorInputType(currentInputEditorInfo?.inputType ?: android.text.InputType.TYPE_CLASS_TEXT)
+        }
     }
 
     /**
@@ -93,10 +96,17 @@ class MatrixKeyboardService : InputMethodService(), MatrixKeypadView.Listener {
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        val inputType = info?.inputType ?: android.text.InputType.TYPE_CLASS_TEXT
+        val mode = MatrixInputLayout.modeFor(inputType)
+        view?.setEditorInputType(inputType)
         if (!restarting) {
             // A TÁJÉKOZTATÓ KIKAPCSOLHATÓ („Mennyit magyarázzon"), a név nem.
             tts?.speak(
-                if (com.superdl.launcher.tts.VerbosityPrefs.isKeyboardIntro(this)) {
+                if (mode == MatrixInputMode.PHONE) {
+                    "Mátrix telefonbillentyűzet. A számok azonnal beírhatók; a csillagnál először a plusz jel van."
+                } else if (mode == MatrixInputMode.NUMBER) {
+                    "Mátrix szám-billentyűzet. A számok azonnal beírhatók."
+                } else if (com.superdl.launcher.tts.VerbosityPrefs.isKeyboardIntro(this)) {
                     "Mátrix billentyűzet. Tedd le az ujjad, csúsztasd a betű felé, " +
                         "és engedd fel a beíráshoz."
                 } else {

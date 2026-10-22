@@ -49,6 +49,7 @@ class CardRecognizerActivity : AppCompatActivity() {
     private val debouncer = LocationAnnounceDebouncer(cooldownMs = 4_500L)
 
     private val scanning = AtomicBoolean(false)
+    private val exitRequested = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
     private var imageAnalysis: ImageAnalysis? = null
@@ -149,6 +150,7 @@ class CardRecognizerActivity : AppCompatActivity() {
     }
 
     private fun finishRecognizer() {
+        if (!exitRequested.compareAndSet(false, true)) return
         scanning.set(false)
         debouncer.reset()
         sounds.play(SoundType.SWIPE_LEFT)
@@ -177,8 +179,7 @@ class CardRecognizerActivity : AppCompatActivity() {
                 initializeRecognizer()
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
-                tts.runWhenReady { tts.speak(getString(R.string.card_recognizer_permission_denied)) }
-                finish()
+                tts.speakThen(getString(R.string.card_recognizer_permission_denied)) { finish() }
             }
         }
     }

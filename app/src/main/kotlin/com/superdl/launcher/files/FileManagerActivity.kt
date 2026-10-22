@@ -138,7 +138,8 @@ class FileManagerActivity : AppCompatActivity() {
             context = this,
             onSwipeUp = { sounds.play(SoundType.SWIPE_UP); navigate(-1) },
             onSwipeDown = { sounds.play(SoundType.SWIPE_DOWN); navigate(+1) },
-            onSwipeRight = { sounds.play(SoundType.SWIPE_RIGHT); activate() },
+            onSwipeRight = { sounds.play(SoundType.SWIPE_RIGHT);
+                if (!voiceInput.finishDictation()) activate() },
             onSwipeLeft = { sounds.play(SoundType.SWIPE_LEFT); goBack() }
         )
 

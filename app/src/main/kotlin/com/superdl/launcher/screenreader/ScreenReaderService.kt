@@ -919,6 +919,9 @@ class ScreenReaderService : AccessibilityService() {
         // igen, balra megszakítás. Ez mindent megelőz — ha épp fut valami a
         // kezed helyett, a kiszállásnak kell a legkönnyebbnek lennie.
         if (handleRouteGesture(gestureId)) return true
+        if (physicalGestureId == GESTURE_SWIPE_RIGHT &&
+            !ScreenReaderCallControl.isRinging(this) &&
+            com.superdl.launcher.voice.VoiceInput.finishActiveDictation()) return true
         // MIÉRT: CSÖRGŐ HÍVÁSNÁL a jobbra/balra söprés a hívásé (fogadás,
         // elutasítás), nem az állításé — ezért előbb kilépünk az állításból,
         // és a lenti szokásos ág kezeli a hívást.

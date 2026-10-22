@@ -9,6 +9,19 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+// Development credentials stay in a git-ignored local file. Release builds never embed them.
+def telegramPropertiesFile = rootProject.file('telegram.local.properties')
+def telegramProperties = new Properties()
+if (telegramPropertiesFile.exists()) {
+    telegramProperties.load(new FileInputStream(telegramPropertiesFile))
+}
+def telegramApiId = (telegramProperties.getProperty('telegram.api_id') ?: '').trim()
+def telegramApiHash = (telegramProperties.getProperty('telegram.api_hash') ?: '').trim()
+def telegramCredentialsValid = telegramApiId ==~ /[1-9][0-9]{0,9}/ &&
+        telegramApiId.toLong() <= Integer.MAX_VALUE &&
+        telegramApiHash ==~ /[0-9a-fA-F]{32}/
+def telegramNativePresent = file('src/debug/jniLibs/arm64-v8a/libtdjsonjava.so').exists()
+
 android {
     namespace 'com.superdl.launcher'
     compileSdk 34
@@ -17,8 +30,8 @@ android {
         applicationId "com.superdl.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 156
-        versionName "1.88.0"
+        versionCode 157
+        versionName "1.89.0"
     }
 
     signingConfigs {
@@ -53,6 +66,9 @@ android {
             buildConfigField "boolean", "FEATURE_MONEY_RECOGNIZER", "true"
             // A HIBATŰRÉS PRÓBÁJA a fejlesztői és a TESZT változatban látszik.
             buildConfigField "boolean", "FEATURE_FAILURE_TEST", "true"
+            buildConfigField "boolean", "FEATURE_TELEGRAM", "${telegramCredentialsValid && telegramNativePresent}"
+            buildConfigField "int", "TELEGRAM_API_ID", telegramCredentialsValid ? telegramApiId : '0'
+            buildConfigField "String", "TELEGRAM_API_HASH", telegramCredentialsValid ? "\"${telegramApiHash}\"" : '""'
         }
         release {
             minifyEnabled true
@@ -66,6 +82,9 @@ android {
             // hasznos, hogy a tesztelők is meggyőződhessenek a hibatűrésről —
             // a teszt-csomagot ezért a fejlesztői változatból adjuk ki.
             buildConfigField "boolean", "FEATURE_FAILURE_TEST", "false"
+            buildConfigField "boolean", "FEATURE_TELEGRAM", "false"
+            buildConfigField "int", "TELEGRAM_API_ID", "0"
+            buildConfigField "String", "TELEGRAM_API_HASH", '""'
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release

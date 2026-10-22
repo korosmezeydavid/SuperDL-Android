@@ -79,6 +79,7 @@ class TextSearchActivity : AppCompatActivity() {
     private var centeredSince = 0L
     private var lastSpokenAt = 0L
     private var lastBackPressAt = 0L
+    private var exitRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,8 +134,8 @@ class TextSearchActivity : AppCompatActivity() {
         })
 
         if (query.isBlank()) {
-            tts.runWhenReady { tts.speak("Nem tudom, mit keressek. Kilépek.") }
-            finish()
+            exitRequested = true
+            tts.speakThen("Nem tudom, mit keressek. Kilépek.") { finish() }
             return
         }
 
@@ -298,6 +299,8 @@ class TextSearchActivity : AppCompatActivity() {
     }
 
     private fun finishSearch() {
+        if (exitRequested) return
+        exitRequested = true
         scanning.set(false)
         guidance.stop()
         sounds.play(SoundType.SWIPE_LEFT)
@@ -333,10 +336,8 @@ class TextSearchActivity : AppCompatActivity() {
                 startSearch()
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
-                tts.runWhenReady {
-                    tts.speak("Kamera engedély nélkül nem tudok szöveget keresni.")
-                }
-                finish()
+                exitRequested = true
+                tts.speakThen("Kamera engedély nélkül nem tudok szöveget keresni.") { finish() }
             }
         }
     }

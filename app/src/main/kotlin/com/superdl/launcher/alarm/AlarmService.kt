@@ -49,6 +49,7 @@ class AlarmService : Service() {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var currentVolume = 0f
+    private var originalAlarmStreamVolume: Int? = null
 
     private val fadeRunnable = object : Runnable {
         override fun run() {
@@ -126,7 +127,25 @@ class AlarmService : Service() {
         try {
             val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            if (originalAlarmStreamVolume == null) {
+                originalAlarmStreamVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            }
             am.setStreamVolume(AudioManager.STREAM_ALARM, max, 0)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun restoreAlarmStreamVolume() {
+        val original = originalAlarmStreamVolume ?: return
+        originalAlarmStreamVolume = null
+        try {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            // Ha a felhasználó közben maga állított a hangerőn, azt ne írjuk felül.
+            if (am.getStreamVolume(AudioManager.STREAM_ALARM) ==
+                am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            ) {
+                am.setStreamVolume(AudioManager.STREAM_ALARM, original, 0)
+            }
         } catch (_: Exception) {
         }
     }
@@ -191,6 +210,7 @@ class AlarmService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(autoStopRunnable)
         stopToneAndVibration()
+        restoreAlarmStreamVolume()
         super.onDestroy()
     }
 }

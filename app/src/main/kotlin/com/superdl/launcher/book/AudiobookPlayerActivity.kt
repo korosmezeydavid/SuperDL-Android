@@ -18,6 +18,7 @@ import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Vak-barát HANGOSKÖNYV-lejátszó (a zenelejátszó mintájára). Egy mappányi
@@ -37,6 +38,7 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     private lateinit var tts: TtsManager
     private lateinit var sounds: SoundFeedback
     private lateinit var gestureListener: SwipeGestureListener
+    private val exitRequested = AtomicBoolean(false)
 
     private var mediaPlayer: MediaPlayer? = null
     private var paused = false
@@ -356,11 +358,11 @@ class AudiobookPlayerActivity : AppCompatActivity() {
     }
 
     private fun stopAndFinish(message: String) {
+        if (!exitRequested.compareAndSet(false, true)) return
         saveResume()
         releasePlayer()
         releaseMediaSession()
-        tts.speak(message)
-        finish()
+        tts.speakThen(message) { finish() }
     }
 
     // ==================== audio focus ====================

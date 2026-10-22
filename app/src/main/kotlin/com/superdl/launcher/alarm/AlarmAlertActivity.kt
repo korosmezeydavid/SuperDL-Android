@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.superdl.launcher.R
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Az ébresztő megszólalásakor felugró képernyő (a hangot az AlarmService adja).
@@ -28,6 +29,7 @@ class AlarmAlertActivity : AppCompatActivity() {
     private var label = "Ébresztő"
     private var toneUri: String? = null
     private var snoozeEnabled = true
+    private val actionRequested = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,16 +65,19 @@ class AlarmAlertActivity : AppCompatActivity() {
     }
 
     private fun announce() {
+        if (actionRequested.get()) return
         tts.speak("$label. Ébresztő. ${if (snoozeEnabled) "Jobbra szundi, balra leállítás." else "Balra leállítás."}")
     }
 
     private fun snooze() {
+        if (!actionRequested.compareAndSet(false, true)) return
         stopAlarmSound()
         AlarmScheduler.scheduleSnooze(this, alarmId, label, toneUri, snoozeEnabled)
         tts.speakThen("Szundi. 10 perc múlva újra.") { finish() }
     }
 
     private fun dismissAlarm() {
+        if (!actionRequested.compareAndSet(false, true)) return
         stopAlarmSound()
         // Egyszeri ébresztőnél kikapcsoljuk; ismétlődőnél a következő alkalom már be van ütemezve.
         AlarmScheduler.onAlarmDismissed(this, alarmId)

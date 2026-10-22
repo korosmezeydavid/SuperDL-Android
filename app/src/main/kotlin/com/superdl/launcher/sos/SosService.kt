@@ -163,14 +163,15 @@ class SosService : Service() {
 
         // 2. A NÉGY SMS. Ez az első valódi tett — a hívás csak ezután jön.
         val message = SosMessage.build(firstFix)
-        val sent = broadcastSms(numbers, message)
-        notify("Értesítés elküldve $sent címzettnek")
+        val queued = broadcastSms(numbers, message)
+        notify(if (queued > 0) "Vészjelzés küldése elindítva $queued címzettnek"
+            else "Vészjelző SMS küldése nem indult el")
         say(
-            if (sent > 0) {
-                "$sent üzenet elküldve a helyzeteddel. Most hívom a számokat. " +
+            if (queued > 0) {
+                "$queued címzettnek elindítottam a helyzetet tartalmazó üzenet küldését. A kézbesítést még nem tudom igazolni. Most hívom a számokat. " +
                     "Az S.O.S. leállításához indítsd el újra az S.O.S.-t."
             } else {
-                "Az üzeneteket nem sikerült elküldeni. Hívom a számokat."
+                "Az üzenetek küldését nem sikerült elindítani. Hívom a számokat."
             }
         )
 

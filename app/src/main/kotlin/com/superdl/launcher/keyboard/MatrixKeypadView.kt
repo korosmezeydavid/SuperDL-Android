@@ -66,6 +66,20 @@ class MatrixKeypadView(
     var textBankMode = false
         private set
 
+    private var inputMode = MatrixInputMode.LETTERS
+    private var editorInputType = android.text.InputType.TYPE_CLASS_TEXT
+
+    fun setEditorInputType(inputType: Int) {
+        editorInputType = inputType
+        inputMode = MatrixInputLayout.modeFor(inputType)
+        stopCycling()
+        currentKey = null
+        charIndex = 0
+    }
+
+    private fun activeChars(key: MatrixKey): List<Char> =
+        MatrixInputLayout.chars(key, inputMode, editorInputType)
+
     fun setTextBank(on: Boolean) {
         textBankMode = on
         stopCycling()
@@ -107,9 +121,10 @@ class MatrixKeypadView(
     private val cycleRunnable = object : Runnable {
         override fun run() {
             val key = currentKey ?: return
-            if (key.chars.isEmpty()) return
-            charIndex = (charIndex + 1) % key.chars.size
-            listener.onCharCycled(key.chars[charIndex])
+            val chars = activeChars(key)
+            if (chars.size < 2) return
+            charIndex = (charIndex + 1) % chars.size
+            listener.onCharCycled(chars[charIndex])
             handler.postDelayed(this, cycleMs)
         }
     }
@@ -221,9 +236,10 @@ class MatrixKeypadView(
                     // SZÖVEGTÁR MÓDBAN a felengedés a mentett szöveget illeszti be
                     // (vagy üres helynél felajánlja a feltöltést).
                     textBankMode -> listener.onTextBankKeyReleased(key)
-                    key == MatrixKey.KEY_HASH -> listener.onModeKeyReleased()
-                    key.chars.isEmpty() -> listener.onReleasedWithoutChar()
-                    else -> listener.onCharCommitted(key.chars[charIndex])
+                    key == MatrixKey.KEY_HASH && inputMode == MatrixInputMode.LETTERS ->
+                        listener.onModeKeyReleased()
+                    activeChars(key).isEmpty() -> listener.onReleasedWithoutChar()
+                    else -> listener.onCharCommitted(activeChars(key)[charIndex])
                 }
                 currentKey = null
                 charIndex = 0
@@ -302,10 +318,11 @@ class MatrixKeypadView(
         // SZÖVEGTÁR MÓDBAN nincs pörgetés: a gomb egyetlen dolgot jelent,
         // a hozzá mentett szöveget. Azt a szolgáltatás mondja be.
         if (textBankMode) return
-        if (key.chars.isNotEmpty()) {
+        val chars = activeChars(key)
+        if (chars.isNotEmpty()) {
             // Az ELSŐ karakter azonnal elhangzik, a többi a pörgetéssel.
-            listener.onCharCycled(key.chars[0])
-            handler.postDelayed(cycleRunnable, cycleMs)
+            listener.onCharCycled(chars[0])
+            if (chars.size > 1) handler.postDelayed(cycleRunnable, cycleMs)
         }
     }
 

@@ -53,6 +53,7 @@ class CardTrainerActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val capturing = AtomicBoolean(false)
+    private val exitRequested = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastBufferFrameAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
@@ -89,7 +90,7 @@ class CardTrainerActivity : AppCompatActivity() {
             onSwipeDown = { sounds.play(SoundType.SWIPE_DOWN) },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
-                captureCurrentSide()
+                if (!voiceInput.finishDictation()) captureCurrentSide()
             },
             onSwipeLeft = { finishTrainer() }
         )
@@ -229,6 +230,7 @@ class CardTrainerActivity : AppCompatActivity() {
     }
 
     private fun saveCard(name: String) {
+        if (exitRequested.get()) return
         val profile = CardProfile(
             id = cardId,
             name = name.trim(),
@@ -244,18 +246,18 @@ class CardTrainerActivity : AppCompatActivity() {
             tts.speak(getString(R.string.card_trainer_save_error))
             return
         }
+        if (!exitRequested.compareAndSet(false, true)) return
         sounds.play(SoundType.ACTION_OK)
         val message = getString(R.string.card_trainer_saved, saved.name)
         setStatusText(message)
-        tts.speak(message)
-        finish()
+        tts.speakThen(message) { finish() }
     }
 
     private fun finishTrainer() {
+        if (!exitRequested.compareAndSet(false, true)) return
         voiceInput.cancel()
         sounds.play(SoundType.SWIPE_LEFT)
-        tts.speak(getString(R.string.card_trainer_exit))
-        finish()
+        tts.speakThen(getString(R.string.card_trainer_exit)) { finish() }
     }
 
     private fun setStatusText(text: String) {
@@ -286,8 +288,7 @@ class CardTrainerActivity : AppCompatActivity() {
                 initializeTrainer()
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
-                tts.runWhenReady { tts.speak(getString(R.string.card_trainer_permission_denied)) }
-                finish()
+                tts.speakThen(getString(R.string.card_trainer_permission_denied)) { finish() }
             }
         }
     }

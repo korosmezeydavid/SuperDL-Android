@@ -57,6 +57,7 @@ class CurrencyRecognizerActivity : ComponentActivity() {
 
     private var scanBeepPlayer: ScanBeepPlayer? = null
     private val scanning = AtomicBoolean(false)
+    private val exitRequested = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
@@ -196,14 +197,11 @@ class CurrencyRecognizerActivity : ComponentActivity() {
     }
 
     private fun finishRecognizer() {
+        if (!exitRequested.compareAndSet(false, true)) return
         scanning.set(false)
         viewModel.stopScanning()
         sounds.play(SoundType.SWIPE_LEFT)
-        // Gesztus-kilépés: speak + azonnali finish — NE speakThen { finish() }.
-        // MIÉRT: a speakThen a TTS BEFEJEZÉSE után hív finish-t; ha a user közben
-        // újra söpör, a még élő Activity újra lefuttatja, és a mondat 3-4x elhangzik.
-        tts.speak(getString(R.string.currency_exit))
-        finish()
+        tts.speakThen(getString(R.string.currency_exit)) { finish() }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -241,8 +239,7 @@ class CurrencyRecognizerActivity : ComponentActivity() {
                 initializeRecognizer()
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
-                tts.runWhenReady { tts.speak(getString(R.string.currency_permission_denied)) }
-                finish()
+                tts.speakThen(getString(R.string.currency_permission_denied)) { finish() }
             }
         }
     }

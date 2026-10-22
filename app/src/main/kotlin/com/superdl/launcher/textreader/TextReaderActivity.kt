@@ -50,6 +50,7 @@ class TextReaderActivity : AppCompatActivity() {
     private val changeDetector = TextChangeDetector()
     private val memoryFailureHandled = AtomicBoolean(false)
     private val scanning = AtomicBoolean(false)
+    private val exitRequested = AtomicBoolean(false)
     private val scanPaused = AtomicBoolean(false)
     private val lastFrameProcessedAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
@@ -392,6 +393,7 @@ class TextReaderActivity : AppCompatActivity() {
     }
 
     private fun finishReader() {
+        if (!exitRequested.compareAndSet(false, true)) return
         scanning.set(false)
         debouncer.reset()
         changeDetector.reset()
@@ -405,8 +407,7 @@ class TextReaderActivity : AppCompatActivity() {
             TextReaderMode.GENERAL_TEXT -> getString(R.string.text_reader_exit_general)
             TextReaderMode.CONTINUOUS -> getString(R.string.text_reader_exit_continuous)
         }
-        tts.speak(exitMessage)
-        finish()
+        tts.speakThen(exitMessage) { finish() }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -441,8 +442,7 @@ class TextReaderActivity : AppCompatActivity() {
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.text_reader_permission_denied))
-                tts.runWhenReady { tts.speak(getString(R.string.text_reader_permission_denied)) }
-                finish()
+                tts.speakThen(getString(R.string.text_reader_permission_denied)) { finish() }
             }
         }
     }

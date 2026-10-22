@@ -53,6 +53,7 @@ class LocationTrainerActivity : AppCompatActivity() {
 
     private var recognitionEngine: TextRecognitionEngine? = null
     private val capturing = AtomicBoolean(false)
+    private val exitRequested = AtomicBoolean(false)
     private val memoryFailureHandled = AtomicBoolean(false)
     private val lastBufferFrameAt = AtomicLong(0L)
     private val latestBitmap = AtomicReference<Bitmap?>(null)
@@ -101,7 +102,7 @@ class LocationTrainerActivity : AppCompatActivity() {
             onSwipeDown = { sounds.play(SoundType.SWIPE_DOWN) },
             onSwipeRight = {
                 sounds.play(SoundType.SWIPE_RIGHT)
-                triggerCaptureAndOcr()
+                if (!voiceInput.finishDictation()) triggerCaptureAndOcr()
             },
             onSwipeLeft = { finishTrainer() }
         )
@@ -380,6 +381,7 @@ class LocationTrainerActivity : AppCompatActivity() {
     }
 
     private fun finishTrainer() {
+        if (!exitRequested.compareAndSet(false, true)) return
         voiceInput.cancel()
         pendingCaptures.mapNotNull { it.thumbnailPath }.forEach { deleteThumbnailFile(it) }
         pendingCaptures.clear()
@@ -390,8 +392,7 @@ class LocationTrainerActivity : AppCompatActivity() {
         } else {
             getString(R.string.location_trainer_exit)
         }
-        tts.speak(exitMsg)
-        finish()
+        tts.speakThen(exitMsg) { finish() }
     }
 
     private fun setStatusText(text: String) {
@@ -430,8 +431,7 @@ class LocationTrainerActivity : AppCompatActivity() {
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.location_trainer_permission_denied))
-                tts.runWhenReady { tts.speak(getString(R.string.location_trainer_permission_denied)) }
-                finish()
+                tts.speakThen(getString(R.string.location_trainer_permission_denied)) { finish() }
             }
         }
     }

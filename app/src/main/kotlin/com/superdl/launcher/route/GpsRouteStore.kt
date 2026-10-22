@@ -3,6 +3,7 @@ package com.superdl.launcher.route
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.superdl.launcher.gps.VoiceNoteRecorder
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -29,6 +30,7 @@ object GpsRouteStore {
         }
         val trimmed = current.sortedByDescending { it.createdAtMs }.take(MAX_ROUTES)
         persist(context, trimmed)
+        (current - trimmed.toSet()).forEach { deleteRouteAudio(context, it) }
         return route
     }
 
@@ -37,64 +39,81 @@ object GpsRouteStore {
         val updated = current.filterNot { it.id == id }
         if (updated.size == current.size) return false
         persist(context, updated)
+        current.filter { it.id == id }.forEach { deleteRouteAudio(context, it) }
         return true
     }
 
-    fun startRecording(context: Context, name: String) {
+    private fun deleteRouteAudio(context: Context, route: GpsRouteRecording) {
+        route.events.forEach { event ->
+            event.voiceNotePath?.let { VoiceNoteRecorder.deleteOwnedFile(context, it) }
+        }
+    }
+
+    fun startRecording(context: Context, name: String): Boolean {
         GpsRouteSession.clearRecording()
-        GpsRouteSession.isRecording = true
-        GpsRouteSession.recordingName = name.trim().ifBlank { "Útvonal" }
+        synchronized(GpsRouteSession.recordingLock) {
+            GpsRouteSession.isRecording = true
+            GpsRouteSession.recordingName = name.trim().ifBlank { "Útvonal" }
+        }
         val intent = Intent(context, GpsRouteRecorderService::class.java)
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+            true
         } catch (_: Exception) {
+            GpsRouteSession.clearRecording()
+            false
         }
     }
 
     fun stopRecording(context: Context): GpsRouteRecording? {
-        GpsRouteSession.isRecording = false
-        context.stopService(Intent(context, GpsRouteRecorderService::class.java))
-        if (GpsRouteSession.points.isEmpty()) {
-            GpsRouteSession.clearRecording()
-            return null
+        val route = synchronized(GpsRouteSession.recordingLock) {
+            GpsRouteSession.isRecording = false
+            val lastPoint = GpsRouteSession.points.lastOrNull()
+            if (lastPoint == null) {
+                GpsRouteSession.clearRecording()
+                null
+            } else {
+                GpsRouteSession.events.add(
+                    RouteEvent(
+                        type = RouteEventType.STOP,
+                        latitude = lastPoint.latitude,
+                        longitude = lastPoint.longitude,
+                        timestampMs = System.currentTimeMillis()
+                    )
+                )
+                GpsRouteRecording(
+                    id = UUID.randomUUID().toString(),
+                    name = GpsRouteSession.recordingName,
+                    createdAtMs = System.currentTimeMillis(),
+                    points = GpsRouteSession.points.toList(),
+                    events = GpsRouteSession.events.toList()
+                ).also { GpsRouteSession.clearRecording() }
+            }
         }
-        val lastPoint = GpsRouteSession.points.last()
-        GpsRouteSession.events.add(
-            RouteEvent(
-                type = RouteEventType.STOP,
-                latitude = lastPoint.latitude,
-                longitude = lastPoint.longitude,
-                timestampMs = System.currentTimeMillis()
-            )
-        )
-        val route = GpsRouteRecording(
-            id = UUID.randomUUID().toString(),
-            name = GpsRouteSession.recordingName,
-            createdAtMs = System.currentTimeMillis(),
-            points = GpsRouteSession.points.toList(),
-            events = GpsRouteSession.events.toList()
-        )
-        save(context, route)
-        GpsRouteSession.clearRecording()
+        context.stopService(Intent(context, GpsRouteRecorderService::class.java))
+        if (route != null) save(context, route)
         return route
     }
 
-    fun startGuidance(context: Context, route: GpsRouteRecording) {
+    fun startGuidance(context: Context, route: GpsRouteRecording): Boolean {
         GpsRouteSession.clearGuidance()
         GpsRouteSession.activeRoute = route
         GpsRouteSession.isGuiding = true
         val intent = Intent(context, GpsRouteGuideService::class.java)
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+            true
         } catch (_: Exception) {
+            GpsRouteSession.clearGuidance()
+            false
         }
     }
 
@@ -171,7 +190,10 @@ object GpsRouteStore {
                         latitude = item.optDouble("latitude"),
                         longitude = item.optDouble("longitude"),
                         timestampMs = item.optLong("timestampMs"),
-                        label = item.optString("label").takeIf { it.isNotBlank() }
+                        label = item.optString("label").takeIf { it.isNotBlank() },
+                        voiceNotePath = if (item.isNull("voiceNotePath")) null else {
+                            item.optString("voiceNotePath").takeIf { it.isNotBlank() }
+                        }
                     )
                 )
             }
@@ -201,6 +223,7 @@ object GpsRouteStore {
                         .put("longitude", event.longitude)
                         .put("timestampMs", event.timestampMs)
                         .put("label", event.label ?: JSONObject.NULL)
+                        .put("voiceNotePath", event.voiceNotePath ?: JSONObject.NULL)
                 )
             }
             array.put(

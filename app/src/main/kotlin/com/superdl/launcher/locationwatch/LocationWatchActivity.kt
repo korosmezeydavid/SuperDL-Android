@@ -58,6 +58,7 @@ class LocationWatchActivity : AppCompatActivity() {
     private var watchProfile: LocationProfile? = null
     private var allProfiles: List<LocationProfile> = emptyList()
     private var lastBackPressAt = 0L
+    private var exitRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -230,6 +231,8 @@ class LocationWatchActivity : AppCompatActivity() {
     }
 
     private fun stopWatch() {
+        if (exitRequested) return
+        exitRequested = true
         scanning.set(false)
         debouncer.reset()
         LocationWatchState.clear()
@@ -267,9 +270,9 @@ class LocationWatchActivity : AppCompatActivity() {
             } else {
                 sounds.play(SoundType.ACTION_ERROR)
                 setStatusText(getString(R.string.location_watch_permission_denied))
-                tts.runWhenReady { tts.speak(getString(R.string.location_watch_permission_denied)) }
+                exitRequested = true
                 LocationWatchState.clear()
-                finish()
+                tts.speakThen(getString(R.string.location_watch_permission_denied)) { finish() }
             }
         }
     }

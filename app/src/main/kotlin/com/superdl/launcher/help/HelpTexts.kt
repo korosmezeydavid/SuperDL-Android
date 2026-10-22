@@ -512,26 +512,30 @@ object HelpTexts {
         "gps_route" to topic(
             title = "G P S útvonal súgó",
             purpose = "Rögzít egy útvonalat, amit valakivel együtt bejársz, és később " +
-                "egyedül is visszavezet rajta. A kanyarokat magától észreveszi, és " +
-                "te is tehetsz rá jelölőket ott, ahol fontos valami.",
+                "hangos emlékeztetőkkel segít követni. A kanyarokat magától észreveszi, " +
+                "te pedig saját szövegű megjegyzéseket is tehetsz a fontos helyekhez.",
             start = "Amikor elindulsz azon az úton, amit meg akarsz tanulni, válaszd az " +
                 "Útvonal rögzítése menüpontot, és tedd el a telefont. A végén a " +
                 "Rögzítés vagy útmutatás leállítása menüponttal zárod le, és a program " +
                 "megkérdezi, milyen néven mentse. Legközelebb az Útvonal útmutatás " +
                 "menüpontban választod ki, és végigvezet rajta.",
             gestures = "Rögzítés közben: söprés felfelé vagy lefelé az állapotért — hány " +
-                "pont, hány jelölő, hány kanyar —, söprés jobbra egy útpont " +
-                "rögzítéséhez ott, ahol éppen vagy, söprés balra a rögzítés lezárása " +
+                "pont, hány jelölő, hány kanyar —, söprés jobbra a megjegyzésválasztóhoz. " +
+                "Ott fel-le söpréssel választhatsz diktálást, rövid hangjegyzetet, gépelést vagy üres útpontot; jobbra indítás, balra mégse. " +
+                "Hangfelvételnél csak egy jelzőhang szól az indításkor; jobbra mentés, balra megszakítás. Legfeljebb harminc másodperc. " +
+                "A helyet a jobbra söprés pillanatában rögzíti. Söprés balra a felvétel lezárása " +
                 "és mentése. A mentett útvonalak listájában fel-le söpréssel " +
                 "válogatsz, jobbra söpréssel felolvassa; az Útvonal útmutatás " +
                 "menüpontból nyitva a jobbra söprés indítja az útmutatást, az Útvonal " +
                 "törlése menüpontból nyitva pedig a törlést erősíti meg.",
             trouble = "Ha azt mondja, az útvonal túl rövid, nem menthető: túl kevés pont " +
                 "gyűlt össze — néhány lépés nem elég, menj végig az úton. Ha nem indul " +
-                "új rögzítés, mert épp útmutatás fut, előbb állítsd le. Ha az útpont " +
-                "rögzítése azt mondja, még nincs rögzített pont: indulj el pár métert, " +
-                "és próbáld újra. A rögzítés a G P S-t használja, ezért fogyasztja az " +
-                "akkumulátort, és épületben pontatlan — a szabad ég alatt a legjobb. " +
+                "új rögzítés, mert épp útmutatás fut, előbb állítsd le. Ha a megjegyzés " +
+                "nem menthető, várj friss, pontos G P S jelre. A saját szöveg csak az " +
+                "eredeti haladási irányban hangzik el. A helyadat több méterrel is tévedhet, " +
+                "ezért az akadályra figyelmeztetés emlékeztető, nem akadályérzékelő; " +
+                "a környezetet és az átkelést mindig ellenőrizd. A G P S folyamatos " +
+                "használata fogyasztja az akkumulátort; szabad ég alatt a legpontosabb. " +
                 "Hosszabb úthoz érdemes a Beállítások, Haladó, Korlátlan háttérfutás " +
                 "engedélyezése pontot megadni, hogy a telefon ne állítsa le közben."
         ),

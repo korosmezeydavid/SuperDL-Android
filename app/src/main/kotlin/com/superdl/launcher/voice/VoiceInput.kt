@@ -11,6 +11,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import java.lang.ref.WeakReference
 
 data class SpeechRecognitionResult(
     val hypotheses: List<String>,
@@ -18,6 +19,13 @@ data class SpeechRecognitionResult(
 )
 
 class VoiceInput(context: Context) {
+
+    companion object {
+        private var activeDictation: WeakReference<VoiceInput>? = null
+
+        /** A SuperDL saját képernyőolvasója is lezárhatja az aktív diktálást. */
+        fun finishActiveDictation(): Boolean = activeDictation?.get()?.finishDictation() == true
+    }
 
     enum class ListenProfile {
         DEFAULT,
@@ -38,6 +46,36 @@ class VoiceInput(context: Context) {
     private var toneGenerator: ToneGenerator? = null
     private var listenGeneration = 0
     private var activeProfile = ListenProfile.DEFAULT
+    private var listening = false
+    private var manualFinishRequested = false
+    private var lastPartial = ""
+
+    /** Csak a szabad szöveges diktálás zárható le gesztussal; az ébresztőszó nem. */
+    val isDictating: Boolean get() = listening && activeProfile == ListenProfile.DEFAULT
+
+    fun finishDictation(): Boolean {
+        if (!isDictating || manualFinishRequested) return false
+        manualFinishRequested = true
+        try { recognizer?.stopListening() } catch (_: Exception) { completeFromPartialOrError() }
+        val generation = listenGeneration
+        handler.postDelayed({
+            if (generation == listenGeneration && manualFinishRequested) completeFromPartialOrError()
+        }, 5000L)
+        return true
+    }
+
+    private fun completeFromPartialOrError() {
+        if (!manualFinishRequested) return
+        val partial = lastPartial
+        val result = onRichResultCallback
+        val error = onErrorCodeCallback
+        listenGeneration++
+        listening = false
+        manualFinishRequested = false
+        if (activeDictation?.get() === this) activeDictation = null
+        if (partial.isNotBlank()) result?.invoke(SpeechRecognitionResult(listOf(partial), null))
+        else error?.invoke(SpeechRecognizer.ERROR_NO_MATCH)
+    }
 
     fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(recognizerContext)
 
@@ -109,11 +147,15 @@ class VoiceInput(context: Context) {
         }
 
         val generation = ++listenGeneration
+        listening = false
+        manualFinishRequested = false
+        lastPartial = ""
         onResultCallback = null
         onRichResultCallback = onResult
         onErrorCallback = null
         onErrorCodeCallback = onError
         activeProfile = profile
+        if (profile == ListenProfile.DEFAULT) activeDictation = WeakReference(this)
         maxRetries = when (profile) {
             ListenProfile.ASSISTANT -> 2
             ListenProfile.WAKE_WORD -> 0
@@ -192,6 +234,7 @@ class VoiceInput(context: Context) {
         }
         try {
             recognizer?.startListening(intent)
+            listening = true
         } catch (_: Exception) {
             if (generation == listenGeneration) {
                 handler.post { onErrorCodeCallback?.invoke(SpeechRecognizer.ERROR_CLIENT) }
@@ -221,16 +264,25 @@ class VoiceInput(context: Context) {
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() {}
-                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onPartialResults(partialResults: Bundle?) {
+                    if (generation == listenGeneration) {
+                        lastPartial = partialResults
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()?.trim().orEmpty()
+                    }
+                }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
 
                 override fun onError(error: Int) {
                     if (generation != listenGeneration) return
+                    if (manualFinishRequested) { completeFromPartialOrError(); return }
+                    listening = false
                     if (shouldRetry(error) && retryCount < maxRetries) {
                         retryCount++
                         handler.postDelayed({ startListeningInternal(generation, activeProfile) }, 600L)
                         return
                     }
+                    if (activeDictation?.get() === this@VoiceInput) activeDictation = null
                     val errorCb = onErrorCallback
                     val errorCodeCb = onErrorCodeCallback
                     handler.post {
@@ -241,6 +293,9 @@ class VoiceInput(context: Context) {
 
                 override fun onResults(results: Bundle?) {
                     if (generation != listenGeneration) return
+                    listening = false
+                    manualFinishRequested = false
+                    if (activeDictation?.get() === this@VoiceInput) activeDictation = null
                     val hypotheses = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.map { it.trim() }
@@ -274,6 +329,10 @@ class VoiceInput(context: Context) {
 
     fun cancel() {
         listenGeneration++
+        listening = false
+        manualFinishRequested = false
+        lastPartial = ""
+        if (activeDictation?.get() === this) activeDictation = null
         handler.removeCallbacksAndMessages(null)
         onResultCallback = null
         onRichResultCallback = null

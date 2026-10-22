@@ -11,6 +11,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import com.superdl.launcher.patrol.PatrolAnnouncer
 
@@ -24,6 +28,9 @@ class TimerService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var announcedStart = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private var completionPlayer: MediaPlayer? = null
+    private var completionStarted = false
+    private var completionRunnable: Runnable? = null
 
     private val tickRunnable = object : Runnable {
         override fun run() {
@@ -43,8 +50,12 @@ class TimerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val session = TimerStore.getActiveSession(this)
-        if (session == null || session.isFinished()) {
+        if (session == null) {
             stopSelf()
+            return START_NOT_STICKY
+        }
+        if (session.isFinished()) {
+            finishTimer(session)
             return START_NOT_STICKY
         }
         holdWakeLock(session)
@@ -64,6 +75,10 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
+        completionRunnable?.let(handler::removeCallbacks)
+        completionRunnable = null
+        completionPlayer?.runCatching { if (isPlaying) stop(); release() }
+        completionPlayer = null
         releaseWakeLock()
         super.onDestroy()
     }
@@ -120,10 +135,46 @@ class TimerService : Service() {
     }
 
     private fun finishTimer(session: ActiveTimerSession) {
-        // MIÉRT critical: az időzítő lejárta emlékeztető — néma módban is szólnia kell (Alph).
-        PatrolAnnouncer.announce(this, TimerSpeech.speakFinished(session.label), critical = true) {
-            TimerStore.clearActiveSession(this@TimerService)
-            stopSelf()
+        if (completionStarted) return
+        completionStarted = true
+        handler.removeCallbacks(tickRunnable)
+        val chosen = TimerTonePrefs.getUri(this)?.let(Uri::parse)
+        val announce = Runnable {
+            completionRunnable = null
+            completionPlayer?.runCatching { if (isPlaying) stop(); release() }
+            completionPlayer = null
+            // A kimondott eredmény megmarad a hang mellett, de nem nyomja el azt.
+            PatrolAnnouncer.announce(this, TimerSpeech.speakFinished(session.label), critical = true) {
+                TimerStore.clearActiveSession(this@TimerService)
+                stopSelf()
+            }
+        }
+        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        if (startCompletionTone(chosen) || startCompletionTone(defaultUri)) {
+            completionRunnable = announce
+            handler.postDelayed(announce, 8_000L)
+        } else {
+            announce.run()
+        }
+    }
+
+    private fun startCompletionTone(uri: Uri?): Boolean {
+        if (uri == null) return false
+        val candidate = MediaPlayer()
+        return try {
+            candidate.setDataSource(this, uri)
+            candidate.setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build())
+            candidate.isLooping = true
+            candidate.prepare()
+            candidate.start()
+            completionPlayer = candidate
+            true
+        } catch (_: Exception) {
+            candidate.runCatching { release() }
+            false
         }
     }
 

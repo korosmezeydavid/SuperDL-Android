@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
 import com.superdl.launcher.textreader.TextRecognitionEngine
 
 /**
@@ -33,10 +34,15 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
      * @param onResult a felismert szöveg, vagy null ha nincs rajta olvasható
      */
     fun readImage(node: AccessibilityNodeInfo?, onResult: (String?) -> Unit) {
-        if (!isAvailable()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             onResult(null)
             return
         }
+        readImageApi30(node, onResult)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun readImageApi30(node: AccessibilityNodeInfo?, onResult: (String?) -> Unit) {
         val bounds = Rect().also { node?.getBoundsInScreen(it) }
         try {
             service.takeScreenshot(
@@ -81,10 +87,18 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
         node: AccessibilityNodeInfo?,
         onResult: (ScreenReaderColors.ColorReading?) -> Unit
     ) {
-        if (!isAvailable()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             onResult(null)
             return
         }
+        sampleColorsApi30(node, onResult)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun sampleColorsApi30(
+        node: AccessibilityNodeInfo?,
+        onResult: (ScreenReaderColors.ColorReading?) -> Unit
+    ) {
         val bounds = Rect().also { node?.getBoundsInScreen(it) }
         try {
             service.takeScreenshot(
@@ -117,12 +131,16 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun toBitmap(result: AccessibilityService.ScreenshotResult): Bitmap? = try {
         val buffer = result.hardwareBuffer
-        val bitmap = Bitmap.wrapHardwareBuffer(buffer, result.colorSpace)
-            ?.copy(Bitmap.Config.ARGB_8888, false)
-        buffer.close()
-        bitmap
+        try {
+            Bitmap.wrapHardwareBuffer(buffer, result.colorSpace)
+                ?.copy(Bitmap.Config.ARGB_8888, false)
+        } finally {
+            // MIÉRT: hibás képkockánál sem maradhat nyitva a natív puffer.
+            buffer.close()
+        }
     } catch (e: Exception) {
         android.util.Log.w(ScreenReaderPrefs.TAG, "bitmap keszites hiba: ${e.message}")
         null

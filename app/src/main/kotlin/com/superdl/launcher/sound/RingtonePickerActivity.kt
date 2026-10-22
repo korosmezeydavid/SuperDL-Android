@@ -35,6 +35,7 @@ class RingtonePickerActivity : AppCompatActivity() {
     private var items: List<SystemRingtoneHelper.RingtoneItem> = emptyList()
     private var index = 0
     private var streamType = AudioManager.STREAM_ALARM
+    private var exitRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,20 +84,28 @@ class RingtonePickerActivity : AppCompatActivity() {
         gestureListener = SwipeGestureListener(
             context = this,
             onSwipeUp = {
-                sounds.play(SoundType.SWIPE_UP)
-                navigate(-1)
+                if (!exitRequested) {
+                    sounds.play(SoundType.SWIPE_UP)
+                    navigate(-1)
+                }
             },
             onSwipeDown = {
-                sounds.play(SoundType.SWIPE_DOWN)
-                navigate(+1)
+                if (!exitRequested) {
+                    sounds.play(SoundType.SWIPE_DOWN)
+                    navigate(+1)
+                }
             },
             onSwipeRight = {
-                sounds.play(SoundType.SWIPE_RIGHT)
-                choose()
+                if (!exitRequested) {
+                    sounds.play(SoundType.SWIPE_RIGHT)
+                    choose()
+                }
             },
             onSwipeLeft = {
-                sounds.play(SoundType.SWIPE_LEFT)
-                cancelPick()
+                if (!exitRequested) {
+                    sounds.play(SoundType.SWIPE_LEFT)
+                    cancelPick()
+                }
             }
         )
 
@@ -105,6 +114,9 @@ class RingtonePickerActivity : AppCompatActivity() {
         })
 
         if (items.isEmpty()) {
+            // MIÉRT: amíg a hiányzó hangokról szóló mondat tart, újabb söprés
+            // nem léphet az üres listába, és nem indíthat második kilépést.
+            exitRequested = true
             tts.speakThen("Nem találtam elérhető rendszerhangot. A saját fájlokhoz ellenőrizd a médiahangok engedélyét és a Notifications mappát.") {
                 setResult(Activity.RESULT_CANCELED)
                 finish()
@@ -129,6 +141,7 @@ class RingtonePickerActivity : AppCompatActivity() {
     private fun current() = items[index]
 
     private fun navigate(delta: Int) {
+        if (exitRequested || items.isEmpty()) return
         index = (index + delta + items.size) % items.size
         updateDisplay()
         tts.speak(current().title)
@@ -145,6 +158,8 @@ class RingtonePickerActivity : AppCompatActivity() {
     }
 
     private fun choose() {
+        if (exitRequested || items.isEmpty()) return
+        exitRequested = true
         preview.stop()
         val chosen = current()
         val data = Intent().apply {
@@ -157,6 +172,8 @@ class RingtonePickerActivity : AppCompatActivity() {
     }
 
     private fun cancelPick() {
+        if (exitRequested) return
+        exitRequested = true
         preview.stop()
         setResult(Activity.RESULT_CANCELED)
         tts.speakThen("Mégse.") { finish() }

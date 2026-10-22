@@ -38,6 +38,9 @@ object PatrolAnnouncer {
     private val queue = ConcurrentLinkedQueue<AnnounceRequest>()
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /** Hangjegyzet előtt megvárható, hogy egy folyamatban levő bemondás befejeződjön. */
+    fun isBusy(): Boolean = speaking.get() || queue.isNotEmpty()
+
     fun announce(
         context: Context,
         message: String,
@@ -98,7 +101,8 @@ object PatrolAnnouncer {
                 if (clock != null) {
                     // BESZÉLŐ ÓRA: élő hangon, klipekből. Ha bármi hiányzik
                     // vagy nem szól, ugyanaz a mondat a felolvasóval megy.
-                    TalkingClock.play(request.appContext, clock.first, clock.second) { ok ->
+                    val voice = ClockVoiceStore.selected(request.appContext)
+                    RecordedClockVoice.play(request.appContext, voice, clock.first) { ok ->
                         if (ok) finish() else speak(request.appContext, request.message, finish, speakerTime = true)
                     }
                 } else {

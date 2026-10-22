@@ -41,8 +41,16 @@ object VoiceNoteRecorder {
      * A hívónak előbb ellenőriznie kell a RECORD_AUDIO engedélyt.
      */
     fun startRecording(context: Context, poiId: String): Boolean {
+        return startRecordingNamed(context, "poi_${poiId}")
+    }
+
+    fun startRouteRecording(context: Context, routeSessionId: String): Boolean {
+        return startRecordingNamed(context, "route_${routeSessionId}")
+    }
+
+    private fun startRecordingNamed(context: Context, stem: String): Boolean {
         if (isRecording) return false
-        val output = outputFileFor(context, poiId)
+        val output = File(voiceNoteDir(context), "${stem}_${System.currentTimeMillis()}.m4a")
         val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
@@ -167,6 +175,17 @@ object VoiceNoteRecorder {
         if (path.isNullOrBlank()) return
         try {
             File(path).delete()
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Csak a saját hangjegyzettárból töröl, sérült mentett útvonaladat esetén sem más fájlt. */
+    fun deleteOwnedFile(context: Context, path: String?) {
+        if (path.isNullOrBlank()) return
+        try {
+            val root = voiceNoteDir(context).canonicalFile
+            val file = File(path).canonicalFile
+            if (file.parentFile == root) file.delete()
         } catch (_: Exception) {
         }
     }

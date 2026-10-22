@@ -21,6 +21,7 @@ object BookTtsPrefs {
     private const val KEY_RATE = "rate"
     private const val KEY_PITCH = "pitch"
     private const val KEY_USE_OWN = "use_own"
+    private const val KEY_PROGRESS_ANNOUNCEMENTS = "progress_announcements"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -35,6 +36,14 @@ object BookTtsPrefs {
 
     fun setUseOwn(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean(KEY_USE_OWN, value).apply()
+    }
+
+    /** A szövegdarabok közti automatikus állapotváltozás beszédet szakíthat meg. */
+    fun progressAnnouncementsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_PROGRESS_ANNOUNCEMENTS, true)
+
+    fun setProgressAnnouncementsEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PROGRESS_ANNOUNCEMENTS, enabled).apply()
     }
 
     /** A választott beszédmotor csomagneve, vagy null = a rendszer alapértelmezettje. */
@@ -95,14 +104,17 @@ object BookTtsPrefs {
 
     /** Felolvasható összefoglaló a jelenlegi beállításról. */
     fun speakSummary(context: Context): String {
+        val progress = if (progressAnnouncementsEnabled(context))
+            "Automatikus haladásjelzés bekapcsolva. "
+        else "Automatikus haladásjelzés kikapcsolva. "
         if (!isUseOwn(context)) {
-            return "A könyvolvasó a program általános hangját használja. " +
+            return progress + "A könyvolvasó a program általános hangját használja. " +
                 "A Saját hang bekapcsolásával külön beállíthatod."
         }
         val engineName = getEngine(context)?.let { pkg ->
             availableEngines(context).firstOrNull { it.second == pkg }?.first
         } ?: "alapértelmezett motor"
-        return "Könyvolvasó hangja: $engineName. " +
+        return progress + "Könyvolvasó hangja: $engineName. " +
             "Sebesség: ${"%.2f".format(getRate(context)).replace('.', ',')}. " +
             "Hangmagasság: ${"%.2f".format(getPitch(context)).replace('.', ',')}."
     }

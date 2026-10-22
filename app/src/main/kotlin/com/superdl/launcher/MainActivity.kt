@@ -16,15 +16,20 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputFilter
+import android.text.InputType
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
 import android.view.View
+import android.view.WindowManager
+import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.superdl.launcher.book.AudiobookLibrary
@@ -50,6 +55,7 @@ import com.superdl.launcher.book.BookReader
 import com.superdl.launcher.book.BookStore
 import com.superdl.launcher.battery.BatteryPatrolManager
 import com.superdl.launcher.patrol.PatrolStore
+import com.superdl.launcher.patrol.PatrolAnnouncer
 import com.superdl.launcher.input.NumberPadHelper
 import com.superdl.launcher.input.NumberPadKey
 import com.superdl.launcher.input.NumberPadPurpose
@@ -263,6 +269,7 @@ import com.superdl.launcher.cardorganizer.CardStore
 import com.superdl.launcher.cardorganizer.CardTrainerActivity
 import com.superdl.launcher.gps.GpsRadarService
 import com.superdl.launcher.route.GpsRouteRecording
+import com.superdl.launcher.route.GpsRouteFixQuality
 import com.superdl.launcher.route.GpsRouteSession
 import com.superdl.launcher.route.GpsRouteStore
 import com.superdl.launcher.route.RouteEvent
@@ -309,6 +316,12 @@ import com.superdl.launcher.transit.TransitContextAction
 import com.superdl.launcher.transit.TransitHelper
 import com.superdl.launcher.transit.TransitPlace
 import com.superdl.launcher.transit.TransitStopStore
+import com.superdl.launcher.transit.BkkGtfsRepository
+import com.superdl.launcher.transit.GtfsRoute
+import com.superdl.launcher.transit.GtfsTripStopSequence
+import com.superdl.launcher.transit.TransitRideStatus
+import com.superdl.launcher.transit.TransitStopWatchService
+import com.superdl.launcher.transit.TransitStopWatchStatus
 import com.superdl.launcher.train.TrainContextAction
 import com.superdl.launcher.train.TrainHelper
 import com.superdl.launcher.train.TrainStation
@@ -404,6 +417,7 @@ class MainActivity : AppCompatActivity() {
     private var sosCountdownActive = false
     private val countdownHandler = Handler(Looper.getMainLooper())
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val contactSyncRunning = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private inline fun postWhenAlive(crossinline block: () -> Unit) {
         mainHandler.post {
@@ -461,6 +475,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Kiknek megy az üzenet, amíg a szövegtárból választunk sablont. */
     private var textBankInsertRecipients: List<Recipient>? = null
+    private var textBankInsertReturnFlow: AppFlow? = null
     private var smsInboxRestore: AppFlow.SmsInbox? = null
     private var calendarEditEventId: Long? = null
     private var calendarPickPurpose: CalendarPickPurpose = CalendarPickPurpose.EDIT
@@ -712,6 +727,19 @@ class MainActivity : AppCompatActivity() {
         alarmToneEditId = -1
     }
 
+    private val timerTonePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uri = result.data?.getStringExtra(RingtonePickerActivity.EXTRA_RESULT_URI)
+            val title = result.data?.getStringExtra(RingtonePickerActivity.EXTRA_RESULT_TITLE)
+            com.superdl.launcher.timer.TimerTonePrefs.set(this, uri, title)
+            tts.speak("Időzítő lejárati hangja: ${title ?: "alapértelmezett hang"}.")
+        } else {
+            tts.speak("Az időzítő hangja nem változott.")
+        }
+    }
+
     private var contactRingtoneEditPhone: String? = null
     private var contactRingtoneEditName: String? = null
 
@@ -873,7 +901,9 @@ class MainActivity : AppCompatActivity() {
                     percent = bookReader.progressPercent(),
                     paused = bookReader.isPaused
                 )
-                updateFlowDisplay()
+                if (com.superdl.launcher.book.BookTtsPrefs.progressAnnouncementsEnabled(this)) {
+                    updateFlowDisplay()
+                }
             },
             onFinished = { finishBookReading("A könyv elolvasva.") },
             onError = { message -> exitBookReading(message) }
@@ -1201,6 +1231,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SavedPoiContextMenu -> navigateSavedPoiContextMenu(flow, -1)
             is AppFlow.NavWhereResult -> navigateNavWhereAction(flow, -1)
             AppFlow.GpsRouteRecordingActive -> speakGpsRouteStatus()
+            is AppFlow.GpsRouteNoteChoice -> navigateGpsRouteNoteChoice(flow, -1)
+            is AppFlow.GpsRouteVoiceRecording -> Unit
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, -1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
@@ -1277,6 +1309,15 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TransitBrowse -> navigateTransitList(flow, -1)
             is AppFlow.TransitContextMenu -> navigateTransitContextMenu(flow, -1)
             is AppFlow.TransitRouteBrowse -> navigateTransitRouteList(flow, -1)
+            is AppFlow.TransitWatchSearchChoice -> navigateTransitWatchSearchChoice(flow, -1)
+            is AppFlow.TransitWatchRouteBrowse -> navigateTransitWatchRoutes(flow, -1)
+            is AppFlow.TransitWatchPatternBrowse -> navigateTransitWatchPatterns(flow, -1)
+            is AppFlow.TransitWatchBoardingBrowse -> navigateTransitWatchBoarding(flow, -1)
+            is AppFlow.TransitWatchDestinationBrowse -> navigateTransitWatchDestination(flow, -1)
+            is AppFlow.TransitWatchConfirm -> speakTransitWatchConfirm(flow)
+            is AppFlow.TransitWatchActive -> navigateTransitWatchActions(flow, -1)
+            AppFlow.TransitWatchStopConfirm -> tts.speak("Biztosan leállítod a megállófigyelést? Jobbra igen, balra mégse.")
+            is AppFlow.TransitWatchCorrectionBrowse -> navigateTransitWatchCorrections(flow, -1)
             is AppFlow.TrainBrowse -> navigateTrainList(flow, -1)
             is AppFlow.TrainContextMenu -> navigateTrainContextMenu(flow, -1)
             is AppFlow.NavPlaceBrowse -> navigateNavPlaceList(flow, -1)
@@ -1352,11 +1393,10 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.ContactContextMenu -> navigateContactContextMenu(flow, +1)
             is AppFlow.ContactDeleteConfirm -> repeatContactDeleteConfirm(flow.contact)
             is AppFlow.SmsRecipientConfirm -> repeatSmsRecipientConfirm(flow.recipient)
-            is AppFlow.SmsConfirm -> repeatSmsConfirm(flow.recipient, flow.message)
+            is AppFlow.SmsConfirm -> startTextBankInsertFlow(listOf(flow.recipient), flow)
             is AppFlow.SmsMultiLetterBrowse -> navigateSmsMultiLetter(flow, +1)
             is AppFlow.SmsMultiNameBrowse -> navigateSmsMultiName(flow, +1)
-            is AppFlow.SmsMultiConfirm ->
-                repeatSmsMultiConfirm(flow.recipients, flow.message, flow.triggerAt, flow.repeat)
+            is AppFlow.SmsMultiConfirm -> startTextBankInsertFlow(flow.recipients, flow)
             is AppFlow.SmsScheduleAwaitTime ->
                 tts.speak(
                     "Mikor menjen el? Például: két óra múlva, délután ötkor, " +
@@ -1388,8 +1428,8 @@ class MainActivity : AppCompatActivity() {
                 tts.speak("Hangcímke felvétele. Jobbra: kész. Balra: mégse.")
             // „MONDD AZ ÜZENETET" KÖZBEN A LE: inkább sablont választok.
             // A címzettek megmaradnak, csak a szöveg jön a szövegtárból.
-            is AppFlow.SmsMultiAwaitMessage -> startTextBankInsertFlow(flow.recipients)
-            is AppFlow.SmsAwaitMessage -> startTextBankInsertFlow(listOf(flow.recipient))
+            is AppFlow.SmsMultiAwaitMessage -> startTextBankInsertFlow(flow.recipients, flow)
+            is AppFlow.SmsAwaitMessage -> startTextBankInsertFlow(listOf(flow.recipient), flow)
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
@@ -1465,6 +1505,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SavedPoiContextMenu -> navigateSavedPoiContextMenu(flow, +1)
             is AppFlow.NavWhereResult -> navigateNavWhereAction(flow, +1)
             AppFlow.GpsRouteRecordingActive -> speakGpsRouteStatus()
+            is AppFlow.GpsRouteNoteChoice -> navigateGpsRouteNoteChoice(flow, +1)
+            is AppFlow.GpsRouteVoiceRecording -> Unit
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, +1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
@@ -1542,6 +1584,15 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TransitBrowse -> navigateTransitList(flow, +1)
             is AppFlow.TransitContextMenu -> navigateTransitContextMenu(flow, +1)
             is AppFlow.TransitRouteBrowse -> navigateTransitRouteList(flow, +1)
+            is AppFlow.TransitWatchSearchChoice -> navigateTransitWatchSearchChoice(flow, +1)
+            is AppFlow.TransitWatchRouteBrowse -> navigateTransitWatchRoutes(flow, +1)
+            is AppFlow.TransitWatchPatternBrowse -> navigateTransitWatchPatterns(flow, +1)
+            is AppFlow.TransitWatchBoardingBrowse -> navigateTransitWatchBoarding(flow, +1)
+            is AppFlow.TransitWatchDestinationBrowse -> navigateTransitWatchDestination(flow, +1)
+            is AppFlow.TransitWatchConfirm -> speakTransitWatchConfirm(flow)
+            is AppFlow.TransitWatchActive -> navigateTransitWatchActions(flow, +1)
+            AppFlow.TransitWatchStopConfirm -> tts.speak("Biztosan leállítod a megállófigyelést? Jobbra igen, balra mégse.")
+            is AppFlow.TransitWatchCorrectionBrowse -> navigateTransitWatchCorrections(flow, +1)
             is AppFlow.TrainBrowse -> navigateTrainList(flow, +1)
             is AppFlow.TrainContextMenu -> navigateTrainContextMenu(flow, +1)
             is AppFlow.NavPlaceBrowse -> navigateNavPlaceList(flow, +1)
@@ -1630,6 +1681,10 @@ class MainActivity : AppCompatActivity() {
         // a képernyőolvasó tanítja. Enélkül a két rendszer egyszerre válaszolna,
         // és a menü belépkedne, miközben a felhasználó gyakorolni próbál.
         if (com.superdl.launcher.screenreader.TrainingState.isActive) return
+        if (::voiceInput.isInitialized && voiceInput.finishDictation()) {
+            feedbackSwipeRight()
+            return
+        }
         feedbackSwipeRight()
         // REJTETT RETESZ: öt gyors jobbra söprés a FŐMENÜBEN kinyitja a teljes
         // funkciókészletet. Azért mozdulat és nem menüpont, mert egy menüpontra
@@ -1727,6 +1782,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SavedPoiVoiceRecording -> stopAndSaveSavedPoiVoiceRecording(flow)
             is AppFlow.NavWhereResult -> onNavWhereActionActivate(flow)
             AppFlow.GpsRouteRecordingActive -> addGpsRouteWaypoint()
+            is AppFlow.GpsRouteNoteChoice -> activateGpsRouteNoteChoice(flow)
+            is AppFlow.GpsRouteVoiceRecording -> stopAndSaveGpsRouteVoiceRecording(flow)
             is AppFlow.GpsRouteBrowse -> onGpsRouteListActivate(flow)
             is AppFlow.GpsRouteDeleteConfirm -> deleteGpsRoute(flow)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
@@ -1903,6 +1960,18 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.TransitBrowse -> enterTransitContextMenu(flow)
             is AppFlow.TransitContextMenu -> onTransitContextActivate(flow)
             is AppFlow.TransitRouteBrowse -> tts.speak(flow.route.steps[flow.index].speakPreview())
+            is AppFlow.TransitWatchSearchChoice -> activateTransitWatchSearchChoice(flow)
+            is AppFlow.TransitWatchRouteBrowse -> selectTransitWatchRoute(flow)
+            is AppFlow.TransitWatchPatternBrowse -> selectTransitWatchPattern(flow)
+            is AppFlow.TransitWatchBoardingBrowse -> selectTransitWatchBoarding(flow)
+            is AppFlow.TransitWatchDestinationBrowse -> selectTransitWatchDestination(flow)
+            is AppFlow.TransitWatchConfirm -> boardTransitWatch(flow)
+            is AppFlow.TransitWatchActive -> activateTransitWatchAction(flow)
+            AppFlow.TransitWatchStopConfirm -> {
+                TransitStopWatchService.stopRide(this)
+                exitFlow("Megállófigyelés leállítva.")
+            }
+            is AppFlow.TransitWatchCorrectionBrowse -> correctTransitWatchStop(flow)
             is AppFlow.TrainBrowse -> enterTrainContextMenu(flow)
             is AppFlow.TrainContextMenu -> onTrainContextActivate(flow)
             is AppFlow.NavPlaceBrowse -> openNavPlaceInMaps(flow.places[flow.index])
@@ -2091,6 +2160,16 @@ class MainActivity : AppCompatActivity() {
                 exitFlow("Megállók bezárva.")
             }
             is AppFlow.TransitContextMenu -> returnToTransitBrowse(flow)
+            AppFlow.TransitWatchLoading -> exitFlow("Megállófigyelő megszakítva.")
+            is AppFlow.TransitWatchSearchChoice -> exitFlow("Járatkeresés bezárva.")
+            is AppFlow.TransitWatchRouteBrowse -> showTransitWatchRouteSearch()
+            is AppFlow.TransitWatchPatternBrowse -> showTransitWatchRouteSearch()
+            is AppFlow.TransitWatchBoardingBrowse -> exitFlow("Megállóválasztás bezárva.")
+            is AppFlow.TransitWatchDestinationBrowse -> showTransitWatchBoarding(flow.sequence, flow.boardingIndex)
+            is AppFlow.TransitWatchConfirm -> showTransitWatchDestination(flow.sequence, flow.boardingIndex, flow.destinationIndex)
+            is AppFlow.TransitWatchActive -> exitFlow("A megállófigyelő tovább működik a háttérben.")
+            AppFlow.TransitWatchStopConfirm -> showTransitWatchActive()
+            is AppFlow.TransitWatchCorrectionBrowse -> showTransitWatchActive()
             AppFlow.TrainAwaitStation -> exitFlow("Állomás keresés megszakítva.")
             is AppFlow.TrainBrowse -> {
                 stopTransitCompass()
@@ -2107,6 +2186,8 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.NavWhereResult -> exitFlow("Hol vagyok bezárva.")
             is AppFlow.GpsSaveRefining -> cancelGpsSaveRefining(flow)
             AppFlow.GpsRouteRecordingActive -> stopGpsRouteRecordingAndSave()
+            is AppFlow.GpsRouteNoteChoice -> returnToGpsRouteRecording("Megjegyzés megszakítva.")
+            is AppFlow.GpsRouteVoiceRecording -> cancelGpsRouteVoiceRecording()
             is AppFlow.GpsRouteAwaitName -> {
                 val route = flow.route
                 val saved = GpsRouteStore.save(this, route)
@@ -2452,9 +2533,28 @@ class MainActivity : AppCompatActivity() {
             // miatt. Ha önálló küldésbe indultunk, a balra kilépés.
             is AppFlow.TextBankBrowse -> {
                 val recipients = textBankInsertRecipients
+                val returnFlow = textBankInsertReturnFlow
                 textBankInsertRecipients = null
+                textBankInsertReturnFlow = null
                 pendingTemplateText = null
-                if (flow.forInsert && !recipients.isNullOrEmpty()) {
+                if (flow.forInsert && returnFlow is AppFlow.SmsConfirm) {
+                    activeFlow = returnFlow
+                    updateFlowDisplay()
+                    repeatSmsConfirm(returnFlow.recipient, returnFlow.message)
+                } else if (flow.forInsert && returnFlow is AppFlow.SmsMultiConfirm) {
+                    activeFlow = returnFlow
+                    updateFlowDisplay()
+                    repeatSmsMultiConfirm(returnFlow.recipients, returnFlow.message,
+                        returnFlow.triggerAt, returnFlow.repeat)
+                } else if (flow.forInsert && returnFlow is AppFlow.SmsAwaitMessage) {
+                    activeFlow = returnFlow
+                    updateFlowDisplay()
+                    listenForSmsMessage(returnFlow.recipient.label)
+                } else if (flow.forInsert && returnFlow is AppFlow.SmsMultiAwaitMessage) {
+                    activeFlow = returnFlow
+                    updateFlowDisplay()
+                    listenForSmsMultiMessage(returnFlow.recipients, returnFlow.scheduled)
+                } else if (flow.forInsert && !recipients.isNullOrEmpty()) {
                     activeFlow = AppFlow.SmsMultiAwaitMessage(recipients, false)
                     updateFlowDisplay()
                     tts.speak("Vissza a diktáláshoz.")
@@ -2816,6 +2916,7 @@ class MainActivity : AppCompatActivity() {
                 tts.speak(com.superdl.launcher.home.HomeWatchSettings.speakLastOutcome(this))
             MenuAction.HOME_FORGET -> forgetHome()
             MenuAction.CHAT_OPEN -> com.superdl.launcher.chat.ChatActivity.start(this)
+            MenuAction.TELEGRAM_OPEN -> com.superdl.launcher.telegram.TelegramActivity.start(this)
             MenuAction.EMAIL_WRITE -> {
                 // Menüből indított ÚJ levél: soha ne hozzon magával egy
                 // korábbi, félbehagyott továbbítást.
@@ -3087,6 +3188,11 @@ class MainActivity : AppCompatActivity() {
             MenuAction.ACCESSIBILITY_STATUS -> speakAccessibilityStatus()
             MenuAction.BOOK_TTS_STATUS ->
                 tts.speak(com.superdl.launcher.book.BookTtsPrefs.speakSummary(this))
+            MenuAction.BOOK_READING_ANNOUNCEMENTS -> {
+                val enabled = !com.superdl.launcher.book.BookTtsPrefs.progressAnnouncementsEnabled(this)
+                com.superdl.launcher.book.BookTtsPrefs.setProgressAnnouncementsEnabled(this, enabled)
+                tts.speak(if (enabled) "Automatikus haladásjelzés bekapcsolva." else "Automatikus haladásjelzés kikapcsolva.")
+            }
             MenuAction.BOOK_TTS_OWN -> {
                 val own = !com.superdl.launcher.book.BookTtsPrefs.isUseOwn(this)
                 com.superdl.launcher.book.BookTtsPrefs.setUseOwn(this, own)
@@ -3525,6 +3631,15 @@ class MainActivity : AppCompatActivity() {
             MenuAction.TIMER_LIST -> startTimerListFlow(TimerListMode.VIEW)
             MenuAction.TIMER_START -> startTimerListFlow(TimerListMode.START)
             MenuAction.TIMER_STOP -> stopActiveTimer()
+            MenuAction.TIMER_TONE -> {
+                tts.speak("Válassz hangot az időzítő lejártához. Fel-le a hangok között, jobbra választás.")
+                timerTonePickerLauncher.launch(
+                    Intent(this, RingtonePickerActivity::class.java).apply {
+                        putExtra(RingtonePickerActivity.EXTRA_TONE_TYPE, RingtonePickerActivity.TONE_ALARM)
+                        putExtra(RingtonePickerActivity.EXTRA_CURRENT_URI, com.superdl.launcher.timer.TimerTonePrefs.getUri(this@MainActivity))
+                    }
+                )
+            }
             MenuAction.TIMER_EDIT -> startTimerListFlow(TimerListMode.EDIT)
             MenuAction.TIMER_DELETE -> startTimerListFlow(TimerListMode.DELETE)
             MenuAction.MUSIC -> startMusicLibraryFlow()
@@ -3617,6 +3732,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.TRANSIT_STOP -> startTransitStopFlow()
             MenuAction.TRANSIT_FAVORITES -> startTransitFavoritesFlow()
             MenuAction.TRANSIT_ROUTE -> startTransitRouteFlow()
+            MenuAction.TRANSIT_STOP_WATCH -> startTransitWatchFlow()
             MenuAction.TRAIN_NEARBY -> startTrainNearbyFlow()
             MenuAction.TRAIN_STATION_SEARCH -> startTrainStationFlow()
             MenuAction.TRAIN_FAVORITES -> startTrainFavoritesFlow()
@@ -3632,6 +3748,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.PATROL_TIME_ANNOUNCE_TOGGLE -> togglePatrolTimeAnnounce()
             MenuAction.PATROL_TIME_INTERVAL_CYCLE ->
                 startChoiceSettingFlow(com.superdl.launcher.settings.ChoiceSetting.TIME_INTERVAL)
+            MenuAction.PATROL_CLOCK_VOICE_CYCLE -> cyclePatrolClockVoice()
             MenuAction.PATROL_NIGHT_MODE_TOGGLE -> togglePatrolNightMode()
             MenuAction.PATROL_NIGHT_START_SET -> startPatrolNightStartFlow()
             MenuAction.PATROL_NIGHT_END_SET -> startPatrolNightEndFlow()
@@ -3960,6 +4077,7 @@ class MainActivity : AppCompatActivity() {
     private fun listenForSmsMessage(recipientLabel: String) {
         voiceInput.listen(
             prompt = "Mondd az üzenetet $recipientLabel részére. " +
+                "Jobbra söpréssel fejezd be, lefelé söpréssel válassz sablont. " +
                 "Kimondhatod az írásjeleket is: vessző, pont, kérdőjel.",
             speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
             onResult = { message ->
@@ -4006,7 +4124,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun repeatSmsConfirm(recipient: Recipient, message: String) {
         val readback = buildSmsReadback(recipient, message)
-        tts.speak("$readback Elküldjem? Söpörj jobbra az elküldéshez, söprés balra a mégsehez. Ismétlés: söprés fel.")
+        tts.speak("$readback Elküldjem? Jobbra: küldés, balra: mégse, le: sablon hozzáfűzése, fel: ismétlés.")
     }
 
     private fun buildRecipientReadback(recipient: Recipient): String {
@@ -4286,7 +4404,7 @@ class MainActivity : AppCompatActivity() {
         if (triggerAt == null) {
             tts.speak(
                 "${recipients.size} címzett: $names. Üzenet: $message. Elküldjem? " +
-                    "Söpörj jobbra az elküldéshez, balra a mégsehez. Ismétlés: söprés fel."
+                    "Jobbra: küldés, balra: mégse, le: sablon hozzáfűzése, fel: ismétlés."
             )
         } else {
             val whenText = com.superdl.launcher.sms.ScheduledSmsTime.speakPlan(
@@ -5185,8 +5303,17 @@ class MainActivity : AppCompatActivity() {
         if (cached.isEmpty()) {
             tts.speak("Névjegyzék betöltése. Várj egy pillanatot.")
             Thread {
-                ContactSyncHelper.sync(this)
-                postWhenAlive { openContactBookBrowse() }
+                val loaded = try {
+                    ContactSyncHelper.sync(this)
+                    true
+                } catch (t: Throwable) {
+                    android.util.Log.e("ContactSync", "Névjegyzék első betöltése sikertelen", t)
+                    false
+                }
+                postWhenAlive {
+                    if (loaded) openContactBookBrowse()
+                    else tts.speak("A névjegyzék betöltése nem sikerült. Próbáld újra később, vagy küldj hibajelentést.")
+                }
             }.start()
             return
         }
@@ -5414,12 +5541,32 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS), PERM_REQUEST)
             return
         }
+        if (!contactSyncRunning.compareAndSet(false, true)) {
+            if (manual) tts.speak("A névjegyek szinkronizálása még folyamatban van. Balra söpréssel visszaléphetsz.")
+            return
+        }
         if (manual) {
             tts.speak("Szinkronizálás a telefon névjegyzékével. Várj egy pillanatot.")
+            mainHandler.postDelayed({
+                if (contactSyncRunning.get() && !isFinishing && !isDestroyed) {
+                    tts.speak("A névjegyek szinkronizálása elhúzódik. Balra söpréssel visszaléphetsz; a feldolgozás a háttérben folytatódik.")
+                }
+            }, 15_000L)
         }
         Thread {
-            val result = ContactSyncHelper.sync(this)
+            val result = try {
+                ContactSyncHelper.sync(this)
+            } catch (t: Throwable) {
+                android.util.Log.e("ContactSync", "Kézi névjegy-szinkron sikertelen", t)
+                null
+            } finally {
+                contactSyncRunning.set(false)
+            }
             postWhenAlive {
+                if (result == null) {
+                    tts.speak("A névjegyek szinkronizálása nem sikerült. A korábbi mentett névjegyek megmaradtak. Balra söpréssel visszaléphetsz.")
+                    return@postWhenAlive
+                }
                 val items = buildContactBookItems(ContactStore.getCached(this))
                 when (val flow = activeFlow) {
                     is AppFlow.ContactBookBrowse -> {
@@ -15644,7 +15791,7 @@ class MainActivity : AppCompatActivity() {
                     updateFlowDisplay()
                     startRadarRefreshLoop()
                     startSurroundingsMonitoring()
-                    tts.speak(GpsRadarHelper.speakAllPois(pois))
+                    tts.speak(GpsRadarHelper.speakAllPois(pois) + " " + gpsRadarSpeedText())
                 }
             },
             onError = { message ->
@@ -15787,6 +15934,7 @@ class MainActivity : AppCompatActivity() {
             )
             GpsRadarContextAction.HEAR_INTERSECTION_AHEAD -> speakIntersectionAhead()
             GpsRadarContextAction.WHERE_AM_I -> speakGpsWhereAmI()
+            GpsRadarContextAction.HEAR_SPEED -> tts.speak(gpsRadarSpeedText())
             GpsRadarContextAction.TOGGLE_STREET_MONITORING -> toggleGpsStreetMonitoring()
             GpsRadarContextAction.SAVE_OWN_LOCATION -> startGpsSaveOwnLocation(
                 returnBrowse = AppFlow.GpsRadarBrowse(flow.pois, flow.poiIndex)
@@ -15814,6 +15962,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun gpsRadarSpeedText(): String {
+        val location = listOfNotNull(
+            GpsRadarStore.lastLocation,
+            GpsLocationHelper.getLastLocation(this)
+        ).maxByOrNull { it.time }
+        if (location == null || !location.hasSpeed() ||
+            System.currentTimeMillis() - location.time !in 0L..10_000L
+        ) return "Friss sebességadat még nincs."
+        return "Sebességed: ${com.superdl.launcher.fitness.FitnessCalculator.speakSpeed(location.speed)}."
+    }
     private fun speakGpsWhereAmI() {
         val heading = radarCompass?.heading() ?: GpsRadarStore.lastHeading
         val context = GpsRadarStore.streetContext
@@ -16587,11 +16745,21 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Előbb állítsd le az aktív útvonal útmutatást.")
             return
         }
-        GpsRouteStore.startRecording(this, "Útvonal")
+        if (!GpsRouteStore.startRecording(this, "Útvonal")) {
+            tts.speak("A G P S útvonalrögzítés nem indult el. Ellenőrizd a helyhozzáférést, majd próbáld újra.")
+            return
+        }
         activeFlow = AppFlow.GpsRouteRecordingActive
         updateFlowDisplay()
-        tts.speak("G P S útvonal rögzítés elindult. Söpörj fel-le állapot, jobbra útpont, balra mentés.")
+        tts.speak("G P S útvonal rögzítés elindult. Söpörj fel-le állapot, jobbra megjegyzés vagy útpont, balra mentés.")
         speakGpsRouteStatus()
+        mainHandler.postDelayed({
+            if (!isFinishing && !isDestroyed && activeFlow == AppFlow.GpsRouteRecordingActive &&
+                !GpsRouteSession.isRecording
+            ) {
+                exitFlow("A G P S helyfigyelés nem indult el. Ellenőrizd a helyhozzáférést.", error = true)
+            }
+        }, 2_000L)
     }
 
     private fun speakGpsRouteStatus() {
@@ -16599,41 +16767,218 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Nincs aktív útvonal rögzítés.")
             return
         }
-        val points = GpsRouteSession.points.size
-        val waypoints = GpsRouteSession.events.count { it.type == RouteEventType.WAYPOINT }
-        val turns = GpsRouteSession.events.count {
-            it.type == RouteEventType.TURN_LEFT ||
-                it.type == RouteEventType.TURN_RIGHT ||
-                it.type == RouteEventType.TURN_SLIGHT ||
-                it.type == RouteEventType.U_TURN
+        val (points, notes, turns) = synchronized(GpsRouteSession.recordingLock) {
+            Triple(
+                GpsRouteSession.points.size,
+                GpsRouteSession.events.count { it.type == RouteEventType.WAYPOINT || it.type == RouteEventType.NOTE },
+                GpsRouteSession.events.count {
+                    it.type == RouteEventType.TURN_LEFT ||
+                        it.type == RouteEventType.TURN_RIGHT ||
+                        it.type == RouteEventType.TURN_SLIGHT ||
+                        it.type == RouteEventType.U_TURN
+                }
+            )
         }
         tts.speak(
-            "Útvonal rögzítés: $points pont, $waypoints jelölő, $turns kanyar."
+            "Útvonal rögzítés: $points pont, $notes jelölő és megjegyzés, $turns kanyar."
         )
     }
 
     private fun addGpsRouteWaypoint() {
+        val (fix, generation) = synchronized(GpsRouteSession.recordingLock) {
+            if (GpsRouteSession.isRecording && GpsRouteSession.points.isNotEmpty()) {
+                GpsRouteSession.lastRecordingLocation?.let { android.location.Location(it) } to
+                    GpsRouteSession.recordingGeneration
+            } else {
+                null to GpsRouteSession.recordingGeneration
+            }
+        }
         if (!GpsRouteSession.isRecording) {
             tts.speak("Nincs aktív útvonal rögzítés.")
             return
         }
-        val point = GpsRouteSession.points.lastOrNull()
-        if (point == null) {
-            tts.speak("Még nincs rögzített pont. Menj egy kicsit, majd próbáld újra.")
+        if (fix == null || !GpsRouteFixQuality.isUsable(fix)) {
+            tts.speak("A G P S hely még nem elég friss vagy pontos a megjegyzéshez. Várj egy kicsit szabad ég alatt, majd próbáld újra.")
             return
         }
-        val waypointIndex = GpsRouteSession.events.count { it.type == RouteEventType.WAYPOINT } + 1
-        GpsRouteSession.events.add(
-            RouteEvent(
-                type = RouteEventType.WAYPOINT,
-                latitude = point.latitude,
-                longitude = point.longitude,
-                timestampMs = System.currentTimeMillis(),
-                label = "út pont $waypointIndex"
+        val capturedAtMs = System.currentTimeMillis()
+        activeFlow = AppFlow.GpsRouteNoteChoice(fix, generation, capturedAtMs)
+        updateFlowDisplay()
+        tts.speak("Útvonal-megjegyzés. Söpörj fel-le: diktálás, hangjegyzet, gépelés vagy üres útpont. Jobbra választás, balra mégse. Diktálás.")
+    }
+
+    private val gpsRouteNoteChoices = listOf("Diktálás", "Hangjegyzet", "Gépelés", "Üres útpont")
+
+    private fun navigateGpsRouteNoteChoice(flow: AppFlow.GpsRouteNoteChoice, delta: Int) {
+        val next = (flow.index + delta + gpsRouteNoteChoices.size) % gpsRouteNoteChoices.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(gpsRouteNoteChoices[next])
+    }
+
+    private fun activateGpsRouteNoteChoice(flow: AppFlow.GpsRouteNoteChoice) {
+        when (flow.index) {
+            0 -> ensureMicAndRun {
+                voiceInput.listen(
+                    prompt = "Mondd az útvonal-megjegyzést. Ha csak útpontot szeretnél, mondd: útpont.",
+                    speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                    onResult = { spoken ->
+                        val value = if (spoken.trim().equals("útpont", ignoreCase = true)) "" else spoken
+                        saveGpsRouteNote(flow.fix, flow.generation, flow.capturedAtMs, value)
+                    },
+                    onError = { showGpsRouteNoteTextDialog(flow.fix, flow.generation, flow.capturedAtMs) }
+                )
+            }
+            1 -> startGpsRouteVoiceRecording(flow)
+            2 -> showGpsRouteNoteTextDialog(flow.fix, flow.generation, flow.capturedAtMs)
+            else -> saveGpsRouteNote(flow.fix, flow.generation, flow.capturedAtMs, "")
+        }
+    }
+
+    private fun startGpsRouteVoiceRecording(flow: AppFlow.GpsRouteNoteChoice) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            tts.speak("Mikrofon engedély szükséges a hangjegyzethez. Engedélyezés után válaszd újra.")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), PERM_REQUEST)
+            return
+        }
+        if (VoiceNoteRecorder.isRecording) {
+            tts.speak("Egy másik hangjegyzet felvétele már folyamatban van.")
+            return
+        }
+        // A választás felolvasását is leállítjuk, majd csak a bleep után nyitjuk a mikrofont.
+        tts.stop()
+        GpsRouteSession.isVoiceNoteRecording = true
+        val waitForSilence = object : Runnable {
+            override fun run() {
+                if (activeFlow != flow || !GpsRouteSession.isRecording ||
+                    GpsRouteSession.recordingGeneration != flow.generation) {
+                    GpsRouteSession.isVoiceNoteRecording = false
+                    return
+                }
+                if (PatrolAnnouncer.isBusy() || tts.isSpeaking()) {
+                    mainHandler.postDelayed(this, 200L)
+                    return
+                }
+                playRecordingStartBleep()
+                mainHandler.postDelayed(afterBeep@{
+                    if (activeFlow != flow || !GpsRouteSession.isRecording ||
+                        GpsRouteSession.recordingGeneration != flow.generation) {
+                        GpsRouteSession.isVoiceNoteRecording = false
+                        return@afterBeep
+                    }
+                    if (!VoiceNoteRecorder.startRouteRecording(this@MainActivity, "${flow.generation}_${flow.capturedAtMs}")) {
+                        GpsRouteSession.isVoiceNoteRecording = false
+                        tts.speak("A hangfelvétel nem indult el.")
+                        return@afterBeep
+                    }
+                    val recordingFlow = AppFlow.GpsRouteVoiceRecording(flow.fix, flow.generation, flow.capturedAtMs)
+                    activeFlow = recordingFlow
+                    updateFlowDisplay()
+                    mainHandler.postDelayed({
+                        if (activeFlow === recordingFlow) stopAndSaveGpsRouteVoiceRecording(recordingFlow)
+                    }, 30_000L)
+                }, 350L)
+            }
+        }
+        mainHandler.postDelayed(waitForSilence, 400L)
+    }
+
+    private fun stopAndSaveGpsRouteVoiceRecording(flow: AppFlow.GpsRouteVoiceRecording) {
+        GpsRouteSession.isVoiceNoteRecording = false
+        val path = VoiceNoteRecorder.stopRecording()
+        if (path == null) {
+            returnToGpsRouteRecording("A hangfelvétel túl rövid vagy sikertelen volt.")
+            return
+        }
+        val saved = synchronized(GpsRouteSession.recordingLock) {
+            if (!GpsRouteSession.isRecording || GpsRouteSession.recordingGeneration != flow.generation) false
+            else {
+                GpsRouteSession.events.add(RouteEvent(
+                    type = RouteEventType.NOTE,
+                    latitude = flow.fix.latitude,
+                    longitude = flow.fix.longitude,
+                    timestampMs = flow.capturedAtMs,
+                    label = "Hangjegyzet",
+                    voiceNotePath = path
+                ))
+                true
+            }
+        }
+        if (!saved) {
+            VoiceNoteRecorder.deleteOwnedFile(this, path)
+            returnToGpsRouteRecording("A rögzítés már leállt, ezért a hangjegyzet nem menthető.")
+            return
+        }
+        returnToGpsRouteRecording("Hangjegyzet mentve. A teljes útvonalat is mentsd el.")
+    }
+
+    private fun cancelGpsRouteVoiceRecording() {
+        GpsRouteSession.isVoiceNoteRecording = false
+        VoiceNoteRecorder.cancelRecording()
+        returnToGpsRouteRecording("Hangjegyzet megszakítva.")
+    }
+
+    private fun returnToGpsRouteRecording(message: String) {
+        GpsRouteSession.isVoiceNoteRecording = false
+        activeFlow = AppFlow.GpsRouteRecordingActive
+        updateFlowDisplay()
+        tts.speak(message)
+    }
+
+    private fun showGpsRouteNoteTextDialog(
+        fix: android.location.Location,
+        generation: Long,
+        capturedAtMs: Long
+    ) {
+        val field = EditText(this).apply {
+            hint = "Például: jobbra az átkeléshez"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            filters = arrayOf(InputFilter.LengthFilter(240))
+            setPadding(32, 24, 32, 24)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Útvonal-megjegyzés")
+            .setMessage("Írj be egy rövid emlékeztetőt. Üresen mentve útpont készül. A megjegyzés csak az út eredeti irányában hangzik el.")
+            .setView(field)
+            .setPositiveButton("Mentés") { _, _ ->
+                saveGpsRouteNote(fix, generation, capturedAtMs, field.text.toString())
+            }
+            .setNegativeButton("Mégse", null)
+            .create()
+        dialog.show()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        field.requestFocus()
+        tts.speak("Írd be a megjegyzést. Jobbra söpréssel mentés, balra söpréssel mégse. Üresen mentve útpont készül.")
+    }
+
+    private fun saveGpsRouteNote(fix: android.location.Location, generation: Long, capturedAtMs: Long, rawText: String) {
+        val text = rawText.trim().replace(Regex("\\s+"), " ").take(240)
+        val savedLabel = synchronized(GpsRouteSession.recordingLock) {
+            if (!GpsRouteSession.isRecording || GpsRouteSession.recordingGeneration != generation) return@synchronized null
+            val number = GpsRouteSession.events.count {
+                it.type == RouteEventType.WAYPOINT || it.type == RouteEventType.NOTE
+            } + 1
+            val label = text.ifBlank { "út pont $number" }
+            GpsRouteSession.events.add(
+                RouteEvent(
+                    type = if (text.isBlank()) RouteEventType.WAYPOINT else RouteEventType.NOTE,
+                    latitude = fix.latitude,
+                    longitude = fix.longitude,
+                    timestampMs = capturedAtMs,
+                    label = label
+                )
             )
-        )
+            label
+        }
+        if (savedLabel == null) {
+            tts.speak("A rögzítés már leállt, ezért a megjegyzés nem menthető.")
+            return
+        }
         feedbackSuccess()
-        tts.speak("Útpont rögzítve: út pont $waypointIndex.")
+        activeFlow = AppFlow.GpsRouteRecordingActive
+        updateFlowDisplay()
+        tts.speak("Útvonal-megjegyzés mentve: $savedLabel.")
     }
 
     private fun stopGpsRouteRecordingAndSave() {
@@ -16693,7 +17038,7 @@ class MainActivity : AppCompatActivity() {
         val intro = when {
             deleteMode -> "${routes.size} mentett útvonal. Törlés mód. Söpörj fel-le választás, jobbra törlés megerősítése."
             guideMode -> "${routes.size} mentett útvonal. Útmutatás mód. Söpörj fel-le választás, jobbra útmutatás indítása."
-            else -> "${routes.size} mentett útvonal. Söpörj fel-le választás, jobbra felolvasás."
+            else -> "${routes.size} mentett útvonal. Söpörj fel-le választás, jobbra szerkesztés."
         }
         tts.speak(intro)
         speakGpsRoutePreview(routes.first())
@@ -16716,8 +17061,158 @@ class MainActivity : AppCompatActivity() {
         when {
             flow.deleteMode -> enterGpsRouteDeleteConfirm(route, flow.routes, flow.index)
             flow.guideMode -> startGpsRouteGuide(route)
-            else -> speakGpsRoutePreview(route)
+            else -> showGpsRouteEditMenu(route)
         }
+    }
+
+    /** A szerkesztés a felvett koordinátákat nem módosítja; az új megjegyzés egy valódi felvett ponthoz kötődik. */
+    private fun showGpsRouteEditMenu(route: GpsRouteRecording) {
+        val current = GpsRouteStore.getById(this, route.id) ?: run {
+            tts.speak("Az útvonal már nincs meg.")
+            return
+        }
+        val choices = arrayOf("Útvonal átnevezése", "Bejegyzések szerkesztése", "Új megjegyzés felvett ponthoz")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(current.name)
+            .setItems(choices) { _, which ->
+                when (which) {
+                    0 -> showGpsRouteTextEditor("Útvonal új neve", current.name) { value ->
+                        val latest = GpsRouteStore.getById(this, current.id) ?: return@showGpsRouteTextEditor
+                        GpsRouteStore.save(this, latest.copy(name = value))
+                        refreshGpsRouteBrowse(latest.id, "Útvonal átnevezve: $value.")
+                    }
+                    1 -> showGpsRouteEntries(current.id)
+                    else -> askGpsRouteNotePosition(current.id)
+                }
+            }
+            .setNegativeButton("Mégse", null)
+            .show()
+        tts.speak("${current.name}. Útvonal átnevezése, bejegyzések szerkesztése vagy új megjegyzés hozzáadása. A GPS nyomvonal változatlan marad.")
+    }
+
+    private fun showGpsRouteTextEditor(title: String, initial: String, onSave: (String) -> Unit) {
+        val field = EditText(this).apply {
+            setText(initial)
+            setSelection(text.length)
+            contentDescription = title
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(field)
+            .setPositiveButton("Mentés", null)
+            .setNegativeButton("Mégse", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = field.text.toString().trim().replace(Regex("\\s+"), " ").take(240)
+                if (value.isBlank()) {
+                    field.error = "A szöveg nem lehet üres"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                onSave(value)
+            }
+            field.requestFocus()
+        }
+        dialog.show()
+        tts.speak("$title. Írd be a szöveget, majd Mentés.")
+    }
+
+    private fun showGpsRouteEntries(routeId: String) {
+        val route = GpsRouteStore.getById(this, routeId) ?: return
+        if (route.events.isEmpty()) {
+            tts.speak("Ezen az útvonalon nincs bejegyzés.")
+            return
+        }
+        val labels = route.events.mapIndexed { index, event ->
+            "${index + 1}. ${event.label?.takeIf { it.isNotBlank() } ?: event.type.name}"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("${route.name}: bejegyzések")
+            .setItems(labels) { _, index ->
+                val event = route.events[index]
+                showGpsRouteTextEditor("${index + 1}. bejegyzés szövege", event.label.orEmpty()) { value ->
+                    val latest = GpsRouteStore.getById(this, routeId) ?: return@showGpsRouteTextEditor
+                    if (index >= latest.events.size) return@showGpsRouteTextEditor
+                    val updated = latest.events.toMutableList()
+                    updated[index] = updated[index].copy(label = value)
+                    GpsRouteStore.save(this, latest.copy(events = updated))
+                    refreshGpsRouteBrowse(routeId, "Bejegyzés mentve: $value.")
+                }
+            }
+            .setNegativeButton("Vissza", null)
+            .show()
+        tts.speak("${route.events.size} bejegyzés. Válassz egyet a szövegének javításához.")
+    }
+
+    private fun askGpsRouteNotePosition(routeId: String) {
+        val route = GpsRouteStore.getById(this, routeId) ?: return
+        if (route.points.isEmpty()) {
+            tts.speak("Az útvonalhoz nincs rögzített GPS pont.")
+            return
+        }
+        val field = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText("50")
+            contentDescription = "Hely az útvonalon, százalék: 0 az indulás, 100 az érkezés"
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Megjegyzés helye: 0–100 százalék")
+            .setView(field)
+            .setPositiveButton("Tovább", null)
+            .setNegativeButton("Mégse", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val percent = field.text.toString().toIntOrNull()
+                if (percent == null || percent !in 0..100) {
+                    field.error = "Adj meg egy számot 0 és 100 között"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                showGpsRouteTextEditor("Új útvonal-megjegyzés", "") { value ->
+                    val latest = GpsRouteStore.getById(this, routeId) ?: return@showGpsRouteTextEditor
+                    val pointIndex = gpsRoutePointAtPercent(latest, percent)
+                    val point = latest.points[pointIndex]
+                    val note = RouteEvent(RouteEventType.NOTE, point.latitude, point.longitude,
+                        point.timestampMs, value)
+                    GpsRouteStore.save(this, latest.copy(events = (latest.events + note).sortedBy { it.timestampMs }))
+                    refreshGpsRouteBrowse(routeId, "Új megjegyzés mentve az útvonal $percent százalékánál: $value.")
+                }
+            }
+            field.requestFocus()
+        }
+        dialog.show()
+        tts.speak("Hol legyen az új megjegyzés? Írj be 0 és 100 közötti százalékot. Nullánál indulás, száznál érkezés. A program a legközelebbi rögzített ponthoz köti.")
+    }
+
+    private fun gpsRoutePointAtPercent(route: GpsRouteRecording, percent: Int): Int {
+        if (route.points.size < 2 || percent <= 0) return 0
+        if (percent >= 100) return route.points.lastIndex
+        val distances = route.points.zipWithNext { first, second ->
+            val result = FloatArray(1)
+            android.location.Location.distanceBetween(first.latitude, first.longitude,
+                second.latitude, second.longitude, result)
+            result[0].toDouble().coerceAtLeast(0.0)
+        }
+        val target = distances.sum() * percent / 100.0
+        var covered = 0.0
+        distances.forEachIndexed { index, distance ->
+            val before = covered
+            covered += distance
+            if (covered >= target) {
+                return if (target - before <= covered - target) index else index + 1
+            }
+        }
+        return route.points.lastIndex
+    }
+
+    private fun refreshGpsRouteBrowse(routeId: String, announcement: String) {
+        val routes = GpsRouteStore.getAll(this)
+        if (routes.isEmpty()) return
+        activeFlow = AppFlow.GpsRouteBrowse(routes, routes.indexOfFirst { it.id == routeId }.coerceAtLeast(0))
+        updateFlowDisplay()
+        tts.speak(announcement)
     }
 
     private fun enterGpsRouteDeleteConfirm(
@@ -16760,10 +17255,20 @@ class MainActivity : AppCompatActivity() {
             tts.speak("Az útvonal túl rövid az útmutatáshoz.")
             return
         }
-        GpsRouteStore.startGuidance(this, route)
+        if (!GpsRouteStore.startGuidance(this, route)) {
+            tts.speak("A G P S útmutatás nem indult el. Ellenőrizd a helyhozzáférést, majd próbáld újra.")
+            return
+        }
         activeFlow = AppFlow.GpsRouteGuidingActive(route)
         updateFlowDisplay()
         tts.speak("Útvonal útmutatás elindult: ${route.speakPreview()}. Balra söprés a leállításhoz.")
+        mainHandler.postDelayed({
+            if (!isFinishing && !isDestroyed && activeFlow is AppFlow.GpsRouteGuidingActive &&
+                !GpsRouteSession.isGuiding
+            ) {
+                exitFlow("A G P S útmutatás nem indult el. Ellenőrizd a helyhozzáférést.", error = true)
+            }
+        }, 2_000L)
     }
 
     private fun stopGpsRouteGuidance() {
@@ -18268,6 +18773,354 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== TÖMEGKÖZLEKEDÉS ====================
 
+    // A GTFS-lekérdezések lemezt és hálózatot érintenek; a képernyőn csak a
+    // már betöltött, konkrét megállósort léptetjük. A háttérfigyelés külön
+    // szolgáltatásban él, ezért a menüből kilépés nem állítja le.
+    private var transitWatchRoutes: List<GtfsRoute> = emptyList()
+    private var transitWatchFeedCaution = ""
+    private var transitWatchOrigin: TransitPlace? = null
+    private val transitWatchActions = listOf(
+        "Állapot felolvasása", "Jelenlegi megálló helyesbítése",
+        "Megszakadt figyelés folytatása", "Figyelés leállítása", "Vissza a menübe"
+    )
+    private val transitWatchStatusTick = object : Runnable {
+        override fun run() {
+            if (activeFlow is AppFlow.TransitWatchActive) {
+                updateFlowDisplay()
+                mainHandler.postDelayed(this, 5_000L)
+            }
+        }
+    }
+
+    private fun startTransitWatchFlow(origin: TransitPlace? = null) {
+        if (TransitStopWatchService.readStatus(this) != null) {
+            showTransitWatchActive()
+        } else {
+            transitWatchOrigin = origin
+            loadTransitWatchRoutes()
+        }
+    }
+
+    private fun loadTransitWatchRoutes(force: Boolean = false) {
+        activeFlow = AppFlow.TransitWatchLoading
+        updateFlowDisplay()
+        tts.speak("A BKK menetrendi megállóadatainak betöltése. Ez első alkalommal tovább tarthat.")
+        Thread({
+            val result = runCatching {
+                val feed = BkkGtfsRepository.ensureCached(this, force)
+                feed to BkkGtfsRepository.listRoutes(this)
+            }
+            postWhenAlive {
+                if (activeFlow != AppFlow.TransitWatchLoading) return@postWhenAlive
+                result.onSuccess { (feed, routes) ->
+                    if (routes.isEmpty()) {
+                        exitFlow("A BKK adatai között nem találtam járatot.")
+                        return@onSuccess
+                    }
+                    val nearbyLines = transitWatchOrigin?.routeLines.orEmpty()
+                    val matchingRoutes = routes.filter { route ->
+                        nearbyLines.any { it.equals(route.shortName, ignoreCase = true) }
+                    }
+                    transitWatchRoutes = if (matchingRoutes.isNotEmpty()) matchingRoutes else routes
+                    transitWatchFeedCaution = when {
+                        feed.refreshFailed -> "A frissítés nem sikerült; korábbi mentett menetrendi adatot használunk. "
+                        feed.isStale -> "A mentett menetrendi adat régi lehet. "
+                        else -> ""
+                    }
+                    if (matchingRoutes.isNotEmpty()) {
+                        showTransitWatchRoutes(matchingRoutes)
+                    } else {
+                        showTransitWatchRouteSearch()
+                    }
+                }.onFailure { error ->
+                    exitFlow("A BKK menetrendi adatait nem tudtam betölteni. ${error.message.orEmpty()}")
+                }
+            }
+        }, "SuperDL-BKK-Feed").start()
+    }
+
+    private fun showTransitWatchRouteSearch() {
+        activeFlow = AppFlow.TransitWatchSearchChoice()
+        updateFlowDisplay()
+        tts.speak("${transitWatchFeedCaution}Statikus menetrendi adatot használunk, nem élő járműkövetést. Járatkeresés diktálással. Söpörj fel-le a további lehetőségekhez, jobbra az indításhoz, balra a kilépéshez.")
+    }
+
+    private val transitWatchSearchActions = listOf(
+        "Járatkeresés diktálással", "Összes járat böngészése", "Menetrend frissítése"
+    )
+
+    private fun navigateTransitWatchSearchChoice(flow: AppFlow.TransitWatchSearchChoice, delta: Int) {
+        val next = (flow.index + delta + transitWatchSearchActions.size) % transitWatchSearchActions.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchSearchActions[next])
+    }
+
+    private fun activateTransitWatchSearchChoice(flow: AppFlow.TransitWatchSearchChoice) {
+        when (flow.index) {
+            0 -> ensureMicAndRun {
+                voiceInput.listen(
+                    prompt = "Mondd a BKK járat jelzését vagy nevét. Ha nem találom, az összes járatot is böngészheted.",
+                    speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                    onResult = { spoken ->
+                        if (activeFlow !is AppFlow.TransitWatchSearchChoice) return@listen
+                        val query = spoken.trim()
+                        val found = if (query.isBlank()) emptyList() else transitWatchRoutes.filter {
+                            it.shortName.contains(query, ignoreCase = true) ||
+                                it.longName.contains(query, ignoreCase = true)
+                        }
+                        if (found.isEmpty()) {
+                            tts.speak("Nem találtam ilyen járatot. Söpörj jobbra az új diktáláshoz, vagy válaszd az összes járat böngészését.")
+                        } else {
+                            showTransitWatchRoutes(found)
+                        }
+                    },
+                    onError = {
+                        if (activeFlow is AppFlow.TransitWatchSearchChoice) {
+                            tts.speak("Nem értettem a járatot. Újra diktálhatsz, vagy böngészheted az összes járatot.")
+                        }
+                    }
+                )
+            }
+            1 -> showTransitWatchRoutes(transitWatchRoutes)
+            else -> loadTransitWatchRoutes(force = true)
+        }
+    }
+
+    private fun showTransitWatchRoutes(routes: List<GtfsRoute>) {
+        if (routes.isEmpty()) {
+            tts.speak("Nem találtam járatot a mentett menetrendben.")
+            return
+        }
+        activeFlow = AppFlow.TransitWatchRouteBrowse(routes, 0)
+        updateFlowDisplay()
+        tts.speak("${routes.size} járat. Söpörj fel-le a választáshoz, jobbra a kiválasztáshoz.")
+        tts.speakAdd(transitWatchRouteLabel(routes.first()))
+    }
+
+    private fun transitWatchRouteLabel(route: GtfsRoute): String =
+        listOf(route.shortName, route.longName).filter { it.isNotBlank() }.joinToString(", ")
+            .ifBlank { "Ismeretlen járat" }
+
+    private fun navigateTransitWatchRoutes(flow: AppFlow.TransitWatchRouteBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.routes.size) % flow.routes.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchRouteLabel(flow.routes[next]))
+    }
+
+    private fun selectTransitWatchRoute(flow: AppFlow.TransitWatchRouteBrowse) {
+        val route = flow.routes[flow.index]
+        activeFlow = AppFlow.TransitWatchLoading
+        updateFlowDisplay()
+        tts.speak("${transitWatchRouteLabel(route)} megállósorainak betöltése. Várj.")
+        Thread({
+            val result = runCatching { BkkGtfsRepository.listPatterns(this, route.id) }
+            postWhenAlive {
+                if (activeFlow != AppFlow.TransitWatchLoading) return@postWhenAlive
+                result.onSuccess { allPatterns ->
+                    val origin = transitWatchOrigin
+                    val matchingPatterns = if (origin == null) emptyList() else allPatterns.filter { pattern ->
+                        pattern.stops.dropLast(1).any { call ->
+                            call.stop.id == origin.stopId ||
+                                call.stop.name.equals(origin.name, ignoreCase = true)
+                        }
+                    }
+                    val patterns = if (matchingPatterns.isNotEmpty()) matchingPatterns else allPatterns
+                    if (patterns.isEmpty()) {
+                        exitFlow("Ehhez a járathoz nincs használható megállósor a mentett adatokban.")
+                    } else {
+                        activeFlow = AppFlow.TransitWatchPatternBrowse(patterns, 0)
+                        updateFlowDisplay()
+                        tts.speak("${patterns.size} irány vagy megállóváltozat. Söpörj fel-le, jobbra kiválasztás.")
+                        tts.speakAdd(transitWatchPatternLabel(patterns.first(), 0))
+                    }
+                }.onFailure { error -> exitFlow("Nem sikerült betölteni a megállósort. ${error.message.orEmpty()}") }
+            }
+        }, "SuperDL-BKK-Patterns").start()
+    }
+
+    private fun transitWatchPatternLabel(sequence: GtfsTripStopSequence, index: Int): String {
+        val first = sequence.stops.firstOrNull()?.stop?.name.orEmpty()
+        val last = sequence.stops.lastOrNull()?.stop?.name.orEmpty()
+        val direction = sequence.trip.headsign?.takeIf { it.isNotBlank() } ?: last
+        return "${sequence.route.shortName}, $direction felé. $first – $last. " +
+            "${sequence.stops.size} megálló, ${index + 1}. változat."
+    }
+
+    private fun navigateTransitWatchPatterns(flow: AppFlow.TransitWatchPatternBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.patterns.size) % flow.patterns.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchPatternLabel(flow.patterns[next], next))
+    }
+
+    private fun selectTransitWatchPattern(flow: AppFlow.TransitWatchPatternBrowse) {
+        val pattern = flow.patterns[flow.index]
+        val origin = transitWatchOrigin
+        val boardingIndex = if (origin == null) -1 else pattern.stops.dropLast(1).indexOfFirst { call ->
+            call.stop.id == origin.stopId || call.stop.name.equals(origin.name, ignoreCase = true)
+        }
+        showTransitWatchBoarding(pattern, boardingIndex.coerceAtLeast(0))
+    }
+
+    private fun transitWatchStopLabel(sequence: GtfsTripStopSequence, index: Int): String =
+        "${sequence.stops[index].stop.name}, ${index + 1}. megálló"
+
+    private fun showTransitWatchBoarding(sequence: GtfsTripStopSequence, index: Int) {
+        if (sequence.stops.size < 2) {
+            exitFlow("Ehhez a megállósorhoz legalább két megálló kell.")
+            return
+        }
+        activeFlow = AppFlow.TransitWatchBoardingBrowse(sequence, index.coerceIn(0, sequence.stops.lastIndex - 1))
+        updateFlowDisplay()
+        tts.speak("Válaszd ki, hol szállsz fel. Söpörj fel-le, jobbra kiválasztás.")
+        tts.speakAdd(transitWatchStopLabel(sequence, (activeFlow as AppFlow.TransitWatchBoardingBrowse).index))
+    }
+
+    private fun navigateTransitWatchBoarding(flow: AppFlow.TransitWatchBoardingBrowse, delta: Int) {
+        val count = flow.sequence.stops.size - 1
+        val next = (flow.index + delta + count) % count
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchStopLabel(flow.sequence, next))
+    }
+
+    private fun selectTransitWatchBoarding(flow: AppFlow.TransitWatchBoardingBrowse) =
+        showTransitWatchDestination(flow.sequence, flow.index, flow.index + 1)
+
+    private fun showTransitWatchDestination(sequence: GtfsTripStopSequence, boarding: Int, index: Int) {
+        activeFlow = AppFlow.TransitWatchDestinationBrowse(
+            sequence, boarding, index.coerceIn(boarding + 1, sequence.stops.lastIndex)
+        )
+        updateFlowDisplay()
+        tts.speak("Válaszd ki a célmegállót. A felszállás utáni megállók közül választhatsz.")
+        tts.speakAdd(transitWatchStopLabel(sequence, (activeFlow as AppFlow.TransitWatchDestinationBrowse).index))
+    }
+
+    private fun navigateTransitWatchDestination(flow: AppFlow.TransitWatchDestinationBrowse, delta: Int) {
+        val count = flow.sequence.stops.size - flow.boardingIndex - 1
+        val next = flow.boardingIndex + 1 +
+            (flow.index - flow.boardingIndex - 1 + delta + count) % count
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchStopLabel(flow.sequence, next))
+    }
+
+    private fun selectTransitWatchDestination(flow: AppFlow.TransitWatchDestinationBrowse) {
+        activeFlow = AppFlow.TransitWatchConfirm(flow.sequence, flow.boardingIndex, flow.index)
+        updateFlowDisplay()
+        speakTransitWatchConfirm(activeFlow as AppFlow.TransitWatchConfirm)
+    }
+
+    private fun speakTransitWatchConfirm(flow: AppFlow.TransitWatchConfirm) {
+        val boarding = transitWatchStopLabel(flow.sequence, flow.boardingIndex)
+        val destination = transitWatchStopLabel(flow.sequence, flow.destinationIndex)
+        tts.speak("${flow.sequence.route.shortName}, felszállás: $boarding, cél: $destination. " +
+            "${flow.destinationIndex - flow.boardingIndex} megálló. A helyzet csak G P S alapú becslés; " +
+            "ellenőrizd a jármű kijelzőjét és bemondását. Jobbra: Felszálltam és figyelés indítása. Balra: vissza.")
+    }
+
+    private fun boardTransitWatch(flow: AppFlow.TransitWatchConfirm) {
+        if (!ensureLocationPermission()) return
+        val started = TransitStopWatchService.startRide(
+            this, flow.sequence, flow.boardingIndex, flow.destinationIndex
+        )
+        if (!started) {
+            tts.speak("A megállófigyelés nem indult el. Ellenőrizd a helyhozzáférést.")
+            return
+        }
+        showTransitWatchActive()
+        tts.speak("Felszálltam. A kiválasztott célmegállót figyelem. A menüből kilépve is aktív marad.")
+    }
+
+    private fun transitWatchStatusText(status: TransitStopWatchStatus?): String {
+        if (status == null) return "Nincs aktív megállófigyelés."
+        val current = status.currentStopIndex?.let { status.stopNames.getOrNull(it) } ?: "felszálló megálló"
+        val next = status.nextStopIndex?.let { status.stopNames.getOrNull(it) } ?: "nincs"
+        val state = when (status.status) {
+            TransitRideStatus.NOT_BOARDED -> "Indítás folyamatban"
+            TransitRideStatus.TRACKING -> "GPS alapján figyelés alatt"
+            TransitRideStatus.UNCERTAIN -> "A helyzet bizonytalan; a megállójelzés szünetel"
+            TransitRideStatus.ARRIVED -> "A cél közelében lehetsz; ellenőrizd a járművet"
+        }
+        val interrupted = if (!status.serviceActive && status.status != TransitRideStatus.ARRIVED &&
+            status.status != TransitRideStatus.NOT_BOARDED) "A háttérfigyelés megszakadt. " else ""
+        return "$interrupted${status.routeName}, cél: ${status.destinationName}. $state. " +
+            "Jelenlegi becsült megálló: $current. Következő: $next. " +
+            "Hátralévő megállók: ${status.stopsRemaining ?: "ismeretlen"}."
+    }
+
+    private fun showTransitWatchActive() {
+        activeFlow = AppFlow.TransitWatchActive()
+        updateFlowDisplay()
+        tts.speak("Megállófigyelő. ${transitWatchStatusText(TransitStopWatchService.readStatus(this))} " +
+            "Söpörj fel-le a műveletekhez, jobbra végrehajtás, balra vissza a menübe.")
+        mainHandler.removeCallbacks(transitWatchStatusTick)
+        mainHandler.postDelayed(transitWatchStatusTick, 5_000L)
+    }
+
+    private fun navigateTransitWatchActions(flow: AppFlow.TransitWatchActive, delta: Int) {
+        val next = (flow.actionIndex + delta + transitWatchActions.size) % transitWatchActions.size
+        activeFlow = flow.copy(actionIndex = next)
+        updateFlowDisplay()
+        tts.speak(transitWatchActions[next])
+    }
+
+    private fun activateTransitWatchAction(flow: AppFlow.TransitWatchActive) {
+        val status = TransitStopWatchService.readStatus(this)
+        when (flow.actionIndex) {
+            0 -> tts.speak(transitWatchStatusText(status))
+            1 -> {
+                if (status == null || status.status == TransitRideStatus.ARRIVED) {
+                    tts.speak("Most nincs helyesbíthető megállófigyelés.")
+                } else {
+                    val index = (status.currentStopIndex ?: status.boardingStopIndex)
+                        .coerceIn(status.boardingStopIndex, status.destinationStopIndex)
+                    activeFlow = AppFlow.TransitWatchCorrectionBrowse(index)
+                    updateFlowDisplay()
+                    tts.speak("Válaszd ki a tényleges megállót. Jobbra helyesbítés, balra vissza.")
+                    tts.speakAdd(status.stopNames[index])
+                }
+            }
+            2 -> {
+                if (status?.serviceActive == true) tts.speak("A megállófigyelés már fut.")
+                else if (TransitStopWatchService.resumeRide(this)) tts.speak("A figyelés újraindul. Friss G P S jelre várok.")
+                else tts.speak("Nem sikerült folytatni. Ellenőrizd a helyhozzáférést, vagy válassz új járatot.")
+            }
+            3 -> {
+                activeFlow = AppFlow.TransitWatchStopConfirm
+                updateFlowDisplay()
+                tts.speak("Biztosan leállítod a megállófigyelést? Jobbra igen, balra mégse.")
+            }
+            else -> exitFlow("A megállófigyelő tovább működik a háttérben.")
+        }
+    }
+
+    private fun navigateTransitWatchCorrections(flow: AppFlow.TransitWatchCorrectionBrowse, delta: Int) {
+        val status = TransitStopWatchService.readStatus(this) ?: run {
+            exitFlow("Nincs aktív megállófigyelés.")
+            return
+        }
+        val count = status.destinationStopIndex - status.boardingStopIndex + 1
+        val next = status.boardingStopIndex +
+            (flow.index - status.boardingStopIndex + delta + count) % count
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        tts.speak("${status.stopNames[next]}, ${next + 1}. megálló")
+    }
+
+    private fun correctTransitWatchStop(flow: AppFlow.TransitWatchCorrectionBrowse) {
+        val status = TransitStopWatchService.readStatus(this) ?: run {
+            exitFlow("Nincs aktív megállófigyelés.")
+            return
+        }
+        if (TransitStopWatchService.requestManualCorrection(this, flow.index)) {
+            showTransitWatchActive()
+            tts.speak("Helyesbítés kérve: ${status.stopNames[flow.index]}. A G P S tovább figyel.")
+        } else tts.speak("Nem sikerült helyesbíteni. Ellenőrizd, hogy fut-e a figyelés.")
+    }
+
     private fun startTransitNearbyFlow() {
         if (!ensureLocationPermission()) return
         startTransitCompass()
@@ -18419,11 +19272,8 @@ class MainActivity : AppCompatActivity() {
     ) {
         activeFlow = AppFlow.TransitBrowse(places, 0, title, radiusMode)
         updateFlowDisplay()
-        tts.speak(
-            "$title. ${places.size} találat. ${radiusMode.label}. " +
-                "Söpörj fel-le választás, jobbra műveletek, balra vissza."
-        )
-        tts.speakAdd(places.first().speakPreview())
+        tts.speak("$title. Legközelebb: ${places.first().speakFull()}")
+        tts.speakAdd("${places.size} megálló. Fel-le további megállók, jobbra műveletek, balra vissza.")
     }
 
     private fun navigateTransitList(flow: AppFlow.TransitBrowse, delta: Int) {
@@ -18437,6 +19287,9 @@ class MainActivity : AppCompatActivity() {
         val place = flow.places[flow.index]
         val actions = buildList {
             add(TransitContextAction.SPEAK_FULL)
+            if (place.stopId != null) {
+                add(TransitContextAction.WATCH_RIDE)
+            }
             if (place.isFavorite) add(TransitContextAction.REMOVE_FAVORITE)
             else add(TransitContextAction.SAVE_FAVORITE)
             if (flow.title == "Közeli megállók") add(TransitContextAction.TOGGLE_RADIUS)
@@ -18465,6 +19318,7 @@ class MainActivity : AppCompatActivity() {
         val place = flow.places[flow.placeIndex]
         when (flow.actions[flow.actionIndex]) {
             TransitContextAction.SPEAK_FULL -> tts.speak(place.speakFull())
+            TransitContextAction.WATCH_RIDE -> startTransitWatchFlow(place)
             TransitContextAction.SAVE_FAVORITE -> {
                 val saved = TransitStopStore.add(
                     this,
@@ -19394,6 +20248,7 @@ class MainActivity : AppCompatActivity() {
             MenuAction.TRANSIT_STOP -> startSubFlowFromAssistant { startTransitStopFlow() }
             MenuAction.TRANSIT_FAVORITES -> startSubFlowFromAssistant { startTransitFavoritesFlow() }
             MenuAction.TRANSIT_ROUTE -> startSubFlowFromAssistant { startTransitRouteFlow() }
+            MenuAction.TRANSIT_STOP_WATCH -> startSubFlowFromAssistant { startTransitWatchFlow() }
             MenuAction.TRAIN_NEARBY -> startSubFlowFromAssistant { startTrainNearbyFlow() }
             MenuAction.TRAIN_STATION_SEARCH -> startSubFlowFromAssistant { startTrainStationFlow() }
             MenuAction.TRAIN_FAVORITES -> startSubFlowFromAssistant { startTrainFavoritesFlow() }
@@ -19596,6 +20451,10 @@ class MainActivity : AppCompatActivity() {
             }
             MenuAction.PATROL_TIME_INTERVAL_CYCLE -> {
                 cyclePatrolTimeInterval()
+                resumeVoiceAssistantListening()
+            }
+            MenuAction.PATROL_CLOCK_VOICE_CYCLE -> {
+                cyclePatrolClockVoice()
                 resumeVoiceAssistantListening()
             }
             MenuAction.PATROL_NIGHT_MODE_TOGGLE -> {
@@ -21463,6 +22322,12 @@ class MainActivity : AppCompatActivity() {
         tts.speak(ToggleAnnouncement.speakAfterToggle(label, next))
     }
 
+    private fun cyclePatrolClockVoice() {
+        val voice = com.superdl.launcher.patrol.ClockVoiceStore.cycle(this)
+        tts.speak("Óra hangja: ${com.superdl.launcher.patrol.ClockVoiceStore.label(voice)}. " +
+            "A köztes időpontokat Elena mondja.")
+    }
+
     private fun cyclePatrolTimeInterval() {
         val next = PatrolStore.cycleTimeInterval(this)
         tts.speak("Idő bemondás gyakorisága: $next perc.")
@@ -22605,7 +23470,7 @@ class MainActivity : AppCompatActivity() {
      * eszedbe jut, hogy ez pont a számlaszám, ne kelljen kilépni és elölről
      * kezdeni. A címzettek megmaradnak, csak a szöveg jön a szövegtárból.
      */
-    private fun startTextBankInsertFlow(recipients: List<Recipient>) {
+    private fun startTextBankInsertFlow(recipients: List<Recipient>, returnFlow: AppFlow? = null) {
         val items = com.superdl.launcher.textbank.TextBankStore.getAll(this)
         if (items.isEmpty()) {
             tts.speak(
@@ -22616,11 +23481,12 @@ class MainActivity : AppCompatActivity() {
         }
         voiceInput.cancel()
         textBankInsertRecipients = recipients
+        textBankInsertReturnFlow = returnFlow
         activeFlow = AppFlow.TextBankBrowse(items, 0, forInsert = true)
         updateFlowDisplay()
         tts.speak(
             "Sablon a szövegtárból. Fel-le válogatás, jobbra kiválasztás, " +
-                "balra vissza a diktáláshoz."
+                "balra vissza az üzenethez."
         )
         tts.speakAdd(items[0].speakShort())
     }
@@ -22636,14 +23502,44 @@ class MainActivity : AppCompatActivity() {
         val entry = flow.items[flow.index]
         if (flow.forInsert) {
             val recipients = textBankInsertRecipients
+            val returnFlow = textBankInsertReturnFlow
             textBankInsertRecipients = null
+            textBankInsertReturnFlow = null
             if (recipients.isNullOrEmpty()) {
                 exitFlow("Elveszett a címzett. Kezdd elölről.", error = true)
                 return
             }
-            activeFlow = AppFlow.SmsMultiConfirm(recipients, entry.text)
-            updateFlowDisplay()
-            repeatSmsMultiConfirm(recipients, entry.text, null)
+            val prefix = when (returnFlow) {
+                is AppFlow.SmsConfirm -> returnFlow.message
+                is AppFlow.SmsMultiConfirm -> returnFlow.message
+                else -> ""
+            }
+            val message = com.superdl.launcher.sms.SmsTemplateComposer.append(prefix, entry.text)
+            when (returnFlow) {
+                is AppFlow.SmsConfirm -> enterSmsConfirm(returnFlow.recipient, message)
+                is AppFlow.SmsAwaitMessage -> enterSmsConfirm(returnFlow.recipient, message)
+                is AppFlow.SmsMultiConfirm -> {
+                    activeFlow = returnFlow.copy(message = message)
+                    updateFlowDisplay()
+                    repeatSmsMultiConfirm(recipients, message, returnFlow.triggerAt, returnFlow.repeat)
+                }
+                is AppFlow.SmsMultiAwaitMessage -> {
+                    if (returnFlow.scheduled) {
+                        activeFlow = AppFlow.SmsScheduleAwaitTime(recipients, message)
+                        updateFlowDisplay()
+                        listenForSmsScheduleTime(recipients, message)
+                    } else {
+                        activeFlow = AppFlow.SmsMultiConfirm(recipients, message)
+                        updateFlowDisplay()
+                        repeatSmsMultiConfirm(recipients, message, null)
+                    }
+                }
+                else -> {
+                    activeFlow = AppFlow.SmsMultiConfirm(recipients, message)
+                    updateFlowDisplay()
+                    repeatSmsMultiConfirm(recipients, message, null)
+                }
+            }
             return
         }
         // ÖNÁLLÓ KÜLDÉS: a szöveg készen van, már csak címzett kell.
@@ -24183,12 +25079,12 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsAwaitMessage -> {
                 tvItem.text = flow.recipient.label
                 tvPosition.text = "2 / 3  •  Üzenet diktálása"
-                tvHint.text = "Diktáld az üzenetet  •  ⬅ mégse"
+                tvHint.text = "Diktálás vége: ➡  •  ⬇ sablonok  •  ⬅ mégse"
             }
             is AppFlow.SmsConfirm -> {
                 tvItem.text = flow.message
                 tvPosition.text = "3 / 3  •  ${flow.recipient.label}"
-                tvHint.text = "➡ küldés  •  ⬅ mégse  •  szóban: küldés, nem  •  ⬆⬇ ismétlés"
+                tvHint.text = "➡ küldés  •  ⬇ sablon hozzáfűzése  •  ⬅ mégse  •  ⬆ ismétlés"
             }
             is AppFlow.SmsMultiLetterBrowse -> {
                 val g = flow.groups[flow.index]
@@ -24208,18 +25104,18 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.SmsMultiAwaitMessage -> {
                 tvItem.text = "${flow.recipients.size} címzett"
                 tvPosition.text = "Üzenet diktálása"
-                tvHint.text = "Diktáld az üzenetet  •  ⬅ mégse"
+                tvHint.text = "Diktálás vége: ➡  •  ⬇ sablonok  •  ⬅ mégse"
             }
             is AppFlow.SmsMultiConfirm -> {
                 tvItem.text = flow.message
                 val at = flow.triggerAt
                 if (at == null) {
                     tvPosition.text = "${flow.recipients.size} címzett"
-                    tvHint.text = "➡ küldés mindenkinek  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+                    tvHint.text = "➡ küldés mindenkinek  •  ⬇ sablon hozzáfűzése  •  ⬅ mégse"
                 } else {
                     tvPosition.text = "${flow.recipients.size} címzett  •  " +
                         com.superdl.launcher.sms.ScheduledSmsTime.speakWhen(at)
-                    tvHint.text = "➡ időzítés beállítása  •  ⬅ mégse  •  ⬆⬇ ismétlés"
+                    tvHint.text = "➡ időzítés beállítása  •  ⬇ sablon hozzáfűzése  •  ⬅ mégse"
                 }
             }
             is AppFlow.SmsScheduleAwaitTime -> {
@@ -24625,7 +25521,17 @@ class MainActivity : AppCompatActivity() {
                 val points = GpsRouteSession.points.size
                 tvItem.text = GpsRouteSession.recordingName.ifBlank { "Útvonal" }
                 tvPosition.text = "GPS útvonal rögzítés  •  $points pont"
-                tvHint.text = "⬆⬇ állapot  •  ➡ útpont  •  ⬅ mentés"
+                tvHint.text = "⬆⬇ állapot  •  ➡ megjegyzés vagy útpont  •  ⬅ mentés"
+            }
+            is AppFlow.GpsRouteNoteChoice -> {
+                tvItem.text = gpsRouteNoteChoices[flow.index]
+                tvPosition.text = "Útvonal-megjegyzés  •  ${flow.index + 1} / ${gpsRouteNoteChoices.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ indítás  •  ⬅ mégse"
+            }
+            is AppFlow.GpsRouteVoiceRecording -> {
+                tvItem.text = "Útvonal-hangjegyzet"
+                tvPosition.text = "Hangfelvétel folyamatban"
+                tvHint.text = "➡ mentés  •  ⬅ megszakítás  •  legfeljebb 30 másodperc"
             }
             is AppFlow.GpsRouteAwaitName -> {
                 tvItem.text = flow.route.speakPreview()
@@ -24643,7 +25549,7 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = when {
                     flow.deleteMode -> "⬆⬇ választás  •  ➡ törlés  •  ⬅ vissza"
                     flow.guideMode -> "⬆⬇ választás  •  ➡ útmutatás  •  ⬅ vissza"
-                    else -> "⬆⬇ választás  •  ➡ felolvas  •  ⬅ vissza"
+                    else -> "⬆⬇ választás  •  ➡ szerkesztés  •  ⬅ vissza"
                 }
             }
             is AppFlow.GpsRouteDeleteConfirm -> {
@@ -25676,6 +26582,57 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Útvonal  •  ${flow.index + 1} / ${flow.route.steps.size}"
                 tvHint.text = "⬆⬇ lépés  •  ➡ ismétlés  •  ⬅ vissza"
             }
+            AppFlow.TransitWatchLoading -> {
+                tvItem.text = "BKK megállóadatok betöltése"
+                tvPosition.text = "Megállófigyelő"
+                tvHint.text = "Kérlek várj  •  ⬅ megszakítás"
+            }
+            is AppFlow.TransitWatchSearchChoice -> {
+                tvItem.text = transitWatchSearchActions[flow.index]
+                tvPosition.text = "BKK megállófigyelő  •  ${flow.index + 1} / ${transitWatchSearchActions.size}"
+                tvHint.text = "⬆⬇ lehetőségek  •  ➡ indítás  •  ⬅ bezárás"
+            }
+            is AppFlow.TransitWatchRouteBrowse -> {
+                tvItem.text = transitWatchRouteLabel(flow.routes[flow.index])
+                tvPosition.text = "Járatok  •  ${flow.index + 1} / ${flow.routes.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
+            is AppFlow.TransitWatchPatternBrowse -> {
+                tvItem.text = transitWatchPatternLabel(flow.patterns[flow.index], flow.index)
+                tvPosition.text = "Irány és megállósor  •  ${flow.index + 1} / ${flow.patterns.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
+            is AppFlow.TransitWatchBoardingBrowse -> {
+                tvItem.text = transitWatchStopLabel(flow.sequence, flow.index)
+                tvPosition.text = "Felszálló megálló  •  ${flow.index + 1} / ${flow.sequence.stops.size - 1}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
+            is AppFlow.TransitWatchDestinationBrowse -> {
+                tvItem.text = transitWatchStopLabel(flow.sequence, flow.index)
+                tvPosition.text = "Célmegálló  •  ${flow.index - flow.boardingIndex} / ${flow.sequence.stops.size - flow.boardingIndex - 1}"
+                tvHint.text = "⬆⬇ választás  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
+            is AppFlow.TransitWatchConfirm -> {
+                tvItem.text = "Felszálltam: ${flow.sequence.stops[flow.boardingIndex].stop.name} → ${flow.sequence.stops[flow.destinationIndex].stop.name}"
+                tvPosition.text = "${flow.sequence.route.shortName}  •  ${flow.destinationIndex - flow.boardingIndex} megálló"
+                tvHint.text = "➡ felszálltam, figyelés indul  •  ⬅ vissza"
+            }
+            is AppFlow.TransitWatchActive -> {
+                tvItem.text = transitWatchStatusText(TransitStopWatchService.readStatus(this))
+                tvPosition.text = "Megállófigyelő  •  ${transitWatchActions[flow.actionIndex]}"
+                tvHint.text = "⬆⬇ műveletek  •  ➡ végrehajtás  •  ⬅ menü; a figyelés marad"
+            }
+            AppFlow.TransitWatchStopConfirm -> {
+                tvItem.text = "Leállítsam a megállófigyelést?"
+                tvPosition.text = "A figyelés megszűnik"
+                tvHint.text = "➡ igen  •  ⬅ mégse"
+            }
+            is AppFlow.TransitWatchCorrectionBrowse -> {
+                val status = TransitStopWatchService.readStatus(this)
+                tvItem.text = status?.stopNames?.getOrNull(flow.index) ?: "Nincs aktív út"
+                tvPosition.text = "Jelenlegi megálló helyesbítése"
+                tvHint.text = "⬆⬇ választás  •  ➡ helyesbítés  •  ⬅ vissza"
+            }
             AppFlow.TrainAwaitStation -> {
                 tvItem.text = "Állomás keresése"
                 tvPosition.text = "Vonat  •  Hangos keresés"
@@ -26076,6 +27033,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (activeFlow is AppFlow.GpsRouteVoiceRecording) VoiceNoteRecorder.cancelRecording()
+        if (activeFlow is AppFlow.GpsRouteVoiceRecording || activeFlow is AppFlow.GpsRouteNoteChoice) {
+            GpsRouteSession.isVoiceNoteRecording = false
+        }
         stopDictaphoneElapsedLoop()
         DictaphonePlayback.stop()
         if (DictaphoneManager.isRecording()) {

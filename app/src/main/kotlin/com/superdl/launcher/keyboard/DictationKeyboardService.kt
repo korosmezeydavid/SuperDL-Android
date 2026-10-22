@@ -69,6 +69,7 @@ class DictationKeyboardService : InputMethodService() {
     private var generation = 0
 
     private var silentRounds = 0
+    private var finishAfterCurrent = false
 
     // Csippentés és koppintás felismeréséhez.
     private var startSpread = 0f
@@ -156,6 +157,7 @@ class DictationKeyboardService : InputMethodService() {
             return
         }
         running = true
+        finishAfterCurrent = false
         silentRounds = 0
         val gen = ++generation
         label?.text = "Hallgatok…"
@@ -166,6 +168,7 @@ class DictationKeyboardService : InputMethodService() {
 
     private fun stopLoop() {
         running = false
+        finishAfterCurrent = false
         generation++
         handler.removeCallbacksAndMessages(null)
         try { voiceInput?.cancel() } catch (_: Throwable) {}
@@ -186,13 +189,24 @@ class DictationKeyboardService : InputMethodService() {
                 } else {
                     silentRounds = 0
                     commitDictated(text)
-                    // A „Beírva" bemondása után jön a következő kör.
-                    handler.postDelayed({ listenOnce(gen) }, RELISTEN_DELAY_MS)
+                    if (finishAfterCurrent) {
+                        running = false
+                        finishAfterCurrent = false
+                        label?.text = "Diktálás kész"
+                    } else {
+                        // A „Beírva" bemondása után jön a következő kör.
+                        handler.postDelayed({ listenOnce(gen) }, RELISTEN_DELAY_MS)
+                    }
                 }
             },
             onError = {
                 if (!running || gen != generation) return@listenPrompt
-                onSilentRound(gen)
+                if (finishAfterCurrent) {
+                    running = false
+                    finishAfterCurrent = false
+                    label?.text = "Nem hallottam szöveget"
+                    tts?.speak("Nem hallottam szöveget. Koppints a folytatáshoz.")
+                } else onSilentRound(gen)
             }
         )
     }
@@ -323,10 +337,17 @@ class DictationKeyboardService : InputMethodService() {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (closing) return true
                 val dx = event.getX(0) - downX
+                val dy = event.getY(0) - downY
                 val threshold = resources.displayMetrics.widthPixels * 0.18f
                 when {
                     maxPointers >= 3 -> showKeyboardPicker()
                     maxPointers == 2 && dx < -threshold -> deleteLastWord()
+                    maxPointers == 1 && dx > threshold && kotlin.math.abs(dx) > kotlin.math.abs(dy) -> {
+                        if (voiceInput?.isDictating == true) {
+                            finishAfterCurrent = true
+                            voiceInput?.finishDictation()
+                        }
+                    }
                     maxPointers == 1 && moved < threshold / 2 -> {
                         // KOPPINTÁS: ha megálltunk, újraindítjuk a hallgatást.
                         if (!running) startLoop("Folytatom. Mondd a szöveget.")

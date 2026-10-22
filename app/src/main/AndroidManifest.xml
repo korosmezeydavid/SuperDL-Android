@@ -139,6 +139,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -286,6 +287,17 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.SuperDL" />
+
+        <activity
+            android:name=".telegram.TelegramActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SuperDL" />
+
+        <service
+            android:name=".telegram.TelegramConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
 
         <activity
             android:name=".light.LightDetectorActivity"
@@ -750,21 +762,17 @@
         <service
             android:name=".route.GpsRouteRecorderService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="gps_route_recording" />
-        </service>
+            android:foregroundServiceType="location" />
 
         <!-- GPS Útvonal – mentett útvonal hangos követése -->
         <service
             android:name=".route.GpsRouteGuideService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="gps_route_guidance" />
-        </service>
+            android:foregroundServiceType="location" />
+        <service
+            android:name=".transit.TransitStopWatchService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <!-- Mentett időzítők – háttérben jelzi az eltelt és hátralévő időt -->
         <service

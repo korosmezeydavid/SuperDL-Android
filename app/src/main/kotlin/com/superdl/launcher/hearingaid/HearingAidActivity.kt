@@ -14,6 +14,7 @@ import com.superdl.launcher.feedback.SoundFeedback
 import com.superdl.launcher.feedback.SoundType
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 class HearingAidActivity : AppCompatActivity() {
 
@@ -22,6 +23,7 @@ class HearingAidActivity : AppCompatActivity() {
     private lateinit var tts: TtsManager
     private lateinit var sounds: SoundFeedback
     private lateinit var gestureListener: SwipeGestureListener
+    private val exitRequested = AtomicBoolean(false)
 
     private var settings = HearingAidSettings()
     private var settingIndex = 0
@@ -200,8 +202,8 @@ class HearingAidActivity : AppCompatActivity() {
     }
 
     private fun finishAid() {
-        tts.speak("Hallás erősítő bezárva.")
-        finish()
+        if (!exitRequested.compareAndSet(false, true)) return
+        tts.speakThen("Hallás erősítő bezárva.") { finish() }
     }
 
     private fun hasMicPermission(): Boolean =

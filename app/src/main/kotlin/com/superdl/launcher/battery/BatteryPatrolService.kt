@@ -194,7 +194,8 @@ class BatteryPatrolService : Service() {
         // élő hangon szól („Most tizennégy óra harminc perc van."); különben,
         // vagy ha a klip nem szólal meg, a felolvasó mondja a dátumot és az időt.
         val hour = now.get(Calendar.HOUR_OF_DAY)
-        val clock = if (com.superdl.launcher.patrol.TalkingClock.canSay(this, hour, minute)) {
+        val voice = com.superdl.launcher.patrol.ClockVoiceStore.selected(this)
+        val clock = if (minute == 0 && voice != com.superdl.launcher.patrol.ClockVoiceStore.ELENA) {
             Pair(hour, minute)
         } else null
         PatrolAnnouncer.announce(
