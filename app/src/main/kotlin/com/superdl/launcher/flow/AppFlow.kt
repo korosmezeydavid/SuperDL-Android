@@ -464,6 +464,7 @@ sealed class AppFlow {
     ) : AppFlow()
 
     data class CalendarBrowse(val events: List<com.superdl.launcher.calendar.CalendarEvent>, val index: Int) : AppFlow()
+    data class BirthdayBrowse(val entries: List<com.superdl.launcher.calendar.BirthdayStore.Entry>, val index: Int) : AppFlow()
 
     /** Naptár-választó: melyik naptárba kerüljenek a felvett programok. */
     data class CalendarTargetPick(
@@ -496,6 +497,15 @@ sealed class AppFlow {
         val purpose: com.superdl.launcher.CalendarPickPurpose
     ) : AppFlow()
     data class CalendarWeekBrowse(val days: List<com.superdl.launcher.calendar.CalendarDayGroup>, val index: Int) : AppFlow()
+    object NamedayAwaitQuery : AppFlow()
+    data class NamedayBrowse(
+        val matches: List<com.superdl.launcher.info.NamedayHelper.NamedayMatch>,
+        val index: Int
+    ) : AppFlow()
+    data class NamedaySmsBrowse(
+        val entries: List<com.superdl.launcher.calendar.NamedayStore.Entry>,
+        val index: Int
+    ) : AppFlow()
     object CalendarAwaitTitle : AppFlow()
     data class CalendarAwaitDate(val title: String) : AppFlow()
     data class CalendarAwaitStartTime(val title: String, val dayStartMs: Long) : AppFlow()

@@ -102,8 +102,18 @@ object PatrolAnnouncer {
                     // BESZÉLŐ ÓRA: élő hangon, klipekből. Ha bármi hiányzik
                     // vagy nem szól, ugyanaz a mondat a felolvasóval megy.
                     val voice = ClockVoiceStore.selected(request.appContext)
-                    RecordedClockVoice.play(request.appContext, voice, clock.first) { ok ->
-                        if (ok) finish() else speak(request.appContext, request.message, finish, speakerTime = true)
+                    val playElena = {
+                        TalkingClock.play(request.appContext, clock.first, clock.second) { ok ->
+                            if (ok) finish()
+                            else speak(request.appContext, request.message, finish, speakerTime = true)
+                        }
+                    }
+                    if (clock.second == 0 && voice != ClockVoiceStore.ELENA) {
+                        RecordedClockVoice.play(request.appContext, voice, clock.first) { ok ->
+                            if (ok) finish() else playElena()
+                        }
+                    } else {
+                        playElena()
                     }
                 } else {
                     speak(request.appContext, request.message, finish, speakerTime = true)

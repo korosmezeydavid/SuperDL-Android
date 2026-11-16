@@ -11,6 +11,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.superdl.launcher.R
+import com.superdl.launcher.feedback.AlertSoundPlayer
 import com.superdl.launcher.gestures.SwipeGestureListener
 import com.superdl.launcher.tts.TtsManager
 
@@ -65,7 +66,14 @@ class LaterReminderAlertActivity : AppCompatActivity() {
             onSwipeRight = { actNow() },
             onSwipeLeft = { snooze() }
         )
-        tts.runWhenReady { announce() }
+        // A TTS a headsetben is szólhat. A külön visszahívási jelzés a
+        // készülék hangszóróját célozza, és nem foglalja a főszálat.
+        Thread({
+            AlertSoundPlayer.playCallbackReminderOnSpeaker(applicationContext)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) tts.runWhenReady { announce() }
+            }
+        }, "SuperDL-CallbackSpeakerAlert").start()
     }
 
     private fun announce() {

@@ -59,17 +59,20 @@ object DictaphoneCapabilities {
         val unprocessed = DictaphoneAudioSource.supportsUnprocessed(context)
 
         // 3. Sztereó bemenet: valódi próbával, nem feltételezéssel
-        val stereo = canOpen(AudioFormat.CHANNEL_IN_STEREO, 44100)
+        val stereo = canOpen(context, AudioFormat.CHANNEL_IN_STEREO, 44100)
 
         // 4. Legnagyobb működő mintavétel
         val maxRate = listOf(48000, 44100, 32000, 22050, 16000, 8000)
-            .firstOrNull { canOpen(AudioFormat.CHANNEL_IN_MONO, it) } ?: 0
+            .firstOrNull { canOpen(context, AudioFormat.CHANNEL_IN_MONO, it) } ?: 0
 
         return Report(count, descriptions, unprocessed, stereo, maxRate)
     }
 
     /** Megpróbál megnyitni egy felvevőt — ebből derül ki, mit bír a hardver. */
-    private fun canOpen(channelConfig: Int, sampleRate: Int): Boolean {
+    private fun canOpen(context: Context, channelConfig: Int, sampleRate: Int): Boolean {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return false
         return try {
             val min = AudioRecord.getMinBufferSize(
                 sampleRate, channelConfig, AudioFormat.ENCODING_PCM_16BIT

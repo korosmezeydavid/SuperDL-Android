@@ -72,6 +72,7 @@ enum class MenuAction {
     SCREEN_READER_TOGGLE,   // Képernyőolvasó ki/be (csak külső appokban)
     SCREEN_READER_SETUP,    // Képernyőolvasó engedélyezése a rendszerben
     SCREEN_READER_STATUS,   // Képernyőolvasó állapota
+    SCREEN_READER_GESTURE_PROFILE,
     SCREEN_READER_HELP,     // Képernyőolvasó mozdulatainak felolvasása
     SCREEN_READER_COUNTER,  // Képernyőolvasó: pozíció bemondása ki/be
     SCREEN_READER_PHONETIC, // Képernyőolvasó: betűző ábécé ki/be
@@ -96,6 +97,10 @@ enum class MenuAction {
     CALENDAR_TOMORROW, // Holnapi program
     CALENDAR_WEEK,  // Heti program áttekintése
     CALENDAR_ADD,   // Új program beállítása
+    CALENDAR_NAMEDAY_SEARCH, // Magyar névnap keresése és naptárba vétele
+    CALENDAR_NAMEDAY_SMS, // Saját névnaphoz külön engedélyezett automatikus SMS
+    CALENDAR_BIRTHDAY_ADD, // Születésnap évente ismétlődő naptári eseményként
+    CALENDAR_BIRTHDAY_LIST, // Születésnapok külön áttekintése
     CALENDAR_CHOOSE_TARGET, // Melyik naptárba kerüljenek a programok
     CALENDAR_STATUS,        // Naptárak állapota (mi szinkronizál, hova írunk)
     CALENDAR_EDIT_PICK,    // Program kiválasztása szerkesztésre (napi listából)
@@ -814,6 +819,10 @@ object MenuTree {
             )),
             MenuItem("program_sub", "Program (naptár)", MenuAction.SUBMENU, listOf(
                 MenuItem("calendar_add", "Program létrehozása", MenuAction.CALENDAR_ADD),
+                MenuItem("calendar_nameday", "Névnap keresése", MenuAction.CALENDAR_NAMEDAY_SEARCH),
+                MenuItem("calendar_nameday_sms", "Névnapi SMS beállítása", MenuAction.CALENDAR_NAMEDAY_SMS),
+                MenuItem("calendar_birthday", "Születésnap felvétele", MenuAction.CALENDAR_BIRTHDAY_ADD),
+                MenuItem("calendar_birthdays", "Születésnapok áttekintése", MenuAction.CALENDAR_BIRTHDAY_LIST),
                 MenuItem("calendar_edit", "Program szerkesztése", MenuAction.CALENDAR_EDIT_PICK),
                 MenuItem("calendar_delete", "Program törlése", MenuAction.CALENDAR_DELETE_PICK),
                 MenuItem("calendar_read", "Program napi áttekintő", MenuAction.CALENDAR_READ),
@@ -1234,6 +1243,7 @@ object MenuTree {
                     MenuItem("sr_toggle", "Képernyőolvasó ki és be", MenuAction.SCREEN_READER_TOGGLE),
                     MenuItem("sr_setup", "Engedélyezés a rendszerben", MenuAction.SCREEN_READER_SETUP),
                     MenuItem("sr_status", "Állapot", MenuAction.SCREEN_READER_STATUS),
+                    MenuItem("sr_gesture_profile", "Gesztusprofil váltása", MenuAction.SCREEN_READER_GESTURE_PROFILE),
                     MenuItem("sr_help", "Mozdulatok felolvasása", MenuAction.SCREEN_READER_HELP),
                     MenuItem("sr_school", "Gesztusok tanulása", MenuAction.SUBMENU, listOf(
                         MenuItem("sr_lessons", "Órák Elena tanárnővel", MenuAction.SR_TRAIN_LESSONS),

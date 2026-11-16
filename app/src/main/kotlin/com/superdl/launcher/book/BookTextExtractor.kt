@@ -28,7 +28,12 @@ object BookTextExtractor {
     fun isSupported(file: File): Boolean =
         file.isFile && file.extension.lowercase() in SUPPORTED_EXTENSIONS
 
-    fun extract(context: android.content.Context, file: File): Result<ExtractedBook> = runCatching {
+    fun extract(
+        context: android.content.Context,
+        file: File,
+        shouldContinue: () -> Boolean = { true },
+        onPdfOcr: () -> Unit = {}
+    ): Result<ExtractedBook> = runCatching {
         if (!isSupported(file)) {
             error("Nem támogatott formátum: .${file.extension}")
         }
@@ -41,7 +46,7 @@ object BookTextExtractor {
             "rtf" -> fromRtf(file)
             "epub" -> fromEpub(file)
             "fb2" -> fromFb2(file)
-            "pdf" -> fromPdf(context, file)
+            "pdf" -> fromPdf(context, file, shouldContinue, onPdfOcr)
             "docx" -> fromDocx(file)
             "odt" -> fromOdt(file)
             "doc" -> fromLegacyDoc(file)
@@ -128,16 +133,78 @@ object BookTextExtractor {
         return ExtractedBook(title, clean(stripHtml(body)))
     }
 
-    private fun fromPdf(context: android.content.Context, file: File): ExtractedBook {
+    private fun fromPdf(
+        context: android.content.Context,
+        file: File,
+        shouldContinue: () -> Boolean,
+        onPdfOcr: () -> Unit
+    ): ExtractedBook {
         PDFBoxResourceLoader.init(context.applicationContext)
-        PDDocument.load(file).use { doc ->
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(doc)
+        val (title, text) = PDDocument.load(file).use { doc ->
             val title = doc.documentInformation?.title?.trim().orEmpty()
                 .ifBlank { file.nameWithoutExtension }
-            if (text.isBlank()) error("A PDF nem tartalmaz kinyerhető szöveget.")
-            return ExtractedBook(title, clean(text))
+            title to clean(PDFTextStripper().getText(doc))
         }
+        if (text.isNotBlank()) return ExtractedBook(title, text)
+        if (!shouldContinue()) throw java.util.concurrent.CancellationException()
+        onPdfOcr()
+        return ExtractedBook(title, readScannedPdf(file, shouldContinue))
+    }
+
+    private fun readScannedPdf(file: File, shouldContinue: () -> Boolean): String {
+        check(android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            "A beszkennelt PDF-et a könyvtárból nyisd meg."
+        }
+        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+            com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+        )
+        val text = StringBuilder()
+        try {
+            val descriptor = android.os.ParcelFileDescriptor.open(
+                file, android.os.ParcelFileDescriptor.MODE_READ_ONLY
+            )
+            val renderer = try {
+                android.graphics.pdf.PdfRenderer(descriptor)
+            } catch (error: Exception) {
+                descriptor.close()
+                throw error
+            }
+            renderer.use { pdf ->
+                for (index in 0 until pdf.pageCount) {
+                    if (!shouldContinue()) throw java.util.concurrent.CancellationException()
+                    pdf.openPage(index).use { page ->
+                        val scale = minOf(3f, 2400f / maxOf(page.width, page.height))
+                        val bitmap = android.graphics.Bitmap.createBitmap(
+                            (page.width * scale).toInt().coerceAtLeast(1),
+                            (page.height * scale).toInt().coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        var recognition: com.google.android.gms.tasks.Task<com.google.mlkit.vision.text.Text>? = null
+                        try {
+                            bitmap.eraseColor(android.graphics.Color.WHITE)
+                            page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            recognition = recognizer.process(
+                                com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                            )
+                            val pageText = com.google.android.gms.tasks.Tasks.await(
+                                recognition, 20, java.util.concurrent.TimeUnit.SECONDS
+                            ).text.trim()
+                            if (pageText.isNotBlank()) {
+                                if (text.isNotEmpty()) text.append("\n\n")
+                                text.append(pageText)
+                            }
+                        } finally {
+                            val pending = recognition
+                            if (pending == null || pending.isComplete) bitmap.recycle()
+                            else pending.addOnCompleteListener { bitmap.recycle() }
+                        }
+                    }
+                }
+            }
+        } finally {
+            recognizer.close()
+        }
+        return text.toString().ifBlank { error("A beszkennelt PDF-ben nincs felismerhető szöveg.") }
     }
 
     private fun fromDocx(file: File): ExtractedBook {

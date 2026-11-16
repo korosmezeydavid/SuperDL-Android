@@ -18,8 +18,18 @@ enum class CalendarRecurrence(
 
         fun fromRRule(rrule: String?): CalendarRecurrence {
             if (rrule.isNullOrBlank()) return NONE
-            val normalized = rrule.removePrefix("RRULE:").trim()
-            return entries.firstOrNull { it.rrule == normalized } ?: NONE
+            val fields = rrule.trim().removePrefix("RRULE:").split(';')
+                .mapNotNull { field ->
+                    val parts = field.trim().split('=', limit = 2)
+                    if (parts.size == 2) parts[0].uppercase() to parts[1].uppercase() else null
+                }.toMap()
+            return when (fields["FREQ"]) {
+                "YEARLY" -> YEARLY
+                "MONTHLY" -> MONTHLY
+                "DAILY" -> DAILY
+                "WEEKLY" -> if (fields["INTERVAL"] == "2") BIWEEKLY else WEEKLY
+                else -> NONE
+            }
         }
     }
 }

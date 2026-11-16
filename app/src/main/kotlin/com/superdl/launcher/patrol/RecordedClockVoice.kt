@@ -39,10 +39,12 @@ object RecordedClockVoice {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     setDataSource(descriptor.fileDescriptor, descriptor.startOffset, descriptor.length)
                     descriptor.close()
-                    val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                        .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-                        ?.let { setPreferredDevice(it) }
+                    if (android.os.Build.VERSION.SDK_INT >= 28) {
+                        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                            ?.let { setPreferredDevice(it) }
+                    }
                     setOnCompletionListener { finish(true) }
                     setOnErrorListener { _, _, _ -> finish(false); true }
                     setOnPreparedListener { it.start() }

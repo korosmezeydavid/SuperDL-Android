@@ -478,6 +478,9 @@ class MainActivity : AppCompatActivity() {
     private var textBankInsertReturnFlow: AppFlow? = null
     private var smsInboxRestore: AppFlow.SmsInbox? = null
     private var calendarEditEventId: Long? = null
+    private var birthdayMode = false
+    private var birthdayDraftDate: com.superdl.launcher.calendar.BirthdayHelper.BirthDate? = null
+    private var namedayDraft: com.superdl.launcher.info.NamedayHelper.NamedayMatch? = null
     private var calendarPickPurpose: CalendarPickPurpose = CalendarPickPurpose.EDIT
     private var medicationDraftName: String? = null
     private var medicationDraftTimes: List<Pair<Int, Int>> = emptyList()
@@ -742,6 +745,27 @@ class MainActivity : AppCompatActivity() {
 
     private var contactRingtoneEditPhone: String? = null
     private var contactRingtoneEditName: String? = null
+
+    private var namedaySmsPhoneField: EditText? = null
+    private val namedaySmsContactPicker = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        if (result.resultCode != RESULT_OK || uri == null) return@registerForActivityResult
+        try {
+            contentResolver.query(uri, arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val number = cursor.getString(0).orEmpty()
+                    namedaySmsPhoneField?.setText(number)
+                    namedaySmsPhoneField?.setSelection(number.length)
+                    tts.speak("A névjegy telefonszámát kitöltöttük. Ellenőrizd a számot és az üzenetet.")
+                }
+            }
+        } catch (_: Exception) {
+            tts.speak("A névjegy telefonszámát nem sikerült beolvasni. A szám kézzel is megadható.")
+        }
+    }
 
     private val contactRingtonePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1157,11 +1181,14 @@ class MainActivity : AppCompatActivity() {
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
+            is AppFlow.NamedayBrowse -> navigateNameday(flow, -1)
+            is AppFlow.NamedaySmsBrowse -> navigateNamedaySms(flow, -1)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, -1)
             is AppFlow.AlarmListBrowse -> navigateAlarmList(flow, -1)
             is AppFlow.AlarmRepeatBrowse -> navigateAlarmRepeat(flow, -1)
             is AppFlow.AlarmWeekdayBrowse -> navigateAlarmWeekday(flow, -1)
             is AppFlow.CalendarBrowse -> navigateCalendar(flow, -1)
+            is AppFlow.BirthdayBrowse -> navigateBirthday(flow, -1)
             is AppFlow.CatalogBrowse -> navigateCatalog(flow, -1)
             is AppFlow.AppCategoryPick -> navigateAppCategories(flow, -1)
             is AppFlow.CatalogCategoryPick -> navigateCatalogCategories(flow, -1)
@@ -1433,11 +1460,14 @@ class MainActivity : AppCompatActivity() {
             AppFlow.HomeTrainConfirm -> speakHomeTrainPrompt()
             is AppFlow.CallConfirm -> repeatCallConfirm(flow.contact)
             is AppFlow.CalendarConfirm -> repeatCalendarConfirm(flow)
+            is AppFlow.NamedayBrowse -> navigateNameday(flow, +1)
+            is AppFlow.NamedaySmsBrowse -> navigateNamedaySms(flow, +1)
             is AppFlow.CalendarRecurrenceBrowse -> navigateCalendarRecurrence(flow, +1)
             is AppFlow.AlarmListBrowse -> navigateAlarmList(flow, +1)
             is AppFlow.AlarmRepeatBrowse -> navigateAlarmRepeat(flow, +1)
             is AppFlow.AlarmWeekdayBrowse -> navigateAlarmWeekday(flow, +1)
             is AppFlow.CalendarBrowse -> navigateCalendar(flow, +1)
+            is AppFlow.BirthdayBrowse -> navigateBirthday(flow, +1)
             is AppFlow.CatalogBrowse -> navigateCatalog(flow, +1)
             is AppFlow.AppCategoryPick -> navigateAppCategories(flow, +1)
             is AppFlow.CatalogCategoryPick -> navigateCatalogCategories(flow, +1)
@@ -1745,6 +1775,13 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.AlarmRepeatBrowse -> onAlarmRepeatActivate(flow)
             is AppFlow.AlarmWeekdayBrowse -> toggleAlarmWeekday(flow)
             is AppFlow.AlarmConfirm -> saveAlarm(flow.hour, flow.minute, flow.label)
+            is AppFlow.NamedayBrowse -> selectNameday(flow)
+            is AppFlow.NamedaySmsBrowse -> {
+                val entry = flow.entries[flow.index]
+                activeFlow = AppFlow.Menu
+                updateDisplay()
+                showNamedaySmsEditor(entry)
+            }
             is AppFlow.CalendarConfirm -> saveCalendarEvent(flow)
             is AppFlow.CalendarRecurrenceBrowse -> applyCalendarRecurrence(flow)
             is AppFlow.CalendarContextMenu -> onCalendarContextActivate(flow)
@@ -1842,6 +1879,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.DictaphoneShareEmailConfirm -> sendDictaphoneShareEmail(flow.entry, flow.recipient)
             is AppFlow.DictaphoneRecordingDeleteConfirm -> deleteDictaphoneRecording(flow)
             is AppFlow.CalendarBrowse -> enterCalendarContextMenu(flow)
+            is AppFlow.BirthdayBrowse -> speakBirthday(flow.entries[flow.index], flow.index, flow.entries.size)
             is AppFlow.CatalogBrowse -> downloadCatalogModule(flow)
             is AppFlow.AppCategoryPick -> enterAppCategory(flow.groups[flow.index].second)
             is AppFlow.CatalogCategoryPick -> enterCatalogCategory(flow.groups[flow.index].second)
@@ -2307,7 +2345,10 @@ class MainActivity : AppCompatActivity() {
                 updateFlowDisplay()
                 tts.speak("Törlés megszakítva.")
             }
-            AppFlow.BookLoading -> exitFlow("Betöltés megszakítva.")
+            AppFlow.BookLoading -> {
+                bookLoadGeneration++
+                exitFlow("Betöltés megszakítva.")
+            }
             AppFlow.BookSearchAwaitQuery -> exitFlow("Keresés megszakítva.")
             AppFlow.CalculatorAwaitInput -> exitFlow("Számológép bezárva.")
             AppFlow.CalculatorVoiceInput -> {
@@ -2451,6 +2492,8 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.CalendarAlarmContextMenu -> dismissCalendarAlarm()
             is AppFlow.AlertSoundPresetBrowse -> exitFlow("Hangbeállítás megszakítva.")
+            AppFlow.NamedayAwaitQuery, is AppFlow.NamedayBrowse -> exitFlow("Névnapkeresés bezárva.")
+            is AppFlow.NamedaySmsBrowse -> exitFlow("Névnapi SMS választás bezárva.")
             is AppFlow.CalendarRecurrenceBrowse -> exitFlow("Program beállítás megszakítva.")
             AppFlow.CalendarAwaitTitle,
             is AppFlow.CalendarAwaitDate,
@@ -2472,6 +2515,7 @@ class MainActivity : AppCompatActivity() {
             AppFlow.NoteAwaitTitle,
             is AppFlow.NoteAwaitBody -> exitFlow("Jegyzet létrehozás megszakítva.")
             is AppFlow.CalendarBrowse -> exitFlow("Naptár bezárva.")
+            is AppFlow.BirthdayBrowse -> exitFlow("Születésnapok bezárva.")
             is AppFlow.CatalogBrowse -> {
                 // MIÉRT: nem töltjük le újra — a megjegyzett csoportokhoz lépünk vissza.
                 val groups = catalogGroups
@@ -2795,6 +2839,9 @@ class MainActivity : AppCompatActivity() {
         pendingSmsForwardBody = null
         smsInboxRestore = null
         calendarEditEventId = null
+        birthdayMode = false
+        birthdayDraftDate = null
+        namedayDraft = null
         if (bookReader.isActive) bookReader.stop()
         if (::articleReader.isInitialized && articleReader.isActive) articleReader.stop()
         if (::noteReader.isInitialized && noteReader.isActive) noteReader.stop()
@@ -3527,8 +3574,13 @@ class MainActivity : AppCompatActivity() {
                     else "A rendszerben MÉG NINCS engedélyezve."
                 )
             }
+            MenuAction.SCREEN_READER_GESTURE_PROFILE -> {
+                val profile = ScreenReaderPrefs.cycleGestureProfile(this)
+                tts.speak("Aktív gesztusprofil: ${profile.label}.")
+            }
             MenuAction.SCREEN_READER_HELP -> {
-                tts.speak(com.superdl.launcher.screenreader.ScreenReaderService.speakGestureHelp())
+                val profile = ScreenReaderPrefs.gestureProfile(this)
+                tts.speak(profile.help ?: com.superdl.launcher.screenreader.ScreenReaderService.speakGestureHelp())
             }
             MenuAction.SCREEN_READER_COUNTER -> {
                 val on = ScreenReaderPrefs.toggleSpeakCounter(this)
@@ -3620,6 +3672,10 @@ class MainActivity : AppCompatActivity() {
             MenuAction.CALENDAR_TOMORROW -> startCalendarTomorrowFlow()
             MenuAction.CALENDAR_WEEK -> startCalendarWeekFlow()
             MenuAction.CALENDAR_ADD -> startCalendarAddFlow()
+            MenuAction.CALENDAR_NAMEDAY_SEARCH -> startNamedaySearch()
+            MenuAction.CALENDAR_NAMEDAY_SMS -> showNamedaySmsEvents()
+            MenuAction.CALENDAR_BIRTHDAY_ADD -> startBirthdayAddFlow()
+            MenuAction.CALENDAR_BIRTHDAY_LIST -> startBirthdayListFlow()
             MenuAction.CALENDAR_CHOOSE_TARGET -> startCalendarTargetPick()
             MenuAction.CALENDAR_STATUS -> speakCalendarStatus()
             MenuAction.CALENDAR_EDIT_PICK -> startCalendarPickFlow(CalendarPickPurpose.EDIT)
@@ -9395,6 +9451,35 @@ class MainActivity : AppCompatActivity() {
         tts.speakAdd(CalendarHelper.speakEvent(events.first()))
     }
 
+    private fun startBirthdayListFlow() {
+        if (!ensureCalendarPermission()) return
+        val entries = com.superdl.launcher.calendar.BirthdayStore.list(this)
+            .filter { CalendarHelper.getEventById(this, it.eventId) != null }
+            .sortedWith(compareBy({ it.birth.month }, { it.birth.day }, { it.name }))
+        if (entries.isEmpty()) {
+            tts.speak("Nincs megjeleníthető, SuperDL-ben felvett születésnap.")
+            return
+        }
+        activeFlow = AppFlow.BirthdayBrowse(entries, 0)
+        updateFlowDisplay()
+        tts.speak("${entries.size} születésnap. Söpörj fel-le a nevek között, jobbra az ismétléshez, balra vissza.")
+        tts.speakAdd(birthdayDescription(entries.first(), 0, entries.size))
+    }
+
+    private fun birthdayDescription(entry: com.superdl.launcher.calendar.BirthdayStore.Entry, index: Int, total: Int): String =
+        "${index + 1} / $total. ${entry.name}. Született: ${entry.birth.year}. év ${entry.birth.month}. hónap ${entry.birth.day}. nap."
+
+    private fun speakBirthday(entry: com.superdl.launcher.calendar.BirthdayStore.Entry, index: Int, total: Int) {
+        tts.speak(birthdayDescription(entry, index, total))
+    }
+
+    private fun navigateBirthday(flow: AppFlow.BirthdayBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.entries.size) % flow.entries.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakBirthday(flow.entries[next], next, flow.entries.size)
+    }
+
     /**
      * Program kiválasztása közvetlen szerkesztésre vagy törlésre. A mai (ha üres,
      * a heti) programlistát nyitja, és a kiválasztott programon jobbra söpréskor
@@ -9498,16 +9583,194 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
+    private fun startNamedaySearch() {
+        if (!ensureCalendarWritePermission()) return
+        if (!ensureExactAlarmOrSpeak()) return
+        calendarEditEventId = null
+        birthdayMode = false
+        ensureMicAndRun {
+            activeFlow = AppFlow.NamedayAwaitQuery
+            updateFlowDisplay()
+            voiceInput.listen(
+                prompt = "Mondd a keresett magyar keresztnevet. Például Ágnes.",
+                speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                onResult = { spoken ->
+                    val matches = com.superdl.launcher.info.NamedayHelper.search(spoken)
+                    if (matches.isEmpty()) {
+                        exitFlow("Nem találtam ilyen nevet a magyar névnapok között.")
+                    } else {
+                        activeFlow = AppFlow.NamedayBrowse(matches, 0)
+                        updateFlowDisplay()
+                        tts.speak("${matches.size} találat. Söpörj fel-le a választáshoz, jobbra a naptárba vételhez, balra vissza.")
+                        speakNamedayMatch(matches.first(), 1, matches.size)
+                    }
+                },
+                onError = { exitFlow("Nem értettem a nevet.") }
+            )
+        }
+    }
+
+    private fun speakNamedayMatch(match: com.superdl.launcher.info.NamedayHelper.NamedayMatch, index: Int, count: Int) {
+        tts.speakAdd("$index / $count. ${match.name}, ${match.month}. hónap ${match.day}. nap.")
+    }
+
+    private fun navigateNameday(flow: AppFlow.NamedayBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.matches.size) % flow.matches.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        speakNamedayMatch(flow.matches[next], next + 1, flow.matches.size)
+    }
+
+    private fun selectNameday(flow: AppFlow.NamedayBrowse) {
+        val match = flow.matches[flow.index]
+        val start = com.superdl.launcher.info.NamedayHelper.nextOccurrence(match)
+        if (start == null) {
+            exitFlow("Ehhez a névnaphoz nem találtam következő dátumot.")
+            return
+        }
+        namedayDraft = match
+        enterCalendarConfirm("${match.name} névnapja", start, start + 60 * 60_000L, CalendarRecurrence.YEARLY)
+    }
+
+    private fun showNamedaySmsEvents() {
+        if (!ensureCalendarPermission()) return
+        val entries = com.superdl.launcher.calendar.NamedayStore.list(this)
+            .filter { entry ->
+                com.superdl.launcher.calendar.NamedayOwnership.matches(
+                    entry, CalendarHelper.getEventById(this, entry.eventId))
+            }
+            .sortedWith(compareBy({ it.month }, { it.day }, { it.name }))
+        if (entries.isEmpty()) {
+            tts.speak("Nincs SuperDL-ben felvett, változatlan névnapi esemény. Előbb keress névnapot és vedd fel a naptárba.")
+            return
+        }
+        activeFlow = AppFlow.NamedaySmsBrowse(entries, 0)
+        updateFlowDisplay()
+        tts.speak("${entries.size} felvett névnap. Söpörj fel vagy le a választáshoz, jobbra a beállításhoz, balra vissza.")
+        tts.speakAdd("1 / ${entries.size}. ${entries.first().name}, ${entries.first().month}. hónap ${entries.first().day}. nap.")
+    }
+
+    private fun navigateNamedaySms(flow: AppFlow.NamedaySmsBrowse, delta: Int) {
+        val next = (flow.index + delta + flow.entries.size) % flow.entries.size
+        activeFlow = flow.copy(index = next)
+        updateFlowDisplay()
+        val entry = flow.entries[next]
+        tts.speak("${next + 1} / ${flow.entries.size}. ${entry.name}, ${entry.month}. hónap ${entry.day}. nap.")
+    }
+
+    private fun showNamedaySmsEditor(entry: com.superdl.launcher.calendar.NamedayStore.Entry) {
+        if (!com.superdl.launcher.calendar.NamedayOwnership.matches(
+                entry, CalendarHelper.getEventById(this, entry.eventId))) {
+            tts.speak("A névnapi esemény megváltozott vagy törlődött. SMS nem állítható be.")
+            return
+        }
+        val previous = com.superdl.launcher.calendar.NamedayGreetingStore.get(this, entry.eventId)
+        val phone = EditText(this).apply {
+            hint = "Címzett telefonszáma, például +36301234567"
+            contentDescription = "Névnapi SMS címzett telefonszáma"
+            inputType = InputType.TYPE_CLASS_PHONE
+            setText(previous?.phone.orEmpty())
+        }
+        val message = EditText(this).apply {
+            hint = "Az elküldendő névnapi üdvözlet pontos szövege"
+            contentDescription = "Névnapi SMS pontos szövege"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(InputFilter.LengthFilter(500))
+            setText(previous?.text.orEmpty())
+        }
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(32, 16, 32, 16)
+            addView(phone)
+            addView(android.widget.Button(this@MainActivity).apply {
+                text = "Címzett kiválasztása a névjegyekből"
+                contentDescription = text
+                setOnClickListener {
+                    namedaySmsPhoneField = phone
+                    try {
+                        namedaySmsContactPicker.launch(Intent(Intent.ACTION_PICK,
+                            android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
+                    } catch (_: Exception) {
+                        tts.speak("A névjegyválasztó nem érhető el. A szám kézzel is megadható.")
+                    }
+                }
+            })
+            addView(message)
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle("${entry.name} névnapja: automatikus SMS")
+            .setMessage("Csak a megadott számra, a megadott szöveget küldjük az esemény napján. A beállítás mentése nem küld most SMS-t. Bizonytalan küldést nem ismétlünk automatikusan.")
+            .setView(layout)
+            .setPositiveButton("Tovább", null)
+            .setNegativeButton("Mégse", null)
+        if (previous?.enabled == true) builder.setNeutralButton("Automatikus SMS kikapcsolása") { _, _ ->
+            val saved = com.superdl.launcher.calendar.NamedayGreetingStore.configure(
+                this, previous.copy(enabled = false))
+            tts.speak(if (saved) "A névnapi automatikus SMS kikapcsolva." else "Nem sikerült kikapcsolni a névnapi SMS-t.")
+        }
+        val dialog = builder.create()
+        dialog.setOnDismissListener { if (namedaySmsPhoneField === phone) namedaySmsPhoneField = null }
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val item = com.superdl.launcher.calendar.NamedayGreetingPolicy.Greeting(
+                    entry.eventId, phone.text.toString().trim(), message.text.toString().trim(), true)
+                if (!com.superdl.launcher.calendar.NamedayGreetingPolicy.validConfiguration(item)) {
+                    phone.error = "Adj meg 7–15 számjegyű telefonszámot, és legfeljebb 500 karakteres üzenetet"
+                    tts.speak("Érvénytelen szám vagy üres, illetve túl hosszú üzenet.")
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                showNamedaySmsConfirmation(entry, item)
+            }
+        }
+        dialog.show()
+        phone.requestFocus()
+    }
+
+    private fun showNamedaySmsConfirmation(
+        entry: com.superdl.launcher.calendar.NamedayStore.Entry,
+        item: com.superdl.launcher.calendar.NamedayGreetingPolicy.Greeting
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle("Automatikus névnapi SMS bekapcsolása")
+            .setMessage("${entry.name} névnapján évente egyszer SMS a következő számra: ${item.phone}. Pontos szöveg: ${item.text}. Jóváhagyod?")
+            .setPositiveButton("Bekapcsolás") { _, _ ->
+                val current = CalendarHelper.getEventById(this, entry.eventId)
+                val saved = com.superdl.launcher.calendar.NamedayOwnership.matches(entry, current) &&
+                    com.superdl.launcher.calendar.NamedayGreetingStore.configure(this, item)
+                tts.speak(if (saved) "Automatikus névnapi SMS beállítva. Most nem küldtünk üzenetet." else
+                    "A névnapi SMS beállítása sikertelen. Nem küldtünk üzenetet.")
+            }
+            .setNegativeButton("Mégse", null)
+            .show()
+    }
     private fun startCalendarAddFlow() {
         if (!ensureCalendarWritePermission()) return
         if (!ensureExactAlarmOrSpeak()) return
         calendarEditEventId = null
+        birthdayMode = false
+        birthdayDraftDate = null
+        namedayDraft = null
         startCalendarTitleFlow("Mondd a program nevét. Például: orvos, találkozó, edzés.")
+    }
+
+    private fun startBirthdayAddFlow() {
+        if (!ensureCalendarWritePermission()) return
+        if (!ensureExactAlarmOrSpeak()) return
+        calendarEditEventId = null
+        birthdayMode = true
+        birthdayDraftDate = null
+        namedayDraft = null
+        startCalendarTitleFlow("Mondd annak a személynek a nevét, akinek a születésnapját felveszed.")
     }
 
     private fun startCalendarEditFlow(event: CalendarEvent) {
         if (!ensureCalendarWritePermission()) return
         calendarEditEventId = event.eventId
+        birthdayMode = false
+        birthdayDraftDate = null
+        namedayDraft = null
         startCalendarTitleFlow("Jelenlegi név: ${event.title}. Mondd az új program nevét.")
     }
 
@@ -9524,9 +9787,10 @@ class MainActivity : AppCompatActivity() {
                         exitFlow("A program neve üres.")
                         return@listen
                     }
-                    activeFlow = AppFlow.CalendarAwaitDate(title)
+                    val eventTitle = if (birthdayMode) "$title születésnapja" else title
+                    activeFlow = AppFlow.CalendarAwaitDate(eventTitle)
                     updateFlowDisplay()
-                    listenForCalendarDate(title)
+                    listenForCalendarDate(eventTitle)
                 },
                 onError = { exitFlow("Nem értettem a program nevét.") }
             )
@@ -9534,6 +9798,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun listenForCalendarDate(title: String) {
+        if (birthdayMode) {
+            ensureMicAndRun {
+                activeFlow = AppFlow.CalendarAwaitDate(title)
+                updateFlowDisplay()
+                voiceInput.listen(
+                    prompt = "Mondd a születési dátumot évvel, hónappal és nappal. Például: 1985 március 2. Söprés le: nyolc számjegyes bevitel.",
+                    speakFirst = { text, onDone -> tts.speakThen(text, onDone) },
+                    onResult = { spoken ->
+                        val birth = com.superdl.launcher.calendar.BirthdayHelper.parse(spoken)
+                        val start = birth?.let { com.superdl.launcher.calendar.BirthdayHelper.nextOccurrence(it) }
+                        if (start == null) {
+                            tts.speakThen("Nem értettem a születési dátumot. Mondd újra, vagy söprés le a számjegyes bevitelhez.") {
+                                listenForCalendarDate(title)
+                            }
+                        } else {
+                            birthdayDraftDate = birth
+                            enterCalendarConfirm(title, start, start + 60 * 60_000L, CalendarRecurrence.YEARLY)
+                        }
+                    },
+                    onError = { tts.speakThen("Nem értettem a dátumot. Próbáld újra.") {
+                        listenForCalendarDate(title)
+                    } }
+                )
+            }
+            return
+        }
         ensureMicAndRun {
             activeFlow = AppFlow.CalendarAwaitDate(title)
             updateFlowDisplay()
@@ -9597,7 +9887,8 @@ class MainActivity : AppCompatActivity() {
             calendarTitle = title
         )
         updateFlowDisplay()
-        tts.speak("Dátum bevitele. Nyolc számjegy: év, hónap, nap.")
+        tts.speak(if (birthdayMode) "Születési dátum bevitele. Nyolc számjegy: év, hónap, nap."
+                  else "Dátum bevitele. Nyolc számjegy: év, hónap, nap.")
     }
 
     private fun openCalendarStartTimePad(title: String, dayStartMs: Long) {
@@ -9753,6 +10044,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveCalendarEvent(flow: AppFlow.CalendarConfirm) {
         if (!ensureCalendarWritePermission()) return
+        val insertedId = if (flow.editEventId == null) CalendarHelper.insertEvent(
+            this, flow.title, flow.beginMs, flow.endMs, flow.recurrence
+        ) else null
         val ok = if (flow.editEventId != null) {
             CalendarHelper.updateEvent(
                 this,
@@ -9762,15 +10056,20 @@ class MainActivity : AppCompatActivity() {
                 flow.endMs,
                 flow.recurrence
             )
-        } else {
-            CalendarHelper.insertEvent(
+        } else insertedId != null
+        val birthdaySaved = if (ok && birthdayMode && insertedId != null && birthdayDraftDate != null) {
+            com.superdl.launcher.calendar.BirthdayStore.save(
                 this,
-                flow.title,
-                flow.beginMs,
-                flow.endMs,
-                flow.recurrence
-            ) != null
-        }
+                com.superdl.launcher.calendar.BirthdayStore.Entry(
+                    insertedId, flow.title.removeSuffix(" születésnapja"), birthdayDraftDate!!
+                )
+            )
+        } else true
+        val namedaySaved = if (ok && insertedId != null && namedayDraft != null) {
+            val match = namedayDraft!!
+            com.superdl.launcher.calendar.NamedayStore.save(this,
+                com.superdl.launcher.calendar.NamedayStore.Entry(insertedId, match.name, match.month, match.day))
+        } else true
         calendarEditEventId = null
         val scheduleNote = if (ok && flow.beginMs > System.currentTimeMillis() && !AlarmScheduler.canScheduleExact(this)) {
             " Figyelem: pontos ébresztő engedély hiányzik, az emlékeztető késhet."
@@ -9780,6 +10079,8 @@ class MainActivity : AppCompatActivity() {
         exitFlow(
             if (ok) {
                 if (flow.editEventId != null) "Program módosítva: ${flow.title}.$scheduleNote"
+                else if (!birthdaySaved) "Születésnap a naptárba mentve: ${flow.title}. A külön születésnapi jegyzék mentése sikertelen.$scheduleNote"
+                else if (!namedaySaved) "Névnap a naptárba mentve: ${flow.title}. A külön névnapi jegyzék mentése sikertelen.$scheduleNote"
                 else "Program mentve a naptárba: ${flow.title}. Emlékeztető beállítva az indulási időpontra.$scheduleNote"
             } else {
                 "Program mentése sikertelen. Ellenőrizd a naptár írás engedélyt."
@@ -10353,14 +10654,22 @@ class MainActivity : AppCompatActivity() {
             exitFlow("Program törlése sikertelen.", error = true)
             return
         }
+        val birthdayIndexUpdated = com.superdl.launcher.calendar.BirthdayStore.remove(this, flow.event.eventId)
+        val greetingIndexUpdated = com.superdl.launcher.calendar.NamedayGreetingStore.remove(this, flow.event.eventId)
+        val namedayIndexUpdated = com.superdl.launcher.calendar.NamedayStore.remove(this, flow.event.eventId)
+        val indexWarning = buildString {
+            if (!birthdayIndexUpdated) append(" A születésnapi jegyzék helyi takarítása sikertelen.")
+            if (!greetingIndexUpdated) append(" A névnapi SMS-beállítás helyi törlése sikertelen.")
+            if (!namedayIndexUpdated) append(" A névnapi jegyzék helyi takarítása sikertelen.")
+        }
         val updated = flow.events.filterNot { it.eventId == flow.event.eventId }
         if (updated.isEmpty()) {
-            exitFlow("Program törölve: ${flow.event.title}.", success = true)
+            exitFlow("Program törölve: ${flow.event.title}.$indexWarning", success = true)
             return
         }
         val newIndex = flow.index.coerceAtMost(updated.lastIndex)
         returnToCalendarBrowse(updated, newIndex)
-        tts.speakAdd("Program törölve: ${flow.event.title}.")
+        tts.speakAdd("Program törölve: ${flow.event.title}.$indexWarning")
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -13116,6 +13425,18 @@ class MainActivity : AppCompatActivity() {
                 onTimerAmountSpoken(unit, amount.toString(), flow.editTimerId)
             }
             NumberPadPurpose.DATE -> {
+                if (birthdayMode) {
+                    val title = flow.calendarTitle
+                    val birth = com.superdl.launcher.calendar.BirthdayHelper.parse(flow.buffer)
+                    val start = birth?.let { com.superdl.launcher.calendar.BirthdayHelper.nextOccurrence(it) }
+                    if (title == null || start == null) {
+                        tts.speak("Érvénytelen születési dátum. Nyolc számjegy kell: év, hónap, nap.")
+                        return
+                    }
+                    birthdayDraftDate = birth
+                    enterCalendarConfirm(title, start, start + 60 * 60_000L, CalendarRecurrence.YEARLY)
+                    return
+                }
                 val dayStart = NumberPadHelper.parseDateBuffer(flow.buffer)
                 val title = flow.calendarTitle
                 if (dayStart == null || title == null) {
@@ -21744,10 +22065,11 @@ class MainActivity : AppCompatActivity() {
         tts.speak("Könyv betöltése: ${book.title}. Várj.")
         activeFlow = AppFlow.BookLoading
         updateFlowDisplay()
+        val generation = ++bookLoadGeneration
         Thread {
-            val loaded = loadBookText(book)
+            val loaded = loadBookText(book, generation)
             postWhenAlive {
-                if (activeFlow !is AppFlow.BookLoading) return@postWhenAlive
+                if (generation != bookLoadGeneration || activeFlow !is AppFlow.BookLoading) return@postWhenAlive
                 if (loaded.success == null) {
                     exitBookReading(loaded.errorMessage ?: "A könyv betöltése sikertelen.")
                     return@postWhenAlive
@@ -21828,10 +22150,11 @@ class MainActivity : AppCompatActivity() {
         tts.speak("Ugrás a könyvjelzőhöz: ${bookmark.bookTitle}.")
         activeFlow = AppFlow.BookLoading
         updateFlowDisplay()
+        val generation = ++bookLoadGeneration
         Thread {
-            val loaded = loadBookText(book)
+            val loaded = loadBookText(book, generation)
             postWhenAlive {
-                if (activeFlow !is AppFlow.BookLoading) return@postWhenAlive
+                if (generation != bookLoadGeneration || activeFlow !is AppFlow.BookLoading) return@postWhenAlive
                 if (loaded.success == null) {
                     exitBookReading(loaded.errorMessage ?: "A könyv betöltése sikertelen.")
                     return@postWhenAlive
@@ -21851,10 +22174,22 @@ class MainActivity : AppCompatActivity() {
         val errorMessage: String? = null
     )
 
-    private fun loadBookText(book: BookEntry): BookLoadResult {
+    @Volatile private var bookLoadGeneration = 0
+
+    private fun loadBookText(book: BookEntry, generation: Int): BookLoadResult {
         val cacheFile = BookLibrary.materializeToCache(this, book)
             ?: return BookLoadResult(errorMessage = "A könyv betöltése sikertelen.")
-        return BookTextExtractor.extract(this, cacheFile).fold(
+        return BookTextExtractor.extract(
+            this, cacheFile,
+            shouldContinue = { generation == bookLoadGeneration },
+            onPdfOcr = {
+                postWhenAlive {
+                    if (generation == bookLoadGeneration && activeFlow is AppFlow.BookLoading) {
+                        tts.speak("Beszkennelt PDF. Szöveg felismerése folyamatban.")
+                    }
+                }
+            }
+        ).fold(
             onSuccess = { BookLoadResult(success = it.title to it.text) },
             onFailure = { BookLoadResult(errorMessage = it.message ?: "A könyv betöltése sikertelen.") }
         )
@@ -25686,6 +26021,12 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Naptár  •  ${flow.index + 1} / ${flow.events.size}"
                 tvHint.text = "⬆⬇ navigálás  •  ➡ műveletek  •  ⬅ vissza"
             }
+            is AppFlow.BirthdayBrowse -> {
+                val entry = flow.entries[flow.index]
+                tvItem.text = entry.name
+                tvPosition.text = "Születésnapok  •  ${flow.index + 1} / ${flow.entries.size}"
+                tvHint.text = "⬆⬇ navigálás  •  ➡ felolvasás  •  ⬅ vissza"
+            }
             is AppFlow.CalendarPick -> {
                 val event = flow.events[flow.index]
                 tvItem.text = event.title
@@ -25883,6 +26224,23 @@ class MainActivity : AppCompatActivity() {
                 tvPosition.text = "Program törlése"
                 tvHint.text = "➡ törlés  •  ⬅ mégse"
             }
+            AppFlow.NamedayAwaitQuery -> {
+                tvItem.text = "Névnap keresése"
+                tvPosition.text = "Magyar névnapok"
+                tvHint.text = "Mondd a nevet  •  ⬅ mégse"
+            }
+            is AppFlow.NamedayBrowse -> {
+                val match = flow.matches[flow.index]
+                tvItem.text = "${match.name}, ${match.month}. hónap ${match.day}. nap"
+                tvPosition.text = "Névnap  •  ${flow.index + 1} / ${flow.matches.size}"
+                tvHint.text = "⬆⬇ választás  •  ➡ naptárba  •  ⬅ vissza"
+            }
+            is AppFlow.NamedaySmsBrowse -> {
+                val entry = flow.entries[flow.index]
+                tvItem.text = "${entry.name}, ${entry.month}. hónap ${entry.day}. nap"
+                tvPosition.text = "Névnapi SMS  •  ${flow.index + 1} / ${flow.entries.size}"
+                tvHint.text = "⬆⬇ névnapok  •  ➡ kiválasztás  •  ⬅ vissza"
+            }
             is AppFlow.CalendarRecurrenceBrowse -> {
                 tvItem.text = flow.options[flow.index].speakSummary()
                 tvPosition.text = "5 / 6  •  Ismétlés"
@@ -25895,9 +26253,11 @@ class MainActivity : AppCompatActivity() {
                 tvHint.text = "⬆⬇ navigálás  •  ➡ felolvas  •  ⬅ vissza"
             }
             AppFlow.CalendarAwaitTitle -> {
-                tvItem.text = if (calendarEditEventId != null) "Program szerkesztése" else "Új program"
-                tvPosition.text = "1 / 6  •  Név diktálása"
-                tvHint.text = "Mondd a program nevét  •  ⬅ mégse"
+                tvItem.text = if (birthdayMode) "Születésnap felvétele"
+                              else if (calendarEditEventId != null) "Program szerkesztése" else "Új program"
+                tvPosition.text = if (birthdayMode) "1 / 2  •  Név diktálása" else "1 / 6  •  Név diktálása"
+                tvHint.text = if (birthdayMode) "Mondd a személy nevét  •  ⬅ mégse"
+                              else "Mondd a program nevét  •  ⬅ mégse"
             }
             is AppFlow.CalendarActionTypePick -> {
                 tvItem.text = calendarActionTypes[flow.index]
@@ -25921,8 +26281,10 @@ class MainActivity : AppCompatActivity() {
             }
             is AppFlow.CalendarAwaitDate -> {
                 tvItem.text = flow.title
-                tvPosition.text = "2 / 6  •  Dátum diktálása"
-                tvHint.text = "Mondd: ma, holnap, péntek  •  ➡ diktálás  •  ⬇ offline  •  ⬅ mégse"
+                tvPosition.text = if (birthdayMode) "2 / 2  •  Születési dátum"
+                                  else "2 / 6  •  Dátum diktálása"
+                tvHint.text = if (birthdayMode) "Mondd az év-hónap-napot  •  ➡ diktálás  •  ⬇ számjegyek  •  ⬅ mégse"
+                              else "Mondd: ma, holnap, péntek  •  ➡ diktálás  •  ⬇ offline  •  ⬅ mégse"
             }
             is AppFlow.CalendarAwaitStartTime -> {
                 tvItem.text = flow.title
@@ -27033,6 +27395,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        bookLoadGeneration++
         if (activeFlow is AppFlow.GpsRouteVoiceRecording) VoiceNoteRecorder.cancelRecording()
         if (activeFlow is AppFlow.GpsRouteVoiceRecording || activeFlow is AppFlow.GpsRouteNoteChoice) {
             GpsRouteSession.isVoiceNoteRecording = false

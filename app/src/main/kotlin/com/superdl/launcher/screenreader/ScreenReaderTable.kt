@@ -32,18 +32,16 @@ object ScreenReaderTable {
 
     /** A tartalmazó rács mérete (sorok, oszlopok), vagy null. */
     fun gridSizeOf(node: AccessibilityNodeInfo): Pair<Int, Int>? {
-        var current: AccessibilityNodeInfo? = node
-        var depth = 0
-        while (current != null && depth < 8) {
-            try {
-                current.collectionInfo?.let { return it.rowCount to it.columnCount }
-            } catch (_: Exception) {
-            }
-            current = current.parent
-            depth++
-        }
-        return null
+        return collectionOf(node)?.collectionInfo?.let { it.rowCount to it.columnCount }
     }
+
+    internal fun tableOf(node: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        collectionOf(node)?.takeIf { DocumentStructure.TABLES.matches(it) }
+            ?: generateSequence(node) { it.parent }.take(16)
+                .firstOrNull { DocumentStructure.TABLES.matches(it) }
+
+    private fun collectionOf(node: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        generateSequence(node) { it.parent }.take(16).firstOrNull { it.collectionInfo != null }
 
     /** Rács-elem-e egyáltalán? */
     fun isInGrid(node: AccessibilityNodeInfo): Boolean = positionOf(node) != null
@@ -64,34 +62,43 @@ object ScreenReaderTable {
         forward: Boolean
     ): Int {
         val here = positionOf(from) ?: return -1
+        val owner = collectionOf(from) ?: tableOf(from) ?: return -1
         var bestIndex = -1
         var bestDistance = Int.MAX_VALUE
-
-        nodes.forEachIndexed { i, candidate ->
-            val pos = positionOf(candidate) ?: return@forEachIndexed
-            if (byRow) {
-                // Ugyanaz az oszlop, másik sor.
-                if (pos.column != here.column) return@forEachIndexed
-                val delta = pos.row - here.row
-                if ((forward && delta <= 0) || (!forward && delta >= 0)) return@forEachIndexed
-                val dist = kotlin.math.abs(delta)
-                if (dist < bestDistance) {
-                    bestDistance = dist
-                    bestIndex = i
-                }
-            } else {
-                // Ugyanaz a sor, másik oszlop.
-                if (pos.row != here.row) return@forEachIndexed
-                val delta = pos.column - here.column
-                if ((forward && delta <= 0) || (!forward && delta >= 0)) return@forEachIndexed
-                val dist = kotlin.math.abs(delta)
-                if (dist < bestDistance) {
-                    bestDistance = dist
-                    bestIndex = i
-                }
+        nodes.forEachIndexed { index, candidate ->
+            if (candidate.windowId != from.windowId) return@forEachIndexed
+            val position = positionOf(candidate) ?: return@forEachIndexed
+            if ((collectionOf(candidate) ?: tableOf(candidate)) != owner) return@forEachIndexed
+            val distance = distanceInDirection(here, position, byRow, forward) ?: return@forEachIndexed
+            if (distance < bestDistance) {
+                bestIndex = index
+                bestDistance = distance
             }
         }
         return bestIndex
+    }
+
+    internal fun distanceInDirection(
+        from: CellPosition,
+        to: CellPosition,
+        byRow: Boolean,
+        forward: Boolean
+    ): Int? {
+        val fromCross = if (byRow) from.column else from.row
+        val toCross = if (byRow) to.column else to.row
+        val fromCrossSpan = (if (byRow) from.colSpan else from.rowSpan).coerceAtLeast(1)
+        val toCrossSpan = (if (byRow) to.colSpan else to.rowSpan).coerceAtLeast(1)
+        if (fromCross < 0 || toCross < 0 ||
+            fromCross >= toCross + toCrossSpan || toCross >= fromCross + fromCrossSpan
+        ) return null
+        val fromAxis = if (byRow) from.row else from.column
+        val toAxis = if (byRow) to.row else to.column
+        if (fromAxis < 0 || toAxis < 0) return null
+        val fromAxisSpan = (if (byRow) from.rowSpan else from.colSpan).coerceAtLeast(1)
+        val toAxisSpan = (if (byRow) to.rowSpan else to.colSpan).coerceAtLeast(1)
+        val distance = if (forward) toAxis - (fromAxis + fromAxisSpan - 1)
+            else fromAxis - (toAxis + toAxisSpan - 1)
+        return distance.takeIf { it > 0 }
     }
 
     /** A cella helyének felolvasható leírása ("2. sor, 3. oszlop"). */

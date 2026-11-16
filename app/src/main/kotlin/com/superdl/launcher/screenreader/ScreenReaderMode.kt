@@ -38,14 +38,16 @@ enum class ReadingGranularity(val label: String) {
     ELEMENT("elem"),
     SENTENCE("mondat"),
     WORD("szó"),
-    CHARACTER("betű");
+    CHARACTER("betű"),
+    LINE("sor"),
+    PARAGRAPH("bekezdés");
 
     companion object {
         fun finer(current: ReadingGranularity): ReadingGranularity =
-            entries[(current.ordinal + 1).coerceAtMost(entries.lastIndex)]
+            entries[(current.ordinal + 1).coerceAtMost(CHARACTER.ordinal)]
 
         fun coarser(current: ReadingGranularity): ReadingGranularity =
-            entries[(current.ordinal - 1).coerceAtLeast(0)]
+            if (current == LINE || current == PARAGRAPH) ELEMENT else entries[(current.ordinal - 1).coerceAtLeast(0)]
     }
 }
 
@@ -139,6 +141,11 @@ object ScreenReaderFilter {
         if (clean.isEmpty()) return emptyList()
         return when (granularity) {
             ReadingGranularity.ELEMENT -> listOf(clean)
+            ReadingGranularity.LINE -> clean.lineSequence()
+                .map(String::trim).filter(String::isNotEmpty).toList()
+            ReadingGranularity.PARAGRAPH ->
+                clean.split(Regex("(?>\\r\\n|\\r|\\n)(?:[ \\t]*(?>\\r\\n|\\r|\\n))+|\\u2029"))
+                    .map(String::trim).filter(String::isNotEmpty)
             ReadingGranularity.SENTENCE ->
                 Regex("(?<=[.!?…])\\s+").split(clean)
                     .map { it.trim() }.filter { it.isNotEmpty() }
@@ -192,5 +199,33 @@ object ScreenReaderFilter {
         'ü' -> "Üröm"; 'ű' -> "Űrhajó"; 'v' -> "Vilmos"; 'w' -> "dupla vé"
         'x' -> "Xénia"; 'y' -> "Ipszilon"; 'z' -> "Zoltán"
         else -> c.toString()
+    }
+}
+
+internal enum class DocumentStructure(val label: String, val fallback: String) {
+    LANDMARKS("Oldalrégiók", "Oldalrégió"),
+    LISTS("Listák", "Lista"),
+    TABLES("Táblázatok", "Táblázat"),
+    IMAGES("Képek", "Kép");
+
+    fun matches(node: AccessibilityNodeInfo): Boolean {
+        val role = node.extras.getCharSequence("AccessibilityNodeInfo.chromeRole")?.toString()
+        return when (this) {
+            LANDMARKS -> role in LANDMARK_ROLES
+            LISTS -> role == "list" || role == "descriptionList" ||
+                (role == null && node.className?.toString() == "android.widget.ListView")
+            TABLES -> role == "table" || role == "grid" || role == "treeGrid" ||
+                (role == null && node.collectionInfo?.let { it.rowCount > 1 && it.columnCount > 1 } == true)
+            IMAGES -> role == "image" || role == "svgRoot" ||
+                (role == null && node.className?.toString() == "android.widget.ImageView" &&
+                    !node.contentDescription.isNullOrBlank())
+        }
+    }
+
+    private companion object {
+        val LANDMARK_ROLES = setOf(
+            "banner", "header", "complementary", "contentInfo", "footer",
+            "form", "main", "navigation", "region", "search"
+        )
     }
 }

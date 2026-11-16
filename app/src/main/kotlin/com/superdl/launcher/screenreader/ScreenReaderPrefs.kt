@@ -25,6 +25,28 @@ object ScreenReaderPrefs {
     private const val KEY_EMERGENCY = "emergency_disable"
     private const val KEY_FAILURES = "failure_count"
     private const val KEY_RATE = "beszed_sebesseg"
+    private const val KEY_GESTURE_PROFILE = "gesture_profile"
+
+    internal fun gestureProfile(context: Context): ScreenReaderGestureProfile {
+        val saved = prefs(context).getString(KEY_GESTURE_PROFILE, null)
+        return supportedGestureProfiles().firstOrNull { it.name == saved }
+            ?: ScreenReaderGestureProfile.SUPER_DL
+    }
+
+    internal fun cycleGestureProfile(context: Context): ScreenReaderGestureProfile {
+        val profiles = supportedGestureProfiles()
+        val next = profiles[(profiles.indexOf(gestureProfile(context)) + 1) % profiles.size]
+        prefs(context).edit().putString(KEY_GESTURE_PROFILE, next.name).apply()
+        return next
+    }
+
+    private fun supportedGestureProfiles(): List<ScreenReaderGestureProfile> =
+        when {
+            android.os.Build.VERSION.SDK_INT >= 31 -> ScreenReaderGestureProfile.entries
+            android.os.Build.VERSION.SDK_INT >= 30 ->
+                listOf(ScreenReaderGestureProfile.SUPER_DL, ScreenReaderGestureProfile.TALKBACK)
+            else -> listOf(ScreenReaderGestureProfile.SUPER_DL)
+        }
 
     /** Ennyi egymást követő hiba után magától leáll. */
     private const val MAX_FAILURES = 3

@@ -38,6 +38,7 @@ class TtsManager(
     private var tts: TextToSpeech =
         createEngine(overrideEngine ?: TtsEngineStore.getSelectedPackage(appContext))
     private var isReady = false
+    internal var outputMuted = false
     private var initFailed = false
 
     /** Megpróbáltuk-e már a tartalék beszédmotort. */
@@ -454,6 +455,7 @@ class TtsManager(
     }
 
     fun speak(text: String, role: SpeechRole = SpeechRole.CONTENT) {
+        if (outputMuted) return
         // A NÉMA MÓD NEM EGYIRÁNYÚ AJTÓ.
         //
         // Eddig innen csak egy naplósor vezetett kifelé: ha a motor egyszer
@@ -738,6 +740,10 @@ class TtsManager(
     private var doneSeq = 0L
 
     fun speakThen(text: String, role: SpeechRole, onDone: () -> Unit) {
+        if (outputMuted) {
+            handler.post(onDone)
+            return
+        }
         if (initFailed || silentMode) {
             Log.w("TTS", "TTS nem elérhető, speakThen kihagyva")
             // A MŰVELET LEFUT, a beszéd pedig közben próbál visszajönni.
@@ -833,6 +839,7 @@ class TtsManager(
         com.superdl.launcher.gestures.GestureWords.translate(text)
 
     fun speakAdd(text: String) {
+        if (outputMuted) return
         if (initFailed) return
         if (!isReady) {
             runWhenReady { speakAdd(text) }

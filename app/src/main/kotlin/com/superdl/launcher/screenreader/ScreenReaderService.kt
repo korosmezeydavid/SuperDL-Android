@@ -32,10 +32,32 @@ class ScreenReaderService : AccessibilityService() {
     private var sounds: ScreenReaderSounds? = null
     private var voiceInput: com.superdl.launcher.voice.VoiceInput? = null
     private var imageReader: ScreenReaderImageReader? = null
+    private var edgeInput: VoiceOverEdgeInput? = null
+    private var voiceOverTouch: VoiceOverTouch? = null
+    private var screenCurtain: android.view.View? = null
+    private var talkBackPassArmed = false
+    private var talkBackPassStarted = false
+    private val expireTalkBackPass = Runnable { clearTalkBackPass() }
+    private var lastVoiceOverTouchIndex = -1
+    private var imageReadRequest = 0
+    private data class ReaderWindow(val packageName: String, val id: Int, val title: String)
+
+    private data class ReadingBookmark(
+        val window: ReaderWindow,
+        val node: AccessibilityNodeInfo,
+        val anchor: FocusAnchor,
+        val label: String
+    )
+    private val readingBookmarks = ArrayDeque<ReadingBookmark>()
+    private var bookmarkJumpGeneration = 0
+    private var rotorScrollGeneration = 0
+    private var readerWindow: ReaderWindow? = null
+    private val windowPositions = LinkedHashMap<ReaderWindow, FocusAnchor>(32, 0.75f, true)
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var nodes: List<AccessibilityNodeInfo> = emptyList()
     private var index = 0
     private var touchModeActive = false
+    private var appliedGestureProfile = ScreenReaderGestureProfile.SUPER_DL
     private var currentPackage: String? = null
 
     /** Frissíteni kell-e az elemlistát a következő gesztusnál. */
@@ -43,6 +65,11 @@ class ScreenReaderService : AccessibilityService() {
 
     /** Szünetel-e az olvasó, mert billentyűzet van a képernyőn. */
     private var keyboardSuspended = false
+    private val keyboardPassRegion = android.graphics.Region()
+    private var exploreKeyboard = false
+    private var lastKeyboardKey: AccessibilityNodeInfo? = null
+    private val edgePassRegion = android.graphics.Region()
+    private var editorWindowId: Int? = null
 
     /**
      * IDEIGLENES ÜZEMMÓDOK — amikor a fel-le söprés MÁST jelent.
@@ -108,9 +135,61 @@ class ScreenReaderService : AccessibilityService() {
 
     /** A legutóbb kimondott szöveg — az ismétléshez. */
     private var lastSpoken: String = ""
+    private val speechHistory = ScreenReaderSpeechHistory(30)
 
     /** Fut-e a folyamatos olvasás. */
     private var continuousReading = false
+    private var continuousRun = 0L
+    private data class ReadingPosition(
+        val node: AccessibilityNodeInfo,
+        val text: String,
+        val parts: List<String>,
+        val part: Int
+    )
+    private var continuousPosition: ReadingPosition? = null
+    private var continuousScrollOwner: AccessibilityNodeInfo? = null
+    private val continuousPageHistory = ArrayDeque<List<String>>()
+    private var profileReadingPaused = false
+    private var profileMenu: List<Pair<String, () -> Unit>> = emptyList()
+    private var profileMenuIndex = 0
+    private data class VoiceOverGroup(val node: AccessibilityNodeInfo, val entry: AccessibilityNodeInfo)
+    private val voiceOverGroups = mutableListOf<VoiceOverGroup>()
+    private var talkBackPractice = false
+    private var voiceOverPractice = false
+    private var searchOrigin: ReaderWindow? = null
+    private var searchGeneration = 0
+    private data class ScreenSearch(val window: ReaderWindow, val query: ScreenTextQuery)
+    private var screenSearch: ScreenSearch? = null
+    private enum class ProfileReadingControl(
+        val label: String,
+        val unit: ReadingGranularity = ReadingGranularity.ELEMENT,
+        val filter: NavigationMode? = null,
+        val structure: DocumentStructure? = null
+    ) {
+        DEFAULT("Elemek"),
+        CHARACTER("Karakterek", ReadingGranularity.CHARACTER),
+        WORD("Szavak", ReadingGranularity.WORD),
+        LINE("Sorok", ReadingGranularity.LINE),
+        SENTENCES("Mondatok", ReadingGranularity.SENTENCE),
+        PARAGRAPHS("Bekezdések", ReadingGranularity.PARAGRAPH),
+        HEADINGS("Címsorok", filter = NavigationMode.HEADINGS),
+        SEARCH_RESULTS("Keresési találatok"),
+        LINKS("Hivatkozások", filter = NavigationMode.LINKS),
+        BUTTONS("Gombok", filter = NavigationMode.BUTTONS),
+        FIELDS("Űrlapelemek", filter = NavigationMode.FIELDS),
+        LANDMARKS(DocumentStructure.LANDMARKS.label, structure = DocumentStructure.LANDMARKS),
+        LISTS(DocumentStructure.LISTS.label, structure = DocumentStructure.LISTS),
+        TABLES(DocumentStructure.TABLES.label, structure = DocumentStructure.TABLES),
+        TABLE_ROWS("Táblázat sorai"),
+        TABLE_COLUMNS("Táblázat oszlopai"),
+        IMAGES(DocumentStructure.IMAGES.label, structure = DocumentStructure.IMAGES),
+        SPEECH_RATE("Beszédsebesség"),
+        ACTIONS("Műveletek"),
+        EDITING("Szerkesztés")
+    }
+    private var profileReadingControl = ProfileReadingControl.DEFAULT
+    private data class RotorAction(val owner: AccessibilityNodeInfo, val id: Int, val label: String)
+    private var rotorAction: RotorAction? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -289,6 +368,7 @@ class ScreenReaderService : AccessibilityService() {
                 // gyakran hiányzik vagy a rendszeré, ezért maradt bekapcsolva az
                 // olvasó. A ténylegesen előtérben lévő ablak a megbízható forrás.
                 val pkg = resolveForegroundPackage(event)
+                if (pkg != null) updateReaderWindow(pkg)
                 if (pkg != null && pkg != currentPackage) {
                     currentPackage = pkg
                     onForegroundAppChanged(pkg)
@@ -299,6 +379,7 @@ class ScreenReaderService : AccessibilityService() {
                 // működne — az ablak ugyanis NEM vált a billentyűzet
                 // megjelenésekor, tehát a csomagnév-figyelés erre vak.
                 updateKeyboardSuspension()
+                if (touchModeActive) setTouchExploration(true)
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 // A képernyő tartalma változott. Ez NAGYON gyakran érkezik
@@ -309,11 +390,21 @@ class ScreenReaderService : AccessibilityService() {
                 // a felület, és mikor kell takarékosabb módra váltani.
                 changeMonitor.onContentChanged()
             }
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> announceTypedCharacter(event)
+            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED -> announceKeyboardKey(event)
             AccessibilityEvent.TYPE_VIEW_HOVER_ENTER -> {
+                if (announceKeyboardKey(event)) return
                 // FELDERÍTÉS ÉRINTÉSSEL: az ujj egy elem fölé ért.
                 handleHoverEnter(event)
             }
+            AccessibilityEvent.TYPE_TOUCH_INTERACTION_START -> {
+                if (talkBackPassArmed) talkBackPassStarted = true
+                lastVoiceOverTouchIndex = -1
+                lastKeyboardKey = null
+            }
             AccessibilityEvent.TYPE_TOUCH_INTERACTION_END -> {
+                if (talkBackPassStarted) clearTalkBackPass()
+                lastVoiceOverTouchIndex = -1
                 // Az ujj elhagyta a kijelzőt. Ha felderítés volt, ODA UGRIK
                 // a fókusz — de NEM nyomjuk meg. A megnyomás külön mozdulat.
                 finishExploration()
@@ -460,7 +551,17 @@ class ScreenReaderService : AccessibilityService() {
         // amikor tényleg szükség van rá.
         val pinAssistActive = isPinAssistEnabled()
         val suspend = locked && (pinAssistActive || !isPinEntryVisible())
-        if (suspend == lockSuspended) return
+        if (locked) {
+            updateVoiceOverTouch(false)
+            if (edgeInput != null) updateVoiceOverEdges(false)
+        }
+        if (suspend == lockSuspended) {
+            if (!locked && touchModeActive && appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER) {
+                updateVoiceOverEdges(true)
+                updateVoiceOverTouch(true)
+            }
+            return
+        }
         lockSuspended = suspend
         android.util.Log.i(
             ScreenReaderPrefs.TAG,
@@ -470,6 +571,15 @@ class ScreenReaderService : AccessibilityService() {
         if (suspend) {
             // Zárolásnál AZONNAL abbahagyunk mindent: a folyamatos olvasást is,
             // és visszaadjuk az érintéseket a rendszernek.
+            imageReadRequest++
+            windowPositions.clear()
+            speechHistory.clear()
+            readingBookmarks.clear()
+            voiceOverPractice = false
+            profileMenu = emptyList()
+            profileReadingPaused = false
+            voiceOverGroups.clear()
+            readerWindow = null
             stopContinuousReading()
             try {
                 tts?.stop()
@@ -554,23 +664,127 @@ class ScreenReaderService : AccessibilityService() {
      * érintéseket, hogy a billentyűzet kaphassa meg őket.
      */
     internal fun updateKeyboardSuspension() {
-        val keyboardShowing = try {
-            windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-        } catch (_: Exception) {
-            false
-        // A BRAILLE-BEVITEL NEM BEVITELI ABLAK, hanem sima képernyő — a fenti
-        // felismerés vak rá. Ezért kérdezzük meg tőle magától is; enélkül az
-        // olvasó elfogná a pontleütéseket, és a Braille-írás nem működne.
-        } || com.superdl.launcher.braille.BrailleInputActive.isActive
-        if (keyboardShowing == keyboardSuspended) return
-        keyboardSuspended = keyboardShowing
-        android.util.Log.i(
-            ScreenReaderPrefs.TAG,
-            "billentyuzet ${if (keyboardShowing) "MEGJELENT -> olvaso szunetel" else "eltunt -> olvaso folytatja"}"
-        )
-        // Ha billentyűzet van, elengedjük az érintéseket; ha eltűnt, és külső
-        // appban vagyunk, visszavesszük.
-        setTouchExploration(!keyboardShowing && shouldRunInCurrentApp())
+        val inputWindows = runCatching {
+            windows.filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        }.getOrDefault(emptyList())
+        val brailleTakingTouches = com.superdl.launcher.braille.BrailleInputActive.isActive
+        val oldEditor = editorWindowId
+        val previouslyExploredKeyboard = exploreKeyboard
+        var focusedEditor: AccessibilityNodeInfo? = null
+        editorWindowId = null
+        val previousRegion = android.graphics.Region(keyboardPassRegion)
+        keyboardPassRegion.setEmpty()
+        if (inputWindows.isNotEmpty() && !brailleTakingTouches && !lockSuspended &&
+            !TrainingState.isActive && android.os.Build.VERSION.SDK_INT >= 33 &&
+            ScreenReaderPrefs.gestureProfile(this) == ScreenReaderGestureProfile.VOICE_OVER
+        ) {
+            val appWindow = applicationWindowBehindKeyboard()
+            val editorRoot = appWindow?.root
+            val editor = editorRoot?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            val bounds = android.graphics.Rect()
+            val usableHeight = (56 * resources.displayMetrics.density).toInt()
+            for (window in inputWindows) {
+                window.getBoundsInScreen(bounds)
+                if (!bounds.isEmpty) keyboardPassRegion.union(bounds)
+            }
+            if (appWindow != null && editor?.isEditable == true && !keyboardPassRegion.isEmpty &&
+                keyboardPassRegion.bounds.height() <= screenHeight() - usableHeight
+            ) {
+                editorWindowId = appWindow.id
+                focusedEditor = editor
+            } else {
+                keyboardPassRegion.setEmpty()
+            }
+        }
+        exploreKeyboard = editorWindowId != null &&
+            android.provider.Settings.Secure.getString(contentResolver,
+                android.provider.Settings.Secure.DEFAULT_INPUT_METHOD)
+                ?.substringBefore('/') == "com.google.android.inputmethod.latin"
+        if (!exploreKeyboard) lastKeyboardKey = null
+        val suspend = brailleTakingTouches || (inputWindows.isNotEmpty() && editorWindowId == null)
+        if (suspend != keyboardSuspended) {
+            keyboardSuspended = suspend
+            setTouchExploration(!suspend && shouldRunInCurrentApp())
+        }
+        if (oldEditor != editorWindowId || previousRegion != keyboardPassRegion ||
+            previouslyExploredKeyboard != exploreKeyboard
+        ) {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                edgeInput?.setKeyboardVisible(editorWindowId != null)
+            }
+            applyVoiceOverPassRegion()
+            nodesStale = true
+            if (touchModeActive && focusedEditor != null) {
+                ensureNodes()
+                val position = filtered.indexOf(focusedEditor)
+                if (position >= 0) {
+                    index = position
+                    prepareSegments(filtered[position], fromEnd = false)
+                }
+                if (oldEditor != editorWindowId) {
+                    sayInfo(if (focusedEditor.isPassword) "Jelszómező. Billentyűzet megnyitva."
+                        else "Szerkesztőmező. Billentyűzet megnyitva.")
+                }
+            }
+        }
+    }
+
+    private fun announceKeyboardKey(event: AccessibilityEvent): Boolean {
+        if (!exploreKeyboard || !touchModeActive ||
+            event.packageName?.toString() != "com.google.android.inputmethod.latin"
+        ) return false
+        val key = event.source ?: return true
+        if (lastKeyboardKey == key) return true
+        val label = key.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+            ?: key.text?.toString()?.takeIf { it.isNotBlank() }
+            ?: return true
+        lastKeyboardKey = key
+        say(label)
+        return true
+    }
+
+    private fun announceTypedCharacter(event: AccessibilityEvent) {
+        if (!touchModeActive || event.windowId != editorWindowId || event.isPassword) return
+        val node = event.source ?: return
+        if (!node.isEditable || !node.isFocused || node.isPassword) return
+
+        val start = event.fromIndex
+        if (start < 0) return
+        val deleting = event.addedCount == 0 && event.removedCount in 1..2
+        val inserting = event.addedCount in 1..2 && event.removedCount == 0
+        if (!deleting && !inserting) return
+        val text = if (deleting) event.beforeText else event.text.firstOrNull()
+        text ?: return
+        val end = start + if (deleting) event.removedCount else event.addedCount
+        if (end > text.length) return
+        val character = text.subSequence(start, end).toString()
+        if (character.codePointCount(0, character.length) != 1) return
+        val label = when (character) {
+            " " -> "szóköz"
+            "\n" -> "új sor"
+            "\t" -> "tabulátor"
+            else -> character
+        }
+        say(if (deleting) "Törölve. $label" else label)
+    }
+
+    private fun applicationWindowBehindKeyboard(): android.view.accessibility.AccessibilityWindowInfo? =
+        runCatching {
+            windows.filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
+                .maxWithOrNull(compareBy({ it.isFocused }, { it.isActive }, { it.layer }))
+        }.getOrNull()
+
+    private fun applyVoiceOverPassRegion() {
+        if (android.os.Build.VERSION.SDK_INT < 30 || talkBackPassArmed) return
+        val region = android.graphics.Region()
+        if (touchModeActive && appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+            !keyboardSuspended && !lockSuspended
+        ) {
+            region.op(edgePassRegion, android.graphics.Region.Op.UNION)
+            if (!exploreKeyboard) region.op(keyboardPassRegion, android.graphics.Region.Op.UNION)
+        }
+        runCatching { setTouchExplorationPassthroughRegion(android.view.Display.DEFAULT_DISPLAY, region) }
+            .onFailure { android.util.Log.w(ScreenReaderPrefs.TAG, "Az érintési terület nem állítható be.", it) }
     }
 
     /** Kell-e most futnia az olvasónak a jelenlegi alkalmazásban? */
@@ -613,7 +827,7 @@ class ScreenReaderService : AccessibilityService() {
      */
     private fun resolveForegroundPackage(event: AccessibilityEvent): String? {
         val fromWindow = try {
-            rootInActiveWindow?.packageName?.toString()
+            activeRootOrFallback()?.packageName?.toString()
         } catch (_: Exception) {
             null
         }
@@ -685,8 +899,48 @@ class ScreenReaderService : AccessibilityService() {
         }
     }
 
+    private fun updateReaderWindow(packageName: String) {
+        val root = activeRootOrFallback() ?: return
+        if (root.packageName?.toString() != packageName) return
+        val title = windows.firstOrNull { it.id == root.windowId }?.title?.toString().orEmpty()
+        val next = ReaderWindow(packageName, root.windowId, title)
+        if (next == readerWindow) return
+
+        profileMenu = emptyList()
+        profileReadingPaused = false
+        stopContinuousReading()
+        continuousPosition = null
+        continuousScrollOwner = null
+        continuousPageHistory.clear()
+        talkBackPractice = false
+        voiceOverPractice = false
+        rotorAction = null
+        voiceOverGroups.clear()
+        val previous = readerWindow
+        val selected = filtered.getOrNull(index)
+        if (previous != null && selected != null && !selected.isPassword && !selected.isEditable &&
+            selected.windowId == previous.id && selected.packageName?.toString() == previous.packageName
+        ) {
+            FocusAnchor.of(selected, index)?.let { windowPositions[previous] = it }
+            if (windowPositions.size > 32) windowPositions.remove(windowPositions.keys.first())
+        }
+        readerWindow = next
+        bookmarkJumpGeneration++
+        selectionMode = false
+        cursorNavigation = null
+        imageReadRequest++
+        clearNodes()
+        index = 0
+        lastLabel = null
+    }
+
     /** Az alkalmazáshoz mentett mód és részletesség visszaállítása. */
     private fun restoreAppSettings(pkg: String) {
+        if (ScreenReaderPrefs.gestureProfile(this) != ScreenReaderGestureProfile.SUPER_DL) {
+            mode = NavigationMode.ALL
+            granularity = profileReadingControl.unit
+            return
+        }
         val (savedMode, savedGran) = ScreenReaderPrefs.loadAppMode(this, pkg)
         mode = savedMode?.let { name ->
             NavigationMode.entries.firstOrNull { it.name == name }
@@ -851,7 +1105,8 @@ class ScreenReaderService : AccessibilityService() {
      * semmit nem változtatunk a telefon megszokott működésén.
      */
     private fun setTouchExploration(on: Boolean) {
-        if (touchModeActive == on) return
+        val profile = if (on) ScreenReaderPrefs.gestureProfile(this) else appliedGestureProfile
+        if (touchModeActive == on && appliedGestureProfile == profile) return
         try {
             val info = serviceInfo ?: return
             // FONTOS: a TÖBB UJJAS gesztusokat KÜLÖN kérni kell! Enélkül a
@@ -863,17 +1118,47 @@ class ScreenReaderService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_REQUEST_MULTI_FINGER_GESTURES
                 } else 0
 
-            info.flags = if (on) {
-                info.flags or
-                    AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE or
-                    multiFinger
-            } else {
-                info.flags and
-                    AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE.inv() and
-                    multiFinger.inv()
+            val doubleTap = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                AccessibilityServiceInfo.FLAG_SERVICE_HANDLES_DOUBLE_TAP
+            } else 0
+            val motionEvents = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                AccessibilityServiceInfo.FLAG_SEND_MOTION_EVENTS
+            } else 0
+            val controlledFlags = AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE or
+                multiFinger or doubleTap or motionEvents
+            val profileFlags = when (profile) {
+                ScreenReaderGestureProfile.SUPER_DL -> 0
+                ScreenReaderGestureProfile.TALKBACK -> doubleTap
+                ScreenReaderGestureProfile.VOICE_OVER -> doubleTap or motionEvents
             }
+            info.flags = (info.flags and controlledFlags.inv()) or
+                if (on) AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE or
+                    multiFinger or profileFlags else 0
             serviceInfo = info
             touchModeActive = on
+            if (!on || profile != ScreenReaderGestureProfile.VOICE_OVER) voiceOverPractice = false
+            if (appliedGestureProfile != profile) {
+                appliedGestureProfile = profile
+                tts?.outputMuted = false
+                profileMenu = emptyList()
+                profileReadingPaused = false
+                stopContinuousReading()
+                selectionMode = false
+                cursorNavigation = null
+                talkBackPractice = false
+                handler.removeCallbacks(exploreStartCheck)
+                explorer.stop()
+                profileReadingControl = ProfileReadingControl.DEFAULT
+                rotorAction = null
+                voiceOverGroups.clear()
+                nodesStale = true
+                currentPackage?.let { restoreAppSettings(it) }
+            }
+            val voiceOverActive = on && profile == ScreenReaderGestureProfile.VOICE_OVER
+            if (!on || profile != ScreenReaderGestureProfile.TALKBACK) clearTalkBackPass()
+            updateVoiceOverEdges(voiceOverActive)
+            updateVoiceOverTouch(voiceOverActive)
+            applyVoiceOverPassRegion()
             android.util.Log.i(
                 ScreenReaderPrefs.TAG,
                 "erintes-kezeles ${if (on) "BE" else "KI"}, tobb ujjas gesztusok=${multiFinger != 0}"
@@ -883,7 +1168,189 @@ class ScreenReaderService : AccessibilityService() {
         }
     }
 
+    private fun updateVoiceOverTouch(enabled: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        if (!enabled) {
+            hideScreenCurtain()
+            voiceOverTouch?.detach()
+            voiceOverTouch = null
+            return
+        }
+        if (voiceOverTouch != null ||
+            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != false
+        ) return
+        val controller = VoiceOverTouch(
+            controller = getTouchInteractionController(android.view.Display.DEFAULT_DISPLAY),
+            handler = handler,
+            density = resources.displayMetrics.density,
+            onGesture = { gesture ->
+                if (touchModeActive && !keyboardSuspended && !lockSuspended) onGesture(gesture)
+            },
+            onExplore = { x, y ->
+                profileMenu.isEmpty() && !TrainingState.isActive &&
+                    (voiceOverPractice || focusVoiceOverAt(x, y))
+            },
+            onRotor = { forward ->
+                if (!TrainingState.isActive && profileMenu.isEmpty()) handleVoiceOverRotation(forward)
+            },
+            onRotorSound = { active ->
+                if (!active) sounds?.stopRotorLoop()
+                else if (!TrainingState.isActive && profileMenu.isEmpty()) sounds?.startRotorLoop()
+            },
+            onJump = { y -> handleVoiceOverJump(first = y < screenHeight() / 2f) },
+            onLongPress = {
+                if (!announcePracticeGesture("Egyujjas tripla koppintás. Hosszú megnyomás.")) longPressCurrent()
+            },
+            onSplitTap = {
+                if (!announcePracticeGesture("Osztott koppintás. Elem aktiválása.")) onGesture(GESTURE_DOUBLE_TAP)
+            },
+            onPracticePassThrough = {
+                announcePracticeGesture("Dupla koppintás megtartva. Érintés átadása az alkalmazásnak.")
+            },
+            onScrub = { handleVoiceOverScrub() },
+            onPassThrough = {
+                if (!TrainingState.isActive) {
+                    sounds?.playPercent(0f)
+                    handler.postDelayed({ if (touchModeActive && !lockSuspended) sounds?.playPercent(0.5f) }, 55)
+                    handler.postDelayed({ if (touchModeActive && !lockSuspended) sounds?.playPercent(1f) }, 110)
+                }
+            },
+            canDelegate = { !TrainingState.isActive && profileMenu.isEmpty() && !lockSuspended },
+            isKeyboardExploration = { x, y ->
+                exploreKeyboard && keyboardPassRegion.contains(x.toInt(), y.toInt())
+            },
+            onQuickSettings = {
+                if (!TrainingState.isActive && touchModeActive && !lockSuspended &&
+                    !announcePracticeGesture("Kétujjas négyszeres koppintás. Képernyőolvasó gyorsbeállításai.")
+                ) openVoiceOverQuickSettings()
+            }
+        )
+        if (controller.attach()) voiceOverTouch = controller
+    }
+
+    private fun focusVoiceOverAt(x: Float, y: Float): Boolean {
+        ensureNodes()
+        val bounds = android.graphics.Rect()
+        val match = filtered.indices.mapNotNull { position ->
+            val node = filtered[position]
+            node.getBoundsInScreen(bounds)
+            if (!bounds.contains(x.toInt(), y.toInt())) null
+            else position to (bounds.width().toLong() * bounds.height())
+        }.minByOrNull { it.second }?.first ?: return false
+        if (lastVoiceOverTouchIndex == match) return true
+        lastVoiceOverTouchIndex = match
+        rotorScrollGeneration++
+        val node = filtered[match]
+        index = match
+        lastLabel = ScreenReaderNavigator.labelOf(node)
+        prepareSegments(node, fromEnd = false)
+        sayScreenContent(node, describeWithCustomLabel(node))
+        return true
+    }
+
+    private fun updateVoiceOverEdges(enabled: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 30) return
+        if (!enabled) {
+            edgeInput?.detach()
+            edgeInput = null
+            edgePassRegion.setEmpty()
+            applyVoiceOverPassRegion()
+            return
+        }
+        if (edgeInput != null ||
+            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != false
+        ) return
+        edgeInput = VoiceOverEdgeInput(
+            service = this,
+            gestureHandler = handler,
+            onRegionChanged = { region ->
+                edgePassRegion.set(region)
+                applyVoiceOverPassRegion()
+            },
+            isAllowed = {
+                touchModeActive && !keyboardSuspended && !lockSuspended && !TrainingState.isActive &&
+                    ScreenReaderPrefs.isEnabled(this) &&
+                    ScreenReaderPrefs.gestureProfile(this) == ScreenReaderGestureProfile.VOICE_OVER &&
+                    getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == false
+            },
+            onTone = { stage ->
+                if (stage == 1) {
+                    stopContinuousReading()
+                    tts?.stop()
+                }
+                sounds?.playPercent((stage - 1) / 2f) == true
+            },
+            onAction = { bottom, stage ->
+                val action = if (bottom) {
+                    if (stage == VoiceOverEdgeGesture.Action.NEAR) GLOBAL_ACTION_HOME else GLOBAL_ACTION_RECENTS
+                } else {
+                    if (stage == VoiceOverEdgeGesture.Action.NEAR) GLOBAL_ACTION_QUICK_SETTINGS
+                    else GLOBAL_ACTION_NOTIFICATIONS
+                }
+                val label = when (action) {
+                    GLOBAL_ACTION_HOME -> "Kezdőképernyő"
+                    GLOBAL_ACTION_RECENTS -> "Alkalmazásváltó"
+                    GLOBAL_ACTION_QUICK_SETTINGS -> "Android gyorsbeállítások"
+                    else -> "Értesítések"
+                }
+                if (!announcePracticeGesture("Élgesztus. $label.") && !performGlobalAction(action)) {
+                    say("Ez a rendszerművelet most nem érhető el.")
+                }
+            }
+        ).also {
+            it.setKeyboardVisible(editorWindowId != null)
+            it.attach()
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (edgeInput != null) {
+            updateVoiceOverEdges(false)
+            updateVoiceOverEdges(touchModeActive)
+        }
+        if (voiceOverTouch != null) {
+            updateVoiceOverTouch(false)
+            updateVoiceOverTouch(touchModeActive)
+        }
+    }
+
     // ── GESZTUSOK ───────────────────────────────────────────────────────────
+
+    @androidx.annotation.RequiresApi(30)
+    override fun onGesture(event: android.accessibilityservice.AccessibilityGestureEvent): Boolean {
+        if (event.displayId != android.view.Display.DEFAULT_DISPLAY) return super.onGesture(event)
+        if (voiceOverTouch != null) return true
+        if (android.os.Build.VERSION.SDK_INT >= 31 && touchModeActive && !keyboardSuspended &&
+            !lockSuspended && !TrainingState.isActive && ScreenReaderPrefs.isEnabled(this) &&
+            ScreenReaderPrefs.gestureProfile(this) == ScreenReaderGestureProfile.VOICE_OVER
+        ) {
+            if (event.gestureId == GESTURE_4_FINGER_SINGLE_TAP) {
+                val location = event.motionEvents.lastOrNull { it.pointerCount == 4 }
+                if (location != null) {
+                    val centerY = (0 until 4).sumOf { location.getY(it).toDouble() } / 4
+                    handleVoiceOverJump(first = centerY < screenHeight() / 2.0)
+                    return true
+                }
+            }
+            val motion = event.motionEvents
+            val resolved = VoiceOverMotion.classify(motion, resources.displayMetrics.density)
+            if (com.superdl.launcher.BuildConfig.DEBUG && motion.any { it.pointerCount == 2 }) {
+                android.util.Log.d(
+                    ScreenReaderPrefs.TAG,
+                    "VoiceOver mozdulat: android=${event.gestureId}, pontok=${motion.size}, " +
+                        "lezárás=${motion.lastOrNull()?.actionMasked}, felismerve=$resolved"
+                )
+            }
+            when (resolved) {
+                VoiceOverMotion.Action.ROTOR_FORWARD -> { handleVoiceOverRotation(true); return true }
+                VoiceOverMotion.Action.ROTOR_BACKWARD -> { handleVoiceOverRotation(false); return true }
+                VoiceOverMotion.Action.BACK -> { handleVoiceOverScrub(); return true }
+                null -> Unit
+            }
+        }
+        return onGesture(event.gestureId)
+    }
 
     override fun onGesture(physicalGestureId: Int): Boolean {
         // A FELÜLET ELFORGATÁSA. A beérkező FIZIKAI mozdulatot lefordítjuk arra,
@@ -901,6 +1368,12 @@ class ScreenReaderService : AccessibilityService() {
             return false
         }
         if (!touchModeActive || keyboardSuspended || lockSuspended) return false
+        bookmarkJumpGeneration++
+        rotorScrollGeneration++
+        val profile = ScreenReaderPrefs.gestureProfile(this)
+        if (profile != ScreenReaderGestureProfile.SUPER_DL && !TrainingState.isActive) {
+            return handleProfileGesture(profile, physicalGestureId)
+        }
         // MIÉRT: bármely mozdulat megállítja a folyamatos olvasást (kivéve azt,
         // ami elindítja) — különben a mozdulat saját bemondását elvágná, és az
         // olvasás mehetne tovább (pl. hívásfogadás után).
@@ -1113,6 +1586,1066 @@ class ScreenReaderService : AccessibilityService() {
     }
 
     /** Ugrás a lista első vagy utolsó elemére. */
+    private fun handleProfileGesture(profile: ScreenReaderGestureProfile, gesture: Int): Boolean {
+        return try {
+            if (gesture != GESTURE_2_FINGER_SINGLE_TAP) {
+                stopContinuousReading()
+                profileReadingPaused = false
+            }
+            if (profile == ScreenReaderGestureProfile.VOICE_OVER && voiceOverPractice) {
+                if (gesture == GESTURE_4_FINGER_SINGLE_TAP) finishVoiceOverPractice()
+                else say(ScreenReaderTraining.nameOf(gesture))
+                return true
+            }
+            if (profile == ScreenReaderGestureProfile.TALKBACK && talkBackPractice) {
+                if (gesture == GESTURE_4_FINGER_SINGLE_TAP) {
+                    talkBackPractice = false
+                    say("Gyakorlás bezárva.")
+                } else say(ScreenReaderTraining.nameOf(gesture))
+                return true
+            }
+            if (profile == ScreenReaderGestureProfile.VOICE_OVER) {
+                when (gesture) {
+                    GESTURE_3_FINGER_DOUBLE_TAP -> { toggleVoiceOverSpeech(); return true }
+                    GESTURE_3_FINGER_TRIPLE_TAP -> { toggleScreenCurtain(); return true }
+                }
+            }
+            if (handleRouteGesture(gesture)) return true
+            if (handleProfileMenuGesture(gesture)) return true
+            when (gesture) {
+                GESTURE_SWIPE_RIGHT -> { move(+1, elementOnly = true); return true }
+                GESTURE_SWIPE_LEFT -> { move(-1, elementOnly = true); return true }
+                GESTURE_SWIPE_UP -> { moveProfileVertically(back = true); return true }
+                GESTURE_SWIPE_DOWN -> { moveProfileVertically(back = false); return true }
+                GESTURE_DOUBLE_TAP -> {
+                    if (!com.superdl.launcher.voice.VoiceInput.finishActiveDictation() &&
+                        !(profile == ScreenReaderGestureProfile.VOICE_OVER &&
+                            (openEditingFromRotor() || announceGridFromRotor() || performRotorAction()))
+                    ) activateCurrent()
+                    return true
+                }
+                GESTURE_2_FINGER_SINGLE_TAP -> {
+                    when {
+                        continuousReading -> {
+                            profileReadingPaused = true
+                            stopContinuousReading()
+                            tts?.stop()
+                        }
+                        profileReadingPaused -> {
+                            profileReadingPaused = false
+                            beginContinuousReading(resume = true)
+                        }
+                        tts?.isSpeaking() == true -> tts?.stop()
+                        else -> repeatLast()
+                    }
+                    return true
+                }
+                GESTURE_2_FINGER_DOUBLE_TAP -> {
+                    if (!answerCallIfRinging() && !endCallIfActive()) {
+                        val audio = getSystemService(android.media.AudioManager::class.java)
+                        val key = android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                        audio?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, key))
+                        audio?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, key))
+                    }
+                    return true
+                }
+            }
+            if (profile == ScreenReaderGestureProfile.TALKBACK) {
+                when (gesture) {
+                    GESTURE_DOUBLE_TAP_AND_HOLD -> longPressCurrent()
+                    GESTURE_SWIPE_UP_AND_DOWN, GESTURE_3_FINGER_SWIPE_DOWN -> cycleReadingControl(true)
+                    GESTURE_SWIPE_DOWN_AND_UP, GESTURE_3_FINGER_SWIPE_UP -> cycleReadingControl(false)
+                    GESTURE_SWIPE_UP_AND_LEFT -> goHome()
+                    GESTURE_SWIPE_DOWN_AND_LEFT -> performGlobalAction(GLOBAL_ACTION_BACK)
+                    GESTURE_SWIPE_LEFT_AND_UP -> openRecents()
+                    GESTURE_SWIPE_RIGHT_AND_DOWN -> openNotifications()
+                    GESTURE_SWIPE_LEFT_AND_DOWN -> openTypedScreenSearch()
+                    GESTURE_4_FINGER_SINGLE_TAP -> {
+                        talkBackPractice = true
+                        say("Gesztusgyakorlás. A mozdulatokat csak bemondom. Négyujjas koppintás a kilépéshez.")
+                    }
+                    GESTURE_3_FINGER_SINGLE_TAP, GESTURE_SWIPE_DOWN_AND_RIGHT -> openProfileActions()
+                    GESTURE_SWIPE_RIGHT_AND_LEFT -> adjustProfileSlider(increase = true)
+                    GESTURE_SWIPE_LEFT_AND_RIGHT -> adjustProfileSlider(increase = false)
+                    GESTURE_2_FINGER_SWIPE_UP -> scrollPage(forward = true)
+                    GESTURE_2_FINGER_SWIPE_DOWN -> scrollPage(forward = false)
+                    GESTURE_2_FINGER_SWIPE_LEFT -> scrollProfileHorizontally(left = true)
+                    GESTURE_2_FINGER_SWIPE_RIGHT -> scrollProfileHorizontally(left = false)
+                    GESTURE_2_FINGER_TRIPLE_TAP -> {
+                        ensureNodes()
+                        if (index < filtered.lastIndex) {
+                            index++
+                            startContinuousReading()
+                        } else say("Nincs következő elem.")
+                    }
+                    GESTURE_2_FINGER_DOUBLE_TAP_AND_HOLD -> toggleSelectionMode()
+                    GESTURE_3_FINGER_DOUBLE_TAP -> editProfileSelection(cut = false)
+                    GESTURE_3_FINGER_DOUBLE_TAP_AND_HOLD -> editProfileSelection(cut = true)
+                    GESTURE_3_FINGER_TRIPLE_TAP -> pasteFromClipboard()
+                    GESTURE_4_FINGER_DOUBLE_TAP -> say(profile.help.orEmpty())
+                    GESTURE_4_FINGER_DOUBLE_TAP_AND_HOLD -> armTalkBackPass()
+                    else -> return false
+                }
+            } else {
+                when (gesture) {
+                    GESTURE_2_FINGER_SWIPE_UP -> { jumpTo(first = true); startContinuousReading() }
+                    GESTURE_2_FINGER_SWIPE_DOWN -> startContinuousReading()
+                    GESTURE_2_FINGER_SWIPE_RIGHT -> enterVoiceOverGroup()
+                    GESTURE_2_FINGER_SWIPE_LEFT -> leaveVoiceOverGroup()
+                    GESTURE_2_FINGER_DOUBLE_TAP_AND_HOLD -> labelCurrentElement()
+                    GESTURE_2_FINGER_TRIPLE_TAP -> openDocumentElementChooser()
+                    GESTURE_3_FINGER_SINGLE_TAP -> whereAmI()
+                    GESTURE_3_FINGER_SWIPE_UP -> scrollPage(forward = true)
+                    GESTURE_3_FINGER_SWIPE_DOWN -> scrollPage(forward = false)
+                    GESTURE_3_FINGER_SWIPE_RIGHT -> scrollProfileHorizontally(left = true)
+                    GESTURE_3_FINGER_SWIPE_LEFT -> scrollProfileHorizontally(left = false)
+                    else -> return false
+                }
+            }
+            true
+        } catch (error: Exception) {
+            ScreenReaderPrefs.reportFailure(this, "gesztusprofil: ${error.message}")
+            false
+        }
+    }
+
+    private fun armTalkBackPass() {
+        if (android.os.Build.VERSION.SDK_INT < 30) return
+        val manager = getSystemService(android.view.WindowManager::class.java) ?: return
+        clearTalkBackPass()
+        setTouchExplorationPassthroughRegion(
+            android.view.Display.DEFAULT_DISPLAY,
+            android.graphics.Region(manager.maximumWindowMetrics.bounds)
+        )
+        talkBackPassArmed = true
+        handler.postDelayed(expireTalkBackPass, 8_000)
+        say("A következő érintést az alkalmazás kapja.")
+    }
+
+    private fun clearTalkBackPass() {
+        if (!talkBackPassArmed || android.os.Build.VERSION.SDK_INT < 30) return
+        talkBackPassArmed = false
+        talkBackPassStarted = false
+        handler.removeCallbacks(expireTalkBackPass)
+        runCatching {
+            setTouchExplorationPassthroughRegion(android.view.Display.DEFAULT_DISPLAY, android.graphics.Region())
+        }
+    }
+
+    private fun adjustProfileSlider(increase: Boolean): Boolean {
+        ensureNodes()
+        val node = filtered.getOrNull(index) ?: return false
+        if (!csuszkaE(node)) return false
+        if (csuszkatAllit(node, novel = increase)) {
+            nodesStale = true
+            say(if (increase) "Érték növelve." else "Érték csökkentve.")
+        } else sounds?.play(ScreenReaderSounds.Sound.EDGE)
+        return true
+    }
+
+    private fun moveProfileVertically(back: Boolean) {
+        val control = profileReadingControl
+        if (selectionMode && appliedGestureProfile == ScreenReaderGestureProfile.TALKBACK) {
+            val unit = if (granularity == ReadingGranularity.ELEMENT) ReadingGranularity.CHARACTER else granularity
+            if (!moveWithSelection(forward = !back, unit = unit)) say("A kijelölés ebbe az irányba nem bővíthető.")
+            return
+        }
+        if (control == ProfileReadingControl.SEARCH_RESULTS) {
+            moveToScreenSearchResult(back)
+            return
+        }
+        if (control == ProfileReadingControl.EDITING) {
+            val cursor = cursorNavigation
+            if (selectionMode) {
+                if (!moveWithSelection(forward = !back, unit = editingSelectionUnit)) {
+                    say("A kijelölés ebbe az irányba nem bővíthető.")
+                }
+            } else if (cursor != null) {
+                stepEditingCursor(cursor, forward = !back)
+            } else {
+                openEditingMenu()
+            }
+            return
+        }
+        if (control == ProfileReadingControl.TABLE_ROWS || control == ProfileReadingControl.TABLE_COLUMNS) {
+            val table = focusedTable()
+            val current = filtered.getOrNull(index)
+            if (table == null || current == null) {
+                say("Állj egy táblázatra vagy egy cellára.")
+            } else if (ScreenReaderTable.positionOf(current) == null || current == table) {
+                focusBoundaryCell(table, first = !back)
+            } else {
+                moveInGrid(byRow = control == ProfileReadingControl.TABLE_ROWS, forward = !back)
+            }
+            return
+        }
+        if (control == ProfileReadingControl.ACTIONS) {
+            selectRotorAction(back)
+            return
+        }
+        if (adjustProfileSlider(increase = back)) return
+        if (control == ProfileReadingControl.SPEECH_RATE) {
+            val previous = ScreenReaderPrefs.speechRate(this)
+            ScreenReaderPrefs.setSpeechRate(this, previous + if (back) 0.1f else -0.1f)
+            val percent = (ScreenReaderPrefs.speechRate(this) * 100).toInt()
+            say("Beszédsebesség: $percent százalék.")
+            return
+        }
+        if (control.filter == null && control.structure == null) {
+            move(if (back) -1 else 1)
+            return
+        }
+        ensureNodes()
+        val candidates = if (back) (index - 1 downTo 0) else (index + 1 until filtered.size)
+        val next = candidates.firstOrNull { matchesProfileControl(filtered[it], control) }
+        fun focus(position: Int) {
+            val target = focusRotorResult(position)
+            sayScreenContent(target, documentElementLabel(target, control.structure))
+        }
+        if (next != null) {
+            focus(next)
+        } else {
+            val message = if (back) "Nincs előző ilyen elem." else "Nincs következő ilyen elem."
+            if (!searchScrolledRotorPages(back, { matchesProfileControl(it, control) }, ::focus, message)) {
+                say(message)
+            }
+        }
+    }
+
+    private fun editProfileSelection(cut: Boolean) {
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        if (node?.isPassword == true) {
+            say("Jelszó nem másolható.")
+            return
+        }
+        if (!cut && node?.isEditable != true) {
+            copyCurrentToClipboard()
+            return
+        }
+        val action = if (cut) AccessibilityNodeInfo.ACTION_CUT else AccessibilityNodeInfo.ACTION_COPY
+        val success = node?.isEditable == true && node.performAction(action)
+        if (success && cut) {
+            selectionMode = false
+            nodesStale = true
+        }
+        say(if (success) {
+            if (cut) "Kivágva." else "Másolva."
+        } else "Nincs kijelölt szöveg.")
+    }
+
+    private fun toggleVoiceOverSpeech() {
+        val motor = tts ?: return
+        val mute = !motor.outputMuted
+        motor.outputMuted = mute
+        if (mute) {
+            stopContinuousReading()
+            motor.stop()
+            sounds?.play(ScreenReaderSounds.Sound.OFF)
+        } else {
+            sounds?.play(ScreenReaderSounds.Sound.ON)
+            say("Beszéd bekapcsolva.")
+        }
+    }
+
+    private fun toggleScreenCurtain() {
+        if (android.os.Build.VERSION.SDK_INT < 30 || lockSuspended ||
+            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != false
+        ) return
+        if (screenCurtain != null) {
+            hideScreenCurtain()
+            sounds?.play(ScreenReaderSounds.Sound.ON)
+            say("Képernyőfüggöny kikapcsolva.")
+            return
+        }
+        val manager = getSystemService(android.view.WindowManager::class.java) ?: return
+        val curtain = android.view.View(this).apply {
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            setBackgroundColor(android.graphics.Color.BLACK)
+        }
+        val params = android.view.WindowManager.LayoutParams(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.OPAQUE
+        ).apply {
+            setFitInsetsTypes(0)
+            layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            setTitle("Super DL screen curtain")
+        }
+        try {
+            manager.addView(curtain, params)
+            screenCurtain = curtain
+            sounds?.play(ScreenReaderSounds.Sound.OFF)
+            say("Képernyőfüggöny bekapcsolva.")
+        } catch (_: RuntimeException) {
+            say("A képernyőfüggöny nem kapcsolható be.")
+        }
+    }
+
+    private fun hideScreenCurtain() {
+        val curtain = screenCurtain ?: return
+        screenCurtain = null
+        try {
+            getSystemService(android.view.WindowManager::class.java)?.removeViewImmediate(curtain)
+        } catch (_: IllegalArgumentException) {
+            // Android már leválasztotta az ablakot.
+        }
+    }
+
+    private fun announcePracticeGesture(text: String): Boolean {
+        if (!voiceOverPractice) return false
+        say(text)
+        return true
+    }
+
+    private fun handleVoiceOverRotation(forward: Boolean) {
+        val direction = if (forward) "jobbra" else "balra"
+        if (!announcePracticeGesture("Rotorforgatás $direction.")) cycleReadingControl(forward)
+    }
+
+    private fun handleVoiceOverJump(first: Boolean) {
+        if (voiceOverPractice) finishVoiceOverPractice()
+        else jumpTo(first)
+    }
+
+    private fun handleVoiceOverScrub() {
+        if (announcePracticeGesture("Kétujjas Z gesztus. Vissza.")) return
+        if (profileMenu.isNotEmpty()) closeProfileMenu()
+        else performGlobalAction(GLOBAL_ACTION_BACK)
+    }
+
+    private fun startVoiceOverPractice() {
+        if (editorWindowId != null || keyboardSuspended) {
+            say("A gesztusgyakorláshoz zárd be a billentyűzetet.")
+            return
+        }
+        stopContinuousReading()
+        voiceOverPractice = true
+        say("iPhone-stílusú gesztusgyakorlás. A felismert gesztusokat bemondom. Négyujjas egyszeri koppintással léphetsz ki.")
+    }
+
+    private fun finishVoiceOverPractice() {
+        voiceOverPractice = false
+        say("Gesztusgyakorlás bezárva.")
+    }
+
+    private fun openVoiceOverQuickSettings() {
+        // A menüpontokat felolvassuk, ezért némításkor a beszédgesztus oldja fel előbb a némítást.
+        if (tts?.outputMuted == true) {
+            sounds?.play(ScreenReaderSounds.Sound.EDGE)
+            return
+        }
+        showProfileMenu("Képernyőolvasó gyorsbeállításai", listOf(
+            "Beszéd némítása" to { toggleVoiceOverSpeech() },
+            "Szerkesztés" to { openEditingMenu() },
+            "Bemondások előzményei" to { openSpeechHistory() },
+            "Olvasási könyvjelzők" to { openReadingBookmarks() },
+            "Gesztusgyakorlás" to { startVoiceOverPractice() },
+            (if (screenCurtain == null) "Képernyőfüggöny bekapcsolása" else "Képernyőfüggöny kikapcsolása")
+                to { toggleScreenCurtain() },
+            "Beszédsebesség" to {
+                profileReadingControl = ProfileReadingControl.SPEECH_RATE
+                granularity = ReadingGranularity.ELEMENT
+                say("Beszédsebesség. Fel gyorsít, le lassít.")
+            },
+            "Gesztussúgó" to { say(ScreenReaderGestureProfile.VOICE_OVER.help.orEmpty()) }
+        ))
+    }
+
+    private fun openProfileActions() {
+        showProfileMenu("Képernyőolvasó menü", listOf(
+            "Felolvasás az elejétől" to { jumpTo(first = true); startContinuousReading() },
+            "Felolvasás innen" to { startContinuousReading() },
+            "Keresés a képernyőn" to { openTypedScreenSearch() },
+            "Keresés hanggal" to { searchByVoice() },
+            "Szerkesztés" to { openEditingMenu() },
+            "Bemondások előzményei" to { openSpeechHistory() },
+            "Olvasási könyvjelzők" to { openReadingBookmarks() },
+            "Kijelölt elem feliratának felismerése" to { readImageAtCursor() },
+            "Gesztussúgó" to { say(ScreenReaderPrefs.gestureProfile(this).help.orEmpty()) }
+        ))
+    }
+
+    private fun openReadingBookmarks() {
+        val window = readerWindow
+        if (window == null) {
+            say("Ehhez az ablakhoz nincs elérhető könyvjelző.")
+            return
+        }
+        val items = mutableListOf<Pair<String, () -> Unit>>("Jelenlegi hely megjelölése" to { saveReadingBookmark(window) })
+        val saved = readingBookmarks.asReversed().filter { it.window == window }
+        saved.forEachIndexed { position, bookmark ->
+            items.add("${position + 1}. ${bookmark.label.take(100)}" to { openReadingBookmark(bookmark) })
+        }
+        if (saved.isNotEmpty()) {
+            items.add("Az ablak könyvjelzőinek törlése" to {
+                readingBookmarks.removeAll { it.window == window }
+                say("Az ablak könyvjelzői törölve.")
+            })
+        }
+        showProfileMenu("Olvasási könyvjelzők. ${saved.size} mentett hely.", items)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun saveReadingBookmark(window: ReaderWindow) {
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        if (readerWindow != window || node == null || node.windowId != window.id ||
+            !ScreenReaderNavigator.refresh(node) || node.isEditable || node.isPassword
+        ) {
+            say("Ez az elem nem jelölhető meg.")
+            return
+        }
+        val anchor = FocusAnchor.of(node, index)
+        if (anchor == null || anchor.label.isBlank()) {
+            say("Ezen az elemen nincs megjelölhető szöveg.")
+            return
+        }
+        readingBookmarks.removeAll { it.window == window && it.node == node && it.anchor.label == anchor.label }
+        if (readingBookmarks.size == 20) readingBookmarks.removeFirst()
+        readingBookmarks.addLast(ReadingBookmark(window, AccessibilityNodeInfo.obtain(node), anchor, anchor.label))
+        say("Olvasási könyvjelző mentve. ${anchor.label.take(100)}")
+    }
+
+    private fun openReadingBookmark(bookmark: ReadingBookmark) {
+        showProfileMenu("Olvasási könyvjelző", listOf(
+            "Ugrás a megjelölt helyre" to { jumpToReadingBookmark(bookmark) },
+            "Könyvjelző törlése" to {
+                readingBookmarks.remove(bookmark)
+                say("Könyvjelző törölve.")
+            },
+            "Vissza a könyvjelzőkhöz" to { openReadingBookmarks() }
+        ))
+    }
+
+    private fun matchesReadingBookmark(node: AccessibilityNodeInfo, bookmark: ReadingBookmark): Boolean =
+        node.windowId == bookmark.window.id && !node.isPassword && !node.isEditable &&
+            node.className?.toString().orEmpty() == bookmark.anchor.className &&
+            (bookmark.anchor.viewId.isBlank() || node.viewIdResourceName == bookmark.anchor.viewId) &&
+            ScreenReaderNavigator.labelOf(node).orEmpty() == bookmark.anchor.label
+
+    private fun jumpToReadingBookmark(bookmark: ReadingBookmark) {
+        if (readerWindow != bookmark.window || lockSuspended) {
+            say("A könyvjelző ablaka már nem érhető el.")
+            return
+        }
+        val generation = ++bookmarkJumpGeneration
+        fun focusVisibleBookmark(): Boolean {
+            clearNodes()
+            ensureNodes()
+            val target = nodes.firstOrNull { it == bookmark.node && matchesReadingBookmark(it, bookmark) }
+                ?: nodes.singleOrNull { matchesReadingBookmark(it, bookmark) }
+                ?: return false
+            if (!ScreenReaderNavigator.refresh(target) || !matchesReadingBookmark(target, bookmark)) return false
+            if (target !in filtered) {
+                voiceOverGroups.clear()
+                mode = NavigationMode.ALL
+                applyFilter()
+            }
+            val position = filtered.indexOf(target)
+            if (position < 0) return false
+            cursorNavigation = null
+            selectionMode = false
+            index = position
+            lastLabel = ScreenReaderNavigator.labelOf(target)
+            markSystemFocus(target)
+            prepareSegments(target, fromEnd = false)
+            sayScreenContent(target, describeWithCustomLabel(target))
+            return true
+        }
+        if (focusVisibleBookmark()) return
+        val saved = bookmark.node
+        if (ScreenReaderNavigator.refresh(saved) && matchesReadingBookmark(saved, bookmark) &&
+            saved.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+        ) {
+            fun retry(attempt: Int) {
+                if (bookmarkJumpGeneration != generation || lockSuspended || readerWindow != bookmark.window) return
+                if (focusVisibleBookmark()) return
+                if (attempt < 3) handler.postDelayed({ retry(attempt + 1) }, 250L)
+                else say("A megjelölt elem most nem érhető el.")
+            }
+            handler.postDelayed({ retry(1) }, 300L)
+        } else {
+            say("A megjelölt elem most nem érhető el.")
+        }
+    }
+
+    private fun openSpeechHistory() {
+        val recent = speechHistory.newestFirst()
+        if (recent.isEmpty()) {
+            say("Nincs visszahallgatható bemondás.")
+            return
+        }
+        val items = recent.mapIndexed { index, entry ->
+            val singleLine = entry.lineSequence().joinToString(" ")
+            val preview = if (singleLine.length > 100) singleLine.take(100) + "…" else singleLine
+            "${index + 1}. $preview" to { openSpeechHistoryEntry(entry) }
+        }
+        showProfileMenu("Bemondások előzményei", items + ("Előzmények törlése" to {
+            speechHistory.clear()
+            say("A bemondások előzményei törölve.")
+        }))
+    }
+
+    private fun openSpeechHistoryEntry(entry: String) {
+        showProfileMenu("Bemondás", listOf(
+            "Teljes bemondás visszahallgatása" to { say(entry) },
+            "Másolás a vágólapra" to {
+                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+                val copied = clipboard != null && runCatching {
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Super DL", entry))
+                }.isSuccess
+                say(if (copied) "A bemondás másolva." else "A bemondás másolása nem sikerült.")
+            },
+            "Vissza az előzményekhez" to { openSpeechHistory() }
+        ))
+    }
+
+    private fun openTypedScreenSearch() {
+        val window = readerWindow ?: return
+        searchGeneration++
+        searchOrigin = window
+        try {
+            startActivity(android.content.Intent(this, LabelInputActivity::class.java)
+                .putExtra(LabelInputActivity.EXTRA_SCREEN_SEARCH, true)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: RuntimeException) {
+            searchOrigin = null
+            say("A keresőmező nem nyitható meg.")
+        }
+    }
+
+    internal fun submitScreenSearch(query: String) {
+        val origin = searchOrigin ?: return
+        searchOrigin = null
+        val generation = searchGeneration
+        fun showWhenReturned(attempt: Int) {
+            if (searchGeneration != generation || lockSuspended || !ScreenReaderPrefs.isEnabled(this)) return
+            val root = activeRootOrFallback()
+            if (touchModeActive && !keyboardSuspended && readerWindow == origin &&
+                root?.windowId == origin.id
+            ) {
+                nodesStale = true
+                val matcher = ScreenTextQuery.parse(query)
+                if (matcher == null) {
+                    say("Adj meg keresendő szöveget.")
+                } else {
+                    screenSearch = ScreenSearch(origin, matcher)
+                    openProfileItemChooser(matcher)
+                }
+            } else if (attempt < 20) {
+                handler.postDelayed({ showWhenReturned(attempt + 1) }, 150L)
+            }
+        }
+        handler.postDelayed({ showWhenReturned(0) }, 150L)
+    }
+
+    private fun currentScreenSearch(): ScreenTextQuery? =
+        screenSearch?.takeIf { it.window == readerWindow }?.query
+
+    private fun screenSearchMatches(node: AccessibilityNodeInfo, query: ScreenTextQuery): Boolean =
+        !node.isPassword && query.matches(documentElementLabel(node))
+
+    private fun moveToScreenSearchResult(back: Boolean) {
+        val query = currentScreenSearch()
+        if (query == null) {
+            say("Ehhez az ablakhoz nincs aktív keresés.")
+            return
+        }
+        ensureNodes()
+        val matches = filtered.indices.filter { screenSearchMatches(filtered[it], query) }
+        val target = if (back) matches.lastOrNull { it < index } else matches.firstOrNull { it > index }
+        fun focus(position: Int) {
+            val node = focusRotorResult(position)
+            val visible = filtered.indices.filter { screenSearchMatches(filtered[it], query) }
+            say("${visible.indexOf(position) + 1}. találat a látható ${visible.size} közül. ${documentElementLabel(node)}")
+        }
+        if (target != null) {
+            focus(target)
+        } else {
+            val message = if (back) "Nincs előző találat." else "Nincs következő találat."
+            if (!searchScrolledRotorPages(back, { screenSearchMatches(it, query) }, ::focus, message)) {
+                say(if (matches.isEmpty()) "Nincs találat." else message)
+            }
+        }
+    }
+
+    private fun focusRotorResult(position: Int): AccessibilityNodeInfo {
+        index = position
+        val node = filtered[position]
+        lastLabel = ScreenReaderNavigator.labelOf(node)
+        prepareSegments(node, fromEnd = false)
+        return node
+    }
+
+    private fun searchScrolledRotorPages(
+        back: Boolean,
+        matches: (AccessibilityNodeInfo) -> Boolean,
+        onMatch: (Int) -> Unit,
+        noMatch: String
+    ): Boolean {
+        if (appliedGestureProfile != ScreenReaderGestureProfile.VOICE_OVER ||
+            keyboardSuspended || !keyboardPassRegion.isEmpty || lockSuspended
+        ) return false
+        val origin = readerWindow ?: return false
+        val start = filtered.getOrNull(index) ?: return false
+        val group = voiceOverGroups.lastOrNull()?.node
+        val verticalAction = if (back) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id
+            else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id
+        val genericAction = if (back) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        val owner = generateSequence(start) { it.parent }.take(16)
+            .takeWhile { group == null || it == group || isInsideGroup(it, group) }
+            .firstOrNull { node ->
+                node.isScrollable && node.actionList.any { it.id == verticalAction || it.id == genericAction }
+            } ?: return false
+        val actions = owner.actionList
+        val action = when {
+            actions.any { it.id == verticalAction } -> verticalAction
+            actions.any {
+                it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id ||
+                    it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id
+            } -> return false
+            else -> genericAction
+        }
+        val generation = ++rotorScrollGeneration
+        val originalControl = profileReadingControl
+        val visited = mutableSetOf<List<String>>()
+
+        fun orderedPage(): List<IndexedValue<AccessibilityNodeInfo>> {
+            val page = scrollableElements(owner)
+            return if (back) page.asReversed() else page
+        }
+
+        fun scroll(pageNumber: Int): Boolean {
+            val oldKeys = orderedPage().map { pageElementKey(it.value) }
+            if (oldKeys.isEmpty() || !visited.add(oldKeys) ||
+                !runCatching { owner.performAction(action) }.getOrDefault(false)
+            ) return false
+
+            fun waitForScroll(attempt: Int) {
+                if (rotorScrollGeneration != generation || readerWindow != origin || lockSuspended ||
+                    profileReadingControl != originalControl || keyboardSuspended || !keyboardPassRegion.isEmpty
+                ) return
+                clearNodes()
+                ensureNodes()
+                val page = orderedPage()
+                val keys = page.map { pageElementKey(it.value) }
+                val firstNew = ContinuousPageOverlap.firstUnread(oldKeys, keys)
+                if (firstNew == null || keys in visited) {
+                    if (attempt < 3) handler.postDelayed({ waitForScroll(attempt + 1) }, 250L)
+                    else say(noMatch)
+                    return
+                }
+                val result = page.subList(firstNew, page.size).firstOrNull { matches(it.value) }
+                if (result != null) {
+                    sounds?.play(if (back) ScreenReaderSounds.Sound.SCROLL_UP else ScreenReaderSounds.Sound.SCROLL_DOWN)
+                    onMatch(result.index)
+                    return
+                }
+                focusRotorResult(page.last().index)
+                if (pageNumber < 3) {
+                    if (!scroll(pageNumber + 1)) say(noMatch)
+                } else {
+                    say("A következő három képernyőn ebben az irányban nincs találat. Söpréssel tovább kereshetsz.")
+                }
+            }
+
+            handler.postDelayed({ waitForScroll(1) }, 350L)
+            return true
+        }
+
+        return scroll(1)
+    }
+
+    private fun matchesProfileControl(node: AccessibilityNodeInfo, control: ProfileReadingControl): Boolean =
+        control.structure?.matches(node) ?: control.filter?.let { ScreenReaderFilter.matches(node, it) } ?: true
+
+    private fun documentElementLabel(node: AccessibilityNodeInfo, structure: DocumentStructure? = null): String {
+        val type = structure ?: DocumentStructure.entries.firstOrNull { it.matches(node) }
+        return if (type != null && ScreenReaderNavigator.labelOf(node).isNullOrBlank()) type.fallback
+            else describeWithCustomLabel(node)
+    }
+
+    private fun openDocumentElementChooser() {
+        ensureNodes()
+        val items = mutableListOf<Pair<String, () -> Unit>>("Minden elem" to { openProfileItemChooser() })
+        for (control in ProfileReadingControl.entries) {
+            if (control.filter == null && control.structure == null) continue
+            val count = filtered.count { !it.isPassword && matchesProfileControl(it, control) }
+            if (count > 0) items.add("${control.label}. $count elem." to { openProfileItemChooser(control = control) })
+        }
+        currentScreenSearch()?.let { query ->
+            val count = filtered.count { screenSearchMatches(it, query) }
+            if (count > 0) items.add("Keresési találatok. $count elem." to { openProfileItemChooser(query) })
+            items.add("Keresés törlése" to {
+                screenSearch = null
+                if (profileReadingControl == ProfileReadingControl.SEARCH_RESULTS) {
+                    profileReadingControl = ProfileReadingControl.DEFAULT
+                }
+                say("Keresés törölve.")
+            })
+        }
+        items.add("Keresés a képernyőn" to { openTypedScreenSearch() })
+        showProfileMenu("Elemválasztó", items)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun openProfileItemChooser(query: ScreenTextQuery? = null, control: ProfileReadingControl? = null) {
+        val origin = readerWindow
+        ensureNodes()
+        val items = filtered.mapIndexedNotNull { position, node ->
+            if (node.isPassword) return@mapIndexedNotNull null
+            if (control != null && !matchesProfileControl(node, control)) return@mapIndexedNotNull null
+            val name = documentElementLabel(node, control?.structure).takeIf { it.isNotBlank() }
+                ?: return@mapIndexedNotNull null
+            if (query != null && !query.matches(name)) return@mapIndexedNotNull null
+            val anchor = FocusAnchor.of(node, position)
+            val selected = AccessibilityNodeInfo.obtain(node)
+            name to {
+                ensureNodes()
+                val candidates = if (readerWindow == origin) filtered.withIndex().filter { (_, candidate) ->
+                    !candidate.isPassword && (control == null || matchesProfileControl(candidate, control)) &&
+                        (query == null || screenSearchMatches(candidate, query))
+                } else emptyList()
+                val target = candidates.firstOrNull { it.value == selected && ScreenReaderNavigator.refresh(it.value) }
+                    ?: anchor?.let { saved ->
+                        candidates.singleOrNull { (_, candidate) ->
+                            candidate.className?.toString().orEmpty() == saved.className &&
+                                (saved.viewId.isBlank() || candidate.viewIdResourceName == saved.viewId) &&
+                                ScreenReaderNavigator.labelOf(candidate).orEmpty() == saved.label
+                        }
+                    }
+                if (target != null) {
+                    index = target.index
+                    if (query != null && appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER) {
+                        profileReadingControl = ProfileReadingControl.SEARCH_RESULTS
+                        granularity = ReadingGranularity.ELEMENT
+                        selectionMode = false
+                        cursorNavigation = null
+                        rotorAction = null
+                    }
+                    val current = target.value
+                    lastLabel = ScreenReaderNavigator.labelOf(current)
+                    prepareSegments(current, fromEnd = false)
+                    sayScreenContent(current, documentElementLabel(current, control?.structure))
+                } else say("Ez az elem már nem érhető el.")
+            }
+        }
+        if (items.isEmpty()) say(if (query == null) "Nincs választható elem." else "Nincs találat.")
+        else showProfileMenu(control?.label ?: if (query == null) "Elemválasztó" else "${items.size} találat", items)
+    }
+
+    private fun showProfileMenu(title: String, items: List<Pair<String, () -> Unit>>) {
+        profileMenu = items
+        profileMenuIndex = 0
+        say("$title. ${items.first().first}. Jobbra vagy balra lépés. Dupla koppintás a választáshoz.")
+    }
+
+    private fun closeProfileMenu() {
+        profileMenu = emptyList()
+        say("Menü bezárva.")
+    }
+
+    private fun handleProfileMenuGesture(gesture: Int): Boolean {
+        if (profileMenu.isEmpty()) return false
+        when (gesture) {
+            GESTURE_SWIPE_RIGHT, GESTURE_SWIPE_LEFT, GESTURE_SWIPE_UP, GESTURE_SWIPE_DOWN -> {
+                val step = if (gesture == GESTURE_SWIPE_RIGHT || gesture == GESTURE_SWIPE_DOWN) 1 else -1
+                profileMenuIndex = (profileMenuIndex + step + profileMenu.size) % profileMenu.size
+                say(profileMenu[profileMenuIndex].first)
+            }
+            GESTURE_DOUBLE_TAP -> {
+                val action = profileMenu[profileMenuIndex].second
+                profileMenu = emptyList()
+                action()
+            }
+            GESTURE_SWIPE_DOWN_AND_LEFT, GESTURE_3_FINGER_SINGLE_TAP -> closeProfileMenu()
+        }
+        return true
+    }
+
+    private fun openEditingFromRotor(): Boolean {
+        if (profileReadingControl != ProfileReadingControl.EDITING) return false
+        cursorNavigation = null
+        openEditingMenu()
+        return true
+    }
+
+    private fun hasEditingOptions(node: AccessibilityNodeInfo): Boolean =
+        node.isEditable || (!node.isPassword && !ScreenReaderNavigator.labelOf(node).isNullOrBlank())
+
+    @Suppress("DEPRECATION")
+    private fun openEditingMenu() {
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        if (node == null || !ScreenReaderNavigator.refresh(node) || !hasEditingOptions(node)) {
+            say("Ezen az elemen nincs szerkeszthető vagy másolható szöveg.")
+            return
+        }
+        val owner = AccessibilityNodeInfo.obtain(node)
+        val items = mutableListOf<Pair<String, () -> Unit>>()
+        fun add(label: String, command: (AccessibilityNodeInfo) -> Unit) {
+            items.add(label to {
+                ensureNodes()
+                val current = filtered.getOrNull(index)
+                if (current == null || current != owner || !ScreenReaderNavigator.refresh(current)) {
+                    say("A kijelölt elem már nem érhető el.")
+                } else command(current)
+            })
+        }
+        if (!node.isPassword) {
+            if (selectedEditorRange(node) != null) {
+                add("Kijelölt szöveg felolvasása") { current ->
+                    val selection = selectedEditorRange(current)
+                    if (selection == null) say("Nincs kijelölt szöveg.")
+                    else say(current.text.subSequence(selection.first, selection.last + 1).toString())
+                }
+                if (node.isEditable && node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_SET_SELECTION }) {
+                    add("Kijelölés megszüntetése") { current ->
+                        val end = current.textSelectionEnd
+                        if (selectedEditorRange(current) != null && setEditorSelection(current, end)) {
+                            selectionMode = false
+                            say("A kijelölés megszűnt.")
+                        } else say("A kijelölés megszüntetése nem sikerült.")
+                    }
+                }
+            }
+            if (!ScreenReaderNavigator.labelOf(node).isNullOrBlank()) {
+                add("Másolás") { current ->
+                    if (current.textSelectionStart >= 0 && current.textSelectionEnd >= 0 &&
+                        current.textSelectionStart != current.textSelectionEnd
+                    ) {
+                        if (copySelection(current) != null) say("A kijelölt szöveg másolva.")
+                        else say("A kijelölt szöveg másolása nem sikerült.")
+                    } else copyCurrentToClipboard()
+                }
+            }
+            if (node.isEditable && node.textSelectionStart >= 0 && node.textSelectionEnd >= 0 &&
+                node.textSelectionStart != node.textSelectionEnd &&
+                node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CUT }
+            ) {
+                add("Kivágás") { editProfileSelection(cut = true) }
+            }
+            if (!node.text.isNullOrEmpty() && (node.isEditable ||
+                    node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_SET_SELECTION })) {
+                add("Összes kijelölése") { current ->
+                    val length = current.text?.length ?: 0
+                    val args = android.os.Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, length)
+                    }
+                    if (length > 0 && current.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)) {
+                        selectionMode = false
+                        say("Az összes szöveg kijelölve.")
+                    } else say("Itt nem sikerült kijelölni a teljes szöveget.")
+                }
+                if (node.isEditable && selectionMode) {
+                    add("Kijelölés lezárása") {
+                        selectionMode = false
+                        say("Kijelölés lezárva.")
+                    }
+                } else if (node.isEditable) {
+                    add("Részleges kijelölés karakterenként") {
+                        startEditingSelection(ReadingGranularity.CHARACTER, "karakterenként")
+                    }
+                    if ((node.movementGranularities and AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD) != 0) {
+                        add("Részleges kijelölés szavanként") {
+                            startEditingSelection(ReadingGranularity.WORD, "szavanként")
+                        }
+                    }
+                }
+            }
+        }
+        if (node.isEditable) {
+            add("Beillesztés") { pasteFromClipboard() }
+            if (!node.isPassword && !node.text.isNullOrEmpty() &&
+                node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_SET_SELECTION }
+            ) {
+                add("Kurzor a szöveg elejére") { moveEditingCursor(it, toEnd = false) }
+                add("Kurzor a szöveg végére") { moveEditingCursor(it, toEnd = true) }
+                for ((unit, label) in listOf(
+                    ReadingGranularity.CHARACTER to "karakterenként",
+                    ReadingGranularity.WORD to "szavanként",
+                    ReadingGranularity.LINE to "soronként"
+                )) {
+                    if ((node.movementGranularities and editorMovementGranularity(unit)) != 0) {
+                        add("Kurzor mozgatása $label") { current ->
+                            selectionMode = false
+                            cursorNavigation = CursorNavigation(AccessibilityNodeInfo.obtain(current), unit)
+                            say("Fel vagy le söpréssel $label mozgathatod a kurzort. Dupla koppintással visszatérhetsz a Szerkesztés menübe.")
+                        }
+                    }
+                }
+            }
+        }
+        if (items.isEmpty()) say("Itt nincs elérhető szerkesztési művelet.")
+        else showProfileMenu("Szerkesztés", items)
+    }
+
+    private fun moveEditingCursor(node: AccessibilityNodeInfo, toEnd: Boolean) {
+        if (!node.isEditable || node.isPassword || node.text.isNullOrEmpty()) {
+            say("Itt nem mozgatható a kurzor.")
+            return
+        }
+        val position = if (toEnd) node.text.length else 0
+        if (setEditorSelection(node, position)) {
+            selectionMode = false
+            nodesStale = true
+            say(if (toEnd) "A kurzor a szöveg végén van." else "A kurzor a szöveg elején van.")
+        } else {
+            say("A kurzor mozgatása nem sikerült.")
+        }
+    }
+
+    private fun selectedEditorRange(node: AccessibilityNodeInfo): IntRange? {
+        if (node.isPassword) return null
+        val length = node.text?.length ?: return null
+        val from = minOf(node.textSelectionStart, node.textSelectionEnd)
+        val to = maxOf(node.textSelectionStart, node.textSelectionEnd)
+        return if (from >= 0 && to <= length && from < to) from until to else null
+    }
+
+    private fun setEditorSelection(node: AccessibilityNodeInfo, position: Int): Boolean {
+        val args = android.os.Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, position)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, position)
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)
+    }
+
+    private fun stepEditingCursor(navigation: CursorNavigation, forward: Boolean) {
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        if (node == null || node != navigation.owner || !ScreenReaderNavigator.refresh(node) ||
+            !node.isEditable || node.isPassword
+        ) {
+            cursorNavigation = null
+            say("A szerkesztőmező már nem érhető el.")
+            return
+        }
+        val previous = node.textSelectionEnd
+        if (!performEditorMovement(node, forward, navigation.unit, extend = false)) {
+            say("A kurzor ebbe az irányba nem mozgatható.")
+            return
+        }
+        val current = if (ScreenReaderNavigator.refresh(node)) node.textSelectionEnd else -1
+        val text = node.text
+        val moved = if (text != null && previous in 0..text.length && current in 0..text.length) {
+            text.subSequence(minOf(previous, current), maxOf(previous, current)).toString()
+        } else ""
+        say(when {
+            moved == " " -> "szóköz"
+            moved == "\n" -> "új sor"
+            moved.isNotBlank() -> moved
+            else -> "Kurzor elmozdítva."
+        })
+    }
+
+    private fun startEditingSelection(unit: ReadingGranularity, spokenUnit: String) {
+        editingSelectionUnit = unit
+        selectionMode = true
+        say("Fel vagy le söpréssel $spokenUnit jelölhetsz ki. Dupla koppintással újra megnyithatod a Szerkesztés menüt.")
+    }
+
+    private fun namedRotorActions(node: AccessibilityNodeInfo): List<AccessibilityNodeInfo.AccessibilityAction> =
+        if (node.isPassword) emptyList()
+        else node.actionList.filter { !it.label.isNullOrBlank() }.distinctBy { it.id }
+
+    @Suppress("DEPRECATION")
+    private fun selectRotorAction(back: Boolean) {
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        val actions = node?.let(::namedRotorActions).orEmpty()
+        if (node == null || actions.isEmpty()) {
+            rotorAction = null
+            say("Ezen az elemen nincs külön művelet.")
+            return
+        }
+        val previous = rotorAction?.takeIf { it.owner == node }
+        val position = actions.indexOfFirst {
+            previous != null && it.id == previous.id && it.label.toString() == previous.label
+        }
+        val next = if (position < 0) {
+            if (back) actions.lastIndex else 0
+        } else (position + (if (back) -1 else 1) + actions.size) % actions.size
+        val action = actions[next]
+        val label = action.label.toString()
+        rotorAction = RotorAction(AccessibilityNodeInfo.obtain(node), action.id, label)
+        say("$label. ${next + 1} / ${actions.size}. Dupla koppintás a végrehajtáshoz.")
+    }
+
+    private fun performRotorAction(): Boolean {
+        if (profileReadingControl != ProfileReadingControl.ACTIONS) return false
+        val selected = rotorAction ?: return false
+        rotorAction = null
+        ensureNodes()
+        val node = filtered.getOrNull(index)
+        val available = node != null && node == selected.owner && ScreenReaderNavigator.refresh(node) &&
+            namedRotorActions(node).any { it.id == selected.id && it.label.toString() == selected.label }
+        if (!available || node?.performAction(selected.id) != true) {
+            say("A kiválasztott művelet már nem érhető el.")
+        } else {
+            nodesStale = true
+            sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
+        }
+        return true
+    }
+
+    private fun cycleReadingControl(forward: Boolean) {
+        rotorScrollGeneration++
+        stopContinuousReading()
+        ensureNodes()
+        val controls = ProfileReadingControl.entries.filter { control ->
+            when {
+                control == ProfileReadingControl.SENTENCES || control == ProfileReadingControl.PARAGRAPHS ->
+                    appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER
+                control == ProfileReadingControl.SEARCH_RESULTS ->
+                    appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+                        currentScreenSearch()?.let { query -> filtered.any { screenSearchMatches(it, query) } } == true
+                control == ProfileReadingControl.ACTIONS ->
+                    appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+                        filtered.getOrNull(index)?.let { namedRotorActions(it).isNotEmpty() } == true
+                control == ProfileReadingControl.EDITING ->
+                    appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+                        filtered.getOrNull(index)?.let(::hasEditingOptions) == true
+                control == ProfileReadingControl.TABLE_ROWS || control == ProfileReadingControl.TABLE_COLUMNS ->
+                    appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+                        filtered.getOrNull(index)?.let(ScreenReaderTable::tableOf) != null
+                control.structure != null -> appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER &&
+                    filtered.any { matchesProfileControl(it, control) }
+                control.filter != null -> filtered.any { matchesProfileControl(it, control) }
+                else -> true
+            }
+        }
+        val current = controls.indexOf(profileReadingControl).coerceAtLeast(0)
+        val step = if (forward) 1 else -1
+        profileReadingControl = controls[(current + step + controls.size) % controls.size]
+        cursorNavigation = null
+        rotorAction = null
+        granularity = profileReadingControl.unit
+        filtered.getOrNull(index)?.let { prepareSegments(it, fromEnd = false) }
+        say(profileReadingControl.label)
+    }
+
+    private fun scrollProfileHorizontally(left: Boolean) {
+        ensureNodes()
+        val id = if (left) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id
+            else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id
+        val node = filtered.getOrNull(index)
+        val scrollable = generateSequence(node) { it.parent }.firstOrNull { it.isScrollable }
+            ?: ScreenReaderNavigator.findScrollable(activeRootOrFallback())
+        if (scrollable?.performAction(id) == true) {
+            nodesStale = true
+        } else {
+            sounds?.play(ScreenReaderSounds.Sound.EDGE)
+        }
+    }
+
     private fun jumpTo(first: Boolean) {
         stopContinuousReading()
         ensureNodes()
@@ -1251,43 +2784,153 @@ class ScreenReaderService : AccessibilityService() {
      * FOLYAMATOS OLVASÁS: az aktuális elemtől végigolvassa a képernyőt.
      * Bármely gesztus megállítja.
      */
-    fun startContinuousReading() {
+    fun startContinuousReading() = beginContinuousReading(resume = false)
+
+    private fun beginContinuousReading(resume: Boolean) {
+        val motor = tts ?: return
+        if (motor.outputMuted) return
+        if (!resume || continuousPosition == null) {
+            continuousPosition = null
+            continuousScrollOwner = null
+            continuousPageHistory.clear()
+        }
         ensureNodes()
         if (filtered.isEmpty()) {
             sayWarning("Nincs mit felolvasni.")
             return
         }
+        if (resume) {
+            val saved = continuousPosition
+            val position = saved?.let { filtered.indexOf(it.node) } ?: -1
+            if (position >= 0) index = position
+            else continuousPosition = null
+        }
+        applySpeechRate()
         continuousReading = true
+        val run = ++continuousRun
         sounds?.play(ScreenReaderSounds.Sound.SCROLL_DOWN)
-        sayInfo("Folyamatos olvasás.")
-        readNextContinuous()
+        readNextContinuous(run)
     }
 
-    private fun readNextContinuous() {
-        if (!continuousReading) return
+    private fun readNextContinuous(run: Long) {
+        if (!continuousReading || continuousRun != run) return
         val node = filtered.getOrNull(index)
         if (node == null) {
-            stopContinuousReading()
-            sayInfo("A képernyő végére értem.")
+            finishContinuousReading()
             return
         }
-        val text = ScreenReaderNavigator.describe(node)
-        lastSpoken = text
-        tts?.speakThen(text) {
-            if (!continuousReading) return@speakThen
-            if (index >= filtered.lastIndex) {
+        val text = if (node.isPassword) "Jelszómező." else documentElementLabel(node)
+        val checkpoint = continuousPosition?.takeIf { it.node == node && it.text == text }
+            ?: ReadingPosition(node, text, ScreenReaderFilter.segments(text, ReadingGranularity.SENTENCE), 0)
+        continuousPosition = checkpoint
+        val part = checkpoint.parts.getOrNull(checkpoint.part)
+        if (part == null) {
+            advanceContinuousReading(run, checkpoint)
+            return
+        }
+        lastSpoken = part
+        rememberScreenContent(node, part)
+        tts?.speakThen(part) { advanceContinuousReading(run, checkpoint) }
+    }
+
+    private fun advanceContinuousReading(run: Long, checkpoint: ReadingPosition) {
+        if (!continuousReading || continuousRun != run) return
+        if (checkpoint.part < checkpoint.parts.lastIndex) {
+            continuousPosition = checkpoint.copy(part = checkpoint.part + 1)
+        } else {
+            continuousPosition = null
+            val owner = continuousScrollOwner
+            val next = (index + 1 until filtered.size).firstOrNull {
+                owner == null || isInsideGroup(filtered[it], owner)
+            }
+            if (next == null) {
+                if (!scrollContinuousReading(run, checkpoint.node)) finishContinuousReading()
+                return
+            }
+            index = next
+        }
+        handler.post { readNextContinuous(run) }
+    }
+
+    private fun scrollContinuousReading(run: Long, lastNode: AccessibilityNodeInfo): Boolean {
+        if (appliedGestureProfile != ScreenReaderGestureProfile.VOICE_OVER || keyboardSuspended ||
+            !keyboardPassRegion.isEmpty || lockSuspended
+        ) return false
+        val origin = readerWindow ?: return false
+        val group = voiceOverGroups.lastOrNull()?.node
+        val owner = continuousScrollOwner ?: generateSequence(lastNode) { it.parent }.take(16)
+            .takeWhile { group == null || it == group || isInsideGroup(it, group) }
+            .firstOrNull { candidate ->
+                candidate.isScrollable && candidate.actionList.any { action ->
+                    action.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id ||
+                        action.id == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                }
+            } ?: return false
+        val previousPage = scrollableElements(owner).map { pageElementKey(it.value) }
+        if (previousPage.isEmpty()) return false
+        val down = AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id
+        val action = when {
+            owner.actionList.any { it.id == down } -> down
+            owner.actionList.any {
+                it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id ||
+                    it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id
+            } -> return false
+            else -> AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        }
+        if (!runCatching { owner.performAction(action) }.getOrDefault(false)) return false
+        continuousScrollOwner = owner
+        if (continuousPageHistory.size >= 8) continuousPageHistory.removeFirst()
+        continuousPageHistory.addLast(previousPage)
+
+        fun waitForPage(attempt: Int) {
+            if (!continuousReading || continuousRun != run) return
+            if (readerWindow != origin || lockSuspended || !keyboardPassRegion.isEmpty) {
                 stopContinuousReading()
-                tts?.speak("A képernyő végére értem.")
+                return
+            }
+            clearNodes()
+            ensureNodes()
+            val page = scrollableElements(owner)
+            val keys = page.map { pageElementKey(it.value) }
+            val start = ContinuousPageOverlap.firstUnread(previousPage, keys)
+            if (start != null && keys !in continuousPageHistory) {
+                index = page[start].index
+                sounds?.play(ScreenReaderSounds.Sound.SCROLL_DOWN)
+                readNextContinuous(run)
+            } else if (attempt < 4) {
+                handler.postDelayed({ waitForPage(attempt + 1) }, 250L)
             } else {
-                index++
-                readNextContinuous()
+                finishContinuousReading()
             }
         }
+        handler.postDelayed({ waitForPage(1) }, 350L)
+        return true
+    }
+
+    private fun scrollableElements(owner: AccessibilityNodeInfo): List<IndexedValue<AccessibilityNodeInfo>> =
+        filtered.withIndex().filter { isInsideGroup(it.value, owner) }
+
+    private fun pageElementKey(node: AccessibilityNodeInfo): String {
+        val item = node.collectionItemInfo
+        val label = if (node.isPassword) "" else ScreenReaderNavigator.labelOf(node).orEmpty()
+        return listOf(node.className, node.viewIdResourceName, item?.rowIndex, item?.columnIndex, label)
+            .joinToString("\u0000")
+    }
+
+    private fun finishContinuousReading() {
+        stopContinuousReading()
+        sayInfo("A képernyő végére értem.")
     }
 
     private fun stopContinuousReading() {
         if (!continuousReading) return
         continuousReading = false
+        continuousRun++
+        if (!profileReadingPaused) {
+            continuousPosition = null
+            continuousScrollOwner = null
+            continuousPageHistory.clear()
+        }
         android.util.Log.i(ScreenReaderPrefs.TAG, "folyamatos olvasas megallitva")
     }
 
@@ -1391,11 +3034,26 @@ class ScreenReaderService : AccessibilityService() {
         }
         ensureNodes()
         val node = filtered.getOrNull(index)
+        if (node == null || node.isPassword || getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != false) {
+            say("Nincs felolvasható kijelölt elem.")
+            return
+        }
+        val windowId = node.windowId
+        val request = ++imageReadRequest
         sounds?.play(ScreenReaderSounds.Sound.FIELD)
         say("Kép olvasása.")
-        reader.readImage(node) { text ->
+        reader.readImage(node) { result ->
             handler.post {
-                if (text.isNullOrBlank()) {
+                if (request != imageReadRequest || !touchModeActive ||
+                    getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != false ||
+                    activeRootOrFallback()?.windowId != windowId ||
+                    filtered.getOrNull(index) != node
+                ) return@post
+                imageReadRequest++
+                val text = result.getOrNull()
+                if (text == null) {
+                    say("A kijelölt elem képét nem sikerült feldolgozni.")
+                } else if (text.isBlank()) {
                     sounds?.play(ScreenReaderSounds.Sound.EDGE)
                     say("Ezen a képen nincs olvasható szöveg.")
                 } else {
@@ -2008,6 +3666,35 @@ class ScreenReaderService : AccessibilityService() {
      * TÁBLÁZAT-NAVIGÁCIÓ: mozgás sor vagy oszlop szerint.
      * Egy tíz oszlopos táblázatban a soronkénti lépkedés használhatatlan lenne.
      */
+    private fun focusedTable(): AccessibilityNodeInfo? {
+        ensureNodes()
+        return filtered.getOrNull(index)?.let(ScreenReaderTable::tableOf)
+    }
+
+    private fun focusBoundaryCell(table: AccessibilityNodeInfo, first: Boolean) {
+        val cells = filtered.withIndex().filter { (_, node) ->
+            node != table && ScreenReaderTable.positionOf(node) != null && ScreenReaderTable.tableOf(node) == table
+        }
+        val target = if (first) cells.firstOrNull() else cells.lastOrNull()
+        if (target == null) say("Ebben a táblázatban nincs elérhető cella.")
+        else focusGridCell(target.index)
+    }
+
+    private fun announceGridFromRotor(): Boolean {
+        val control = profileReadingControl
+        if (control != ProfileReadingControl.TABLE_ROWS && control != ProfileReadingControl.TABLE_COLUMNS &&
+            control != ProfileReadingControl.TABLES
+        ) return false
+        val table = focusedTable() ?: return false
+        val current = filtered.getOrNull(index) ?: return false
+        if (current == table || ScreenReaderTable.positionOf(current) == null) {
+            focusBoundaryCell(table, first = true)
+        } else {
+            focusGridCell(index)
+        }
+        return true
+    }
+
     fun moveInGrid(byRow: Boolean, forward: Boolean) {
         stopContinuousReading()
         ensureNodes()
@@ -2026,20 +3713,25 @@ class ScreenReaderService : AccessibilityService() {
             sounds?.play(ScreenReaderSounds.Sound.EDGE)
             say(
                 when {
-                    byRow && forward -> "Ez az utolsó sor."
-                    byRow -> "Ez az első sor."
-                    forward -> "Ez az utolsó oszlop."
-                    else -> "Ez az első oszlop."
+                    byRow && forward -> "Nincs elérhető következő sor ebben az oszlopban."
+                    byRow -> "Nincs elérhető előző sor ebben az oszlopban."
+                    forward -> "Nincs elérhető következő oszlop ebben a sorban."
+                    else -> "Nincs elérhető előző oszlop ebben a sorban."
                 }
             )
             return
         }
+        focusGridCell(target)
+    }
+
+    private fun focusGridCell(target: Int) {
         index = target
         val node = filtered[index]
         lastLabel = ScreenReaderNavigator.labelOf(node)
         prepareSegments(node, fromEnd = false)
         sounds?.play(ScreenReaderSounds.Sound.NEXT)
-        say("${describeWithCustomLabel(node)}. ${ScreenReaderTable.speakPosition(node)}")
+        say(listOf(describeWithCustomLabel(node), ScreenReaderTable.speakPosition(node))
+            .filter { it.isNotBlank() }.joinToString(". "))
     }
 
     /**
@@ -2507,7 +4199,7 @@ class ScreenReaderService : AccessibilityService() {
         stopContinuousReading()
         ensureNodes()
         val node = filtered.getOrNull(index)
-        val text = node?.let { ScreenReaderNavigator.labelOf(it) }
+        val text = node?.takeUnless { it.isPassword }?.let { ScreenReaderNavigator.labelOf(it) }
         if (text.isNullOrBlank()) {
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
             say("Ezen az elemen nincs másolható szöveg.")
@@ -2613,6 +4305,9 @@ class ScreenReaderService : AccessibilityService() {
 
     /** Tart-e éppen kijelölés. */
     private var selectionMode = false
+    private var editingSelectionUnit = ReadingGranularity.CHARACTER
+    private data class CursorNavigation(val owner: AccessibilityNodeInfo, val unit: ReadingGranularity)
+    private var cursorNavigation: CursorNavigation? = null
 
     /** Hol kezdődött a kijelölés (karakter-pozíció a mezőben). */
     private var selectionStart = 0
@@ -2650,6 +4345,10 @@ class ScreenReaderService : AccessibilityService() {
         }
 
         // BEKAPCSOLÁS — csak szerkeszthető mezőben van értelme.
+        if (node?.isPassword == true) {
+            say("Jelszómezőben a képernyőolvasó nem indít kijelölést.")
+            return
+        }
         if (node == null || !node.isEditable) {
             sounds?.play(ScreenReaderSounds.Sound.EDGE)
             say(
@@ -2665,10 +4364,10 @@ class ScreenReaderService : AccessibilityService() {
             0
         }
         sounds?.play(ScreenReaderSounds.Sound.ON)
-        say(
-            "Kijelölés elindult. Mozogj fel-le a ${granularity.label} szerint. " +
-                "A befejezéshez ismételd meg ezt a mozdulatot."
-        )
+        val label = if (appliedGestureProfile == ScreenReaderGestureProfile.TALKBACK &&
+            granularity == ReadingGranularity.ELEMENT
+        ) ReadingGranularity.CHARACTER.label else granularity.label
+        say("Kijelölés elindult. Mozogj fel-le a $label szerint. A befejezéshez ismételd meg ezt a mozdulatot.")
     }
 
     /** A kijelölt szöveg vágólapra másolása. */
@@ -2684,8 +4383,13 @@ class ScreenReaderService : AccessibilityService() {
             val to = maxOf(start, end).coerceIn(0, full.length)
             val selected = full.substring(from, to)
             if (selected.isBlank()) return null
-            node.performAction(AccessibilityNodeInfo.ACTION_COPY)
-            selected
+            if (node.isPassword) return null
+            if (node.performAction(AccessibilityNodeInfo.ACTION_COPY)) selected
+            else {
+                val clipboard = getSystemService(android.content.ClipboardManager::class.java) ?: return null
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("SuperDL", selected))
+                selected
+            }
         } catch (e: Exception) {
             android.util.Log.w(ScreenReaderPrefs.TAG, "kijeloles masolas hiba: ${e.message}")
             null
@@ -2696,32 +4400,12 @@ class ScreenReaderService : AccessibilityService() {
      * MOZGÁS KIJELÖLÉS KÖZBEN: a kijelölés NŐ, ahogy haladsz.
      * @return igaz, ha a kijelölés kezelte a mozdulatot
      */
-    private fun moveWithSelection(forward: Boolean): Boolean {
+    private fun moveWithSelection(forward: Boolean, unit: ReadingGranularity = granularity): Boolean {
         if (!selectionMode) return false
         val node = filtered.getOrNull(index) ?: return false
+        if (!ScreenReaderNavigator.refresh(node) || node.isPassword) return false
         return try {
-            val granularityFlag = when (granularity) {
-                ReadingGranularity.CHARACTER ->
-                    AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER
-                ReadingGranularity.WORD ->
-                    AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD
-                else ->
-                    AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE
-            }
-            val args = android.os.Bundle().apply {
-                putInt(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                    granularityFlag
-                )
-                // EZ A KULCS: a mozgás KITERJESZTI a kijelölést.
-                putBoolean(AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN, true)
-            }
-            val action = if (forward) {
-                AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-            } else {
-                AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-            }
-            val ok = node.performAction(action, args)
+            val ok = performEditorMovement(node, forward, unit, extend = true)
             if (ok) {
                 sounds?.play(ScreenReaderSounds.Sound.NEXT)
                 // Bemondjuk, MENNYI van kijelölve — így tudod, hol tartasz.
@@ -2734,6 +4418,27 @@ class ScreenReaderService : AccessibilityService() {
             android.util.Log.w(ScreenReaderPrefs.TAG, "kijeloles mozgas hiba: ${e.message}")
             false
         }
+    }
+
+    private fun editorMovementGranularity(unit: ReadingGranularity): Int = when (unit) {
+        ReadingGranularity.CHARACTER -> AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER
+        ReadingGranularity.WORD -> AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD
+        else -> AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE
+    }
+
+    private fun performEditorMovement(
+        node: AccessibilityNodeInfo,
+        forward: Boolean,
+        unit: ReadingGranularity,
+        extend: Boolean
+    ): Boolean {
+        val args = android.os.Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT, editorMovementGranularity(unit))
+            putBoolean(AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN, extend)
+        }
+        val action = if (forward) AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+            else AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+        return node.performAction(action, args)
     }
 
     /**
@@ -2752,25 +4457,12 @@ class ScreenReaderService : AccessibilityService() {
             return
         }
         try {
-            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-                as android.content.ClipboardManager
-            val clip = clipboard.primaryClip
-            if (clip == null || clip.itemCount == 0) {
-                sounds?.play(ScreenReaderSounds.Sound.EDGE)
-                say("A vágólap üres.")
-                return
-            }
-            val text = clip.getItemAt(0).coerceToText(this).toString()
-            val ok = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-            if (ok) {
+            if (node.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
                 sounds?.play(ScreenReaderSounds.Sound.ACTIVATE)
-                // MIÉRT: jelszómezőbe illesztett szöveget (pl. jelszókezelőből)
-                // nem mondunk ki hangosan.
-                val secret = try { node.isPassword } catch (_: Exception) { true }
-                say(if (secret) "Beillesztve." else "Beillesztve: ${text.take(60)}")
+                say("Beillesztve.")
             } else {
                 sounds?.play(ScreenReaderSounds.Sound.ERROR)
-                say("A beillesztés nem sikerült.")
+                say("A beillesztés nem sikerült. Ellenőrizd a vágólapot és a szövegmezőt.")
             }
         } catch (e: Exception) {
             sounds?.play(ScreenReaderSounds.Sound.ERROR)
@@ -2793,13 +4485,27 @@ class ScreenReaderService : AccessibilityService() {
      *  - Ha MÁR FUT: bemondjuk az elemet, és megszólal a térbeli hang.
      */
     private fun handleHoverEnter(event: AccessibilityEvent) {
-        if (!touchModeActive || lockSuspended || TrainingState.isActive) return
+        if (!touchModeActive || lockSuspended || TrainingState.isActive || talkBackPractice ||
+            voiceOverPractice || profileMenu.isNotEmpty()
+        ) return
         if (!ScreenReaderPrefs.isTouchExploreEnabled(this)) return
 
         val node = try {
             event.source
         } catch (_: Exception) {
             null
+        }
+        if (ScreenReaderPrefs.gestureProfile(this) != ScreenReaderGestureProfile.SUPER_DL) {
+            if (node == null) return
+            ensureNodes()
+            val match = filtered.indexOf(node)
+            if (match >= 0) {
+                index = match
+                lastLabel = ScreenReaderNavigator.labelOf(node)
+                prepareSegments(node, fromEnd = false)
+                say(describeWithCustomLabel(node))
+            }
+            return
         }
         val isNew = explorer.onHoverEnter(node)
 
@@ -2936,17 +4642,30 @@ class ScreenReaderService : AccessibilityService() {
         // A HELYÜNK MEGJEGYZÉSE, mielőtt eldobnánk a listát.
         // Nem sorszámmal, hanem MAGÁVAL AZ ELEMMEL — így egy átrendeződő
         // listában (csevegő, levelező) sem ugrik el a fókusz.
-        val anchor = FocusAnchor.of(filtered.getOrNull(index), index)
-
+        val currentAnchor = FocusAnchor.of(filtered.getOrNull(index), index)
         clearNodes()
         val root = activeRootOrFallback()
-        nodes = ScreenReaderNavigator.collectNodes(root)
+        nodes = ScreenReaderNavigator.collectNodes(root,
+            includeDocumentStructure = appliedGestureProfile == ScreenReaderGestureProfile.VOICE_OVER)
         nodesStale = false
         changeMonitor.onRebuilt()
         applyFilter()
 
-        // A HELY VISSZAKERESÉSE a horgony alapján, négy szinten.
-        val found = FocusAnchor.findIn(anchor, filtered)
+        // A mentett elem csak az ablak első sikeres bejárásakor irányítja a fókuszt.
+        val active = readerWindow
+        val cachedAnchor = if (active != null && root != null && filtered.isNotEmpty() && root.windowId == active.id &&
+            root.packageName?.toString() == active.packageName
+        ) windowPositions.remove(active) else null
+        val restored = cachedAnchor?.let { saved ->
+            filtered.withIndex().singleOrNull { (_, node) ->
+                val label = ScreenReaderNavigator.labelOf(node).orEmpty()
+                node.windowId == readerWindow?.id &&
+                    node.className?.toString().orEmpty() == saved.className &&
+                    (saved.viewId.isBlank() || node.viewIdResourceName == saved.viewId) &&
+                    label == saved.label && (saved.label.isNotBlank() || saved.viewId.isNotBlank())
+            }?.index
+        }
+        val found = restored ?: FocusAnchor.findIn(currentAnchor, filtered)
         if (found >= 0) {
             index = found
             return
@@ -2970,7 +4689,12 @@ class ScreenReaderService : AccessibilityService() {
         } catch (_: Exception) {
             null
         }
-        if (root != null) return root
+        val keyboardIsRoot = root != null && runCatching {
+            windows.any { it.id == root.windowId &&
+                it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        }.getOrDefault(false)
+        if (root != null && !keyboardIsRoot) return root
+        if (keyboardIsRoot || editorWindowId != null) applicationWindowBehindKeyboard()?.root?.let { return it }
         return try {
             windows
                 .filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
@@ -2983,11 +4707,72 @@ class ScreenReaderService : AccessibilityService() {
 
     /** A módra szűrt lista előállítása a teljes elemlistából. */
     private fun applyFilter() {
-        filtered = if (mode == NavigationMode.ALL) {
-            nodes
-        } else {
-            nodes.filter { ScreenReaderFilter.matches(it, mode) }
+        val candidates = if (mode == NavigationMode.ALL) nodes
+            else nodes.filter { ScreenReaderFilter.matches(it, mode) }
+        val group = voiceOverGroups.lastOrNull()?.node
+        filtered = if (group == null) candidates else candidates.filter { isInsideGroup(it, group) }
+    }
+
+    private fun isInsideGroup(node: AccessibilityNodeInfo, group: AccessibilityNodeInfo): Boolean {
+        if (node.windowId != group.windowId || node == group) return false
+        return generateSequence(node.parent) { it.parent }.take(32).any { it == group }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun enterVoiceOverGroup() {
+        ensureNodes()
+        val entry = filtered.getOrNull(index)
+        if (entry == null) {
+            say("Nincs kijelölt elem.")
+            return
         }
+        val activeGroup = voiceOverGroups.lastOrNull()?.node
+        val group = generateSequence(entry) { it.parent }.take(32)
+            .takeWhile { it != activeGroup && it.parent != null }
+            .firstOrNull { candidate ->
+                // A lapos Android-listában az elem maga is lehet csoportjelölő.
+                // Ha az app csak a gyereket adja át, a legközelebbi értelmes szülőt használjuk.
+                val children = filtered.count { isInsideGroup(it, candidate) }
+                if (candidate == entry) children > 0 && !candidate.isEditable
+                else children >= 2 && (candidate.isScrollable || candidate.collectionInfo != null ||
+                    (candidate.childCount >= 2 && !candidate.isClickable))
+            }
+        if (group == null) {
+            say("Itt nincs bejárható csoport.")
+            return
+        }
+        voiceOverGroups.add(VoiceOverGroup(AccessibilityNodeInfo.obtain(group), AccessibilityNodeInfo.obtain(entry)))
+        applyFilter()
+        focusAfterVoiceOverGroupChange("Belépés a csoportba. ${filtered.size} elem.", 0)
+    }
+
+    private fun leaveVoiceOverGroup() {
+        val group = voiceOverGroups.removeLastOrNull()
+        if (group == null) {
+            say("Nincs megnyitott csoport.")
+            return
+        }
+        ensureNodes()
+        applyFilter()
+        val entryIndex = filtered.indexOf(group.entry)
+        focusAfterVoiceOverGroupChange(
+            if (voiceOverGroups.isEmpty()) "Kilépés a csoportból." else "Vissza a külső csoportba.",
+            entryIndex.coerceAtLeast(0)
+        )
+    }
+
+    private fun focusAfterVoiceOverGroupChange(announcement: String, position: Int) {
+        index = position
+        val node = filtered.getOrNull(index)
+        lastLabel = node?.let { ScreenReaderNavigator.labelOf(it) }
+        if (node == null) {
+            segments = emptyList()
+            say(announcement)
+            return
+        }
+        markSystemFocus(node)
+        prepareSegments(node, fromEnd = false)
+        say("$announcement ${describeWithCustomLabel(node)}")
     }
 
     // ── BESZÉDSEBESSÉG ÉS CSÚSZKÁK ──────────────────────────────────────────
@@ -3269,6 +5054,17 @@ class ScreenReaderService : AccessibilityService() {
         }
     }
 
+    private fun rememberScreenContent(node: AccessibilityNodeInfo, text: String) {
+        if (!lockSuspended && !TrainingState.isActive && tts?.outputMuted == false &&
+            !node.isPassword && !node.isEditable
+        ) speechHistory.add(text)
+    }
+
+    private fun sayScreenContent(node: AccessibilityNodeInfo, text: String) {
+        rememberScreenContent(node, text)
+        say(text)
+    }
+
     private fun say(text: String) {
         applySpeechRate()
         lastSpoken = text
@@ -3335,7 +5131,7 @@ class ScreenReaderService : AccessibilityService() {
         filtered = emptyList()
     }
 
-    private fun move(delta: Int) {
+    private fun move(delta: Int, elementOnly: Boolean = false) {
         stopContinuousReading()
         // KIJELÖLÉS közben a fel-le mozgás a kijelölést NÖVELI, nem elemet vált.
         if (moveWithSelection(delta > 0)) return
@@ -3362,7 +5158,7 @@ class ScreenReaderService : AccessibilityService() {
 
         // RÉSZLETESSÉG: ha nem elem-szinten olvasunk, előbb a jelenlegi elem
         // szövegén belül lépkedünk, és csak a végén megyünk tovább.
-        if (granularity != ReadingGranularity.ELEMENT && segments.isNotEmpty()) {
+        if (!elementOnly && granularity != ReadingGranularity.ELEMENT && segments.isNotEmpty()) {
             val nextSeg = segmentIndex + delta
             if (nextSeg in segments.indices) {
                 segmentIndex = nextSeg
@@ -3383,6 +5179,18 @@ class ScreenReaderService : AccessibilityService() {
         // az sem megy — tehát tényleg a tartalom vége —, akkor jelezzük a szélt.
         val atEdge = (delta > 0 && index == filtered.lastIndex) ||
             (delta < 0 && index == 0)
+        if (atEdge && voiceOverGroups.isNotEmpty()) {
+            val group = voiceOverGroups.last().node
+            val action = if (delta > 0) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            if (group.isScrollable && group.performAction(action)) {
+                nodesStale = true
+                return
+            }
+            sounds?.play(ScreenReaderSounds.Sound.EDGE)
+            say(if (delta > 0) "A csoport vége." else "A csoport eleje.")
+            return
+        }
         if (atEdge && tryAutoScroll(delta > 0)) return
 
         index = (index + delta + filtered.size) % filtered.size
@@ -3420,7 +5228,7 @@ class ScreenReaderService : AccessibilityService() {
             val counter = if (ScreenReaderPrefs.isSpeakCounter(this)) {
                 ". ${index + 1} / ${filtered.size}"
             } else ""
-            say("${describeWithCustomLabel(current)}$counter")
+            sayScreenContent(current, "${describeWithCustomLabel(current)}$counter")
         } else {
             speakSegment()
         }
@@ -3757,6 +5565,9 @@ class ScreenReaderService : AccessibilityService() {
     override fun onDestroy() {
         if (live === this) live = null
         unregisterUnlockWatcher()
+        clearTalkBackPass()
+        updateVoiceOverTouch(false)
+        updateVoiceOverEdges(false)
         setTouchExploration(false)
         stopProximityWatch()
         handler.removeCallbacksAndMessages(null)

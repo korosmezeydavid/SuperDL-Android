@@ -38,16 +38,19 @@ class LabelInputActivity : Activity() {
 
         /** Mit mondjunk, MELYIK elemről van szó — csak felolvasáshoz. */
         const val EXTRA_WHAT = "label_what"
+        internal const val EXTRA_SCREEN_SEARCH = "screen_search"
     }
 
     private lateinit var tts: TtsManager
     private lateinit var gestureListener: SwipeGestureListener
     private var input: EditText? = null
     private var labelKey: String? = null
+    private var screenSearch = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        screenSearch = intent?.getBooleanExtra(EXTRA_SCREEN_SEARCH, false) == true
         labelKey = intent?.getStringExtra(EXTRA_KEY)?.takeIf { it.isNotBlank() }
         val what = intent?.getStringExtra(EXTRA_WHAT).orEmpty()
 
@@ -62,7 +65,7 @@ class LabelInputActivity : Activity() {
             textSize = 22f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            text = "Elnevezés"
+            text = if (screenSearch) "Keresés a képernyőn" else "Elnevezés"
         }
         root.addView(title)
 
@@ -72,8 +75,15 @@ class LabelInputActivity : Activity() {
             textSize = 24f
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
-            hint = "A gomb neve"
+            hint = if (screenSearch) "Keresett szöveg" else "A gomb neve"
             setSingleLine(true)
+            if (screenSearch) {
+                imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+                setOnEditorActionListener { _, action, _ ->
+                    if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) false
+                    else { save(); true }
+                }
+            }
             if (existing != null) {
                 setText(existing)
                 setSelection(existing.length)
@@ -98,7 +108,7 @@ class LabelInputActivity : Activity() {
             onSwipeLeft = { cancel() }
         )
 
-        if (labelKey == null) {
+        if (labelKey == null && !screenSearch) {
             // Ez nem fordulhat elő rendes úton, de ha mégis: ne hallgassunk.
             tts.speak("Ezt az elemet nem tudom megjegyezni.")
             field.postDelayed({ finish() }, 2500L)
@@ -114,6 +124,10 @@ class LabelInputActivity : Activity() {
             }
         }, 300L)
 
+        if (screenSearch) {
+            tts.speak("Keresés a képernyőn. Írd be a keresett szöveget, majd nyomd meg a Keresés gombot, vagy söpörj jobbra. Balra kilépés.")
+            return
+        }
         val opening = if (existing != null) {
             "Elnevezés. Jelenlegi neve: $existing. Írd be az újat."
         } else if (what.isNotBlank()) {
@@ -126,6 +140,10 @@ class LabelInputActivity : Activity() {
     }
 
     private fun speakHelp() {
+        if (screenSearch) {
+            tts.speak("Írd be a keresett szöveget. Keresés a billentyűzetről vagy jobbra söpréssel, balra kilépés.")
+            return
+        }
         tts.speak(
             "Írd be a nevet a billentyűzettel. Jobbra söprés menti, " +
                 "balra söprés elveti, lefelé felolvassa, mi van beírva."
@@ -145,8 +163,17 @@ class LabelInputActivity : Activity() {
      * egy elrontott elnevezéstől megszabadulj — ezért mondjuk is ki, mi történt.
      */
     private fun save() {
-        val key = labelKey ?: return
         val text = input?.text?.toString().orEmpty().trim()
+        if (screenSearch) {
+            if (text.isBlank()) {
+                tts.speak("Írd be, mit keresel.")
+                return
+            }
+            ScreenReaderService.live?.submitScreenSearch(text)
+            finish()
+            return
+        }
+        val key = labelKey ?: return
         ScreenReaderLabels.setLabelByKey(this, key, text)
         if (text.isBlank()) {
             tts.speak("A név törölve.")

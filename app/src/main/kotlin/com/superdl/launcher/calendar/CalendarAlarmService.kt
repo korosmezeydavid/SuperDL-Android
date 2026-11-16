@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.superdl.launcher.feedback.AlertSoundCategory
 import com.superdl.launcher.feedback.AlertSoundPlayer
@@ -21,6 +22,7 @@ import com.superdl.launcher.feedback.AlertSoundPlayer
 class CalendarAlarmService : Service() {
 
     companion object {
+        private const val TAG = "CalendarAlarmService"
         const val CHANNEL_ID = "CALENDAR_ALARM_CHANNEL"
         const val NOTIFICATION_ID = 7101
         const val EXTRA_TITLE = "calendar_alarm_title"
@@ -50,6 +52,17 @@ class CalendarAlarmService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(title, eventId, beginMs, endMs))
         startContinuousAlarm()
         startVibration()
+        val triggerMs = intent?.getLongExtra(CalendarAlarmReceiver.EXTRA_TRIGGER_MS, 0L) ?: 0L
+        if (eventId > 0L && beginMs > 0L && triggerMs == beginMs) {
+            // A naptárlekérdezés és az SMS-kérés nem futhat a főszálon.
+            Thread({
+                val result = NamedayGreetingDispatcher.dispatchForAlarm(
+                    applicationContext, eventId, beginMs, title, triggerMs)
+                if (result == NamedayGreetingDispatcher.Result.SEND_FAILED) {
+                    Log.w(TAG, "Névnapi SMS-kísérlet sikertelen; automatikus újrapróba nincs")
+                }
+            }, "SuperDL-NamedayGreeting").start()
+        }
         handler.postDelayed(autoStopRunnable, AUTO_STOP_MS)
         return START_STICKY
     }

@@ -72,3 +72,7 @@
 -dontwarn com.google.api.client.http.HttpTransport
 -dontwarn com.google.api.client.http.javanet.NetHttpTransport$Builder
 -dontwarn com.google.api.client.http.javanet.NetHttpTransport
+
+# TDLib discovers its JNI bridge by its original Java class and member names.
+-keep class org.drinkless.tdlib.JsonClient { *; }
+-keep class org.drinkless.tdlib.JsonClient$LogMessageHandler { *; }

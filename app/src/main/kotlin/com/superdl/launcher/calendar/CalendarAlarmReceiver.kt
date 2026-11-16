@@ -49,6 +49,7 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
                     putExtra(EXTRA_TITLE, title)
                     putExtra(EXTRA_BEGIN_MS, beginMs)
                     putExtra(EXTRA_END_MS, endMs)
+                    putExtra(EXTRA_TRIGGER_MS, intent.getLongExtra(EXTRA_TRIGGER_MS, 0L))
                 }
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -68,6 +69,7 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
                     putExtra(EXTRA_TITLE, title)
                     putExtra(EXTRA_BEGIN_MS, beginMs)
                     putExtra(EXTRA_END_MS, endMs)
+                    putExtra(EXTRA_TRIGGER_MS, intent.getLongExtra(EXTRA_TRIGGER_MS, 0L))
                 }
                 try {
                     appContext.startActivity(launch)

@@ -2,6 +2,7 @@ package com.superdl.launcher.info
 
 import java.util.Calendar
 import java.util.Locale
+import java.text.Normalizer
 
 object NamedayHelper {
 
@@ -116,6 +117,42 @@ object NamedayHelper {
         "12-27" to "János", "12-28" to "Kamilla", "12-29" to "Tamás, Tamara", "12-30" to "Dávid",
         "12-31" to "Szilveszter"
     )
+
+    data class NamedayMatch(val month: Int, val day: Int, val name: String)
+
+    /** Név szerinti keresés; az ékezet nélküli bevitel is működik. */
+    fun search(query: String): List<NamedayMatch> {
+        val needle = fold(query.trim())
+        if (needle.isEmpty()) return emptyList()
+        return NAMEDAYS.flatMap { (date, names) ->
+            names.split(',').mapNotNull { raw ->
+                val name = raw.trim()
+                if (!fold(name).startsWith(needle)) null else NamedayMatch(
+                    date.substring(0, 2).toInt(), date.substring(3, 5).toInt(), name
+                )
+            }
+        }.sortedWith(compareBy<NamedayMatch> { fold(it.name) != needle }
+            .thenBy { it.month }.thenBy { it.day }.thenBy { it.name })
+    }
+
+    private fun fold(text: String): String = Normalizer.normalize(
+        text.lowercase(Locale("hu", "HU")), Normalizer.Form.NFD
+    ).replace(Regex("\\p{M}+"), "")
+
+    /** Következő 9 órai előfordulás, szökőnapnál csak valódi február 29. */
+    fun nextOccurrence(match: NamedayMatch, now: Calendar = Calendar.getInstance()): Long? {
+        val firstYear = now.get(Calendar.YEAR)
+        for (year in firstYear..firstYear + 8) {
+            val date = Calendar.getInstance(now.timeZone).apply {
+                isLenient = false
+                clear()
+                set(year, match.month - 1, match.day, 9, 0)
+            }
+            val timestamp = try { date.timeInMillis } catch (_: IllegalArgumentException) { continue }
+            if (timestamp >= now.timeInMillis) return timestamp
+        }
+        return null
+    }
 
     fun forToday(): String = forDate(Calendar.getInstance())
 

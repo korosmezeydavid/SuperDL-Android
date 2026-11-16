@@ -22,11 +22,11 @@ object ScreenReaderNavigator {
      * A képernyő felolvasható elemei, a fa bejárási sorrendjében
      * (ez a legtöbb alkalmazásnál megegyezik a vizuális sorrenddel).
      */
-    fun collectNodes(root: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> {
+    fun collectNodes(root: AccessibilityNodeInfo?, includeDocumentStructure: Boolean = false): List<AccessibilityNodeInfo> {
         if (root == null) return emptyList()
         val out = mutableListOf<AccessibilityNodeInfo>()
         try {
-            walk(root, out, spokenByRow = null)
+            walk(root, out, spokenByRow = null, includeDocumentStructure = includeDocumentStructure)
         } catch (_: Exception) {
         }
         return out
@@ -39,7 +39,8 @@ object ScreenReaderNavigator {
     private fun walk(
         node: AccessibilityNodeInfo,
         out: MutableList<AccessibilityNodeInfo>,
-        spokenByRow: String?
+        spokenByRow: String?,
+        includeDocumentStructure: Boolean
     ) {
         if (out.size >= MAX_NODES) return
         if (!node.isVisibleToUser) return
@@ -47,7 +48,8 @@ object ScreenReaderNavigator {
         var covered = spokenByRow
         var added = false
 
-        if (isMeaningful(node) && !isAlreadySpoken(node, covered)) {
+        val structural = includeDocumentStructure && DocumentStructure.entries.any { it.matches(node) }
+        if (structural || (isMeaningful(node) && !isAlreadySpoken(node, covered))) {
             out.add(node)
             added = true
         }
@@ -60,7 +62,7 @@ object ScreenReaderNavigator {
 
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            walk(child, out, covered)
+            walk(child, out, covered, includeDocumentStructure)
         }
     }
 

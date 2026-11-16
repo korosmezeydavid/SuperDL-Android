@@ -32,6 +32,7 @@ class ScreenReaderSounds(context: Context) {
         .build()
 
     private val ids = mutableMapOf<Sound, Int>()
+    private var rotorStream = 0
 
     /**
      * Hány hang töltődött be eddig. A betöltés ASZINKRON: a szolgáltatás
@@ -63,7 +64,8 @@ class ScreenReaderSounds(context: Context) {
         FAIL,           // bukás: lekonyuló hang
         PIP,            // vékony pittyegés a százalék-jelzéshez
         STATE_ON,       // kapcsoló/jelölőnégyzet BEKAPCSOLT állapota
-        STATE_OFF       // kapcsoló/jelölőnégyzet KIKAPCSOLT állapota
+        STATE_OFF,      // kapcsoló/jelölőnégyzet KIKAPCSOLT állapota
+        ROTOR
     }
 
     init {
@@ -88,6 +90,7 @@ class ScreenReaderSounds(context: Context) {
             ids[Sound.FANFARE] = pool.load(context, R.raw.snd_sr_fanfare, 1)
             ids[Sound.FAIL] = pool.load(context, R.raw.snd_sr_fail, 1)
             ids[Sound.PIP] = pool.load(context, R.raw.snd_sr_pip, 1)
+            ids[Sound.ROTOR] = pool.load(context, R.raw.snd_sr_rotor, 1)
             ids[Sound.STATE_ON] = pool.load(context, R.raw.snd_sr_state_on, 1)
             ids[Sound.STATE_OFF] = pool.load(context, R.raw.snd_sr_state_off, 1)
             pool.setOnLoadCompleteListener { _, _, status ->
@@ -122,14 +125,15 @@ class ScreenReaderSounds(context: Context) {
      *
      * @param position 0.0 = a lista eleje, 1.0 = a vége
      */
-    fun playPercent(position: Float) {
-        if (!ready) return
-        val id = ids[Sound.PIP] ?: return
+    fun playPercent(position: Float): Boolean {
+        if (!ready) return false
+        val id = ids[Sound.PIP] ?: return false
         // 0.5 = egy oktávval lejjebb, 2.0 = egy oktávval feljebb.
         val rate = 0.5f + position.coerceIn(0f, 1f) * 1.5f
-        try {
-            pool.play(id, 0.55f, 0.55f, 1, 0, rate.coerceIn(0.5f, 2.0f))
+        return try {
+            pool.play(id, 0.55f, 0.55f, 1, 0, rate.coerceIn(0.5f, 2.0f)) != 0
         } catch (_: Exception) {
+            false
         }
     }
 
@@ -249,7 +253,20 @@ class ScreenReaderSounds(context: Context) {
         }
     }
 
+    fun startRotorLoop() {
+        if (!ready || rotorStream != 0) return
+        val sound = ids[Sound.ROTOR] ?: return
+        rotorStream = runCatching { pool.play(sound, 0.18f, 0.18f, 1, -1, 1f) }.getOrDefault(0)
+    }
+
+    fun stopRotorLoop() {
+        if (rotorStream == 0) return
+        runCatching { pool.stop(rotorStream) }
+        rotorStream = 0
+    }
+
     fun release() {
+        stopRotorLoop()
         try {
             pool.release()
         } catch (_: Exception) {

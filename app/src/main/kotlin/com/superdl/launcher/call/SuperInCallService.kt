@@ -178,13 +178,17 @@ class SuperInCallService : InCallService() {
             ).orEmpty().ifEmpty {
                 try {
                     telecom?.callCapablePhoneAccounts.orEmpty()
-                } catch (_: Exception) {
+                } catch (_: SecurityException) {
+                    emptyList()
+                } catch (_: RuntimeException) {
                     emptyList()
                 }
             }
         val preferred = try {
             telecom?.getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL)
-        } catch (_: Exception) {
+        } catch (_: SecurityException) {
+            null
+        } catch (_: RuntimeException) {
             null
         }
         val chosen = preferred?.takeIf { available.isEmpty() || it in available }

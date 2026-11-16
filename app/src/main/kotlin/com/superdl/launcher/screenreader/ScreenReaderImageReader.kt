@@ -33,16 +33,16 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
      * A megadott elem területének felolvasása.
      * @param onResult a felismert szöveg, vagy null ha nincs rajta olvasható
      */
-    fun readImage(node: AccessibilityNodeInfo?, onResult: (String?) -> Unit) {
+    fun readImage(node: AccessibilityNodeInfo?, onResult: (Result<String>) -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            onResult(null)
+            onResult(Result.failure(UnsupportedOperationException()))
             return
         }
         readImageApi30(node, onResult)
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun readImageApi30(node: AccessibilityNodeInfo?, onResult: (String?) -> Unit) {
+    private fun readImageApi30(node: AccessibilityNodeInfo?, onResult: (Result<String>) -> Unit) {
         val bounds = Rect().also { node?.getBoundsInScreen(it) }
         try {
             service.takeScreenshot(
@@ -51,15 +51,20 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
                 object : AccessibilityService.TakeScreenshotCallback {
                     override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                         val bitmap = toBitmap(result)
-                        if (bitmap == null) {
-                            onResult(null)
+                        val clipped = Rect(bounds)
+                        if (bitmap == null || !clipped.intersect(0, 0, bitmap.width, bitmap.height)) {
+                            bitmap?.recycle()
+                            onResult(Result.failure(IllegalStateException()))
                             return
                         }
-                        val cropped = cropTo(bitmap, bounds)
+                        val cropped = Bitmap.createBitmap(
+                            bitmap, clipped.left, clipped.top, clipped.width(), clipped.height()
+                        )
+                        if (cropped !== bitmap) bitmap.recycle()
                         ocr.recognize(
                             bitmap = cropped,
-                            onResult = { text -> onResult(text.trim().takeIf { it.isNotBlank() }) },
-                            onError = { onResult(null) }
+                            onResult = { text -> onResult(Result.success(text.trim())) },
+                            onError = { onResult(Result.failure(IllegalStateException())) }
                         )
                     }
 
@@ -68,13 +73,13 @@ class ScreenReaderImageReader(private val service: AccessibilityService) {
                             ScreenReaderPrefs.TAG,
                             "kepernyokep sikertelen, hibakod=$errorCode"
                         )
-                        onResult(null)
+                        onResult(Result.failure(IllegalStateException()))
                     }
                 }
             )
         } catch (e: Exception) {
             android.util.Log.w(ScreenReaderPrefs.TAG, "kepolvasas hiba: ${e.message}")
-            onResult(null)
+            onResult(Result.failure(e))
         }
     }
 

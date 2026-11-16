@@ -36,6 +36,14 @@ object AlertSoundPlayer {
         880 to 220
     )
 
+    // Külön, felismerhető visszahívási jel: két emelkedő pár és egy záró hang.
+    // PCM-ből készül; nincs letöltött vagy licencelendő hangfájl.
+    private val CALLBACK_SEQUENCE = listOf(
+        740 to 180, 988 to 180, 0 to 180,
+        740 to 180, 988 to 180, 0 to 180,
+        1175 to 320
+    )
+
     fun playAlertWakeBeep(context: Context? = null, force: Boolean = true) {
         if (context != null && !AlertSoundSettingsStore.shouldPlay(context, force)) return
         context?.let { ensureAlarmAudible(it) }
@@ -135,6 +143,17 @@ object AlertSoundPlayer {
         }, "SuperDL-SelectedAlertOnce").start()
     }
 
+    /**
+     * Visszahívási emlékeztető: szintetizált, elkülönülő jel a beépített
+     * hangszórón. A beszéd és a többi alkalmazás hangútvonalát nem állítja át.
+     * Ha a telefon nem tudja igazolni a hangszórós útvonalat, nem állítunk
+     * sikert, és nem tereljük át a jelzést a csatlakoztatott headsetre.
+     */
+    fun playCallbackReminderOnSpeaker(context: Context): Boolean {
+        ensureAlarmAudible(context)
+        return playSmsSequenceOnSpeaker(context, CALLBACK_SEQUENCE, requireSpeaker = true)
+    }
+
     /** Az SMS saját lejátszót kap: más hangok és a beszéd útvonalát nem állítjuk át. */
     private fun playSmsOnSpeaker(context: Context) {
         // A telefon értesítési csatornája lehet 0-ra halkítva akkor is, ha a
@@ -190,7 +209,9 @@ object AlertSoundPlayer {
         }
     }
 
-    private fun playSmsSequenceOnSpeaker(context: Context, notes: List<Pair<Int, Int>>): Boolean {
+    private fun playSmsSequenceOnSpeaker(
+        context: Context, notes: List<Pair<Int, Int>>, requireSpeaker: Boolean = false
+    ): Boolean {
         val sampleRate = 16_000
         val volume = toneVolume(context) / ToneGenerator.MAX_VOLUME.toDouble()
         val samples = ArrayList<Short>()
@@ -219,13 +240,17 @@ object AlertSoundPlayer {
                 .setBufferSizeInBytes(data.size * 2)
                 .setTransferMode(AudioTrack.MODE_STATIC)
                 .build()
-            speaker(context)?.let { track.setPreferredDevice(it) }
+            val builtInSpeaker = speaker(context)
+            if (requireSpeaker && builtInSpeaker == null) return false
+            val selected = builtInSpeaker?.let { track.setPreferredDevice(it) } ?: false
+            if (requireSpeaker && !selected) return false
             if (track.write(data, 0, data.size) != data.size) return false
             track.play()
             SystemClock.sleep(100L)
             val routed = track.routedDevice
-            if (routed != null && routed.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
-                Log.w(TAG, "SMS tartalékhang nem a hangszóróra került: ${routed.type}")
+            if ((requireSpeaker && routed?.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) ||
+                (routed != null && routed.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)) {
+                Log.w(TAG, "A célzott hang nem a beépített hangszóróra került: ${routed?.type}")
                 return false
             }
             sleepInterruptibly(data.size * 1000L / sampleRate + 100L)
