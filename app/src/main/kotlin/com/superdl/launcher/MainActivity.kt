@@ -1261,6 +1261,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteNoteChoice -> navigateGpsRouteNoteChoice(flow, -1)
             is AppFlow.GpsRouteVoiceRecording -> Unit
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, -1)
+            is AppFlow.GpsRouteEdit -> navigateGpsRouteEdit(flow, -1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, -1)
@@ -1538,6 +1539,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteNoteChoice -> navigateGpsRouteNoteChoice(flow, +1)
             is AppFlow.GpsRouteVoiceRecording -> Unit
             is AppFlow.GpsRouteBrowse -> navigateGpsRouteList(flow, +1)
+            is AppFlow.GpsRouteEdit -> navigateGpsRouteEdit(flow, 1)
             is AppFlow.GpsRouteDeleteConfirm -> repeatGpsRouteDeleteConfirm(flow.route)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> navigateLocationProfileList(flow, +1)
@@ -1822,6 +1824,7 @@ class MainActivity : AppCompatActivity() {
             is AppFlow.GpsRouteNoteChoice -> activateGpsRouteNoteChoice(flow)
             is AppFlow.GpsRouteVoiceRecording -> stopAndSaveGpsRouteVoiceRecording(flow)
             is AppFlow.GpsRouteBrowse -> onGpsRouteListActivate(flow)
+            is AppFlow.GpsRouteEdit -> activateGpsRouteEdit(flow)
             is AppFlow.GpsRouteDeleteConfirm -> deleteGpsRoute(flow)
             is AppFlow.GpsRouteGuidingActive -> speakGpsRoutePreview(flow.route)
             is AppFlow.LocationProfileBrowse -> onLocationProfileListActivate(flow)
@@ -2232,6 +2235,7 @@ class MainActivity : AppCompatActivity() {
                 exitFlow("Útvonal mentve alapértelmezett névvel: ${saved.speakPreview()}.")
             }
             is AppFlow.GpsRouteBrowse -> exitFlow("Mentett útvonalak bezárva.")
+            is AppFlow.GpsRouteEdit -> backGpsRouteEdit(flow)
             is AppFlow.GpsRouteDeleteConfirm -> {
                 activeFlow = AppFlow.GpsRouteBrowse(flow.routes, flow.index, deleteMode = true, guideMode = false)
                 updateFlowDisplay()
@@ -17382,33 +17386,93 @@ class MainActivity : AppCompatActivity() {
         when {
             flow.deleteMode -> enterGpsRouteDeleteConfirm(route, flow.routes, flow.index)
             flow.guideMode -> startGpsRouteGuide(route)
-            else -> showGpsRouteEditMenu(route)
+            else -> showGpsRouteEditMenu(flow, route)
         }
     }
 
     /** A szerkesztés a felvett koordinátákat nem módosítja; az új megjegyzés egy valódi felvett ponthoz kötődik. */
-    private fun showGpsRouteEditMenu(route: GpsRouteRecording) {
+    private val gpsRouteEditOptions = listOf(
+        "Útvonal átnevezése", "Bejegyzések szerkesztése", "Új megjegyzés felvett ponthoz")
+
+    private fun showGpsRouteEditMenu(browse: AppFlow.GpsRouteBrowse, route: GpsRouteRecording) {
         val current = GpsRouteStore.getById(this, route.id) ?: run {
             tts.speak("Az útvonal már nincs meg.")
             return
         }
-        val choices = arrayOf("Útvonal átnevezése", "Bejegyzések szerkesztése", "Új megjegyzés felvett ponthoz")
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(current.name)
-            .setItems(choices) { _, which ->
-                when (which) {
-                    0 -> showGpsRouteTextEditor("Útvonal új neve", current.name) { value ->
-                        val latest = GpsRouteStore.getById(this, current.id) ?: return@showGpsRouteTextEditor
-                        GpsRouteStore.save(this, latest.copy(name = value))
-                        refreshGpsRouteBrowse(latest.id, "Útvonal átnevezve: $value.")
-                    }
-                    1 -> showGpsRouteEntries(current.id)
-                    else -> askGpsRouteNotePosition(current.id)
+        val flow = AppFlow.GpsRouteEdit(browse, current)
+        activeFlow = flow
+        updateFlowDisplay()
+        tts.speak("Útvonalszerkesztés: ${current.name}. Fel-le választás, jobbra megnyitás, balra vissza. ${gpsRouteEditOptions.first()}.")
+    }
+
+    private fun gpsRouteEditLabel(flow: AppFlow.GpsRouteEdit): String {
+        if (!flow.entries) return gpsRouteEditOptions[flow.index]
+        val entry = flow.route.events[flow.index]
+        return "${flow.index + 1}. ${entry.label?.takeIf { it.isNotBlank() } ?: entry.type.name}"
+    }
+
+    private fun navigateGpsRouteEdit(flow: AppFlow.GpsRouteEdit, delta: Int) {
+        val size = if (flow.entries) flow.route.events.size else gpsRouteEditOptions.size
+        val next = flow.copy(index = (flow.index + delta + size) % size)
+        activeFlow = next
+        updateFlowDisplay()
+        tts.speak(gpsRouteEditLabel(next))
+    }
+
+    private fun backGpsRouteEdit(flow: AppFlow.GpsRouteEdit) {
+        if (flow.entries) {
+            val next = flow.copy(entries = false, index = 1)
+            activeFlow = next
+            updateFlowDisplay()
+            tts.speak("Útvonalszerkesztés. ${gpsRouteEditLabel(next)}.")
+        } else {
+            activeFlow = flow.browse
+            updateFlowDisplay()
+            speakGpsRoutePreview(flow.route)
+        }
+    }
+
+    private fun activateGpsRouteEdit(flow: AppFlow.GpsRouteEdit) {
+        val route = GpsRouteStore.getById(this, flow.route.id) ?: run {
+            exitFlow("Az útvonal már nincs meg.")
+            return
+        }
+        if (flow.entries) {
+            val event = flow.route.events[flow.index]
+            showGpsRouteTextEditor("${flow.index + 1}. bejegyzés szövege", event.label.orEmpty()) { value ->
+                val latest = GpsRouteStore.getById(this, route.id)
+                if (latest?.events?.getOrNull(flow.index) != event) {
+                    tts.speak("A bejegyzés időközben megváltozott.")
+                    return@showGpsRouteTextEditor
                 }
+                val updated = latest.events.toMutableList()
+                updated[flow.index] = event.copy(label = value)
+                GpsRouteStore.save(this, latest.copy(events = updated))
+                refreshGpsRouteBrowse(route.id, "Bejegyzés mentve: $value.")
             }
-            .setNegativeButton("Mégse", null)
-            .show()
-        tts.speak("${current.name}. Útvonal átnevezése, bejegyzések szerkesztése vagy új megjegyzés hozzáadása. A GPS nyomvonal változatlan marad.")
+            return
+        }
+        when (flow.index) {
+            0 -> showGpsRouteTextEditor("Útvonal új neve", route.name) { value ->
+                val latest = GpsRouteStore.getById(this, route.id) ?: run {
+                    exitFlow("Az útvonal már nincs meg.")
+                    return@showGpsRouteTextEditor
+                }
+                GpsRouteStore.save(this, latest.copy(name = value))
+                refreshGpsRouteBrowse(route.id, "Útvonal átnevezve: $value.")
+            }
+            1 -> {
+                if (route.events.isEmpty()) {
+                    tts.speak("Ezen az útvonalon nincs bejegyzés.")
+                    return
+                }
+                val next = flow.copy(route = route, entries = true, index = 0)
+                activeFlow = next
+                updateFlowDisplay()
+                tts.speak("${route.events.size} bejegyzés. Fel-le választás, jobbra szövegszerkesztés, balra vissza. ${gpsRouteEditLabel(next)}.")
+            }
+            2 -> askGpsRouteNotePosition(route.id)
+        }
     }
 
     private fun showGpsRouteTextEditor(title: String, initial: String, onSave: (String) -> Unit) {
@@ -17439,33 +17503,6 @@ class MainActivity : AppCompatActivity() {
         tts.speak("$title. Írd be a szöveget, majd Mentés.")
     }
 
-    private fun showGpsRouteEntries(routeId: String) {
-        val route = GpsRouteStore.getById(this, routeId) ?: return
-        if (route.events.isEmpty()) {
-            tts.speak("Ezen az útvonalon nincs bejegyzés.")
-            return
-        }
-        val labels = route.events.mapIndexed { index, event ->
-            "${index + 1}. ${event.label?.takeIf { it.isNotBlank() } ?: event.type.name}"
-        }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("${route.name}: bejegyzések")
-            .setItems(labels) { _, index ->
-                val event = route.events[index]
-                showGpsRouteTextEditor("${index + 1}. bejegyzés szövege", event.label.orEmpty()) { value ->
-                    val latest = GpsRouteStore.getById(this, routeId) ?: return@showGpsRouteTextEditor
-                    if (index >= latest.events.size) return@showGpsRouteTextEditor
-                    val updated = latest.events.toMutableList()
-                    updated[index] = updated[index].copy(label = value)
-                    GpsRouteStore.save(this, latest.copy(events = updated))
-                    refreshGpsRouteBrowse(routeId, "Bejegyzés mentve: $value.")
-                }
-            }
-            .setNegativeButton("Vissza", null)
-            .show()
-        tts.speak("${route.events.size} bejegyzés. Válassz egyet a szövegének javításához.")
-    }
-
     private fun askGpsRouteNotePosition(routeId: String) {
         val route = GpsRouteStore.getById(this, routeId) ?: return
         if (route.points.isEmpty()) {
@@ -17492,7 +17529,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 dialog.dismiss()
                 showGpsRouteTextEditor("Új útvonal-megjegyzés", "") { value ->
-                    val latest = GpsRouteStore.getById(this, routeId) ?: return@showGpsRouteTextEditor
+                    val latest = GpsRouteStore.getById(this, routeId)
+                    if (latest == null || latest.points.isEmpty()) {
+                        tts.speak("Az útvonal vagy a felvett pontjai már nem érhetők el. A megjegyzés nem lett mentve.")
+                        return@showGpsRouteTextEditor
+                    }
                     val pointIndex = gpsRoutePointAtPercent(latest, percent)
                     val point = latest.points[pointIndex]
                     val note = RouteEvent(RouteEventType.NOTE, point.latitude, point.longitude,
@@ -25872,6 +25913,11 @@ class MainActivity : AppCompatActivity() {
                 tvItem.text = flow.route.speakPreview()
                 tvPosition.text = "Útvonal elnevezése"
                 tvHint.text = "Diktáld a nevet  •  ⬅ alapértelmezett névvel mentés"
+            }
+            is AppFlow.GpsRouteEdit -> {
+                tvItem.text = gpsRouteEditLabel(flow)
+                tvPosition.text = if (flow.entries) "Útvonal bejegyzései" else "Útvonalszerkesztés"
+                tvHint.text = "⬆⬇ választás  •  ➡ megnyitás  •  ⬅ vissza"
             }
             is AppFlow.GpsRouteBrowse -> {
                 val route = flow.routes[flow.index]

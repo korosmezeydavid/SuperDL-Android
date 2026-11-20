@@ -68,6 +68,10 @@ class BlackjackActivity : AppCompatActivity() {
                     ScreenPhase.PLAYING -> confirmAction()
                 }
             },
+            onLongPress = {
+                val lastAction = game.currentState()?.lastAction.orEmpty()
+                tts.speak(lastAction.ifBlank { "Még nincs megismételhető játékesemény." })
+            },
             onSwipeLeft = {
                 sounds.play(SoundType.SWIPE_LEFT)
                 finishGame()

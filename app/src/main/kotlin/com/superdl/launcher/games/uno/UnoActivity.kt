@@ -67,6 +67,10 @@ class UnoActivity : AppCompatActivity() {
                     Phase.PLAYING -> if (pickingWildColor) confirmWildColor() else playOrDraw()
                 }
             },
+            onLongPress = {
+                val lastAction = game.currentState()?.lastAction.orEmpty()
+                tts.speak(lastAction.ifBlank { "Még nincs megismételhető játékesemény." })
+            },
             onSwipeLeft = {
                 sounds.play(SoundType.SWIPE_LEFT)
                 when (phase) {

@@ -1556,7 +1556,7 @@ object HelpTexts {
                 "abból, amit épp választani lehet — lap, betű, válasz, tét —, jobbra " +
                 "söpréssel lépsz, balra söpréssel kilépsz. A kilépés azonnali, nincs " +
                 "megerősítés, de a program elmondja, hol tartottál. A kártyajátékok " +
-                "végén a jobbra söprés új kört vagy új játékot indít. " +
+                "végén a jobbra söprés új kört vagy új játékot indít. Hosszú érintésre a játék megismétli az utolsó eseményt. " +
                 "A pontos szabályokat és az eltéréseket az egyes játékok saját " +
                 "súgója írja le — érdemes egyszer végighallgatni, mert néhol a " +
                 "fel-le söprés mást jelent, mint amit megszoktál.",

@@ -1674,6 +1674,9 @@ sealed class AppFlow {
 
     data class GpsRouteAwaitName(val route: com.superdl.launcher.route.GpsRouteRecording) : AppFlow()
 
+    data class GpsRouteEdit(val browse: GpsRouteBrowse, val route: com.superdl.launcher.route.GpsRouteRecording,
+                           val index: Int = 0, val entries: Boolean = false) : AppFlow()
+
     data class GpsRouteBrowse(
         val routes: List<com.superdl.launcher.route.GpsRouteRecording>,
         val index: Int,
